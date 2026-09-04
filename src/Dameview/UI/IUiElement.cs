@@ -14,7 +14,7 @@ internal interface IUiElement
 
     public void Draw(in UiDrawContext context, SizeF size);
 
-    public bool HandlePointer(in UiPointerEvent input, SizeF size);
+    public UiPointerResult HandlePointer(in UiPointerEvent input, SizeF size);
 }
 
 internal readonly record struct UiDrawContext(
@@ -87,6 +87,7 @@ internal enum UiPointerEventKind
     Moved,
     Pressed,
     Released,
+    Cancelled,
     DoubleClicked,
     Wheel,
 }
@@ -98,3 +99,8 @@ internal enum PointerButton
     Secondary,
     Middle,
 }
+
+internal readonly record struct UiPointerResult(
+    bool Consumed = false,
+    bool NeedsRepaint = false,
+    bool CapturePointer = false);

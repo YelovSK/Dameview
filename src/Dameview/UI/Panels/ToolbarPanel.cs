@@ -19,7 +19,7 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
     private readonly Button[] _buttons;
     private readonly AnimatedFloat _visibility = new(0.0f, 14.0);
     private float _dpi;
-    private int _capturedButton = -1;
+    private readonly UiPointerRouter _pointerRouter = new();
 
     internal ToolbarPanel(
         ID2D1RenderTarget renderTarget,
@@ -106,93 +106,69 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
         }
     }
 
-    public bool HandlePointer(in UiPointerEvent input, SizeF size)
+    public UiPointerResult HandlePointer(in UiPointerEvent input, SizeF size)
     {
-        bool visibilityChanged = false;
-        if (input.Kind == UiPointerEventKind.Moved && _capturedButton < 0)
+        if (input.Kind == UiPointerEventKind.Cancelled)
         {
-            visibilityChanged = _visibility.SetTarget(
-                IsPointerNearToolbar(input.Position) ? 1.0f : 0.0f);
+            return _pointerRouter.Cancel();
+        }
+
+        bool repaint = false;
+        if (input.Kind == UiPointerEventKind.Moved && _pointerRouter.Captured is null)
+        {
+            repaint = _visibility.SetTarget(IsPointerNearToolbar(input.Position) ? 1.0f : 0.0f);
         }
 
         UiPointerEvent visualInput = input with
         {
-            Position = new PointF(
-                input.Position.X,
-                input.Position.Y - GetSlideOffset(size)),
+            Position = new PointF(input.Position.X, input.Position.Y - GetSlideOffset(size)),
         };
-
-        if (_capturedButton >= 0)
+        if (_pointerRouter.Captured is IUiElement captured)
         {
-            int capturedButton = _capturedButton;
-            RectangleF bounds = GetButtonBounds(capturedButton, size);
-            bool handled = _buttons[capturedButton].HandlePointer(
-                visualInput.ToLocal(bounds),
-                bounds.Size);
+            int index = Array.IndexOf(_buttons, captured);
+            return _pointerRouter.DispatchCaptured(visualInput, GetButtonBounds(index, size));
+        }
 
-            if (input.Kind == UiPointerEventKind.Released)
+        bool inside = _visibility.Current > 0.0f
+            && new RectangleF(PointF.Empty, size).Contains(input.Position)
+            && new RectangleF(PointF.Empty, size).Contains(visualInput.Position);
+        if (input.Kind == UiPointerEventKind.Moved)
+        {
+            // Every button observes movement so the previous hover can clear.
+            for (int index = 0; index < _buttons.Length; index++)
             {
-                _capturedButton = -1;
+                UiPointerEvent hoverInput = inside ? visualInput : input with
+                {
+                    Kind = UiPointerEventKind.Cancelled,
+                };
+                repaint |= _pointerRouter.Route(_buttons[index], GetButtonBounds(index, size),
+                    hoverInput, observeOutside: true).NeedsRepaint;
             }
 
-            return handled || visibilityChanged;
+            return new UiPointerResult(Consumed: inside, NeedsRepaint: repaint);
         }
 
-        switch (input.Kind)
+        if (!inside)
         {
-            case UiPointerEventKind.Moved:
-                bool changed = false;
-                for (int index = 0; index < _buttons.Length; index++)
-                {
-                    RectangleF bounds = GetButtonBounds(index, size);
-                    changed |= _buttons[index].HandlePointer(
-                        visualInput.ToLocal(bounds),
-                        bounds.Size);
-                }
-
-                return changed || visibilityChanged;
-
-            case UiPointerEventKind.Pressed when input.Button == PointerButton.Primary:
-                _visibility.SetTarget(1.0f);
-                int pressedButton = HitTest(visualInput.Position, size);
-                if (pressedButton >= 0)
-                {
-                    RectangleF bounds = GetButtonBounds(pressedButton, size);
-                    if (_buttons[pressedButton].HandlePointer(
-                        visualInput.ToLocal(bounds),
-                        bounds.Size))
-                    {
-                        _capturedButton = pressedButton;
-                    }
-                }
-
-                return true;
-
-            case UiPointerEventKind.Released:
-                return true;
-
-            case UiPointerEventKind.DoubleClicked when input.Button == PointerButton.Primary:
-                int hitButton = HitTest(visualInput.Position, size);
-                if (hitButton >= 0)
-                {
-                    RectangleF bounds = GetButtonBounds(hitButton, size);
-                    _buttons[hitButton].HandlePointer(
-                        visualInput.ToLocal(bounds),
-                        bounds.Size);
-                }
-
-                return true;
-
-            case UiPointerEventKind.Wheel:
-                return true;
-
-            default:
-                return false;
+            return new UiPointerResult(NeedsRepaint: repaint);
         }
+
+        for (int index = 0; index < _buttons.Length; index++)
+        {
+            UiPointerResult result = _pointerRouter.Route(_buttons[index], GetButtonBounds(index, size), visualInput);
+            repaint |= result.NeedsRepaint;
+            if (result.Consumed)
+            {
+                return result with { NeedsRepaint = repaint };
+            }
+        }
+
+        return new UiPointerResult(Consumed: true, NeedsRepaint: repaint);
     }
 
     public void Dispose()
     {
+        _pointerRouter.Cancel();
         foreach (Button button in _buttons)
         {
             button.Dispose();
@@ -200,19 +176,6 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
 
         _borderBrush.Dispose();
         _backgroundBrush.Dispose();
-    }
-
-    private int HitTest(PointF position, SizeF size)
-    {
-        for (int index = 0; index < _buttons.Length; index++)
-        {
-            if (GetButtonBounds(index, size).Contains(position))
-            {
-                return index;
-            }
-        }
-
-        return -1;
     }
 
     private bool IsPointerNearToolbar(PointF position)

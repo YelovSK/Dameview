@@ -15,7 +15,7 @@ internal sealed class ViewerUi : IUiElement, IDisposable
     private readonly StatusPanel _statusPanel;
     private readonly ToolbarPanel _toolbarPanel;
     private readonly UiAnimationClock _animationClock;
-    private IUiElement? _capturedElement;
+    private readonly UiPointerRouter _pointerRouter = new();
     private ViewerSessionState _state;
     private float _dpi;
 
@@ -52,7 +52,7 @@ internal sealed class ViewerUi : IUiElement, IDisposable
         if (!ReferenceEquals(_state.DisplayedImage, state.DisplayedImage)
             && state.DisplayedImage is { } displayed)
         {
-            _capturedElement = null;
+            _pointerRouter.Cancel();
             _imagePanel.SetImage(displayed.Image);
             _toolbarPanel.Show();
         }
@@ -114,45 +114,37 @@ internal sealed class ViewerUi : IUiElement, IDisposable
         }
     }
 
-    public bool HandlePointer(in UiPointerEvent input, SizeF size)
+    public UiPointerResult HandlePointer(in UiPointerEvent input, SizeF size)
     {
+        if (input.Kind == UiPointerEventKind.Cancelled)
+        {
+            return _pointerRouter.Cancel();
+        }
+
         ViewerLayout layout = ViewerLayout.Calculate(size, _dpi, HasStatus, HasToolbar);
-
-        if (_capturedElement is IUiElement capturedElement)
+        if (_pointerRouter.Captured is IUiElement captured)
         {
-            RectangleF capturedBounds = GetBounds(capturedElement, layout);
-            bool handled = capturedElement.HandlePointer(
-                input.ToLocal(capturedBounds),
-                capturedBounds.Size);
+            return _pointerRouter.DispatchCaptured(input, GetBounds(captured, layout));
+        }
 
-            if (input.Kind == UiPointerEventKind.Released)
+        UiPointerResult result = default;
+        if (HasToolbar)
+        {
+            result = _pointerRouter.Route(_toolbarPanel, layout.Toolbar, input,
+                observeOutside: input.Kind == UiPointerEventKind.Moved);
+            if (result.Consumed)
             {
-                _capturedElement = null;
+                return result;
             }
-
-            return handled;
         }
 
-        if (HasToolbar
-            && TryHandlePointer(
-                _toolbarPanel,
-                layout.Toolbar,
-                input,
-                allowOutside: input.Kind == UiPointerEventKind.Moved))
-        {
-            return true;
-        }
-
-        if (HasStatus && TryHandlePointer(_statusPanel, layout.Status, input))
-        {
-            return true;
-        }
-
-        return TryHandlePointer(GetContentElement(), layout.Content, input);
+        UiPointerResult content = _pointerRouter.Route(GetContentElement(), layout.Content, input);
+        return content with { NeedsRepaint = result.NeedsRepaint || content.NeedsRepaint };
     }
 
     public void Dispose()
     {
+        _pointerRouter.Cancel();
         _toolbarPanel.Dispose();
         _statusPanel.Dispose();
         _emptyStatePanel.Dispose();
@@ -161,28 +153,6 @@ internal sealed class ViewerUi : IUiElement, IDisposable
 
     private bool HasStatus => _state.DisplayedImage is not null || _state.Message is not null;
     private bool HasToolbar => _state.DisplayedImage is not null;
-
-    private bool TryHandlePointer(
-        IUiElement element,
-        RectangleF bounds,
-        in UiPointerEvent input,
-        bool allowOutside = false)
-    {
-        if (!allowOutside && !bounds.Contains(input.Position))
-        {
-            return false;
-        }
-
-        bool handled = element.HandlePointer(input.ToLocal(bounds), bounds.Size);
-        if (handled
-            && input.Kind == UiPointerEventKind.Pressed
-            && input.Button != PointerButton.None)
-        {
-            _capturedElement = element;
-        }
-
-        return handled;
-    }
 
     private RectangleF GetBounds(IUiElement element, ViewerLayout layout)
     {

@@ -59,7 +59,8 @@ internal sealed unsafe class AppWindow : IDisposable
     internal event Action<uint>? KeyPressed;
     internal event Action<int, int>? PointerPressed;
     internal event Action<int, int>? PointerMoved;
-    internal event Action? PointerReleased;
+    internal event Action<int, int>? PointerReleased;
+    internal event Action? PointerCancelled;
     internal event Action<int, int>? PointerDoubleClicked;
     internal event Action<int, int, int>? MouseWheel;
 
@@ -251,12 +252,12 @@ internal sealed unsafe class AppWindow : IDisposable
                 return 0;
 
             case NativeMethods.MessageLeftButtonUp:
+                PointerReleased?.Invoke(GetX(lParam), GetY(lParam));
                 _ = NativeMethods.ReleaseCapture();
-                PointerReleased?.Invoke();
                 return 0;
 
             case NativeMethods.MessageCaptureChanged:
-                PointerReleased?.Invoke();
+                PointerCancelled?.Invoke();
                 return 0;
 
             case NativeMethods.MessageLeftButtonDoubleClick:

@@ -79,35 +79,40 @@ internal sealed class ImagePanel : IUiElement, IDisposable
             new Rect(0.0f, 0.0f, _image.PixelSize.Width, _image.PixelSize.Height));
     }
 
-    public bool HandlePointer(in UiPointerEvent input, SizeF size)
+    public UiPointerResult HandlePointer(in UiPointerEvent input, SizeF size)
     {
         switch (input.Kind)
         {
             case UiPointerEventKind.Pressed when input.Button == PointerButton.Primary:
                 _isPanning = true;
                 _animator.BeginPan(input.Position.X, input.Position.Y);
-                return true;
+                return new UiPointerResult(Consumed: true, CapturePointer: true);
 
             case UiPointerEventKind.Moved when _isPanning:
                 _animator.PanTo(input.Position.X, input.Position.Y);
-                return true;
+                return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
             case UiPointerEventKind.Released when _isPanning:
                 _isPanning = false;
                 _animator.EndPan();
-                return true;
+                return new UiPointerResult(Consumed: true, NeedsRepaint: true);
+
+            case UiPointerEventKind.Cancelled when _isPanning:
+                _isPanning = false;
+                _animator.Reset();
+                return new UiPointerResult(Consumed: true);
 
             case UiPointerEventKind.DoubleClicked when input.Button == PointerButton.Primary:
                 _isPanning = false;
                 _animator.ToggleFitAndActualSizeAt(input.Position.X, input.Position.Y);
-                return true;
+                return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
             case UiPointerEventKind.Wheel:
                 _animator.ZoomAt(input.Position.X, input.Position.Y, input.WheelDelta);
-                return true;
+                return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
             default:
-                return false;
+                return default;
         }
     }
 

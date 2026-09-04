@@ -90,9 +90,9 @@ internal sealed class StatusPanel : IUiElement, IDisposable
             DrawTextOptions.Clip);
     }
 
-    public bool HandlePointer(in UiPointerEvent input, SizeF size)
+    public UiPointerResult HandlePointer(in UiPointerEvent input, SizeF size)
     {
-        return false;
+        return default;
     }
 
     public void Dispose()

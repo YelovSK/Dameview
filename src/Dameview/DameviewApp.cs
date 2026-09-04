@@ -55,6 +55,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         _window.PointerPressed += HandlePointerPressed;
         _window.PointerMoved += HandlePointerMoved;
         _window.PointerReleased += HandlePointerReleased;
+        _window.PointerCancelled += HandlePointerCancelled;
         _window.PointerDoubleClicked += HandlePointerDoubleClick;
         _window.MouseWheel += HandleMouseWheel;
 
@@ -167,12 +168,19 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
             new PointF(x, y)));
     }
 
-    private void HandlePointerReleased()
+    private void HandlePointerReleased(int x, int y)
     {
+        _pointerX = x;
+        _pointerY = y;
         SendPointerEvent(new UiPointerEvent(
             UiPointerEventKind.Released,
             new PointF(_pointerX, _pointerY),
             PointerButton.Primary));
+    }
+
+    private void HandlePointerCancelled()
+    {
+        SendPointerEvent(new UiPointerEvent(UiPointerEventKind.Cancelled, PointF.Empty));
     }
 
     private void HandlePointerDoubleClick(int x, int y)
@@ -209,7 +217,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
     private void SendPointerEvent(UiPointerEvent input)
     {
         var size = new SizeF(_window!.ClientWidth, _window.ClientHeight);
-        if (_ui!.HandlePointer(input, size))
+        if (_ui!.HandlePointer(input, size).NeedsRepaint)
         {
             _window.RequestRepaint();
         }
