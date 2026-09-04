@@ -6,7 +6,6 @@ using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DirectWrite;
 using Vortice.DXGI;
-using Vortice.Mathematics;
 using static Vortice.Direct2D1.D2D1;
 using static Vortice.Direct3D11.D3D11;
 using static Vortice.DirectWrite.DWrite;

@@ -5,7 +5,6 @@ using Dameview.UI.Animation;
 using Dameview.UI.Components;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
-using Vortice.Mathematics;
 
 namespace Dameview.UI.Panels;
 
