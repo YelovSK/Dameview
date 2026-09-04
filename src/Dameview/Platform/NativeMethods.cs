@@ -7,6 +7,7 @@ internal static partial class NativeMethods
 {
     internal const uint ClassHorizontalRedraw = 0x0002;
     internal const uint ClassVerticalRedraw = 0x0001;
+    internal const uint ClassDoubleClicks = 0x0008;
     internal const uint WindowStyleOverlappedWindow = 0x00CF0000;
     internal const int UseDefault = unchecked((int)0x80000000);
     internal const int ShowNormal = 1;
@@ -16,12 +17,21 @@ internal static partial class NativeMethods
     internal const uint MessagePaint = 0x000F;
     internal const uint MessageEraseBackground = 0x0014;
     internal const uint MessageKeyDown = 0x0100;
+    internal const uint MessageMouseMove = 0x0200;
+    internal const uint MessageLeftButtonDown = 0x0201;
+    internal const uint MessageLeftButtonUp = 0x0202;
+    internal const uint MessageLeftButtonDoubleClick = 0x0203;
+    internal const uint MessageMouseWheel = 0x020A;
+    internal const uint MessageCaptureChanged = 0x0215;
     internal const uint MessageDropFiles = 0x0233;
     internal const uint MessageDpiChanged = 0x02E0;
     internal const uint MessageNonClientCreate = 0x0081;
 
     internal const uint VirtualKeyLeft = 0x25;
     internal const uint VirtualKeyRight = 0x27;
+    internal const uint VirtualKey1 = 0x31;
+    internal const uint VirtualKeyF = 0x46;
+    internal const uint VirtualKeyNumpad1 = 0x61;
 
     internal static void EnablePerMonitorDpiAwareness()
     {
@@ -136,6 +146,17 @@ internal static partial class NativeMethods
 
     [LibraryImport("user32", EntryPoint = "GetDpiForWindow")]
     internal static partial uint GetDpiForWindow(nint window);
+
+    [LibraryImport("user32", EntryPoint = "ScreenToClient")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool ScreenToClient(nint window, ref NativePoint point);
+
+    [LibraryImport("user32", EntryPoint = "SetCapture")]
+    internal static partial nint SetCapture(nint window);
+
+    [LibraryImport("user32", EntryPoint = "ReleaseCapture")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool ReleaseCapture();
 
     [LibraryImport("user32", EntryPoint = "SetWindowPos", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

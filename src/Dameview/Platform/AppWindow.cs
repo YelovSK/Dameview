@@ -54,6 +54,11 @@ internal sealed unsafe class AppWindow : IDisposable
     internal event Action<float>? DpiChanged;
     internal event Action<string>? FileDropped;
     internal event Action<uint>? KeyPressed;
+    internal event Action<int, int>? PointerPressed;
+    internal event Action<int, int>? PointerMoved;
+    internal event Action? PointerReleased;
+    internal event Action? PointerDoubleClicked;
+    internal event Action<int, int, int>? MouseWheel;
 
     internal nint Handle { get; private set; }
     internal int ClientWidth { get; private set; }
@@ -119,7 +124,9 @@ internal sealed unsafe class AppWindow : IDisposable
             WindowClass windowClass = new()
             {
                 Size = (uint)sizeof(WindowClass),
-                Style = NativeMethods.ClassHorizontalRedraw | NativeMethods.ClassVerticalRedraw,
+                Style = NativeMethods.ClassHorizontalRedraw
+                    | NativeMethods.ClassVerticalRedraw
+                    | NativeMethods.ClassDoubleClicks,
                 WindowProcedure = &WindowProcedure,
                 Instance = instance,
                 Cursor = NativeMethods.LoadCursor(0, new nint(32512)),
@@ -196,6 +203,38 @@ internal sealed unsafe class AppWindow : IDisposable
                 KeyPressed?.Invoke((uint)wParam);
                 return 0;
 
+            case NativeMethods.MessageLeftButtonDown:
+                _ = NativeMethods.SetCapture(window);
+                PointerPressed?.Invoke(GetX(lParam), GetY(lParam));
+                return 0;
+
+            case NativeMethods.MessageMouseMove:
+                PointerMoved?.Invoke(GetX(lParam), GetY(lParam));
+                return 0;
+
+            case NativeMethods.MessageLeftButtonUp:
+                _ = NativeMethods.ReleaseCapture();
+                PointerReleased?.Invoke();
+                return 0;
+
+            case NativeMethods.MessageCaptureChanged:
+                PointerReleased?.Invoke();
+                return 0;
+
+            case NativeMethods.MessageLeftButtonDoubleClick:
+                PointerDoubleClicked?.Invoke();
+                return 0;
+
+            case NativeMethods.MessageMouseWheel:
+                var wheelPoint = new NativePoint
+                {
+                    X = GetX(lParam),
+                    Y = GetY(lParam),
+                };
+                _ = NativeMethods.ScreenToClient(window, ref wheelPoint);
+                MouseWheel?.Invoke(wheelPoint.X, wheelPoint.Y, GetHighWord(wParam));
+                return 0;
+
             case NativeMethods.MessageSize:
                 ClientWidth = unchecked((ushort)(long)lParam);
                 ClientHeight = unchecked((ushort)((long)lParam >> 16));
@@ -252,6 +291,21 @@ internal sealed unsafe class AppWindow : IDisposable
 
         ClientWidth = clientRect.Width;
         ClientHeight = clientRect.Height;
+    }
+
+    private static int GetX(nint value)
+    {
+        return unchecked((short)(long)value);
+    }
+
+    private static int GetY(nint value)
+    {
+        return unchecked((short)((long)value >> 16));
+    }
+
+    private static int GetHighWord(nuint value)
+    {
+        return unchecked((short)((ulong)value >> 16));
     }
 }
 

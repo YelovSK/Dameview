@@ -19,6 +19,12 @@ dotnet run --project src/Dameview
 
 Drop an image onto the window to open it. Use the Left and Right arrow keys to move through the other images in its folder.
 
+- Mouse wheel: zoom toward the pointer
+- Left-button drag: pan
+- Double-click: toggle fit and actual size
+- `F`: fit to window
+- `1`: actual size
+
 An image path can also be passed at startup:
 
 ```powershell

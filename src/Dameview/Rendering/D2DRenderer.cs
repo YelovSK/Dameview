@@ -1,5 +1,6 @@
 using Dameview.Imaging;
 using Dameview.UI;
+using Dameview.Viewing;
 using Vortice.DCommon;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
@@ -17,17 +18,19 @@ internal sealed class D2DRenderer : IDisposable
     private readonly IDWriteFactory1 _directWriteFactory;
     private readonly ID2D1HwndRenderTarget _renderTarget;
     private readonly AppUi _ui;
+    private readonly ImageViewport _viewport;
     private ID2D1Bitmap? _image;
     private int _width;
     private int _height;
     private float _dpi;
 
-    internal D2DRenderer(nint window, int width, int height, float dpi)
+    internal D2DRenderer(nint window, int width, int height, float dpi, ImageViewport viewport)
     {
         _window = window;
         _width = width;
         _height = height;
         _dpi = dpi;
+        _viewport = viewport;
 
         _d2dFactory = D2D1CreateFactory<ID2D1Factory1>();
         _directWriteFactory = DWriteCreateFactory<IDWriteFactory1>();
@@ -47,7 +50,7 @@ internal sealed class D2DRenderer : IDisposable
         }
         else
         {
-            DrawImage(width, height);
+            DrawImage();
         }
 
         _renderTarget.EndDraw();
@@ -112,28 +115,25 @@ internal sealed class D2DRenderer : IDisposable
         return (renderTarget, new AppUi(renderTarget, _directWriteFactory));
     }
 
-    private float PixelsToDips(int pixels)
+    private float PixelsToDips(float pixels)
     {
         return pixels * 96.0f / _dpi;
     }
 
-    private void DrawImage(float availableWidth, float availableHeight)
+    private void DrawImage()
     {
-        float scale = MathF.Min(
-            availableWidth / _image!.PixelSize.Width,
-            availableHeight / _image.PixelSize.Height);
-        scale = MathF.Min(scale, 1.0f);
-
-        float width = _image.PixelSize.Width * scale;
-        float height = _image.PixelSize.Height * scale;
-        float x = (availableWidth - width) / 2.0f;
-        float y = (availableHeight - height) / 2.0f;
+        ID2D1Bitmap image = _image!;
+        System.Drawing.RectangleF destination = _viewport.GetDestinationRectangle();
 
         _renderTarget.DrawBitmap(
-            _image,
-            new Rect(x, y, width, height),
+            image,
+            new Rect(
+                PixelsToDips(destination.X),
+                PixelsToDips(destination.Y),
+                PixelsToDips(destination.Width),
+                PixelsToDips(destination.Height)),
             1.0f,
             BitmapInterpolationMode.Linear,
-            new Rect(0.0f, 0.0f, _image.PixelSize.Width, _image.PixelSize.Height));
+            new Rect(0.0f, 0.0f, image.PixelSize.Width, image.PixelSize.Height));
     }
 }
