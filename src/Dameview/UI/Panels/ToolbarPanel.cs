@@ -1,5 +1,6 @@
 using System.Drawing;
 using Dameview.Commands;
+using Dameview.UI.Components;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
 using Vortice.Mathematics;
@@ -13,14 +14,9 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
 
     private readonly ID2D1SolidColorBrush _backgroundBrush;
     private readonly ID2D1SolidColorBrush _borderBrush;
-    private readonly ID2D1SolidColorBrush _hoverBrush;
-    private readonly ID2D1SolidColorBrush _pressedBrush;
-    private readonly ID2D1SolidColorBrush _textBrush;
-    private readonly IDWriteTextFormat _textFormat;
-    private readonly ToolbarButton[] _buttons;
+    private readonly Button[] _buttons;
     private float _dpi;
-    private int _hotButton = -1;
-    private int _pressedButton = -1;
+    private int _capturedButton = -1;
 
     internal ToolbarPanel(
         ID2D1RenderTarget renderTarget,
@@ -32,24 +28,13 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
         _dpi = dpi;
         _backgroundBrush = renderTarget.CreateSolidColorBrush(theme.OverlaySurface);
         _borderBrush = renderTarget.CreateSolidColorBrush(theme.SurfaceBorder);
-        _hoverBrush = renderTarget.CreateSolidColorBrush(theme.ControlHover);
-        _pressedBrush = renderTarget.CreateSolidColorBrush(theme.ControlPressed);
-        _textBrush = renderTarget.CreateSolidColorBrush(theme.PrimaryText);
-        _textFormat = directWriteFactory.CreateTextFormat(
-            "Segoe UI Variable",
-            FontWeight.SemiBold,
-            FontStyle.Normal,
-            14.0f);
-        _textFormat.TextAlignment = TextAlignment.Center;
-        _textFormat.ParagraphAlignment = ParagraphAlignment.Center;
-        _textFormat.WordWrapping = WordWrapping.NoWrap;
 
         _buttons =
         [
-            new ToolbarButton("←", commands.ShowPreviousImage),
-            new ToolbarButton("→", commands.ShowNextImage),
-            new ToolbarButton("Fit", commands.FitImage),
-            new ToolbarButton("1:1", commands.ShowActualSize),
+            new Button(renderTarget, directWriteFactory, theme, "←", commands.ShowPreviousImage),
+            new Button(renderTarget, directWriteFactory, theme, "→", commands.ShowNextImage),
+            new Button(renderTarget, directWriteFactory, theme, "Fit", commands.FitImage),
+            new Button(renderTarget, directWriteFactory, theme, "1:1", commands.ShowActualSize),
         ];
     }
 
@@ -77,59 +62,68 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
 
         for (int index = 0; index < _buttons.Length; index++)
         {
-            RectangleF bounds = GetButtonBounds(index, width, height);
-            var button = new RoundedRectangle(bounds, 8.0f, 8.0f);
-
-            if (_pressedButton == index && _hotButton == index)
-            {
-                renderTarget.FillRoundedRectangle(button, _pressedBrush);
-            }
-            else if (_hotButton == index)
-            {
-                renderTarget.FillRoundedRectangle(button, _hoverBrush);
-            }
-
-            renderTarget.DrawText(
-                _buttons[index].Label,
-                _textFormat,
-                new Rect(bounds.X, bounds.Y, bounds.Width, bounds.Height),
-                _textBrush,
-                DrawTextOptions.Clip);
+            context.DrawElement(_buttons[index], GetButtonBounds(index, size));
         }
     }
 
     public bool HandlePointer(in UiPointerEvent input, SizeF size)
     {
-        int hitButton = HitTest(input.Position, size);
+        if (_capturedButton >= 0)
+        {
+            int capturedButton = _capturedButton;
+            RectangleF bounds = GetButtonBounds(capturedButton, size);
+            bool handled = _buttons[capturedButton].HandlePointer(
+                input.ToLocal(bounds),
+                bounds.Size);
+
+            if (input.Kind == UiPointerEventKind.Released)
+            {
+                _capturedButton = -1;
+            }
+
+            return handled;
+        }
 
         switch (input.Kind)
         {
             case UiPointerEventKind.Moved:
-                bool changed = _hotButton != hitButton;
-                _hotButton = hitButton;
+                bool changed = false;
+                for (int index = 0; index < _buttons.Length; index++)
+                {
+                    RectangleF bounds = GetButtonBounds(index, size);
+                    changed |= _buttons[index].HandlePointer(
+                        input.ToLocal(bounds),
+                        bounds.Size);
+                }
+
                 return changed;
 
             case UiPointerEventKind.Pressed when input.Button == PointerButton.Primary:
-                _hotButton = hitButton;
-                _pressedButton = hitButton;
-                return true;
-
-            case UiPointerEventKind.Released:
-                int pressedButton = _pressedButton;
-                _pressedButton = -1;
-                _hotButton = hitButton;
-
-                if (pressedButton >= 0 && pressedButton == hitButton)
+                int pressedButton = HitTest(input.Position, size);
+                if (pressedButton >= 0)
                 {
-                    _buttons[pressedButton].Execute();
+                    RectangleF bounds = GetButtonBounds(pressedButton, size);
+                    if (_buttons[pressedButton].HandlePointer(
+                        input.ToLocal(bounds),
+                        bounds.Size))
+                    {
+                        _capturedButton = pressedButton;
+                    }
                 }
 
                 return true;
 
+            case UiPointerEventKind.Released:
+                return true;
+
             case UiPointerEventKind.DoubleClicked when input.Button == PointerButton.Primary:
+                int hitButton = HitTest(input.Position, size);
                 if (hitButton >= 0)
                 {
-                    _buttons[hitButton].Execute();
+                    RectangleF bounds = GetButtonBounds(hitButton, size);
+                    _buttons[hitButton].HandlePointer(
+                        input.ToLocal(bounds),
+                        bounds.Size);
                 }
 
                 return true;
@@ -144,24 +138,20 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
 
     public void Dispose()
     {
-        _textFormat.Dispose();
-        _textBrush.Dispose();
-        _pressedBrush.Dispose();
-        _hoverBrush.Dispose();
+        foreach (Button button in _buttons)
+        {
+            button.Dispose();
+        }
+
         _borderBrush.Dispose();
         _backgroundBrush.Dispose();
     }
 
     private int HitTest(PointF position, SizeF size)
     {
-        float scale = 96.0f / _dpi;
-        var positionInDips = new PointF(position.X * scale, position.Y * scale);
-        float width = size.Width * scale;
-        float height = size.Height * scale;
-
         for (int index = 0; index < _buttons.Length; index++)
         {
-            if (GetButtonBounds(index, width, height).Contains(positionInDips))
+            if (GetButtonBounds(index, size).Contains(position))
             {
                 return index;
             }
@@ -170,18 +160,19 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
         return -1;
     }
 
-    private RectangleF GetButtonBounds(int index, float width, float height)
+    private RectangleF GetButtonBounds(int index, SizeF size)
     {
-        float totalGaps = ButtonGap * (_buttons.Length - 1);
+        float scale = _dpi / 96.0f;
+        float padding = Padding * scale;
+        float buttonGap = ButtonGap * scale;
+        float totalGaps = buttonGap * (_buttons.Length - 1);
         float buttonWidth = MathF.Max(
             0.0f,
-            (width - (2.0f * Padding) - totalGaps) / _buttons.Length);
+            (size.Width - (2.0f * padding) - totalGaps) / _buttons.Length);
         return new RectangleF(
-            Padding + (index * (buttonWidth + ButtonGap)),
-            Padding,
+            padding + (index * (buttonWidth + buttonGap)),
+            padding,
             buttonWidth,
-            MathF.Max(0.0f, height - (2.0f * Padding)));
+            MathF.Max(0.0f, size.Height - (2.0f * padding)));
     }
-
-    private readonly record struct ToolbarButton(string Label, Action Execute);
 }
