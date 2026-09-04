@@ -4,6 +4,7 @@ using Dameview.Navigation;
 using Dameview.Platform;
 using Dameview.Rendering;
 using Dameview.UI;
+using SharpGen.Runtime;
 
 namespace Dameview;
 
@@ -66,10 +67,43 @@ internal sealed class DameviewApp : IDisposable
 
     private void OpenImage(string path)
     {
-        DecodedImage image = _imageDecoder.Decode(path);
-        _ui!.SetImage(image);
-        _folderNavigator.SetCurrent(path);
+        string? navigationError = null;
+
+        try
+        {
+            _folderNavigator.SetCurrent(path);
+        }
+        catch (Exception exception) when (IsRecoverableImageError(exception))
+        {
+            navigationError = exception.Message;
+        }
+
+        try
+        {
+            DecodedImage image = _imageDecoder.Decode(path);
+            _ui!.SetImage(image, path);
+
+            if (navigationError is not null)
+            {
+                _ui.ShowError($"Image opened, but its folder could not be read: {navigationError}");
+            }
+        }
+        catch (Exception exception) when (IsRecoverableImageError(exception))
+        {
+            _ui!.ShowError($"Could not open {Path.GetFileName(path)}: {exception.Message}");
+        }
+
         _window!.RequestRepaint();
+    }
+
+    private static bool IsRecoverableImageError(Exception exception)
+    {
+        return exception is IOException
+            or UnauthorizedAccessException
+            or ArgumentException
+            or NotSupportedException
+            or OverflowException
+            or SharpGenException;
     }
 
     private void HandleKeyPress(uint key)

@@ -90,6 +90,7 @@ internal sealed class D2DRenderer : IDisposable
             _directWriteFactory,
             width,
             height,
+            dpi,
             theme);
     }
 
@@ -135,6 +136,7 @@ internal sealed class D2DRenderer : IDisposable
     internal void SetDpi(float dpi)
     {
         _dpi = dpi;
+        _ui.SetDpi(dpi);
         _deviceContext.SetDpi(dpi, dpi);
 
         if (_width > 0 && _height > 0)

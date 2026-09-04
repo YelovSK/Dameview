@@ -24,6 +24,9 @@ internal sealed class ImagePanel : IUiElement, IDisposable
     }
 
     internal bool HasImage => _image is not null;
+    internal int ImageWidth => _image?.PixelSize.Width ?? 0;
+    internal int ImageHeight => _image?.PixelSize.Height ?? 0;
+    internal float ZoomPercentage => _viewport.Scale * 100.0f;
 
     internal unsafe void SetImage(DecodedImage image)
     {
