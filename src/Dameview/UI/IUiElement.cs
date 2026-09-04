@@ -24,7 +24,7 @@ internal readonly record struct UiDrawContext(
 {
     internal float PixelsToDips(float pixels)
     {
-        return pixels * 96.0f / Dpi;
+        return UiDpi.PixelsToDips(pixels, Dpi);
     }
 
     internal RectangleF PixelsToDips(RectangleF rectangle)

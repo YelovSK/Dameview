@@ -34,8 +34,8 @@ internal sealed class ImagePanel : IUiElement, IDisposable
             new PixelFormat(
                 Format.B8G8R8A8_UNorm,
                 Vortice.DCommon.AlphaMode.Premultiplied),
-            96.0f,
-            96.0f,
+            UiDpi.Default,
+            UiDpi.Default,
             BitmapOptions.None);
 
         ID2D1Bitmap1 newImage;

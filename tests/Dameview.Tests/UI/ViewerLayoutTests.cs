@@ -25,7 +25,7 @@ public sealed class ViewerLayoutTests
     {
         ViewerLayout layout = ViewerLayout.Calculate(
             new SizeF(1000.0f, 800.0f),
-            96.0f,
+            UiDpi.Default,
             showStatus: false,
             showToolbar: false);
 

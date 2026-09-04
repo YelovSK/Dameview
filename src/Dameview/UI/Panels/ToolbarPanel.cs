@@ -217,7 +217,7 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
 
     private bool IsPointerNearToolbar(PointF position)
     {
-        float activationDistance = 28.0f * _dpi / 96.0f;
+        float activationDistance = UiDpi.DipsToPixels(28.0f, _dpi);
         return position.Y >= -activationDistance;
     }
 
@@ -228,7 +228,7 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
 
     private RectangleF GetButtonBounds(int index, SizeF size)
     {
-        float scale = _dpi / 96.0f;
+        float scale = UiDpi.GetScale(_dpi);
         float padding = Padding * scale;
         float buttonGap = ButtonGap * scale;
         float totalGaps = buttonGap * (_buttons.Length - 1);

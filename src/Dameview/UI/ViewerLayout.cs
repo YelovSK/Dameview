@@ -25,7 +25,7 @@ internal readonly record struct ViewerLayout(
             return new ViewerLayout(content, RectangleF.Empty, RectangleF.Empty);
         }
 
-        float scale = dpi / 96.0f;
+        float scale = UiDpi.GetScale(dpi);
         float margin = StatusMarginDips * scale;
         float availableWidth = MathF.Max(0.0f, size.Width - (2.0f * margin));
         float availableHeight = MathF.Max(0.0f, size.Height - (2.0f * margin));
