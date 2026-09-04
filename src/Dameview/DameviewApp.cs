@@ -17,6 +17,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
     private AppWindow? _window;
     private D2DRenderer? _renderer;
     private ViewerUi? _ui;
+    private ImageLoadCoordinator? _imageLoadCoordinator;
     private int _pointerX;
     private int _pointerY;
 
@@ -40,6 +41,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
             _theme,
             this);
         _ui = _renderer.Ui;
+        _imageLoadCoordinator = new ImageLoadCoordinator(_window.Post);
 
         _window.RenderFrame += HandleRenderFrame;
         _window.Resized += HandleResize;
@@ -62,6 +64,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
     public void Dispose()
     {
+        _imageLoadCoordinator?.Dispose();
         _renderer?.Dispose();
         _window?.Dispose();
         _imageDecoder.Dispose();
@@ -69,12 +72,12 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
     public void ShowPreviousImage()
     {
-        OpenImageIfAvailable(_folderNavigator.GetPreviousPath());
+        OpenNavigatedImage(_folderNavigator.MoveToPreviousPath());
     }
 
     public void ShowNextImage()
     {
-        OpenImageIfAvailable(_folderNavigator.GetNextPath());
+        OpenNavigatedImage(_folderNavigator.MoveToNextPath());
     }
 
     public void FitImage()
@@ -114,22 +117,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
             navigationError = exception.Message;
         }
 
-        try
-        {
-            DecodedImage image = _imageDecoder.Decode(path);
-            _ui!.SetImage(image, path);
-
-            if (navigationError is not null)
-            {
-                _ui.ShowError($"Image opened, but its folder could not be read: {navigationError}");
-            }
-        }
-        catch (Exception exception) when (IsRecoverableImageError(exception))
-        {
-            _ui!.ShowError($"Could not open {Path.GetFileName(path)}: {exception.Message}");
-        }
-
-        _window!.RequestRepaint();
+        BeginImageLoad(path, navigationError);
     }
 
     private static bool IsRecoverableImageError(Exception exception)
@@ -165,12 +153,44 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         }
     }
 
-    private void OpenImageIfAvailable(string? path)
+    private void OpenNavigatedImage(string? path)
     {
         if (path is not null)
         {
-            OpenImage(path);
+            BeginImageLoad(path, navigationError: null);
         }
+    }
+
+    private void BeginImageLoad(string path, string? navigationError)
+    {
+        _ui!.ShowLoading(path);
+        _imageLoadCoordinator!.Load(
+            path,
+            result => CompleteImageLoad(result, navigationError));
+        _window!.RequestRepaint();
+    }
+
+    private void CompleteImageLoad(ImageLoadResult result, string? navigationError)
+    {
+        switch (result)
+        {
+            case ImageLoaded loaded:
+                _ui!.SetImage(loaded.Image, loaded.Path);
+                if (navigationError is not null)
+                {
+                    _ui.ShowError(
+                        $"Image opened, but its folder could not be read: {navigationError}");
+                }
+
+                break;
+
+            case ImageLoadFailed failed:
+                _ui!.ShowError(
+                    $"Could not open {Path.GetFileName(failed.Path)}: {failed.Exception.Message}");
+                break;
+        }
+
+        _window!.RequestRepaint();
     }
 
     private void HandleResize(int width, int height)

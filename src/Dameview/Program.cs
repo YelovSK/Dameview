@@ -9,7 +9,7 @@ internal static class Program
     private static int Main(string[] args)
     {
         NativeMethods.EnablePerMonitorDpiAwareness();
-        NativeMethods.InitializeComApartment();
+        NativeMethods.InitializeComApartment(ComApartment.ApartmentThreaded);
 
         try
         {

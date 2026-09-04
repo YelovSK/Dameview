@@ -56,13 +56,13 @@ internal sealed class StatusPanel : IUiElement, IDisposable
             MathF.Max(0.0f, width - (2.0f * HorizontalPadding)),
             height);
 
-        if (Status.ErrorMessage is string errorMessage)
+        if (Status.Message is string message)
         {
             renderTarget.DrawText(
-                errorMessage,
+                message,
                 _fileNameFormat,
                 content,
-                _errorTextBrush,
+                Status.IsError ? _errorTextBrush : _secondaryTextBrush,
                 DrawTextOptions.Clip);
             return;
         }
@@ -127,4 +127,5 @@ internal readonly record struct ViewerStatus(
     int ImageWidth,
     int ImageHeight,
     float ZoomPercentage,
-    string? ErrorMessage);
+    string? Message,
+    bool IsError);

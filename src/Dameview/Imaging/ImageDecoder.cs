@@ -4,7 +4,7 @@ using Vortice.WIC;
 
 namespace Dameview.Imaging;
 
-internal sealed class ImageDecoder : IDisposable
+internal sealed class ImageDecoder : IImageDecoder
 {
     private const int BytesPerPixel = 4;
 
@@ -102,6 +102,11 @@ internal sealed class ImageDecoder : IDisposable
         }
 
         return extensions;
+    }
+
+    DecodedImage IImageDecoder.Decode(string path)
+    {
+        return Decode(path);
     }
 }
 

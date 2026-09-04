@@ -17,7 +17,8 @@ internal sealed class ViewerUi : IUiElement, IDisposable
     private readonly UiAnimationClock _animationClock;
     private IUiElement? _capturedElement;
     private string _fileName = string.Empty;
-    private string? _errorMessage;
+    private string? _statusMessage;
+    private bool _statusIsError;
     private float _dpi;
 
     internal ViewerUi(
@@ -49,12 +50,21 @@ internal sealed class ViewerUi : IUiElement, IDisposable
         _imagePanel.SetImage(image);
         _toolbarPanel.Show();
         _fileName = Path.GetFileName(path);
-        _errorMessage = null;
+        _statusMessage = null;
+        _statusIsError = false;
+    }
+
+    internal void ShowLoading(string path)
+    {
+        _fileName = Path.GetFileName(path);
+        _statusMessage = $"Loading {_fileName}…";
+        _statusIsError = false;
     }
 
     internal void ShowError(string message)
     {
-        _errorMessage = message;
+        _statusMessage = message;
+        _statusIsError = true;
     }
 
     internal void SetViewportSize(int width, int height)
@@ -120,7 +130,8 @@ internal sealed class ViewerUi : IUiElement, IDisposable
                 _imagePanel.ImageWidth,
                 _imagePanel.ImageHeight,
                 _imagePanel.ZoomPercentage,
-                _errorMessage);
+                _statusMessage,
+                _statusIsError);
             context.DrawElement(_statusPanel, layout.Status);
         }
 
@@ -175,7 +186,7 @@ internal sealed class ViewerUi : IUiElement, IDisposable
         _imagePanel.Dispose();
     }
 
-    private bool HasStatus => _imagePanel.HasImage || _errorMessage is not null;
+    private bool HasStatus => _imagePanel.HasImage || _statusMessage is not null;
     private bool HasToolbar => _imagePanel.HasImage;
 
     private bool TryHandlePointer(

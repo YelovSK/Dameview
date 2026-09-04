@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 
@@ -10,6 +11,7 @@ internal sealed unsafe class AppWindow : IDisposable
     private const uint SetWindowNoActivate = 0x0010;
     private const uint SetWindowNoZOrder = 0x0004;
 
+    private readonly ConcurrentQueue<Action> _postedActions = new();
     private GCHandle _selfHandle;
     private Exception? _unhandledException;
     private bool _frameRequested;
@@ -73,6 +75,18 @@ internal sealed unsafe class AppWindow : IDisposable
         {
             _ = NativeMethods.PostMessage(Handle, NativeMethods.MessageRenderFrame, 0, 0);
         }
+    }
+
+    internal void Post(Action action)
+    {
+        nint window = Handle;
+        if (window == 0)
+        {
+            return;
+        }
+
+        _postedActions.Enqueue(action);
+        _ = NativeMethods.PostMessage(window, NativeMethods.MessageDispatch, 0, 0);
     }
 
     internal int Run(nint frameLatencyWaitHandle)
@@ -212,6 +226,14 @@ internal sealed unsafe class AppWindow : IDisposable
             case NativeMethods.MessageRenderFrame:
                 return 0;
 
+            case NativeMethods.MessageDispatch:
+                while (_postedActions.TryDequeue(out Action? action))
+                {
+                    action();
+                }
+
+                return 0;
+
             case NativeMethods.MessageEraseBackground:
                 return 1;
 
@@ -290,6 +312,7 @@ internal sealed unsafe class AppWindow : IDisposable
 
             case NativeMethods.MessageDestroy:
                 Handle = 0;
+                _postedActions.Clear();
                 NativeMethods.PostQuitMessage(0);
                 return 0;
 

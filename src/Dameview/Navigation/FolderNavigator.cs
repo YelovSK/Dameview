@@ -29,6 +29,16 @@ internal sealed class FolderNavigator
         return GetRelativePath(-1);
     }
 
+    internal string? MoveToNextPath()
+    {
+        return MoveToRelativePath(1);
+    }
+
+    internal string? MoveToPreviousPath()
+    {
+        return MoveToRelativePath(-1);
+    }
+
     internal void SetCurrent(string path)
     {
         string fullPath = Path.GetFullPath(path);
@@ -82,6 +92,17 @@ internal sealed class FolderNavigator
 
         int index = (_currentIndex + offset + _files.Length) % _files.Length;
         return _files[index].FullName;
+    }
+
+    private string? MoveToRelativePath(int offset)
+    {
+        string? path = GetRelativePath(offset);
+        if (path is not null)
+        {
+            _currentIndex = (_currentIndex + offset + _files.Length) % _files.Length;
+        }
+
+        return path;
     }
 
     private void LoadDirectory(string directoryPath)

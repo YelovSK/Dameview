@@ -51,6 +51,22 @@ public sealed class FolderNavigatorTests
         Assert.AreEqual(predicted, navigator.GetNextPath());
     }
 
+    [TestMethod]
+    public void MovingRepeatedlyAdvancesTheSelectionImmediately()
+    {
+        using var directory = new TemporaryDirectory();
+        string first = directory.CreateFile("a.jpg", 1);
+        string middle = directory.CreateFile("b.jpg", 1);
+        string last = directory.CreateFile("c.jpg", 1);
+        var navigator = new FolderNavigator(IsJpeg);
+        navigator.SetCurrent(first);
+
+        Assert.AreEqual(middle, navigator.MoveToNextPath());
+        Assert.AreEqual(last, navigator.MoveToNextPath());
+        Assert.AreEqual(first, navigator.MoveToNextPath());
+        Assert.AreEqual(last, navigator.MoveToPreviousPath());
+    }
+
     private static bool IsJpeg(string path)
     {
         return string.Equals(Path.GetExtension(path), ".jpg", StringComparison.OrdinalIgnoreCase);

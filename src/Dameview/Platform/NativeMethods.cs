@@ -35,6 +35,7 @@ internal static partial class NativeMethods
     internal const uint MessageDpiChanged = 0x02E0;
     internal const uint MessageNonClientCreate = 0x0081;
     internal const uint MessageRenderFrame = 0x8000;
+    internal const uint MessageDispatch = 0x8001;
 
     internal const uint VirtualKeyLeft = 0x25;
     internal const uint VirtualKeyRight = 0x27;
@@ -48,9 +49,9 @@ internal static partial class NativeMethods
         _ = SetProcessDpiAwarenessContext(new nint(-4));
     }
 
-    internal static void InitializeComApartment()
+    internal static void InitializeComApartment(ComApartment apartment)
     {
-        int result = CoInitializeEx(0, 0x2);
+        int result = CoInitializeEx(0, (uint)apartment);
         if (result < 0)
         {
             Marshal.ThrowExceptionForHR(result);
@@ -220,6 +221,12 @@ internal static partial class NativeMethods
 
     [LibraryImport("shell32", EntryPoint = "DragFinish")]
     internal static partial void DragFinish(nint dropHandle);
+}
+
+internal enum ComApartment : uint
+{
+    MultiThreaded = 0x0,
+    ApartmentThreaded = 0x2,
 }
 
 [StructLayout(LayoutKind.Sequential)]
