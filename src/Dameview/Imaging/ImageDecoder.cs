@@ -9,14 +9,6 @@ internal sealed class ImageDecoder : IImageDecoder
     private const int BytesPerPixel = 4;
 
     private readonly IWICImagingFactory2 _factory = new();
-    private HashSet<string>? _probablySupportedExtensions;
-
-    internal bool IsProbablySupported(string path)
-    {
-        _probablySupportedExtensions ??= GetProbablySupportedExtensions();
-        return _probablySupportedExtensions.Contains(Path.GetExtension(path));
-    }
-
     internal DecodedImage Decode(string path)
     {
         string fullPath = Path.GetFullPath(path);
@@ -48,7 +40,7 @@ internal sealed class ImageDecoder : IImageDecoder
         _factory.Dispose();
     }
 
-    private unsafe HashSet<string> GetProbablySupportedExtensions()
+    internal unsafe HashSet<string> GetProbablySupportedExtensions()
     {
         var extensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         using IEnumUnknown components = _factory.CreateComponentEnumerator(ComponentType.Decoder);

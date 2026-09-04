@@ -8,14 +8,14 @@ public sealed class FolderNavigatorTests
     [TestMethod]
     public void MovesInNameOrderAndWrapsAround()
     {
-        using var directory = new TemporaryDirectory();
+        var directory = new FolderFiles();
         string first = directory.CreateFile("a.jpg", 1);
         string middle = directory.CreateFile("b.jpg", 1);
         string last = directory.CreateFile("c.jpg", 1);
         _ = directory.CreateFile("ignored.txt", 1);
 
-        var navigator = new FolderNavigator(IsJpeg);
-        navigator.SetCurrent(middle);
+        var navigator = new FolderNavigator();
+        navigator.SetFiles(directory.Files, middle);
 
         Assert.AreEqual(last, navigator.GetNextPath());
         Assert.AreEqual(first, navigator.GetPreviousPath());
@@ -27,12 +27,12 @@ public sealed class FolderNavigatorTests
     [TestMethod]
     public void ChangingSortKeepsTheCurrentFileSelected()
     {
-        using var directory = new TemporaryDirectory();
+        var directory = new FolderFiles();
         string smaller = directory.CreateFile("a.jpg", 1);
         string larger = directory.CreateFile("b.jpg", 10);
 
-        var navigator = new FolderNavigator(IsJpeg);
-        navigator.SetCurrent(smaller);
+        var navigator = new FolderNavigator();
+        navigator.SetFiles(directory.Files, smaller);
         navigator.SetSort(FolderSort.SizeLargest);
 
         Assert.AreEqual(larger, navigator.GetPreviousPath());
@@ -41,12 +41,12 @@ public sealed class FolderNavigatorTests
     [TestMethod]
     public void LoadedFileIsNavigableEvenWhenItsExtensionWasNotPredicted()
     {
-        using var directory = new TemporaryDirectory();
+        var directory = new FolderFiles();
         string predicted = directory.CreateFile("a.jpg", 1);
         string loaded = directory.CreateFile("b.unknown", 1);
 
-        var navigator = new FolderNavigator(IsJpeg);
-        navigator.SetCurrent(loaded);
+        var navigator = new FolderNavigator();
+        navigator.SetFiles(directory.Files, loaded);
 
         Assert.AreEqual(predicted, navigator.GetNextPath());
     }
@@ -54,12 +54,12 @@ public sealed class FolderNavigatorTests
     [TestMethod]
     public void MovingRepeatedlyAdvancesTheSelectionImmediately()
     {
-        using var directory = new TemporaryDirectory();
+        var directory = new FolderFiles();
         string first = directory.CreateFile("a.jpg", 1);
         string middle = directory.CreateFile("b.jpg", 1);
         string last = directory.CreateFile("c.jpg", 1);
-        var navigator = new FolderNavigator(IsJpeg);
-        navigator.SetCurrent(first);
+        var navigator = new FolderNavigator();
+        navigator.SetFiles(directory.Files, first);
 
         Assert.AreEqual(middle, navigator.MoveToNextPath());
         Assert.AreEqual(last, navigator.MoveToNextPath());
@@ -67,30 +67,21 @@ public sealed class FolderNavigatorTests
         Assert.AreEqual(last, navigator.MoveToPreviousPath());
     }
 
-    private static bool IsJpeg(string path)
+    private sealed class FolderFiles
     {
-        return string.Equals(Path.GetExtension(path), ".jpg", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private sealed class TemporaryDirectory : IDisposable
-    {
-        internal TemporaryDirectory()
-        {
-            Path = Directory.CreateTempSubdirectory("Dameview.Tests.").FullName;
-        }
-
-        internal string Path { get; }
+        internal string Path => @"C:\virtual-images";
+        internal List<FolderEntry> Files { get; } = [];
 
         internal string CreateFile(string name, int size)
         {
             string path = System.IO.Path.Combine(Path, name);
-            File.WriteAllBytes(path, new byte[size]);
+            if (name.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase))
+            {
+                Files.Add(new FolderEntry(path, size, default, default));
+            }
+
             return path;
         }
 
-        public void Dispose()
-        {
-            Directory.Delete(Path, true);
-        }
     }
 }

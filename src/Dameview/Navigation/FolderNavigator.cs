@@ -4,17 +4,25 @@ internal sealed class FolderNavigator
 {
     private static readonly StringComparer _pathComparer = StringComparer.OrdinalIgnoreCase;
 
-    private readonly Func<string, bool> _isProbablySupported;
-    private FileInfo[] _files = [];
-    private string? _directoryPath;
+    private FolderEntry[] _files = [];
     private int _currentIndex = -1;
 
-    internal FolderNavigator(
-        Func<string, bool> isProbablySupported,
-        FolderSort sort = FolderSort.NameAscending)
+    internal FolderNavigator(FolderSort sort = FolderSort.NameAscending)
     {
-        _isProbablySupported = isProbablySupported;
         Sort = sort;
+    }
+
+    internal void Clear()
+    {
+        _files = [];
+        _currentIndex = -1;
+    }
+
+    internal void SetFiles(IEnumerable<FolderEntry> files, string currentPath)
+    {
+        _files = files.ToArray();
+        SortFiles(_files, Sort);
+        SetCurrent(currentPath);
     }
 
     internal FolderSort Sort { get; private set; }
@@ -42,21 +50,13 @@ internal sealed class FolderNavigator
     internal void SetCurrent(string path)
     {
         string fullPath = Path.GetFullPath(path);
-        string directoryPath = Path.GetDirectoryName(fullPath)
-            ?? throw new ArgumentException("The image path has no containing directory.", nameof(path));
-
-        if (!_pathComparer.Equals(directoryPath, _directoryPath))
-        {
-            LoadDirectory(directoryPath);
-        }
-
         _currentIndex = Array.FindIndex(
             _files,
             file => _pathComparer.Equals(file.FullName, fullPath));
 
         if (_currentIndex < 0)
         {
-            _files = [.. _files, new FileInfo(fullPath)];
+            _files = [.. _files, new FolderEntry(fullPath, 0, default, default)];
             SortFiles(_files, Sort);
             _currentIndex = Array.FindIndex(
                 _files,
@@ -105,24 +105,12 @@ internal sealed class FolderNavigator
         return path;
     }
 
-    private void LoadDirectory(string directoryPath)
-    {
-        FileInfo[] directoryFiles = new DirectoryInfo(directoryPath).GetFiles();
-        _files = directoryFiles
-            .Where(file => _isProbablySupported(file.FullName))
-            .ToArray();
-
-        SortFiles(_files, Sort);
-        _directoryPath = directoryPath;
-        _currentIndex = -1;
-    }
-
-    private static void SortFiles(FileInfo[] files, FolderSort sort)
+    private static void SortFiles(FolderEntry[] files, FolderSort sort)
     {
         Array.Sort(files, (left, right) => Compare(left, right, sort));
     }
 
-    private static int Compare(FileInfo left, FileInfo right, FolderSort sort)
+    private static int Compare(FolderEntry left, FolderEntry right, FolderSort sort)
     {
         int result = sort switch
         {

@@ -33,9 +33,12 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
             _window.Dpi,
             _theme);
         _imageLoadCoordinator = new ImageLoadCoordinator(_window.Post);
+        HashSet<string> extensions = _imageDecoder.GetProbablySupportedExtensions();
         _session = new ViewerSession(
-            new FolderNavigator(_imageDecoder.IsProbablySupported),
+            new FolderNavigator(),
             _imageLoadCoordinator,
+            new FolderScanner(path => extensions.Contains(Path.GetExtension(path))),
+            _window.Post,
             _window.ClientWidth,
             _window.ClientHeight);
         _ui = new ViewerUi(
@@ -69,6 +72,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
     public void Dispose()
     {
+        _session?.Dispose();
         _imageLoadCoordinator?.Dispose();
         _ui?.Dispose();
         _renderer?.Dispose();

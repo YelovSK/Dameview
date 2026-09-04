@@ -12,7 +12,7 @@ public sealed class ViewerSessionTests
     {
         using var files = new SessionFiles();
         var loader = new ManualImageLoader();
-        var session = CreateSession(loader);
+        using var session = CreateSession(loader);
         var states = new List<ViewerSessionState>();
         session.StateChanged += () => states.Add(session.State);
 
@@ -39,11 +39,11 @@ public sealed class ViewerSessionTests
         Assert.AreEqual(center, session.Viewport.Center);
         Assert.AreEqual(mode, session.Viewport.Mode);
         Assert.AreEqual(1.0f, session.Viewport.Scale);
-        Assert.AreEqual(4, states.Count);
+        Assert.AreEqual(5, states.Count);
         Assert.IsTrue(states[0].IsLoading);
-        Assert.IsFalse(states[1].IsLoading);
-        Assert.IsTrue(states[2].IsLoading);
-        Assert.IsTrue(states[3].IsError);
+        Assert.IsFalse(states[2].IsLoading);
+        Assert.IsTrue(states[3].IsLoading);
+        Assert.IsTrue(states[4].IsError);
     }
 
     [TestMethod]
@@ -51,7 +51,7 @@ public sealed class ViewerSessionTests
     {
         using var files = new SessionFiles();
         var loader = new ManualImageLoader();
-        var session = CreateSession(loader);
+        using var session = CreateSession(loader);
         session.OpenImage(files.First);
         loader.Complete(CreateImage());
         CollectionAssert.AreEqual(new[] { files.Second, files.Third }, loader.Preloads);
@@ -76,7 +76,7 @@ public sealed class ViewerSessionTests
     {
         using var files = new SessionFiles();
         var loader = new ManualImageLoader();
-        var session = CreateSession(loader);
+        using var session = CreateSession(loader);
         session.OpenImage(files.First);
         loader.Fail(new InvalidDataException("Broken image"));
         session.ShowNextImage();
@@ -94,7 +94,7 @@ public sealed class ViewerSessionTests
     public void FolderDiscoveryFailureStillAllowsTheImageToLoad()
     {
         var loader = new ManualImageLoader();
-        var session = CreateSession(loader);
+        using var session = CreateSession(loader);
         string path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString(), "image.jpg");
         session.OpenImage(path);
         loader.Complete(CreateImage());
@@ -108,7 +108,24 @@ public sealed class ViewerSessionTests
 
     private static ViewerSession CreateSession(ManualImageLoader loader)
     {
-        return new ViewerSession(new FolderNavigator(_ => true), loader, 800, 600);
+        return new ViewerSession(new FolderNavigator(), loader, new ImmediateScanner(), action => action(), 800, 600);
+    }
+
+    private sealed class ImmediateScanner : IFolderScanner
+    {
+        public Task<FolderEntry[]> ScanAsync(string directoryPath, CancellationToken cancellationToken)
+        {
+            try
+            {
+                return Task.FromResult(new DirectoryInfo(directoryPath).GetFiles()
+                    .Select(file => new FolderEntry(file.FullName, file.Length,
+                        file.CreationTimeUtc, file.LastWriteTimeUtc)).ToArray());
+            }
+            catch (IOException exception)
+            {
+                return Task.FromException<FolderEntry[]>(exception);
+            }
+        }
     }
 
     private static DecodedImage CreateImage()
