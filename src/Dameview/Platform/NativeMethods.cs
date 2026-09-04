@@ -11,8 +11,16 @@ internal static partial class NativeMethods
     internal const uint WindowStyleOverlappedWindow = 0x00CF0000;
     internal const int UseDefault = unchecked((int)0x80000000);
     internal const int ShowNormal = 1;
+    internal const uint RemoveMessage = 0x0001;
+    internal const uint WaitObject0 = 0x00000000;
+    internal const uint WaitFailed = 0xFFFFFFFF;
+
+    private const uint Infinite = 0xFFFFFFFF;
+    private const uint QueueAllInput = 0x04FF;
+    private const uint MessageWaitInputAvailable = 0x0004;
 
     internal const uint MessageDestroy = 0x0002;
+    internal const uint MessageQuit = 0x0012;
     internal const uint MessageSize = 0x0005;
     internal const uint MessagePaint = 0x000F;
     internal const uint MessageEraseBackground = 0x0014;
@@ -26,6 +34,7 @@ internal static partial class NativeMethods
     internal const uint MessageDropFiles = 0x0233;
     internal const uint MessageDpiChanged = 0x02E0;
     internal const uint MessageNonClientCreate = 0x0081;
+    internal const uint MessageRenderFrame = 0x8000;
 
     internal const uint VirtualKeyLeft = 0x25;
     internal const uint VirtualKeyRight = 0x27;
@@ -74,6 +83,17 @@ internal static partial class NativeMethods
         }
     }
 
+    internal static unsafe uint WaitForMessageOrHandle(nint handle, bool includeHandle)
+    {
+        nint* handles = includeHandle ? &handle : null;
+        return MsgWaitForMultipleObjectsEx(
+            includeHandle ? 1u : 0u,
+            handles,
+            Infinite,
+            QueueAllInput,
+            MessageWaitInputAvailable);
+    }
+
     [LibraryImport("ole32")]
     private static partial int CoInitializeEx(nint reserved, uint coInit);
 
@@ -116,12 +136,26 @@ internal static partial class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool ShowWindow(nint window, int command);
 
-    [LibraryImport("user32", EntryPoint = "UpdateWindow", SetLastError = true)]
+    [LibraryImport("user32", EntryPoint = "PostMessageW", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    internal static partial bool UpdateWindow(nint window);
+    internal static partial bool PostMessage(nint window, uint message, nuint wParam, nint lParam);
 
-    [LibraryImport("user32", EntryPoint = "GetMessageW", SetLastError = true)]
-    internal static partial int GetMessage(out WindowMessage message, nint window, uint minimum, uint maximum);
+    [LibraryImport("user32", EntryPoint = "PeekMessageW")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool PeekMessage(
+        out WindowMessage message,
+        nint window,
+        uint minimum,
+        uint maximum,
+        uint removeMessage);
+
+    [LibraryImport("user32", EntryPoint = "MsgWaitForMultipleObjectsEx", SetLastError = true)]
+    private static unsafe partial uint MsgWaitForMultipleObjectsEx(
+        uint count,
+        nint* handles,
+        uint milliseconds,
+        uint wakeMask,
+        uint flags);
 
     [LibraryImport("user32", EntryPoint = "TranslateMessage")]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -177,10 +211,6 @@ internal static partial class NativeMethods
 
     [LibraryImport("user32", EntryPoint = "LoadCursorW", SetLastError = true)]
     internal static partial nint LoadCursor(nint instance, nint cursorName);
-
-    [LibraryImport("user32", EntryPoint = "InvalidateRect")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static partial bool InvalidateRect(nint window, nint rect, [MarshalAs(UnmanagedType.Bool)] bool erase);
 
     [LibraryImport("shell32", EntryPoint = "DragAcceptFiles")]
     internal static partial void DragAcceptFiles(nint window, [MarshalAs(UnmanagedType.Bool)] bool accept);

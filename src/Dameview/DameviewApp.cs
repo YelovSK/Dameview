@@ -35,7 +35,7 @@ internal sealed class DameviewApp : IDisposable
             _window.Dpi,
             _viewport);
 
-        _window.Paint += _renderer.Render;
+        _window.RenderFrame += _renderer.Render;
         _window.Resized += HandleResize;
         _window.DpiChanged += _renderer.SetDpi;
         _window.FileDropped += OpenImage;
@@ -51,7 +51,7 @@ internal sealed class DameviewApp : IDisposable
             OpenImage(imagePath);
         }
 
-        return _window.Run();
+        return _window.Run(_renderer.FrameLatencyWaitHandle);
     }
 
     public void Dispose()
@@ -103,6 +103,7 @@ internal sealed class DameviewApp : IDisposable
     {
         _viewport!.SetViewportSize(width, height);
         _renderer!.Resize(width, height);
+        _window!.RequestRepaint();
     }
 
     private void HandlePointerPressed(int x, int y)

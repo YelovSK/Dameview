@@ -12,6 +12,7 @@ internal sealed unsafe class AppWindow : IDisposable
 
     private GCHandle _selfHandle;
     private Exception? _unhandledException;
+    private bool _frameRequested;
 
     internal AppWindow(string title, int width, int height)
     {
@@ -49,7 +50,7 @@ internal sealed unsafe class AppWindow : IDisposable
         NativeMethods.DragAcceptFiles(Handle, true);
     }
 
-    internal event Action? Paint;
+    internal event Action? RenderFrame;
     internal event Action<int, int>? Resized;
     internal event Action<float>? DpiChanged;
     internal event Action<string>? FileDropped;
@@ -67,32 +68,51 @@ internal sealed unsafe class AppWindow : IDisposable
 
     internal void RequestRepaint()
     {
-        _ = NativeMethods.InvalidateRect(Handle, 0, false);
+        _frameRequested = true;
+        if (Handle != 0)
+        {
+            _ = NativeMethods.PostMessage(Handle, NativeMethods.MessageRenderFrame, 0, 0);
+        }
     }
 
-    internal int Run()
+    internal int Run(nint frameLatencyWaitHandle)
     {
         NativeMethods.ShowWindow(Handle, NativeMethods.ShowNormal);
-        if (!NativeMethods.UpdateWindow(Handle))
-        {
-            throw NativeMethods.CreateLastErrorException("Could not draw the main window.");
-        }
+        RequestRepaint();
 
-        while (true)
+        bool quit = false;
+        while (!quit)
         {
-            int result = NativeMethods.GetMessage(out WindowMessage message, 0, 0, 0);
-            if (result == -1)
+            while (NativeMethods.PeekMessage(out WindowMessage message, 0, 0, 0, NativeMethods.RemoveMessage))
             {
-                throw NativeMethods.CreateLastErrorException("Could not read a window message.");
+                if (message.Message == NativeMethods.MessageQuit)
+                {
+                    quit = true;
+                    break;
+                }
+
+                NativeMethods.TranslateMessage(in message);
+                NativeMethods.DispatchMessage(in message);
             }
 
-            if (result == 0)
+            if (quit)
             {
                 break;
             }
 
-            NativeMethods.TranslateMessage(in message);
-            NativeMethods.DispatchMessage(in message);
+            uint waitResult = NativeMethods.WaitForMessageOrHandle(
+                frameLatencyWaitHandle,
+                _frameRequested);
+            if (waitResult == NativeMethods.WaitFailed)
+            {
+                throw NativeMethods.CreateLastErrorException("Could not wait for a window message or frame.");
+            }
+
+            if (_frameRequested && waitResult == NativeMethods.WaitObject0)
+            {
+                _frameRequested = false;
+                RenderFrame?.Invoke();
+            }
         }
 
         if (_unhandledException is not null)
@@ -185,15 +205,11 @@ internal sealed unsafe class AppWindow : IDisposable
         {
             case NativeMethods.MessagePaint:
                 NativeMethods.BeginPaint(window, out PaintStruct paint);
-                try
-                {
-                    Paint?.Invoke();
-                }
-                finally
-                {
-                    NativeMethods.EndPaint(window, in paint);
-                }
+                NativeMethods.EndPaint(window, in paint);
+                _frameRequested = true;
+                return 0;
 
+            case NativeMethods.MessageRenderFrame:
                 return 0;
 
             case NativeMethods.MessageEraseBackground:
