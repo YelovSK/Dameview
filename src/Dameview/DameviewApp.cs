@@ -1,8 +1,9 @@
+using System.Drawing;
 using Dameview.Imaging;
 using Dameview.Navigation;
 using Dameview.Platform;
 using Dameview.Rendering;
-using Dameview.Viewing;
+using Dameview.UI;
 
 namespace Dameview;
 
@@ -10,10 +11,10 @@ internal sealed class DameviewApp : IDisposable
 {
     private readonly ImageDecoder _imageDecoder = new();
     private readonly FolderNavigator _folderNavigator;
+    private readonly UiTheme _theme = UiTheme.Default;
     private AppWindow? _window;
     private D2DRenderer? _renderer;
-    private ImageViewport? _viewport;
-    private ViewportAnimator? _viewportAnimator;
+    private ViewerUi? _ui;
     private int _pointerX;
     private int _pointerY;
 
@@ -29,14 +30,13 @@ internal sealed class DameviewApp : IDisposable
         _window = new AppWindow("Dameview", 1100, 720);
         _pointerX = _window.ClientWidth / 2;
         _pointerY = _window.ClientHeight / 2;
-        _viewport = new ImageViewport(_window.ClientWidth, _window.ClientHeight);
-        _viewportAnimator = new ViewportAnimator(_viewport);
         _renderer = new D2DRenderer(
             _window.Handle,
             _window.ClientWidth,
             _window.ClientHeight,
             _window.Dpi,
-            _viewport);
+            _theme);
+        _ui = _renderer.Ui;
 
         _window.RenderFrame += HandleRenderFrame;
         _window.Resized += HandleResize;
@@ -67,9 +67,7 @@ internal sealed class DameviewApp : IDisposable
     private void OpenImage(string path)
     {
         DecodedImage image = _imageDecoder.Decode(path);
-        _renderer!.SetImage(image);
-        _viewportAnimator!.Reset();
-        _viewport!.SetImageSize(image.Width, image.Height);
+        _ui!.SetImage(image);
         _folderNavigator.SetCurrent(path);
         _window!.RequestRepaint();
     }
@@ -91,7 +89,7 @@ internal sealed class DameviewApp : IDisposable
         switch (key)
         {
             case NativeMethods.VirtualKeyF:
-                if (_viewportAnimator!.Fit())
+                if (_ui!.FitImage())
                 {
                     _window!.RequestRepaint();
                 }
@@ -100,7 +98,7 @@ internal sealed class DameviewApp : IDisposable
 
             case NativeMethods.VirtualKey1:
             case NativeMethods.VirtualKeyNumpad1:
-                if (_viewportAnimator!.ShowActualSizeAt(_pointerX, _pointerY))
+                if (_ui!.ShowImageAtActualSize(_pointerX, _pointerY))
                 {
                     _window!.RequestRepaint();
                 }
@@ -111,8 +109,7 @@ internal sealed class DameviewApp : IDisposable
 
     private void HandleResize(int width, int height)
     {
-        _viewportAnimator!.Reset();
-        _viewport!.SetViewportSize(width, height);
+        _ui!.SetViewportSize(width, height);
         _renderer!.Resize(width, height);
         _window!.RequestRepaint();
     }
@@ -121,55 +118,66 @@ internal sealed class DameviewApp : IDisposable
     {
         _pointerX = x;
         _pointerY = y;
-        _viewportAnimator!.BeginPan(x, y);
+        SendPointerEvent(new UiPointerEvent(
+            UiPointerEventKind.Pressed,
+            new PointF(x, y),
+            PointerButton.Primary));
     }
 
     private void HandlePointerMoved(int x, int y)
     {
         _pointerX = x;
         _pointerY = y;
-        if (_viewportAnimator!.PanTo(x, y))
-        {
-            _window!.RequestRepaint();
-        }
+        SendPointerEvent(new UiPointerEvent(
+            UiPointerEventKind.Moved,
+            new PointF(x, y)));
     }
 
     private void HandlePointerReleased()
     {
-        if (_viewportAnimator!.EndPan())
-        {
-            _window!.RequestRepaint();
-        }
+        SendPointerEvent(new UiPointerEvent(
+            UiPointerEventKind.Released,
+            new PointF(_pointerX, _pointerY),
+            PointerButton.Primary));
     }
 
     private void HandlePointerDoubleClick(int x, int y)
     {
         _pointerX = x;
         _pointerY = y;
-        if (_viewportAnimator!.ToggleFitAndActualSizeAt(x, y))
-        {
-            _window!.RequestRepaint();
-        }
+        SendPointerEvent(new UiPointerEvent(
+            UiPointerEventKind.DoubleClicked,
+            new PointF(x, y),
+            PointerButton.Primary));
     }
 
     private void HandleMouseWheel(int x, int y, int delta)
     {
         _pointerX = x;
         _pointerY = y;
-        if (_viewportAnimator!.ZoomAt(x, y, delta))
-        {
-            _window!.RequestRepaint();
-        }
+        SendPointerEvent(new UiPointerEvent(
+            UiPointerEventKind.Wheel,
+            new PointF(x, y),
+            WheelDelta: delta));
     }
 
     private void HandleRenderFrame()
     {
-        bool animationContinues = _viewportAnimator!.Update();
+        bool animationContinues = _ui!.Update();
         _renderer!.Render();
 
         if (animationContinues)
         {
             _window!.RequestRepaint();
+        }
+    }
+
+    private void SendPointerEvent(UiPointerEvent input)
+    {
+        var size = new SizeF(_window!.ClientWidth, _window.ClientHeight);
+        if (_ui!.HandlePointer(input, size))
+        {
+            _window.RequestRepaint();
         }
     }
 }

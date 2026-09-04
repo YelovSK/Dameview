@@ -3,9 +3,9 @@ using Vortice.Direct2D1;
 using Vortice.DirectWrite;
 using Vortice.Mathematics;
 
-namespace Dameview.UI;
+namespace Dameview.UI.Panels;
 
-internal sealed class AppUi : IDisposable
+internal sealed class EmptyStatePanel : IUiElement, IDisposable
 {
     private readonly ID2D1SolidColorBrush _surfaceBrush;
     private readonly ID2D1SolidColorBrush _borderBrush;
@@ -16,34 +16,46 @@ internal sealed class AppUi : IDisposable
     private readonly IDWriteTextFormat _bodyFormat;
     private readonly IDWriteTextFormat _captionFormat;
 
-    internal AppUi(ID2D1RenderTarget renderTarget, IDWriteFactory directWriteFactory)
+    internal EmptyStatePanel(
+        ID2D1RenderTarget renderTarget,
+        IDWriteFactory directWriteFactory,
+        UiTheme theme)
     {
-        _surfaceBrush = renderTarget.CreateSolidColorBrush(Theme.Surface);
-        _borderBrush = renderTarget.CreateSolidColorBrush(Theme.SurfaceBorder);
-        _accentBrush = renderTarget.CreateSolidColorBrush(Theme.Accent);
-        _primaryTextBrush = renderTarget.CreateSolidColorBrush(Theme.PrimaryText);
-        _secondaryTextBrush = renderTarget.CreateSolidColorBrush(Theme.SecondaryText);
+        _surfaceBrush = renderTarget.CreateSolidColorBrush(theme.Surface);
+        _borderBrush = renderTarget.CreateSolidColorBrush(theme.SurfaceBorder);
+        _accentBrush = renderTarget.CreateSolidColorBrush(theme.Accent);
+        _primaryTextBrush = renderTarget.CreateSolidColorBrush(theme.PrimaryText);
+        _secondaryTextBrush = renderTarget.CreateSolidColorBrush(theme.SecondaryText);
 
         _titleFormat = CreateCenteredFormat(directWriteFactory, 30.0f, FontWeight.SemiBold);
         _bodyFormat = CreateCenteredFormat(directWriteFactory, 15.0f, FontWeight.Normal);
         _captionFormat = CreateCenteredFormat(directWriteFactory, 12.0f, FontWeight.Medium);
     }
 
-    internal void Draw(ID2D1RenderTarget renderTarget, float width, float height)
+    public void Draw(in UiDrawContext context, SizeF size)
     {
+        ID2D1RenderTarget renderTarget = context.RenderTarget;
+        float width = context.PixelsToDips(size.Width);
+        float height = context.PixelsToDips(size.Height);
         float cardWidth = MathF.Min(560.0f, MathF.Max(280.0f, width - 48.0f));
         float cardHeight = MathF.Min(330.0f, MathF.Max(260.0f, height - 96.0f));
         float cardX = (width - cardWidth) / 2.0f;
         float cardY = (height - cardHeight) / 2.0f;
 
-        RoundedRectangle card = new(new RectangleF(cardX, cardY, cardWidth, cardHeight), 24.0f, 24.0f);
+        RoundedRectangle card = new(
+            new RectangleF(cardX, cardY, cardWidth, cardHeight),
+            24.0f,
+            24.0f);
         renderTarget.FillRoundedRectangle(card, _surfaceBrush);
         renderTarget.DrawRoundedRectangle(card, _borderBrush);
 
         float markSize = 72.0f;
         float markX = (width - markSize) / 2.0f;
         float markY = cardY + 48.0f;
-        RoundedRectangle mark = new(new RectangleF(markX, markY, markSize, markSize), 18.0f, 18.0f);
+        RoundedRectangle mark = new(
+            new RectangleF(markX, markY, markSize, markSize),
+            18.0f,
+            18.0f);
         renderTarget.DrawRoundedRectangle(mark, _accentBrush, 2.0f);
 
         renderTarget.DrawText(
@@ -62,13 +74,21 @@ internal sealed class AppUi : IDisposable
         float pillHeight = 32.0f;
         float pillX = (width - pillWidth) / 2.0f;
         float pillY = cardY + cardHeight - pillHeight - 28.0f;
-        RoundedRectangle pill = new(new RectangleF(pillX, pillY, pillWidth, pillHeight), 16.0f, 16.0f);
+        RoundedRectangle pill = new(
+            new RectangleF(pillX, pillY, pillWidth, pillHeight),
+            16.0f,
+            16.0f);
         renderTarget.DrawRoundedRectangle(pill, _borderBrush);
         renderTarget.DrawText(
             "Win32  •  Direct2D  •  Native AOT",
             _captionFormat,
             new Rect(pillX, pillY, pillWidth, pillHeight),
             _secondaryTextBrush);
+    }
+
+    public bool HandlePointer(in UiPointerEvent input, SizeF size)
+    {
+        return false;
     }
 
     public void Dispose()
@@ -99,4 +119,3 @@ internal sealed class AppUi : IDisposable
         return format;
     }
 }
-

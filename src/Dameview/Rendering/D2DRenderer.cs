@@ -1,6 +1,4 @@
-using Dameview.Imaging;
 using Dameview.UI;
-using Dameview.Viewing;
 using Microsoft.Win32.SafeHandles;
 using Vortice.DCommon;
 using Vortice.Direct2D1;
@@ -28,20 +26,24 @@ internal sealed class D2DRenderer : IDisposable
     private readonly ID2D1Device _d2dDevice;
     private readonly ID2D1DeviceContext _deviceContext;
     private readonly IDWriteFactory1 _directWriteFactory;
-    private readonly AppUi _ui;
-    private readonly ImageViewport _viewport;
+    private readonly ViewerUi _ui;
+    private readonly UiTheme _theme;
     private ID2D1Bitmap1? _targetBitmap;
-    private ID2D1Bitmap1? _image;
     private int _width;
     private int _height;
     private float _dpi;
 
-    internal D2DRenderer(nint window, int width, int height, float dpi, ImageViewport viewport)
+    internal D2DRenderer(
+        nint window,
+        int width,
+        int height,
+        float dpi,
+        UiTheme theme)
     {
         _width = width;
         _height = height;
         _dpi = dpi;
-        _viewport = viewport;
+        _theme = theme;
 
         _d3dDevice = D3D11CreateDevice(
             DriverType.Hardware,
@@ -83,10 +85,16 @@ internal sealed class D2DRenderer : IDisposable
             ownsHandle: true);
 
         CreateTargetBitmap();
-        _ui = new AppUi(_deviceContext, _directWriteFactory);
+        _ui = new ViewerUi(
+            _deviceContext,
+            _directWriteFactory,
+            width,
+            height,
+            theme);
     }
 
     internal nint FrameLatencyWaitHandle => _frameLatencyWaitHandle.DangerousGetHandle();
+    internal ViewerUi Ui => _ui;
 
     internal void Render()
     {
@@ -96,45 +104,12 @@ internal sealed class D2DRenderer : IDisposable
         }
 
         _deviceContext.BeginDraw();
-        _deviceContext.Clear(Theme.Background);
-
-        float width = PixelsToDips(_width);
-        float height = PixelsToDips(_height);
-        if (_image is null)
-        {
-            _ui.Draw(_deviceContext, width, height);
-        }
-        else
-        {
-            DrawImage();
-        }
+        _deviceContext.Clear(_theme.Background);
+        var drawContext = new UiDrawContext(_deviceContext, _dpi);
+        _ui.Draw(drawContext, new System.Drawing.SizeF(_width, _height));
 
         _deviceContext.EndDraw().CheckError();
         _swapChain.Present(1, PresentFlags.None).CheckError();
-    }
-
-    internal unsafe void SetImage(DecodedImage image)
-    {
-        BitmapProperties1 properties = new(
-            new PixelFormat(
-                Format.B8G8R8A8_UNorm,
-                Vortice.DCommon.AlphaMode.Premultiplied),
-            96.0f,
-            96.0f,
-            BitmapOptions.None);
-
-        ID2D1Bitmap1 newImage;
-        fixed (byte* pixels = image.Pixels)
-        {
-            newImage = _deviceContext.CreateBitmap(
-                new SizeI(image.Width, image.Height),
-                (nint)pixels,
-                (uint)image.Stride,
-                properties);
-        }
-
-        _image?.Dispose();
-        _image = newImage;
     }
 
     internal void Resize(int width, int height)
@@ -172,7 +147,6 @@ internal sealed class D2DRenderer : IDisposable
     public void Dispose()
     {
         _deviceContext.Target = null;
-        _image?.Dispose();
         _ui.Dispose();
         _targetBitmap?.Dispose();
         _deviceContext.Dispose();
@@ -208,25 +182,4 @@ internal sealed class D2DRenderer : IDisposable
         _targetBitmap = null;
     }
 
-    private float PixelsToDips(float pixels)
-    {
-        return pixels * 96.0f / _dpi;
-    }
-
-    private void DrawImage()
-    {
-        ID2D1Bitmap1 image = _image!;
-        System.Drawing.RectangleF destination = _viewport.GetDestinationRectangle();
-
-        _deviceContext.DrawBitmap(
-            image,
-            new Rect(
-                PixelsToDips(destination.X),
-                PixelsToDips(destination.Y),
-                PixelsToDips(destination.Width),
-                PixelsToDips(destination.Height)),
-            1.0f,
-            BitmapInterpolationMode.Linear,
-            new Rect(0.0f, 0.0f, image.PixelSize.Width, image.PixelSize.Height));
-    }
 }
