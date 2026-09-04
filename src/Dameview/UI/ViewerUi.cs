@@ -156,11 +156,6 @@ internal sealed class ViewerUi : IUiElement, IDisposable
 
     private RectangleF GetBounds(IUiElement element, ViewerLayout layout)
     {
-        if (ReferenceEquals(element, _statusPanel))
-        {
-            return layout.Status;
-        }
-
         if (ReferenceEquals(element, _toolbarPanel))
         {
             return layout.Toolbar;

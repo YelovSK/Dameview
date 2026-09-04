@@ -21,7 +21,7 @@ public sealed class ViewerSessionTests
         Assert.IsNull(session.State.DisplayedImage);
         var image = new DecodedImage(1600, 1200, 6400, new byte[6400 * 1200]);
         loader.Complete(image);
-        session.Viewport.ShowActualSize();
+        session.Viewport.SetActualSizeAt(400, 300, session.Viewport.ImageCenter);
         session.Viewport.PanBy(100, 50);
         var center = session.Viewport.Center;
         var mode = session.Viewport.Mode;

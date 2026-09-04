@@ -98,7 +98,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         }
     }
 
-    public void ShowActualSize(PointF anchor)
+    private void ShowActualSize(PointF anchor)
     {
         if (_session!.Animator.ShowActualSizeAt(anchor.X, anchor.Y))
         {

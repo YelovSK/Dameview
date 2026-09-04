@@ -1,5 +1,3 @@
-using System.Drawing;
-
 namespace Dameview.Commands;
 
 internal interface IViewerCommands
@@ -11,6 +9,4 @@ internal interface IViewerCommands
     public void FitImage();
 
     public void ShowActualSize();
-
-    public void ShowActualSize(PointF anchor);
 }

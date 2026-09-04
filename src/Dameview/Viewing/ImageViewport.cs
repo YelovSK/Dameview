@@ -66,42 +66,6 @@ internal sealed class ImageViewport
         CenterImage();
     }
 
-    internal void ShowActualSize()
-    {
-        if (!HasImage)
-        {
-            return;
-        }
-
-        Mode = ViewportMode.ActualSize;
-        Scale = 1.0f;
-        CenterImage();
-    }
-
-    internal void ToggleFitAndActualSize()
-    {
-        if (Mode == ViewportMode.Fit)
-        {
-            ShowActualSize();
-        }
-        else
-        {
-            Fit();
-        }
-    }
-
-    internal void ZoomAt(float viewportX, float viewportY, int wheelDelta)
-    {
-        if (!HasImage || wheelDelta == 0)
-        {
-            return;
-        }
-
-        PointF imagePosition = ViewportToImage(viewportX, viewportY);
-        float newScale = GetZoomScale(Scale, wheelDelta);
-        SetScaleAt(newScale, viewportX, viewportY, imagePosition);
-    }
-
     internal float GetZoomScale(float scale, int wheelDelta)
     {
         if (!HasImage || wheelDelta == 0)
@@ -190,22 +154,6 @@ internal sealed class ImageViewport
         float x = (_viewportWidth / 2.0f) - (_centerX * Scale);
         float y = (_viewportHeight / 2.0f) - (_centerY * Scale);
         return new RectangleF(x, y, width, height);
-    }
-
-    internal RectangleF GetVisibleImageRectangle()
-    {
-        if (!HasImage)
-        {
-            return RectangleF.Empty;
-        }
-
-        float halfVisibleWidth = _viewportWidth / (2.0f * Scale);
-        float halfVisibleHeight = _viewportHeight / (2.0f * Scale);
-        float left = Math.Max(0.0f, _centerX - halfVisibleWidth);
-        float top = Math.Max(0.0f, _centerY - halfVisibleHeight);
-        float right = Math.Min(_imageWidth, _centerX + halfVisibleWidth);
-        float bottom = Math.Min(_imageHeight, _centerY + halfVisibleHeight);
-        return RectangleF.FromLTRB(left, top, right, bottom);
     }
 
     internal PointF ViewportToImage(float viewportX, float viewportY)

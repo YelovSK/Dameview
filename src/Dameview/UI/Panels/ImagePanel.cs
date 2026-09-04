@@ -54,7 +54,7 @@ internal sealed class ImagePanel : IUiElement, IDisposable
 
     public bool Update(in UiUpdateContext context)
     {
-        return _animator.Update();
+        return _animator.Update(context.ElapsedSeconds);
     }
 
     public void Draw(in UiDrawContext context, SizeF size)

@@ -15,8 +15,7 @@ public sealed class ViewportAnimatorTests
         var imagePosition = viewport.ViewportToImage(600.0f, 400.0f);
 
         Assert.IsTrue(animator.ZoomAt(600.0f, 400.0f, 120));
-        timeProvider.Advance(TimeSpan.FromMilliseconds(16));
-        Assert.IsTrue(animator.Update());
+        Assert.IsTrue(animator.Update(0.016));
 
         Assert.IsGreaterThan(0.5f, viewport.Scale);
         Assert.IsLessThan(0.6f, viewport.Scale);
@@ -24,8 +23,7 @@ public sealed class ViewportAnimatorTests
 
         for (int frame = 0; frame < 100 && animator.IsAnimating; frame++)
         {
-            timeProvider.Advance(TimeSpan.FromMilliseconds(16));
-            animator.Update();
+            animator.Update(0.016);
         }
 
         Assert.IsFalse(animator.IsAnimating);
@@ -38,7 +36,7 @@ public sealed class ViewportAnimatorTests
         var timeProvider = new ManualTimeProvider();
         var viewport = new ImageViewport(500, 500);
         viewport.SetImageSize(2000, 2000);
-        viewport.ShowActualSize();
+        viewport.SetActualSizeAt(viewport.ViewportCenter.X, viewport.ViewportCenter.Y, viewport.ImageCenter);
         var animator = new ViewportAnimator(viewport, timeProvider);
 
         animator.BeginPan(0.0f, 0.0f);
@@ -49,8 +47,7 @@ public sealed class ViewportAnimatorTests
         float positionAtRelease = viewport.GetDestinationRectangle().X;
 
         Assert.IsTrue(animator.EndPan());
-        timeProvider.Advance(TimeSpan.FromMilliseconds(16));
-        Assert.IsTrue(animator.Update());
+        Assert.IsTrue(animator.Update(0.016));
 
         Assert.IsTrue(viewport.GetDestinationRectangle().X > positionAtRelease);
     }
@@ -75,7 +72,7 @@ public sealed class ViewportAnimatorTests
         var timeProvider = new ManualTimeProvider();
         var viewport = new ImageViewport(500, 500);
         viewport.SetImageSize(2000, 2000);
-        viewport.ShowActualSize();
+        viewport.SetActualSizeAt(viewport.ViewportCenter.X, viewport.ViewportCenter.Y, viewport.ImageCenter);
         var animator = new ViewportAnimator(viewport, timeProvider);
 
         animator.BeginPan(0.0f, 0.0f);
@@ -85,8 +82,7 @@ public sealed class ViewportAnimatorTests
         float centerBeforeZoom = viewport.ViewportToImage(250.0f, 250.0f).X;
 
         Assert.IsTrue(animator.ZoomAt(250.0f, 250.0f, 120));
-        timeProvider.Advance(TimeSpan.FromMilliseconds(16));
-        animator.Update();
+        animator.Update(0.016);
 
         Assert.AreEqual(centerBeforeZoom, viewport.ViewportToImage(250.0f, 250.0f).X, 0.001f);
     }
@@ -101,14 +97,13 @@ public sealed class ViewportAnimatorTests
         var imagePosition = viewport.ViewportToImage(600.0f, 400.0f);
 
         Assert.IsTrue(animator.ShowActualSizeAt(600.0f, 400.0f));
-        timeProvider.Advance(TimeSpan.FromMilliseconds(16));
-        Assert.IsTrue(animator.Update());
+        Assert.IsTrue(animator.Update(0.016));
 
         Assert.IsGreaterThan(0.5f, viewport.Scale);
         Assert.IsLessThan(1.0f, viewport.Scale);
         Assert.AreEqual(imagePosition.X, viewport.ViewportToImage(600.0f, 400.0f).X, 0.001f);
 
-        AdvanceUntilComplete(animator, timeProvider);
+        AdvanceUntilComplete(animator);
 
         Assert.AreEqual(ViewportMode.ActualSize, viewport.Mode);
         Assert.AreEqual(1.0f, viewport.Scale);
@@ -123,12 +118,12 @@ public sealed class ViewportAnimatorTests
         var timeProvider = new ManualTimeProvider();
         var viewport = new ImageViewport(1000, 800);
         viewport.SetImageSize(2000, 1600);
-        viewport.ShowActualSize();
+        viewport.SetActualSizeAt(viewport.ViewportCenter.X, viewport.ViewportCenter.Y, viewport.ImageCenter);
         viewport.PanBy(200.0f, 100.0f);
         var animator = new ViewportAnimator(viewport, timeProvider);
 
         Assert.IsTrue(animator.Fit());
-        AdvanceUntilComplete(animator, timeProvider);
+        AdvanceUntilComplete(animator);
 
         Assert.AreEqual(ViewportMode.Fit, viewport.Mode);
         Assert.AreEqual(0.5f, viewport.Scale);
@@ -136,14 +131,11 @@ public sealed class ViewportAnimatorTests
         Assert.AreEqual(0.0f, viewport.GetDestinationRectangle().Y, 0.001f);
     }
 
-    private static void AdvanceUntilComplete(
-        ViewportAnimator animator,
-        ManualTimeProvider timeProvider)
+    private static void AdvanceUntilComplete(ViewportAnimator animator)
     {
         for (int frame = 0; frame < 100 && animator.IsAnimating; frame++)
         {
-            timeProvider.Advance(TimeSpan.FromMilliseconds(16));
-            animator.Update();
+            animator.Update(0.016);
         }
 
         Assert.IsFalse(animator.IsAnimating);

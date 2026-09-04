@@ -8,7 +8,6 @@ internal sealed class ButtonInteraction
     private readonly Action _clicked;
     private readonly AnimatedFloat _hoverAmount = new(0.0f, 24.0);
     private readonly AnimatedFloat _pressedAmount = new(0.0f, 32.0);
-    private bool _isHovered;
     private bool _isPressed;
 
     internal ButtonInteraction(Action clicked)
@@ -32,16 +31,13 @@ internal sealed class ButtonInteraction
         switch (input.Kind)
         {
             case UiPointerEventKind.Moved:
-                bool changed = _isHovered != isInside;
-                _isHovered = isInside;
-                changed |= _hoverAmount.SetTarget(isInside ? 1.0f : 0.0f);
+                bool changed = _hoverAmount.SetTarget(isInside ? 1.0f : 0.0f);
                 changed |= _pressedAmount.SetTarget(
                     _isPressed && isInside ? 1.0f : 0.0f);
                 return new UiPointerResult(Consumed: isInside, NeedsRepaint: changed);
 
             case UiPointerEventKind.Pressed
                 when input.Button == PointerButton.Primary && isInside:
-                _isHovered = true;
                 _isPressed = true;
                 _hoverAmount.SetTarget(1.0f);
                 _pressedAmount.SetTarget(1.0f);
@@ -49,7 +45,6 @@ internal sealed class ButtonInteraction
 
             case UiPointerEventKind.Released when _isPressed:
                 _isPressed = false;
-                _isHovered = isInside;
                 _hoverAmount.SetTarget(isInside ? 1.0f : 0.0f);
                 _pressedAmount.SetTarget(0.0f);
 
@@ -63,7 +58,6 @@ internal sealed class ButtonInteraction
             case UiPointerEventKind.Cancelled:
                 bool wasPressed = _isPressed;
                 _isPressed = false;
-                _isHovered = false;
                 bool repaint = _hoverAmount.SetTarget(0.0f);
                 repaint |= _pressedAmount.SetTarget(0.0f);
                 return new UiPointerResult(Consumed: wasPressed, NeedsRepaint: repaint);

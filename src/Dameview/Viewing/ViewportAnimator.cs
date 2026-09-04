@@ -4,7 +4,6 @@ namespace Dameview.Viewing;
 
 internal sealed class ViewportAnimator
 {
-    private const double MaximumElapsedSeconds = 0.05;
     private const double ZoomResponse = 18.0;
     private const double ZoomCompletionRatio = 0.001;
     private const double CenteredTransitionResponse = 14.0;
@@ -31,8 +30,6 @@ internal sealed class ViewportAnimator
     private bool _hasPointerVelocity;
     private double _velocityX;
     private double _velocityY;
-    private bool _hasFrameTimestamp;
-    private long _frameTimestamp;
 
     internal ViewportAnimator(ImageViewport viewport, TimeProvider? timeProvider = null)
     {
@@ -50,7 +47,6 @@ internal sealed class ViewportAnimator
         _hasPointerVelocity = false;
         _velocityX = 0.0;
         _velocityY = 0.0;
-        _hasFrameTimestamp = false;
     }
 
     internal bool ZoomAt(float viewportX, float viewportY, int wheelDelta)
@@ -78,7 +74,6 @@ internal sealed class ViewportAnimator
         _zoomImagePosition = _viewport.ViewportToImage(viewportX, viewportY);
         _zoomTargetMode = ViewportMode.Custom;
         _zooming = true;
-        StartFrameSequence();
         return true;
     }
 
@@ -133,13 +128,7 @@ internal sealed class ViewportAnimator
             _velocityY = 0.0;
         }
 
-        if (HasMomentum)
-        {
-            StartFrameSequence();
-            return true;
-        }
-
-        return false;
+        return HasMomentum;
     }
 
     internal bool Fit()
@@ -171,7 +160,6 @@ internal sealed class ViewportAnimator
         }
 
         _zooming = true;
-        StartFrameSequence();
         return true;
     }
 
@@ -186,30 +174,13 @@ internal sealed class ViewportAnimator
         return Fit();
     }
 
-    internal bool Update()
+    internal bool Update(double elapsedSeconds)
     {
-        if (!IsAnimating)
+        if (IsAnimating && elapsedSeconds > 0.0)
         {
-            _hasFrameTimestamp = false;
-            return false;
-        }
-
-        long timestamp = _timeProvider.GetTimestamp();
-        double elapsed = Math.Min(
-            _timeProvider.GetElapsedTime(_frameTimestamp, timestamp).TotalSeconds,
-            MaximumElapsedSeconds);
-        _frameTimestamp = timestamp;
-
-        if (elapsed > 0.0)
-        {
-            UpdateZoom(elapsed);
-            UpdateCenteredTransition(elapsed);
-            UpdateMomentum(elapsed);
-        }
-
-        if (!IsAnimating)
-        {
-            _hasFrameTimestamp = false;
+            UpdateZoom(elapsedSeconds);
+            UpdateCenteredTransition(elapsedSeconds);
+            UpdateMomentum(elapsedSeconds);
         }
 
         return IsAnimating;
@@ -217,17 +188,6 @@ internal sealed class ViewportAnimator
 
     private bool HasMomentum => Math.Sqrt((_velocityX * _velocityX) + (_velocityY * _velocityY))
         >= MinimumMomentumSpeed;
-
-    private void StartFrameSequence()
-    {
-        if (_hasFrameTimestamp)
-        {
-            return;
-        }
-
-        _frameTimestamp = _timeProvider.GetTimestamp();
-        _hasFrameTimestamp = true;
-    }
 
     private bool StartCenteredTransition(float scale)
     {
@@ -242,7 +202,6 @@ internal sealed class ViewportAnimator
         }
 
         _centering = true;
-        StartFrameSequence();
         return true;
     }
 
