@@ -16,6 +16,9 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
     private readonly Queue<string> _pendingPreloads = new();
     private readonly Dictionary<string, TaskCompletionSource<DecodedImage>> _inFlightDecodes =
         new(StringComparer.OrdinalIgnoreCase);
+    private readonly Func<string, DecodedImage?> _thumbnailLoader;
+    private LoadRequest? _pendingThumbnail;
+    private long _completedRequestId;
     private LoadRequest? _pendingRequest;
     private long _latestRequestId;
     private bool _stopping;
@@ -23,15 +26,18 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
     internal ImageLoadCoordinator(
         Action<Action> postToUi,
         Func<IImageDecoder>? decoderFactory = null,
-        long cacheCapacityBytes = DefaultCacheCapacityBytes)
+        long cacheCapacityBytes = DefaultCacheCapacityBytes,
+        Func<string, DecodedImage?>? thumbnailLoader = null)
     {
         _postToUi = postToUi;
+        _thumbnailLoader = thumbnailLoader ?? WindowsThumbnail.Load;
         _decoderFactory = decoderFactory ?? (static () => new ImageDecoder());
         _cache = new DecodedImageCache(cacheCapacityBytes);
         _foregroundWorker = CreateWorker("Dameview image loader", ForegroundWork);
         _preloadWorker = CreateWorker("Dameview image preloader", PreloadWork);
         _foregroundWorker.Start();
         _preloadWorker.Start();
+        new Thread(ThumbnailWork) { IsBackground = true, Name = "Dameview thumbnails" }.Start();
     }
 
     public void Load(string path, Action<ImageLoadResult> completed)
@@ -42,6 +48,7 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
             ObjectDisposedException.ThrowIf(_stopping, this);
             request = new LoadRequest(++_latestRequestId, path, completed);
             _pendingRequest = null;
+            _pendingThumbnail = null;
         }
 
         if (_cache.TryGet(path, out DecodedImage? cachedImage))
@@ -56,6 +63,7 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
             if (!_stopping && request.Id == _latestRequestId)
             {
                 _pendingRequest = request;
+                _pendingThumbnail = request;
                 Monitor.PulseAll(_sync);
             }
         }
@@ -91,10 +99,54 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
             }
 
             _stopping = true;
+            _pendingThumbnail = null;
             _pendingRequest = null;
             _pendingPreloads.Clear();
             _latestRequestId++;
             Monitor.PulseAll(_sync);
+        }
+    }
+
+    private void ThumbnailWork()
+    {
+        NativeMethods.InitializeComApartment(ComApartment.MultiThreaded);
+        try
+        {
+            while (true)
+            {
+                LoadRequest request;
+                lock (_sync)
+                {
+                    while (!_stopping && _pendingThumbnail is null)
+                    {
+                        Monitor.Wait(_sync);
+                    }
+
+                    if (_stopping)
+                    {
+                        return;
+                    }
+
+                    request = _pendingThumbnail!;
+                    _pendingThumbnail = null;
+                }
+
+                try
+                {
+                    if (IsLatest(request.Id) && _thumbnailLoader(request.Path) is { } image)
+                    {
+                        _postToUi(() => Deliver(request, new ImageLoaded(request.Path, image, IsPreview: true)));
+                    }
+                }
+                catch (Exception)
+                {
+                    // A missing or broken thumbnail must not affect the full decode.
+                }
+            }
+        }
+        finally
+        {
+            NativeMethods.UninitializeComApartment();
         }
     }
 
@@ -277,10 +329,20 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
 
     private void Deliver(LoadRequest request, ImageLoadResult result)
     {
-        if (IsLatest(request.Id))
+        lock (_sync)
         {
-            request.Completed(result);
+            if (_stopping || request.Id != _latestRequestId || request.Id <= _completedRequestId)
+            {
+                return;
+            }
+
+            if (result is not ImageLoaded { IsPreview: true })
+            {
+                _completedRequestId = request.Id;
+            }
         }
+
+        request.Completed(result);
     }
 
     private bool IsLatest(long requestId)
@@ -301,7 +363,8 @@ internal abstract record ImageLoadResult(string Path);
 
 internal sealed record ImageLoaded(
     string Path,
-    DecodedImage Image) : ImageLoadResult(Path);
+    DecodedImage Image,
+    bool IsPreview = false) : ImageLoadResult(Path);
 
 internal sealed record ImageLoadFailed(
     string Path,

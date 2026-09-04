@@ -176,6 +176,89 @@ public sealed class ImageLoadCoordinatorTests
         }
     }
 
+    [TestMethod]
+    public void PreviewArrivesWhileDecodeIsBlockedAndFullImageReplacesIt()
+    {
+        using var release = new ManualResetEventSlim();
+        using var posted = new BlockingCollection<Action>();
+        using var coordinator = new ImageLoadCoordinator(posted.Add,
+            () => new FakeImageDecoder(_ => { release.Wait(); return CreateImage(); }),
+            thumbnailLoader: _ => CreateImage());
+        var results = new List<ImageLoaded>();
+        try
+        {
+            coordinator.Load("image", result => results.Add((ImageLoaded)result));
+            Assert.IsTrue(posted.TryTake(out Action? preview, TimeSpan.FromSeconds(5)));
+            preview();
+            Assert.IsTrue(results[0].IsPreview);
+            release.Set();
+            Assert.IsTrue(posted.TryTake(out Action? full, TimeSpan.FromSeconds(5)));
+            full();
+            Assert.HasCount(2, results);
+            Assert.IsFalse(results[1].IsPreview);
+        }
+        finally
+        {
+            release.Set();
+        }
+    }
+
+    [TestMethod]
+    public void LatePreviewCannotReplaceFullImageOrANewerRequest()
+    {
+        using var releasePreview = new ManualResetEventSlim();
+        using var previewStarted = new ManualResetEventSlim();
+        using var posted = new BlockingCollection<Action>();
+        using var coordinator = new ImageLoadCoordinator(posted.Add,
+            () => new FakeImageDecoder(_ => CreateImage()),
+            thumbnailLoader: _ =>
+            {
+                previewStarted.Set();
+                releasePreview.Wait();
+                return CreateImage();
+            });
+        var results = new List<ImageLoaded>();
+        try
+        {
+            coordinator.Load("image", result => results.Add((ImageLoaded)result));
+            Assert.IsTrue(previewStarted.Wait(TimeSpan.FromSeconds(5)));
+            Assert.IsTrue(posted.TryTake(out Action? full, TimeSpan.FromSeconds(5)));
+            full();
+            releasePreview.Set();
+            Assert.IsTrue(posted.TryTake(out Action? preview, TimeSpan.FromSeconds(5)));
+            preview();
+            Assert.HasCount(1, results);
+            Assert.IsFalse(results[0].IsPreview);
+
+            coordinator.Load("image", result => results.Add((ImageLoaded)result));
+            preview();
+            Assert.HasCount(1, results);
+            Assert.IsTrue(posted.TryTake(out Action? cached, TimeSpan.FromSeconds(5)));
+            cached();
+            Assert.HasCount(2, results);
+            Assert.IsFalse(results[1].IsPreview);
+        }
+        finally
+        {
+            releasePreview.Set();
+        }
+    }
+
+    [TestMethod]
+    public void ThumbnailFailureDoesNotPreventFullDecode()
+    {
+        using var posted = new BlockingCollection<Action>();
+        using var coordinator = new ImageLoadCoordinator(posted.Add,
+            () => new FakeImageDecoder(_ => CreateImage()),
+            thumbnailLoader: _ => throw new IOException("Thumbnail unavailable"));
+        ImageLoadResult? result = null;
+        coordinator.Load("image", loaded => result = loaded);
+        Assert.IsTrue(posted.TryTake(out Action? complete, TimeSpan.FromSeconds(5)));
+        complete();
+        Assert.IsInstanceOfType<ImageLoaded>(result);
+        Assert.IsFalse(((ImageLoaded)result).IsPreview);
+    }
+
     private static DecodedImage CreateImage()
     {
         return new DecodedImage(1, 1, 4, new byte[4]);

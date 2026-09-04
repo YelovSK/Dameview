@@ -202,6 +202,12 @@ internal sealed class ViewerSession : IDisposable
 
         switch (result)
         {
+            case ImageLoaded { IsPreview: true } preview:
+                Animator.Reset();
+                Viewport.SetImageSize(preview.Image.Width, preview.Image.Height);
+                State = State with { DisplayedImage = preview };
+                break;
+
             case ImageLoaded loaded:
                 Animator.Reset();
                 Viewport.SetImageSize(loaded.Image.Width, loaded.Image.Height);

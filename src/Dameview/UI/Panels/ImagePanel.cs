@@ -15,6 +15,7 @@ internal sealed class ImagePanel : IUiElement, IDisposable
     private readonly ViewportAnimator _animator;
     private ID2D1Bitmap1? _image;
     private bool _isPanning;
+    private bool _isPreview;
 
     internal ImagePanel(
         ID2D1DeviceContext deviceContext,
@@ -28,7 +29,7 @@ internal sealed class ImagePanel : IUiElement, IDisposable
 
     internal float ZoomPercentage => _viewport.Scale * 100.0f;
 
-    internal unsafe void SetImage(DecodedImage image)
+    internal unsafe void SetImage(DecodedImage image, bool isPreview)
     {
         BitmapProperties1 properties = new(
             new PixelFormat(
@@ -50,6 +51,7 @@ internal sealed class ImagePanel : IUiElement, IDisposable
 
         _image?.Dispose();
         _image = newImage;
+        _isPreview = isPreview;
     }
 
     public bool Update(in UiUpdateContext context)
@@ -65,6 +67,13 @@ internal sealed class ImagePanel : IUiElement, IDisposable
         }
 
         RectangleF destination = _viewport.GetDestinationRectangle();
+        if (_isPreview)
+        {
+            float scale = MathF.Min(size.Width / _image.PixelSize.Width, size.Height / _image.PixelSize.Height);
+            float width = _image.PixelSize.Width * scale;
+            float height = _image.PixelSize.Height * scale;
+            destination = new RectangleF((size.Width - width) / 2, (size.Height - height) / 2, width, height);
+        }
         RectangleF destinationInDips = context.PixelsToDips(destination);
 
         context.RenderTarget.DrawBitmap(
@@ -81,6 +90,11 @@ internal sealed class ImagePanel : IUiElement, IDisposable
 
     public UiPointerResult HandlePointer(in UiPointerEvent input, SizeF size)
     {
+        if (_isPreview)
+        {
+            return new UiPointerResult(Consumed: true);
+        }
+
         switch (input.Kind)
         {
             case UiPointerEventKind.Pressed when input.Button == PointerButton.Primary:

@@ -106,6 +106,24 @@ public sealed class ViewerSessionTests
         Assert.HasCount(0, loader.Preloads);
     }
 
+    [TestMethod]
+    public void PreviewKeepsLoadingUntilFullImageArrives()
+    {
+        using var files = new SessionFiles();
+        var loader = new ManualImageLoader();
+        using var session = CreateSession(loader);
+        session.OpenImage(files.First);
+        loader.Preview(CreateImage());
+        Assert.IsTrue(session.State.IsLoading);
+        Assert.IsTrue(session.State.DisplayedImage!.IsPreview);
+        Assert.HasCount(0, loader.Preloads);
+        loader.Complete(CreateImage());
+        Assert.IsFalse(session.State.IsLoading);
+        Assert.IsFalse(session.State.DisplayedImage!.IsPreview);
+        Assert.IsNull(session.State.Message);
+        Assert.AreEqual(ViewportMode.Fit, session.Viewport.Mode);
+    }
+
     private static ViewerSession CreateSession(ManualImageLoader loader)
     {
         return new ViewerSession(new FolderNavigator(), loader, new ImmediateScanner(), action => action(), 800, 600);
@@ -149,6 +167,11 @@ public sealed class ViewerSessionTests
         public void Preload(IEnumerable<string?> paths)
         {
             Preloads = paths.ToArray();
+        }
+
+        internal void Preview(DecodedImage image)
+        {
+            _completed!(new ImageLoaded(_path, image, IsPreview: true));
         }
 
         internal void Complete(DecodedImage image)

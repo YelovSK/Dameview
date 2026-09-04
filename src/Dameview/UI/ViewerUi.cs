@@ -42,7 +42,7 @@ internal sealed class ViewerUi : IUiElement, IDisposable
             dpi);
         if (_state.DisplayedImage is { } displayed)
         {
-            _imagePanel.SetImage(displayed.Image);
+            _imagePanel.SetImage(displayed.Image, displayed.IsPreview);
             _toolbarPanel.Show();
         }
     }
@@ -53,7 +53,7 @@ internal sealed class ViewerUi : IUiElement, IDisposable
             && state.DisplayedImage is { } displayed)
         {
             _pointerRouter.Cancel();
-            _imagePanel.SetImage(displayed.Image);
+            _imagePanel.SetImage(displayed.Image, displayed.IsPreview);
             _toolbarPanel.Show();
         }
 
