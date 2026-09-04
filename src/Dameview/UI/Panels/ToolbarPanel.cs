@@ -1,5 +1,7 @@
 using System.Drawing;
+using System.Numerics;
 using Dameview.Commands;
+using Dameview.UI.Animation;
 using Dameview.UI.Components;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
@@ -15,6 +17,7 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
     private readonly ID2D1SolidColorBrush _backgroundBrush;
     private readonly ID2D1SolidColorBrush _borderBrush;
     private readonly Button[] _buttons;
+    private readonly AnimatedFloat _visibility = new(0.0f, 14.0);
     private float _dpi;
     private int _capturedButton = -1;
 
@@ -38,13 +41,35 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
         ];
     }
 
+    internal void Show()
+    {
+        _visibility.SetTarget(1.0f);
+    }
+
     internal void SetDpi(float dpi)
     {
         _dpi = dpi;
     }
 
+    public bool Update(in UiUpdateContext context)
+    {
+        bool continues = _visibility.Update(context.ElapsedSeconds);
+        foreach (Button button in _buttons)
+        {
+            continues |= button.Update(context);
+        }
+
+        return continues;
+    }
+
     public void Draw(in UiDrawContext context, SizeF size)
     {
+        float opacity = _visibility.Current;
+        if (opacity <= 0.0f)
+        {
+            return;
+        }
+
         float width = context.PixelsToDips(size.Width);
         float height = context.PixelsToDips(size.Height);
         if (width <= 0.0f || height <= 0.0f)
@@ -53,27 +78,56 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
         }
 
         ID2D1RenderTarget renderTarget = context.RenderTarget;
-        var panel = new RoundedRectangle(
-            new RectangleF(0.0f, 0.0f, width, height),
-            12.0f,
-            12.0f);
-        renderTarget.FillRoundedRectangle(panel, _backgroundBrush);
-        renderTarget.DrawRoundedRectangle(panel, _borderBrush);
+        _backgroundBrush.Opacity = context.Opacity * opacity;
+        _borderBrush.Opacity = context.Opacity * opacity;
+        Matrix3x2 previousTransform = renderTarget.Transform;
+        float offsetY = context.PixelsToDips(GetSlideOffset(size));
+        renderTarget.Transform = Matrix3x2.CreateTranslation(0.0f, offsetY)
+            * previousTransform;
 
-        for (int index = 0; index < _buttons.Length; index++)
+        try
         {
-            context.DrawElement(_buttons[index], GetButtonBounds(index, size));
+            var panel = new RoundedRectangle(
+                new RectangleF(0.0f, 0.0f, width, height),
+                12.0f,
+                12.0f);
+            renderTarget.FillRoundedRectangle(panel, _backgroundBrush);
+            renderTarget.DrawRoundedRectangle(panel, _borderBrush);
+
+            UiDrawContext buttonContext = context.WithOpacity(opacity);
+            for (int index = 0; index < _buttons.Length; index++)
+            {
+                buttonContext.DrawElement(_buttons[index], GetButtonBounds(index, size));
+            }
+        }
+        finally
+        {
+            renderTarget.Transform = previousTransform;
         }
     }
 
     public bool HandlePointer(in UiPointerEvent input, SizeF size)
     {
+        bool visibilityChanged = false;
+        if (input.Kind == UiPointerEventKind.Moved && _capturedButton < 0)
+        {
+            visibilityChanged = _visibility.SetTarget(
+                IsPointerNearToolbar(input.Position) ? 1.0f : 0.0f);
+        }
+
+        UiPointerEvent visualInput = input with
+        {
+            Position = new PointF(
+                input.Position.X,
+                input.Position.Y - GetSlideOffset(size)),
+        };
+
         if (_capturedButton >= 0)
         {
             int capturedButton = _capturedButton;
             RectangleF bounds = GetButtonBounds(capturedButton, size);
             bool handled = _buttons[capturedButton].HandlePointer(
-                input.ToLocal(bounds),
+                visualInput.ToLocal(bounds),
                 bounds.Size);
 
             if (input.Kind == UiPointerEventKind.Released)
@@ -81,7 +135,7 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
                 _capturedButton = -1;
             }
 
-            return handled;
+            return handled || visibilityChanged;
         }
 
         switch (input.Kind)
@@ -92,19 +146,20 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
                 {
                     RectangleF bounds = GetButtonBounds(index, size);
                     changed |= _buttons[index].HandlePointer(
-                        input.ToLocal(bounds),
+                        visualInput.ToLocal(bounds),
                         bounds.Size);
                 }
 
-                return changed;
+                return changed || visibilityChanged;
 
             case UiPointerEventKind.Pressed when input.Button == PointerButton.Primary:
-                int pressedButton = HitTest(input.Position, size);
+                _visibility.SetTarget(1.0f);
+                int pressedButton = HitTest(visualInput.Position, size);
                 if (pressedButton >= 0)
                 {
                     RectangleF bounds = GetButtonBounds(pressedButton, size);
                     if (_buttons[pressedButton].HandlePointer(
-                        input.ToLocal(bounds),
+                        visualInput.ToLocal(bounds),
                         bounds.Size))
                     {
                         _capturedButton = pressedButton;
@@ -117,12 +172,12 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
                 return true;
 
             case UiPointerEventKind.DoubleClicked when input.Button == PointerButton.Primary:
-                int hitButton = HitTest(input.Position, size);
+                int hitButton = HitTest(visualInput.Position, size);
                 if (hitButton >= 0)
                 {
                     RectangleF bounds = GetButtonBounds(hitButton, size);
                     _buttons[hitButton].HandlePointer(
-                        input.ToLocal(bounds),
+                        visualInput.ToLocal(bounds),
                         bounds.Size);
                 }
 
@@ -158,6 +213,17 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
         }
 
         return -1;
+    }
+
+    private bool IsPointerNearToolbar(PointF position)
+    {
+        float activationDistance = 28.0f * _dpi / 96.0f;
+        return position.Y >= -activationDistance;
+    }
+
+    private float GetSlideOffset(SizeF size)
+    {
+        return (1.0f - _visibility.Current) * size.Height;
     }
 
     private RectangleF GetButtonBounds(int index, SizeF size)

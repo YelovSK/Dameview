@@ -7,6 +7,11 @@ namespace Dameview.UI;
 
 internal interface IUiElement
 {
+    public bool Update(in UiUpdateContext context)
+    {
+        return false;
+    }
+
     public void Draw(in UiDrawContext context, SizeF size);
 
     public bool HandlePointer(in UiPointerEvent input, SizeF size);
@@ -14,7 +19,8 @@ internal interface IUiElement
 
 internal readonly record struct UiDrawContext(
     ID2D1RenderTarget RenderTarget,
-    float Dpi)
+    float Dpi,
+    float Opacity = 1.0f)
 {
     internal float PixelsToDips(float pixels)
     {
@@ -50,7 +56,14 @@ internal readonly record struct UiDrawContext(
             RenderTarget.Transform = previousTransform;
         }
     }
+
+    internal UiDrawContext WithOpacity(float opacity)
+    {
+        return this with { Opacity = Opacity * Math.Clamp(opacity, 0.0f, 1.0f) };
+    }
 }
+
+internal readonly record struct UiUpdateContext(double ElapsedSeconds);
 
 internal readonly record struct UiPointerEvent(
     UiPointerEventKind Kind,

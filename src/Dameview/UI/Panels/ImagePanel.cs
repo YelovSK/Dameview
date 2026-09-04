@@ -60,7 +60,7 @@ internal sealed class ImagePanel : IUiElement, IDisposable
         _viewport.SetViewportSize(width, height);
     }
 
-    internal bool Update()
+    public bool Update(in UiUpdateContext context)
     {
         return _animator.Update();
     }

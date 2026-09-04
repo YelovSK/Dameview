@@ -1,6 +1,7 @@
 using System.Drawing;
 using Dameview.Commands;
 using Dameview.Imaging;
+using Dameview.UI.Animation;
 using Dameview.UI.Panels;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
@@ -13,6 +14,7 @@ internal sealed class ViewerUi : IUiElement, IDisposable
     private readonly EmptyStatePanel _emptyStatePanel;
     private readonly StatusPanel _statusPanel;
     private readonly ToolbarPanel _toolbarPanel;
+    private readonly UiAnimationClock _animationClock;
     private IUiElement? _capturedElement;
     private string _fileName = string.Empty;
     private string? _errorMessage;
@@ -25,9 +27,11 @@ internal sealed class ViewerUi : IUiElement, IDisposable
         int height,
         float dpi,
         UiTheme theme,
-        IViewerCommands commands)
+        IViewerCommands commands,
+        TimeProvider? timeProvider = null)
     {
         _dpi = dpi;
+        _animationClock = new UiAnimationClock(timeProvider);
         _imagePanel = new ImagePanel(deviceContext, width, height);
         _emptyStatePanel = new EmptyStatePanel(deviceContext, directWriteFactory, theme);
         _statusPanel = new StatusPanel(deviceContext, directWriteFactory, theme);
@@ -43,6 +47,7 @@ internal sealed class ViewerUi : IUiElement, IDisposable
     {
         _capturedElement = null;
         _imagePanel.SetImage(image);
+        _toolbarPanel.Show();
         _fileName = Path.GetFileName(path);
         _errorMessage = null;
     }
@@ -65,7 +70,25 @@ internal sealed class ViewerUi : IUiElement, IDisposable
 
     internal bool Update()
     {
-        return _imagePanel.Update();
+        UiUpdateContext context = _animationClock.GetNextFrame();
+        bool continues = Update(context);
+        if (!continues)
+        {
+            _animationClock.Reset();
+        }
+
+        return continues;
+    }
+
+    public bool Update(in UiUpdateContext context)
+    {
+        bool continues = _imagePanel.Update(context);
+        if (HasToolbar)
+        {
+            continues |= _toolbarPanel.Update(context);
+        }
+
+        return continues;
     }
 
     internal bool FitImage()
