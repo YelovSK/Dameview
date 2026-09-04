@@ -58,7 +58,7 @@ internal sealed unsafe class AppWindow : IDisposable
     internal event Action<int, int>? PointerPressed;
     internal event Action<int, int>? PointerMoved;
     internal event Action? PointerReleased;
-    internal event Action? PointerDoubleClicked;
+    internal event Action<int, int>? PointerDoubleClicked;
     internal event Action<int, int, int>? MouseWheel;
 
     internal nint Handle { get; private set; }
@@ -238,7 +238,7 @@ internal sealed unsafe class AppWindow : IDisposable
                 return 0;
 
             case NativeMethods.MessageLeftButtonDoubleClick:
-                PointerDoubleClicked?.Invoke();
+                PointerDoubleClicked?.Invoke(GetX(lParam), GetY(lParam));
                 return 0;
 
             case NativeMethods.MessageMouseWheel:

@@ -21,6 +21,9 @@ internal sealed class ImageViewport
 
     internal ViewportMode Mode { get; private set; } = ViewportMode.Fit;
     internal float Scale { get; private set; } = 1.0f;
+    internal PointF Center => new(_centerX, _centerY);
+    internal PointF ImageCenter => new(_imageWidth / 2.0f, _imageHeight / 2.0f);
+    internal float FitScale => GetFitScale();
 
     internal void SetViewportSize(int width, int height)
     {
@@ -94,9 +97,34 @@ internal sealed class ImageViewport
         }
 
         PointF imagePosition = ViewportToImage(viewportX, viewportY);
-        float fitScale = GetFitScale();
+        float newScale = GetZoomScale(Scale, wheelDelta);
+        SetScaleAt(newScale, viewportX, viewportY, imagePosition);
+    }
+
+    internal float GetZoomScale(float scale, int wheelDelta)
+    {
+        if (!HasImage || wheelDelta == 0)
+        {
+            return scale;
+        }
+
         float zoomFactor = (float)Math.Pow(ZoomStep, wheelDelta / 120.0);
-        float newScale = Math.Clamp(Scale * zoomFactor, fitScale, MaximumScale);
+        return Math.Clamp(scale * zoomFactor, GetFitScale(), MaximumScale);
+    }
+
+    internal void SetScaleAt(
+        float scale,
+        float viewportX,
+        float viewportY,
+        PointF imagePosition)
+    {
+        if (!HasImage)
+        {
+            return;
+        }
+
+        float fitScale = GetFitScale();
+        float newScale = Math.Clamp(scale, fitScale, MaximumScale);
 
         if (newScale == fitScale)
         {
@@ -109,6 +137,34 @@ internal sealed class ImageViewport
         _centerY = imagePosition.Y - ((viewportY - (_viewportHeight / 2.0f)) / Scale);
         Mode = ViewportMode.Custom;
         ClampCenter();
+    }
+
+    internal void SetTransform(float scale, PointF center)
+    {
+        if (!HasImage)
+        {
+            return;
+        }
+
+        Scale = Math.Clamp(scale, GetFitScale(), MaximumScale);
+        _centerX = center.X;
+        _centerY = center.Y;
+        Mode = ViewportMode.Custom;
+        ClampCenter();
+    }
+
+    internal void SetActualSizeAt(
+        float viewportX,
+        float viewportY,
+        PointF imagePosition)
+    {
+        if (!HasImage)
+        {
+            return;
+        }
+
+        SetScaleAt(1.0f, viewportX, viewportY, imagePosition);
+        Mode = ViewportMode.ActualSize;
     }
 
     internal void PanBy(float deltaX, float deltaY)
@@ -158,7 +214,7 @@ internal sealed class ImageViewport
         return new PointF(imageX, imageY);
     }
 
-    private bool HasImage => _imageWidth > 0.0f && _imageHeight > 0.0f;
+    internal bool HasImage => _imageWidth > 0.0f && _imageHeight > 0.0f;
 
     private float GetFitScale()
     {

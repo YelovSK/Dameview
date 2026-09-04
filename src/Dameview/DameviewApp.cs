@@ -13,7 +13,7 @@ internal sealed class DameviewApp : IDisposable
     private AppWindow? _window;
     private D2DRenderer? _renderer;
     private ImageViewport? _viewport;
-    private bool _isPanning;
+    private ViewportAnimator? _viewportAnimator;
     private int _pointerX;
     private int _pointerY;
 
@@ -27,7 +27,10 @@ internal sealed class DameviewApp : IDisposable
     public int Run(string[] args)
     {
         _window = new AppWindow("Dameview", 1100, 720);
+        _pointerX = _window.ClientWidth / 2;
+        _pointerY = _window.ClientHeight / 2;
         _viewport = new ImageViewport(_window.ClientWidth, _window.ClientHeight);
+        _viewportAnimator = new ViewportAnimator(_viewport);
         _renderer = new D2DRenderer(
             _window.Handle,
             _window.ClientWidth,
@@ -35,7 +38,7 @@ internal sealed class DameviewApp : IDisposable
             _window.Dpi,
             _viewport);
 
-        _window.RenderFrame += _renderer.Render;
+        _window.RenderFrame += HandleRenderFrame;
         _window.Resized += HandleResize;
         _window.DpiChanged += _renderer.SetDpi;
         _window.FileDropped += OpenImage;
@@ -65,6 +68,7 @@ internal sealed class DameviewApp : IDisposable
     {
         DecodedImage image = _imageDecoder.Decode(path);
         _renderer!.SetImage(image);
+        _viewportAnimator!.Reset();
         _viewport!.SetImageSize(image.Width, image.Height);
         _folderNavigator.SetCurrent(path);
         _window!.RequestRepaint();
@@ -87,20 +91,27 @@ internal sealed class DameviewApp : IDisposable
         switch (key)
         {
             case NativeMethods.VirtualKeyF:
-                _viewport!.Fit();
-                _window!.RequestRepaint();
+                if (_viewportAnimator!.Fit())
+                {
+                    _window!.RequestRepaint();
+                }
+
                 break;
 
             case NativeMethods.VirtualKey1:
             case NativeMethods.VirtualKeyNumpad1:
-                _viewport!.ShowActualSize();
-                _window!.RequestRepaint();
+                if (_viewportAnimator!.ShowActualSizeAt(_pointerX, _pointerY))
+                {
+                    _window!.RequestRepaint();
+                }
+
                 break;
         }
     }
 
     private void HandleResize(int width, int height)
     {
+        _viewportAnimator!.Reset();
         _viewport!.SetViewportSize(width, height);
         _renderer!.Resize(width, height);
         _window!.RequestRepaint();
@@ -108,40 +119,58 @@ internal sealed class DameviewApp : IDisposable
 
     private void HandlePointerPressed(int x, int y)
     {
-        _isPanning = true;
         _pointerX = x;
         _pointerY = y;
+        _viewportAnimator!.BeginPan(x, y);
     }
 
     private void HandlePointerMoved(int x, int y)
     {
-        if (!_isPanning)
-        {
-            return;
-        }
-
-        _viewport!.PanBy(x - _pointerX, y - _pointerY);
         _pointerX = x;
         _pointerY = y;
-        _window!.RequestRepaint();
+        if (_viewportAnimator!.PanTo(x, y))
+        {
+            _window!.RequestRepaint();
+        }
     }
 
     private void HandlePointerReleased()
     {
-        _isPanning = false;
+        if (_viewportAnimator!.EndPan())
+        {
+            _window!.RequestRepaint();
+        }
     }
 
-    private void HandlePointerDoubleClick()
+    private void HandlePointerDoubleClick(int x, int y)
     {
-        _isPanning = false;
-        _viewport!.ToggleFitAndActualSize();
-        _window!.RequestRepaint();
+        _pointerX = x;
+        _pointerY = y;
+        if (_viewportAnimator!.ToggleFitAndActualSizeAt(x, y))
+        {
+            _window!.RequestRepaint();
+        }
     }
 
     private void HandleMouseWheel(int x, int y, int delta)
     {
-        _viewport!.ZoomAt(x, y, delta);
-        _window!.RequestRepaint();
+        _pointerX = x;
+        _pointerY = y;
+        if (_viewportAnimator!.ZoomAt(x, y, delta))
+        {
+            _window!.RequestRepaint();
+        }
+    }
+
+    private void HandleRenderFrame()
+    {
+        bool animationContinues = _viewportAnimator!.Update();
+        _renderer!.Render();
+
+        if (animationContinues)
+        {
+            _window!.RequestRepaint();
+        }
     }
 }
 
