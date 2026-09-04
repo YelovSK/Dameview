@@ -100,6 +100,45 @@ public sealed class ImageLoadCoordinatorTests
         CollectionAssert.AreEqual(new[] { "second" }, deliveredPaths);
     }
 
+    [TestMethod]
+    public void PreloadedImageIsServedWithoutForegroundDecoding()
+    {
+        using var sentinelStarted = new ManualResetEventSlim();
+        using var releaseSentinel = new ManualResetEventSlim();
+        using var completed = new ManualResetEventSlim();
+        var decodeCounts = new ConcurrentDictionary<string, int>();
+        DecodedImage Decode(string path)
+        {
+            decodeCounts.AddOrUpdate(path, 1, static (_, count) => count + 1);
+            if (path == "sentinel")
+            {
+                sentinelStarted.Set();
+                releaseSentinel.Wait();
+            }
+
+            return CreateImage();
+        }
+
+        using var coordinator = new ImageLoadCoordinator(
+            action => action(),
+            () => new FakeImageDecoder(Decode));
+
+        try
+        {
+            coordinator.Preload(["next", "sentinel"]);
+            Assert.IsTrue(sentinelStarted.Wait(TimeSpan.FromSeconds(5)));
+
+            coordinator.Load("next", _ => completed.Set());
+
+            Assert.IsTrue(completed.Wait(TimeSpan.FromSeconds(5)));
+            Assert.AreEqual(1, decodeCounts["next"]);
+        }
+        finally
+        {
+            releaseSentinel.Set();
+        }
+    }
+
     private static DecodedImage CreateImage()
     {
         return new DecodedImage(1, 1, 4, new byte[4]);

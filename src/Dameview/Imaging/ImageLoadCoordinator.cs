@@ -5,35 +5,79 @@ namespace Dameview.Imaging;
 
 internal sealed class ImageLoadCoordinator : IDisposable
 {
+    private const long DefaultCacheCapacityBytes = 256L * 1024L * 1024L;
+
     private readonly object _sync = new();
     private readonly Action<Action> _postToUi;
     private readonly Func<IImageDecoder> _decoderFactory;
-    private readonly Thread _worker;
+    private readonly DecodedImageCache _cache;
+    private readonly Thread _foregroundWorker;
+    private readonly Thread _preloadWorker;
+    private readonly Queue<PreloadRequest> _pendingPreloads = new();
     private LoadRequest? _pendingRequest;
     private long _latestRequestId;
+    private long _preloadGeneration;
     private bool _stopping;
 
     internal ImageLoadCoordinator(
         Action<Action> postToUi,
-        Func<IImageDecoder>? decoderFactory = null)
+        Func<IImageDecoder>? decoderFactory = null,
+        long cacheCapacityBytes = DefaultCacheCapacityBytes)
     {
         _postToUi = postToUi;
         _decoderFactory = decoderFactory ?? (static () => new ImageDecoder());
-        _worker = new Thread(Work)
-        {
-            IsBackground = true,
-            Name = "Dameview image loader",
-        };
-        _worker.Start();
+        _cache = new DecodedImageCache(cacheCapacityBytes);
+        _foregroundWorker = CreateWorker("Dameview image loader", ForegroundWork);
+        _preloadWorker = CreateWorker("Dameview image preloader", PreloadWork);
+        _foregroundWorker.Start();
+        _preloadWorker.Start();
     }
 
     internal void Load(string path, Action<ImageLoadResult> completed)
     {
+        LoadRequest request;
         lock (_sync)
         {
             ObjectDisposedException.ThrowIf(_stopping, this);
-            _pendingRequest = new LoadRequest(++_latestRequestId, path, completed);
-            Monitor.Pulse(_sync);
+            request = new LoadRequest(++_latestRequestId, path, completed);
+            _pendingRequest = null;
+        }
+
+        if (_cache.TryGet(path, out DecodedImage? cachedImage))
+        {
+            var result = new ImageLoaded(path, cachedImage);
+            _postToUi(() => Deliver(request, result));
+            return;
+        }
+
+        lock (_sync)
+        {
+            if (!_stopping && request.Id == _latestRequestId)
+            {
+                _pendingRequest = request;
+                Monitor.PulseAll(_sync);
+            }
+        }
+    }
+
+    internal void Preload(IEnumerable<string?> paths)
+    {
+        lock (_sync)
+        {
+            ObjectDisposedException.ThrowIf(_stopping, this);
+            long generation = ++_preloadGeneration;
+            _pendingPreloads.Clear();
+
+            var uniquePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string? path in paths)
+            {
+                if (!string.IsNullOrWhiteSpace(path) && uniquePaths.Add(path))
+                {
+                    _pendingPreloads.Enqueue(new PreloadRequest(generation, path));
+                }
+            }
+
+            Monitor.PulseAll(_sync);
         }
     }
 
@@ -48,12 +92,23 @@ internal sealed class ImageLoadCoordinator : IDisposable
 
             _stopping = true;
             _pendingRequest = null;
+            _pendingPreloads.Clear();
             _latestRequestId++;
-            Monitor.Pulse(_sync);
+            _preloadGeneration++;
+            Monitor.PulseAll(_sync);
         }
     }
 
-    private void Work()
+    private Thread CreateWorker(string name, Action<IImageDecoder?, Exception?> work)
+    {
+        return new Thread(() => RunWorker(work))
+        {
+            IsBackground = true,
+            Name = name,
+        };
+    }
+
+    private void RunWorker(Action<IImageDecoder?, Exception?> work)
     {
         bool comInitialized = false;
         IImageDecoder? decoder = null;
@@ -72,33 +127,7 @@ internal sealed class ImageLoadCoordinator : IDisposable
                 initializationError = exception;
             }
 
-            while (TryTakeRequest(out LoadRequest? request))
-            {
-                ImageLoadResult result;
-                if (initializationError is not null)
-                {
-                    result = new ImageLoadFailed(request.Path, initializationError);
-                }
-                else
-                {
-                    try
-                    {
-                        DecodedImage image = decoder!.Decode(request.Path);
-                        result = new ImageLoaded(request.Path, image);
-                    }
-                    catch (Exception exception)
-                    {
-                        result = new ImageLoadFailed(request.Path, exception);
-                    }
-                }
-
-                if (!IsLatest(request.Id))
-                {
-                    continue;
-                }
-
-                _postToUi(() => Deliver(request, result));
-            }
+            work(decoder, initializationError);
         }
         finally
         {
@@ -106,6 +135,60 @@ internal sealed class ImageLoadCoordinator : IDisposable
             if (comInitialized)
             {
                 NativeMethods.UninitializeComApartment();
+            }
+        }
+    }
+
+    private void ForegroundWork(IImageDecoder? decoder, Exception? initializationError)
+    {
+        while (TryTakeRequest(out LoadRequest? request))
+        {
+            ImageLoadResult result;
+            if (initializationError is not null)
+            {
+                result = new ImageLoadFailed(request.Path, initializationError);
+            }
+            else
+            {
+                try
+                {
+                    DecodedImage image = decoder!.Decode(request.Path);
+                    _cache.Add(request.Path, image);
+                    result = new ImageLoaded(request.Path, image);
+                }
+                catch (Exception exception)
+                {
+                    result = new ImageLoadFailed(request.Path, exception);
+                }
+            }
+
+            if (IsLatest(request.Id))
+            {
+                _postToUi(() => Deliver(request, result));
+            }
+        }
+    }
+
+    private void PreloadWork(IImageDecoder? decoder, Exception? initializationError)
+    {
+        while (TryTakePreload(out PreloadRequest? request))
+        {
+            if (initializationError is not null || _cache.TryGet(request.Path, out _))
+            {
+                continue;
+            }
+
+            try
+            {
+                DecodedImage image = decoder!.Decode(request.Path);
+                if (IsCurrentPreload(request.Generation))
+                {
+                    _cache.Add(request.Path, image);
+                }
+            }
+            catch (Exception)
+            {
+                // Preloading is speculative. A foreground load will report failures.
             }
         }
     }
@@ -131,6 +214,26 @@ internal sealed class ImageLoadCoordinator : IDisposable
         }
     }
 
+    private bool TryTakePreload([NotNullWhen(true)] out PreloadRequest? request)
+    {
+        lock (_sync)
+        {
+            while (!_stopping && _pendingPreloads.Count == 0)
+            {
+                Monitor.Wait(_sync);
+            }
+
+            if (_stopping)
+            {
+                request = null;
+                return false;
+            }
+
+            request = _pendingPreloads.Dequeue();
+            return true;
+        }
+    }
+
     private void Deliver(LoadRequest request, ImageLoadResult result)
     {
         if (IsLatest(request.Id))
@@ -147,10 +250,20 @@ internal sealed class ImageLoadCoordinator : IDisposable
         }
     }
 
+    private bool IsCurrentPreload(long generation)
+    {
+        lock (_sync)
+        {
+            return !_stopping && generation == _preloadGeneration;
+        }
+    }
+
     private sealed record LoadRequest(
         long Id,
         string Path,
         Action<ImageLoadResult> Completed);
+
+    private sealed record PreloadRequest(long Generation, string Path);
 }
 
 internal abstract record ImageLoadResult(string Path);

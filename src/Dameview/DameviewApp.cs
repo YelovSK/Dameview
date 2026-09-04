@@ -72,12 +72,12 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
     public void ShowPreviousImage()
     {
-        OpenNavigatedImage(_folderNavigator.MoveToPreviousPath());
+        OpenNavigatedImage(_folderNavigator.MoveToPreviousPath(), direction: -1);
     }
 
     public void ShowNextImage()
     {
-        OpenNavigatedImage(_folderNavigator.MoveToNextPath());
+        OpenNavigatedImage(_folderNavigator.MoveToNextPath(), direction: 1);
     }
 
     public void FitImage()
@@ -106,18 +106,20 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
     private void OpenImage(string path)
     {
+        string loadPath = path;
         string? navigationError = null;
 
         try
         {
-            _folderNavigator.SetCurrent(path);
+            loadPath = Path.GetFullPath(path);
+            _folderNavigator.SetCurrent(loadPath);
         }
         catch (Exception exception) when (IsRecoverableImageError(exception))
         {
             navigationError = exception.Message;
         }
 
-        BeginImageLoad(path, navigationError);
+        BeginImageLoad(loadPath, navigationError, navigationDirection: 0);
     }
 
     private static bool IsRecoverableImageError(Exception exception)
@@ -153,24 +155,30 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         }
     }
 
-    private void OpenNavigatedImage(string? path)
+    private void OpenNavigatedImage(string? path, int direction)
     {
         if (path is not null)
         {
-            BeginImageLoad(path, navigationError: null);
+            BeginImageLoad(path, navigationError: null, direction);
         }
     }
 
-    private void BeginImageLoad(string path, string? navigationError)
+    private void BeginImageLoad(
+        string path,
+        string? navigationError,
+        int navigationDirection)
     {
         _ui!.ShowLoading(path);
         _imageLoadCoordinator!.Load(
             path,
-            result => CompleteImageLoad(result, navigationError));
+            result => CompleteImageLoad(result, navigationError, navigationDirection));
         _window!.RequestRepaint();
     }
 
-    private void CompleteImageLoad(ImageLoadResult result, string? navigationError)
+    private void CompleteImageLoad(
+        ImageLoadResult result,
+        string? navigationError,
+        int navigationDirection)
     {
         switch (result)
         {
@@ -180,6 +188,15 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
                 {
                     _ui.ShowError(
                         $"Image opened, but its folder could not be read: {navigationError}");
+                }
+                else
+                {
+                    string? previousPath = _folderNavigator.GetPreviousPath();
+                    string? nextPath = _folderNavigator.GetNextPath();
+                    _imageLoadCoordinator!.Preload(
+                        navigationDirection < 0
+                            ? [previousPath, nextPath]
+                            : [nextPath, previousPath]);
                 }
 
                 break;
