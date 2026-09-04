@@ -1,4 +1,3 @@
-using Dameview.Commands;
 using Dameview.UI;
 using Microsoft.Win32.SafeHandles;
 using Vortice.DCommon;
@@ -27,7 +26,6 @@ internal sealed class D2DRenderer : IDisposable
     private readonly ID2D1Device _d2dDevice;
     private readonly ID2D1DeviceContext _deviceContext;
     private readonly IDWriteFactory1 _directWriteFactory;
-    private readonly ViewerUi _ui;
     private readonly UiTheme _theme;
     private ID2D1Bitmap1? _targetBitmap;
     private int _width;
@@ -39,8 +37,7 @@ internal sealed class D2DRenderer : IDisposable
         int width,
         int height,
         float dpi,
-        UiTheme theme,
-        IViewerCommands commands)
+        UiTheme theme)
     {
         _width = width;
         _height = height;
@@ -87,20 +84,13 @@ internal sealed class D2DRenderer : IDisposable
             ownsHandle: true);
 
         CreateTargetBitmap();
-        _ui = new ViewerUi(
-            _deviceContext,
-            _directWriteFactory,
-            width,
-            height,
-            dpi,
-            theme,
-            commands);
     }
 
     internal nint FrameLatencyWaitHandle => _frameLatencyWaitHandle.DangerousGetHandle();
-    internal ViewerUi Ui => _ui;
+    internal ID2D1DeviceContext DeviceContext => _deviceContext;
+    internal IDWriteFactory DirectWriteFactory => _directWriteFactory;
 
-    internal void Render()
+    internal void Render(IUiElement content)
     {
         if (_width <= 0 || _height <= 0)
         {
@@ -110,7 +100,7 @@ internal sealed class D2DRenderer : IDisposable
         _deviceContext.BeginDraw();
         _deviceContext.Clear(_theme.Background);
         var drawContext = new UiDrawContext(_deviceContext, _dpi);
-        _ui.Draw(drawContext, new System.Drawing.SizeF(_width, _height));
+        content.Draw(drawContext, new System.Drawing.SizeF(_width, _height));
 
         _deviceContext.EndDraw().CheckError();
         _swapChain.Present(1, PresentFlags.None).CheckError();
@@ -139,7 +129,6 @@ internal sealed class D2DRenderer : IDisposable
     internal void SetDpi(float dpi)
     {
         _dpi = dpi;
-        _ui.SetDpi(dpi);
         _deviceContext.SetDpi(dpi, dpi);
 
         if (_width > 0 && _height > 0)
@@ -152,7 +141,6 @@ internal sealed class D2DRenderer : IDisposable
     public void Dispose()
     {
         _deviceContext.Target = null;
-        _ui.Dispose();
         _targetBitmap?.Dispose();
         _deviceContext.Dispose();
         _d2dDevice.Dispose();

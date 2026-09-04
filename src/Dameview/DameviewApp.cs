@@ -5,28 +5,21 @@ using Dameview.Navigation;
 using Dameview.Platform;
 using Dameview.Rendering;
 using Dameview.UI;
-using SharpGen.Runtime;
+using Dameview.Viewing;
 
 namespace Dameview;
 
 internal sealed class DameviewApp : IViewerCommands, IDisposable
 {
     private readonly ImageDecoder _imageDecoder = new();
-    private readonly FolderNavigator _folderNavigator;
     private readonly UiTheme _theme = UiTheme.Default;
     private AppWindow? _window;
     private D2DRenderer? _renderer;
     private ViewerUi? _ui;
     private ImageLoadCoordinator? _imageLoadCoordinator;
+    private ViewerSession? _session;
     private int _pointerX;
     private int _pointerY;
-
-    internal DameviewApp()
-    {
-        _folderNavigator = new FolderNavigator(
-            _imageDecoder.IsProbablySupported,
-            FolderSort.NameAscending);
-    }
 
     public int Run(string[] args)
     {
@@ -38,15 +31,26 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
             _window.ClientWidth,
             _window.ClientHeight,
             _window.Dpi,
+            _theme);
+        _imageLoadCoordinator = new ImageLoadCoordinator(_window.Post);
+        _session = new ViewerSession(
+            new FolderNavigator(_imageDecoder.IsProbablySupported),
+            _imageLoadCoordinator,
+            _window.ClientWidth,
+            _window.ClientHeight);
+        _ui = new ViewerUi(
+            _renderer.DeviceContext,
+            _renderer.DirectWriteFactory,
+            _session,
+            _window.Dpi,
             _theme,
             this);
-        _ui = _renderer.Ui;
-        _imageLoadCoordinator = new ImageLoadCoordinator(_window.Post);
+        _session.StateChanged += HandleSessionChanged;
 
         _window.RenderFrame += HandleRenderFrame;
         _window.Resized += HandleResize;
-        _window.DpiChanged += _renderer.SetDpi;
-        _window.FileDropped += OpenImage;
+        _window.DpiChanged += HandleDpiChanged;
+        _window.FileDropped += _session.OpenImage;
         _window.KeyPressed += HandleKeyPress;
         _window.PointerPressed += HandlePointerPressed;
         _window.PointerMoved += HandlePointerMoved;
@@ -56,7 +60,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
         if (args.FirstOrDefault() is string imagePath)
         {
-            OpenImage(imagePath);
+            _session.OpenImage(imagePath);
         }
 
         return _window.Run(_renderer.FrameLatencyWaitHandle);
@@ -65,6 +69,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
     public void Dispose()
     {
         _imageLoadCoordinator?.Dispose();
+        _ui?.Dispose();
         _renderer?.Dispose();
         _window?.Dispose();
         _imageDecoder.Dispose();
@@ -72,17 +77,17 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
     public void ShowPreviousImage()
     {
-        OpenNavigatedImage(_folderNavigator.MoveToPreviousPath(), direction: -1);
+        _session!.ShowPreviousImage();
     }
 
     public void ShowNextImage()
     {
-        OpenNavigatedImage(_folderNavigator.MoveToNextPath(), direction: 1);
+        _session!.ShowNextImage();
     }
 
     public void FitImage()
     {
-        if (_ui!.FitImage())
+        if (_session!.Animator.Fit())
         {
             _window!.RequestRepaint();
         }
@@ -90,7 +95,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
     public void ShowActualSize(PointF anchor)
     {
-        if (_ui!.ShowImageAtActualSize(anchor.X, anchor.Y))
+        if (_session!.Animator.ShowActualSizeAt(anchor.X, anchor.Y))
         {
             _window!.RequestRepaint();
         }
@@ -98,38 +103,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
     public void ShowActualSize()
     {
-        if (_ui!.ShowImageAtActualSize())
-        {
-            _window!.RequestRepaint();
-        }
-    }
-
-    private void OpenImage(string path)
-    {
-        string loadPath = path;
-        string? navigationError = null;
-
-        try
-        {
-            loadPath = Path.GetFullPath(path);
-            _folderNavigator.SetCurrent(loadPath);
-        }
-        catch (Exception exception) when (IsRecoverableImageError(exception))
-        {
-            navigationError = exception.Message;
-        }
-
-        BeginImageLoad(loadPath, navigationError, navigationDirection: 0);
-    }
-
-    private static bool IsRecoverableImageError(Exception exception)
-    {
-        return exception is IOException
-            or UnauthorizedAccessException
-            or ArgumentException
-            or NotSupportedException
-            or OverflowException
-            or SharpGenException;
+        ShowActualSize(_session!.Viewport.ViewportCenter);
     }
 
     private void HandleKeyPress(uint key)
@@ -155,64 +129,21 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         }
     }
 
-    private void OpenNavigatedImage(string? path, int direction)
+    private void HandleSessionChanged()
     {
-        if (path is not null)
-        {
-            BeginImageLoad(path, navigationError: null, direction);
-        }
-    }
-
-    private void BeginImageLoad(
-        string path,
-        string? navigationError,
-        int navigationDirection)
-    {
-        _ui!.ShowLoading(path);
-        _imageLoadCoordinator!.Load(
-            path,
-            result => CompleteImageLoad(result, navigationError, navigationDirection));
+        _ui!.ApplyState(_session!.State);
         _window!.RequestRepaint();
     }
 
-    private void CompleteImageLoad(
-        ImageLoadResult result,
-        string? navigationError,
-        int navigationDirection)
+    private void HandleDpiChanged(float dpi)
     {
-        switch (result)
-        {
-            case ImageLoaded loaded:
-                _ui!.SetImage(loaded.Image, loaded.Path);
-                if (navigationError is not null)
-                {
-                    _ui.ShowError(
-                        $"Image opened, but its folder could not be read: {navigationError}");
-                }
-                else
-                {
-                    string? previousPath = _folderNavigator.GetPreviousPath();
-                    string? nextPath = _folderNavigator.GetNextPath();
-                    _imageLoadCoordinator!.Preload(
-                        navigationDirection < 0
-                            ? [previousPath, nextPath]
-                            : [nextPath, previousPath]);
-                }
-
-                break;
-
-            case ImageLoadFailed failed:
-                _ui!.ShowError(
-                    $"Could not open {Path.GetFileName(failed.Path)}: {failed.Exception.Message}");
-                break;
-        }
-
-        _window!.RequestRepaint();
+        _renderer!.SetDpi(dpi);
+        _ui!.SetDpi(dpi);
     }
 
     private void HandleResize(int width, int height)
     {
-        _ui!.SetViewportSize(width, height);
+        _session!.SetViewportSize(width, height);
         _renderer!.Resize(width, height);
         _window!.RequestRepaint();
     }
@@ -267,7 +198,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
     private void HandleRenderFrame()
     {
         bool animationContinues = _ui!.Update();
-        _renderer!.Render();
+        _renderer!.Render(_ui);
 
         if (animationContinues)
         {

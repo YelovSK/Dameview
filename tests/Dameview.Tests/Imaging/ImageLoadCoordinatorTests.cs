@@ -139,6 +139,43 @@ public sealed class ImageLoadCoordinatorTests
         }
     }
 
+    [TestMethod]
+    public void ForegroundLoadJoinsAnActivePreloadForTheSameImage()
+    {
+        using var decodeStarted = new ManualResetEventSlim();
+        using var releaseDecode = new ManualResetEventSlim();
+        using var completed = new ManualResetEventSlim();
+        int decodeCount = 0;
+
+        DecodedImage Decode(string _)
+        {
+            Interlocked.Increment(ref decodeCount);
+            decodeStarted.Set();
+            releaseDecode.Wait();
+            return CreateImage();
+        }
+
+        using var coordinator = new ImageLoadCoordinator(
+            action => action(),
+            () => new FakeImageDecoder(Decode));
+
+        try
+        {
+            coordinator.Preload(["same"]);
+            Assert.IsTrue(decodeStarted.Wait(TimeSpan.FromSeconds(5)));
+
+            coordinator.Load("same", _ => completed.Set());
+            releaseDecode.Set();
+
+            Assert.IsTrue(completed.Wait(TimeSpan.FromSeconds(5)));
+            Assert.AreEqual(1, Volatile.Read(ref decodeCount));
+        }
+        finally
+        {
+            releaseDecode.Set();
+        }
+    }
+
     private static DecodedImage CreateImage()
     {
         return new DecodedImage(1, 1, 4, new byte[4]);

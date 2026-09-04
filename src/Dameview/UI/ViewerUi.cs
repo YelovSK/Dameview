@@ -1,8 +1,8 @@
 using System.Drawing;
 using Dameview.Commands;
-using Dameview.Imaging;
 using Dameview.UI.Animation;
 using Dameview.UI.Panels;
+using Dameview.Viewing;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
 
@@ -16,16 +16,13 @@ internal sealed class ViewerUi : IUiElement, IDisposable
     private readonly ToolbarPanel _toolbarPanel;
     private readonly UiAnimationClock _animationClock;
     private IUiElement? _capturedElement;
-    private string _fileName = string.Empty;
-    private string? _statusMessage;
-    private bool _statusIsError;
+    private ViewerSessionState _state;
     private float _dpi;
 
     internal ViewerUi(
         ID2D1DeviceContext deviceContext,
         IDWriteFactory directWriteFactory,
-        int width,
-        int height,
+        ViewerSession session,
         float dpi,
         UiTheme theme,
         IViewerCommands commands,
@@ -33,7 +30,8 @@ internal sealed class ViewerUi : IUiElement, IDisposable
     {
         _dpi = dpi;
         _animationClock = new UiAnimationClock(timeProvider);
-        _imagePanel = new ImagePanel(deviceContext, width, height);
+        _state = session.State;
+        _imagePanel = new ImagePanel(deviceContext, session.Viewport, session.Animator);
         _emptyStatePanel = new EmptyStatePanel(deviceContext, directWriteFactory, theme);
         _statusPanel = new StatusPanel(deviceContext, directWriteFactory, theme);
         _toolbarPanel = new ToolbarPanel(
@@ -42,34 +40,24 @@ internal sealed class ViewerUi : IUiElement, IDisposable
             theme,
             commands,
             dpi);
+        if (_state.DisplayedImage is { } displayed)
+        {
+            _imagePanel.SetImage(displayed.Image);
+            _toolbarPanel.Show();
+        }
     }
 
-    internal void SetImage(DecodedImage image, string path)
+    internal void ApplyState(ViewerSessionState state)
     {
-        _capturedElement = null;
-        _imagePanel.SetImage(image);
-        _toolbarPanel.Show();
-        _fileName = Path.GetFileName(path);
-        _statusMessage = null;
-        _statusIsError = false;
-    }
+        if (!ReferenceEquals(_state.DisplayedImage, state.DisplayedImage)
+            && state.DisplayedImage is { } displayed)
+        {
+            _capturedElement = null;
+            _imagePanel.SetImage(displayed.Image);
+            _toolbarPanel.Show();
+        }
 
-    internal void ShowLoading(string path)
-    {
-        _fileName = Path.GetFileName(path);
-        _statusMessage = $"Loading {_fileName}…";
-        _statusIsError = false;
-    }
-
-    internal void ShowError(string message)
-    {
-        _statusMessage = message;
-        _statusIsError = true;
-    }
-
-    internal void SetViewportSize(int width, int height)
-    {
-        _imagePanel.SetViewportSize(width, height);
+        _state = state;
     }
 
     internal void SetDpi(float dpi)
@@ -101,21 +89,6 @@ internal sealed class ViewerUi : IUiElement, IDisposable
         return continues;
     }
 
-    internal bool FitImage()
-    {
-        return _imagePanel.Fit();
-    }
-
-    internal bool ShowImageAtActualSize(float x, float y)
-    {
-        return _imagePanel.ShowActualSizeAt(x, y);
-    }
-
-    internal bool ShowImageAtActualSize()
-    {
-        return _imagePanel.ShowActualSize();
-    }
-
     public void Draw(in UiDrawContext context, SizeF size)
     {
         bool showStatus = HasStatus;
@@ -126,12 +99,12 @@ internal sealed class ViewerUi : IUiElement, IDisposable
         if (showStatus)
         {
             _statusPanel.Status = new ViewerStatus(
-                _fileName,
-                _imagePanel.ImageWidth,
-                _imagePanel.ImageHeight,
+                Path.GetFileName(_state.RequestedPath) ?? string.Empty,
+                _state.DisplayedImage?.Image.Width ?? 0,
+                _state.DisplayedImage?.Image.Height ?? 0,
                 _imagePanel.ZoomPercentage,
-                _statusMessage,
-                _statusIsError);
+                _state.Message,
+                _state.IsError);
             context.DrawElement(_statusPanel, layout.Status);
         }
 
@@ -186,8 +159,8 @@ internal sealed class ViewerUi : IUiElement, IDisposable
         _imagePanel.Dispose();
     }
 
-    private bool HasStatus => _imagePanel.HasImage || _statusMessage is not null;
-    private bool HasToolbar => _imagePanel.HasImage;
+    private bool HasStatus => _state.DisplayedImage is not null || _state.Message is not null;
+    private bool HasToolbar => _state.DisplayedImage is not null;
 
     private bool TryHandlePointer(
         IUiElement element,
@@ -228,6 +201,6 @@ internal sealed class ViewerUi : IUiElement, IDisposable
 
     private IUiElement GetContentElement()
     {
-        return _imagePanel.HasImage ? _imagePanel : _emptyStatePanel;
+        return _state.DisplayedImage is not null ? _imagePanel : _emptyStatePanel;
     }
 }

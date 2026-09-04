@@ -3,7 +3,7 @@ using Dameview.Platform;
 
 namespace Dameview.Imaging;
 
-internal sealed class ImageLoadCoordinator : IDisposable
+internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
 {
     private const long DefaultCacheCapacityBytes = 256L * 1024L * 1024L;
 
@@ -13,10 +13,11 @@ internal sealed class ImageLoadCoordinator : IDisposable
     private readonly DecodedImageCache _cache;
     private readonly Thread _foregroundWorker;
     private readonly Thread _preloadWorker;
-    private readonly Queue<PreloadRequest> _pendingPreloads = new();
+    private readonly Queue<string> _pendingPreloads = new();
+    private readonly Dictionary<string, TaskCompletionSource<DecodedImage>> _inFlightDecodes =
+        new(StringComparer.OrdinalIgnoreCase);
     private LoadRequest? _pendingRequest;
     private long _latestRequestId;
-    private long _preloadGeneration;
     private bool _stopping;
 
     internal ImageLoadCoordinator(
@@ -33,7 +34,7 @@ internal sealed class ImageLoadCoordinator : IDisposable
         _preloadWorker.Start();
     }
 
-    internal void Load(string path, Action<ImageLoadResult> completed)
+    public void Load(string path, Action<ImageLoadResult> completed)
     {
         LoadRequest request;
         lock (_sync)
@@ -60,12 +61,11 @@ internal sealed class ImageLoadCoordinator : IDisposable
         }
     }
 
-    internal void Preload(IEnumerable<string?> paths)
+    public void Preload(IEnumerable<string?> paths)
     {
         lock (_sync)
         {
             ObjectDisposedException.ThrowIf(_stopping, this);
-            long generation = ++_preloadGeneration;
             _pendingPreloads.Clear();
 
             var uniquePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -73,7 +73,7 @@ internal sealed class ImageLoadCoordinator : IDisposable
             {
                 if (!string.IsNullOrWhiteSpace(path) && uniquePaths.Add(path))
                 {
-                    _pendingPreloads.Enqueue(new PreloadRequest(generation, path));
+                    _pendingPreloads.Enqueue(path);
                 }
             }
 
@@ -94,7 +94,6 @@ internal sealed class ImageLoadCoordinator : IDisposable
             _pendingRequest = null;
             _pendingPreloads.Clear();
             _latestRequestId++;
-            _preloadGeneration++;
             Monitor.PulseAll(_sync);
         }
     }
@@ -152,8 +151,7 @@ internal sealed class ImageLoadCoordinator : IDisposable
             {
                 try
                 {
-                    DecodedImage image = decoder!.Decode(request.Path);
-                    _cache.Add(request.Path, image);
+                    DecodedImage image = DecodeShared(request.Path, decoder!);
                     result = new ImageLoaded(request.Path, image);
                 }
                 catch (Exception exception)
@@ -171,24 +169,67 @@ internal sealed class ImageLoadCoordinator : IDisposable
 
     private void PreloadWork(IImageDecoder? decoder, Exception? initializationError)
     {
-        while (TryTakePreload(out PreloadRequest? request))
+        while (TryTakePreload(out string? path))
         {
-            if (initializationError is not null || _cache.TryGet(request.Path, out _))
+            if (initializationError is not null || _cache.TryGet(path, out _))
             {
                 continue;
             }
 
             try
             {
-                DecodedImage image = decoder!.Decode(request.Path);
-                if (IsCurrentPreload(request.Generation))
-                {
-                    _cache.Add(request.Path, image);
-                }
+                _ = DecodeShared(path, decoder!);
             }
             catch (Exception)
             {
                 // Preloading is speculative. A foreground load will report failures.
+            }
+        }
+    }
+
+    private DecodedImage DecodeShared(string path, IImageDecoder decoder)
+    {
+        if (_cache.TryGet(path, out DecodedImage? cachedImage))
+        {
+            return cachedImage;
+        }
+
+        TaskCompletionSource<DecodedImage> completion;
+        bool ownsDecode;
+
+        lock (_sync)
+        {
+            ownsDecode = !_inFlightDecodes.TryGetValue(path, out completion!);
+            if (ownsDecode)
+            {
+                completion = new TaskCompletionSource<DecodedImage>(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+                _inFlightDecodes.Add(path, completion);
+            }
+        }
+
+        if (!ownsDecode)
+        {
+            return completion.Task.GetAwaiter().GetResult();
+        }
+
+        try
+        {
+            DecodedImage image = decoder.Decode(path);
+            _cache.Add(path, image);
+            completion.SetResult(image);
+            return image;
+        }
+        catch (Exception exception)
+        {
+            completion.SetException(exception);
+            return completion.Task.GetAwaiter().GetResult();
+        }
+        finally
+        {
+            lock (_sync)
+            {
+                _inFlightDecodes.Remove(path);
             }
         }
     }
@@ -214,7 +255,7 @@ internal sealed class ImageLoadCoordinator : IDisposable
         }
     }
 
-    private bool TryTakePreload([NotNullWhen(true)] out PreloadRequest? request)
+    private bool TryTakePreload([NotNullWhen(true)] out string? path)
     {
         lock (_sync)
         {
@@ -225,11 +266,11 @@ internal sealed class ImageLoadCoordinator : IDisposable
 
             if (_stopping)
             {
-                request = null;
+                path = null;
                 return false;
             }
 
-            request = _pendingPreloads.Dequeue();
+            path = _pendingPreloads.Dequeue();
             return true;
         }
     }
@@ -250,20 +291,10 @@ internal sealed class ImageLoadCoordinator : IDisposable
         }
     }
 
-    private bool IsCurrentPreload(long generation)
-    {
-        lock (_sync)
-        {
-            return !_stopping && generation == _preloadGeneration;
-        }
-    }
-
     private sealed record LoadRequest(
         long Id,
         string Path,
         Action<ImageLoadResult> Completed);
-
-    private sealed record PreloadRequest(long Generation, string Path);
 }
 
 internal abstract record ImageLoadResult(string Path);

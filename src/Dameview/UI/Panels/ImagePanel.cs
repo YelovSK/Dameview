@@ -16,16 +16,16 @@ internal sealed class ImagePanel : IUiElement, IDisposable
     private ID2D1Bitmap1? _image;
     private bool _isPanning;
 
-    internal ImagePanel(ID2D1DeviceContext deviceContext, int width, int height)
+    internal ImagePanel(
+        ID2D1DeviceContext deviceContext,
+        ImageViewport viewport,
+        ViewportAnimator animator)
     {
         _deviceContext = deviceContext;
-        _viewport = new ImageViewport(width, height);
-        _animator = new ViewportAnimator(_viewport);
+        _viewport = viewport;
+        _animator = animator;
     }
 
-    internal bool HasImage => _image is not null;
-    internal int ImageWidth => _image?.PixelSize.Width ?? 0;
-    internal int ImageHeight => _image?.PixelSize.Height ?? 0;
     internal float ZoomPercentage => _viewport.Scale * 100.0f;
 
     internal unsafe void SetImage(DecodedImage image)
@@ -50,35 +50,11 @@ internal sealed class ImagePanel : IUiElement, IDisposable
 
         _image?.Dispose();
         _image = newImage;
-        _animator.Reset();
-        _viewport.SetImageSize(image.Width, image.Height);
-    }
-
-    internal void SetViewportSize(int width, int height)
-    {
-        _animator.Reset();
-        _viewport.SetViewportSize(width, height);
     }
 
     public bool Update(in UiUpdateContext context)
     {
         return _animator.Update();
-    }
-
-    internal bool Fit()
-    {
-        return _animator.Fit();
-    }
-
-    internal bool ShowActualSizeAt(float x, float y)
-    {
-        return _animator.ShowActualSizeAt(x, y);
-    }
-
-    internal bool ShowActualSize()
-    {
-        PointF center = _viewport.ViewportCenter;
-        return _animator.ShowActualSizeAt(center.X, center.Y);
     }
 
     public void Draw(in UiDrawContext context, SizeF size)
