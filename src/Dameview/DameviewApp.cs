@@ -1,4 +1,5 @@
 using System.Drawing;
+using Dameview.Commands;
 using Dameview.Imaging;
 using Dameview.Navigation;
 using Dameview.Platform;
@@ -8,7 +9,7 @@ using SharpGen.Runtime;
 
 namespace Dameview;
 
-internal sealed class DameviewApp : IDisposable
+internal sealed class DameviewApp : IViewerCommands, IDisposable
 {
     private readonly ImageDecoder _imageDecoder = new();
     private readonly FolderNavigator _folderNavigator;
@@ -65,6 +66,32 @@ internal sealed class DameviewApp : IDisposable
         _imageDecoder.Dispose();
     }
 
+    public void ShowPreviousImage()
+    {
+        OpenImageIfAvailable(_folderNavigator.GetPreviousPath());
+    }
+
+    public void ShowNextImage()
+    {
+        OpenImageIfAvailable(_folderNavigator.GetNextPath());
+    }
+
+    public void FitImage()
+    {
+        if (_ui!.FitImage())
+        {
+            _window!.RequestRepaint();
+        }
+    }
+
+    public void ShowActualSize(PointF anchor)
+    {
+        if (_ui!.ShowImageAtActualSize(anchor.X, anchor.Y))
+        {
+            _window!.RequestRepaint();
+        }
+    }
+
     private void OpenImage(string path)
     {
         string? navigationError = null;
@@ -108,36 +135,32 @@ internal sealed class DameviewApp : IDisposable
 
     private void HandleKeyPress(uint key)
     {
-        string? path = key switch
-        {
-            NativeMethods.VirtualKeyLeft => _folderNavigator.GetPreviousPath(),
-            NativeMethods.VirtualKeyRight => _folderNavigator.GetNextPath(),
-            _ => null,
-        };
-
-        if (path is not null)
-        {
-            OpenImage(path);
-        }
-
         switch (key)
         {
-            case NativeMethods.VirtualKeyF:
-                if (_ui!.FitImage())
-                {
-                    _window!.RequestRepaint();
-                }
+            case NativeMethods.VirtualKeyLeft:
+                ShowPreviousImage();
+                break;
 
+            case NativeMethods.VirtualKeyRight:
+                ShowNextImage();
+                break;
+
+            case NativeMethods.VirtualKeyF:
+                FitImage();
                 break;
 
             case NativeMethods.VirtualKey1:
             case NativeMethods.VirtualKeyNumpad1:
-                if (_ui!.ShowImageAtActualSize(_pointerX, _pointerY))
-                {
-                    _window!.RequestRepaint();
-                }
-
+                ShowActualSize(new PointF(_pointerX, _pointerY));
                 break;
+        }
+    }
+
+    private void OpenImageIfAvailable(string? path)
+    {
+        if (path is not null)
+        {
+            OpenImage(path);
         }
     }
 
