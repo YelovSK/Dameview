@@ -75,6 +75,12 @@ internal sealed class ImagePanel : IUiElement, IDisposable
         return _animator.ShowActualSizeAt(x, y);
     }
 
+    internal bool ShowActualSize()
+    {
+        PointF center = _viewport.ViewportCenter;
+        return _animator.ShowActualSizeAt(center.X, center.Y);
+    }
+
     public void Draw(in UiDrawContext context, SizeF size)
     {
         if (_image is null)

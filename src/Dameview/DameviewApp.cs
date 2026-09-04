@@ -37,7 +37,8 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
             _window.ClientWidth,
             _window.ClientHeight,
             _window.Dpi,
-            _theme);
+            _theme,
+            this);
         _ui = _renderer.Ui;
 
         _window.RenderFrame += HandleRenderFrame;
@@ -87,6 +88,14 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
     public void ShowActualSize(PointF anchor)
     {
         if (_ui!.ShowImageAtActualSize(anchor.X, anchor.Y))
+        {
+            _window!.RequestRepaint();
+        }
+    }
+
+    public void ShowActualSize()
+    {
+        if (_ui!.ShowImageAtActualSize())
         {
             _window!.RequestRepaint();
         }

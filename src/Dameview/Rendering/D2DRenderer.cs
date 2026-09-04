@@ -1,3 +1,4 @@
+using Dameview.Commands;
 using Dameview.UI;
 using Microsoft.Win32.SafeHandles;
 using Vortice.DCommon;
@@ -38,7 +39,8 @@ internal sealed class D2DRenderer : IDisposable
         int width,
         int height,
         float dpi,
-        UiTheme theme)
+        UiTheme theme,
+        IViewerCommands commands)
     {
         _width = width;
         _height = height;
@@ -91,7 +93,8 @@ internal sealed class D2DRenderer : IDisposable
             width,
             height,
             dpi,
-            theme);
+            theme,
+            commands);
     }
 
     internal nint FrameLatencyWaitHandle => _frameLatencyWaitHandle.DangerousGetHandle();

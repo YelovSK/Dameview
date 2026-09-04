@@ -23,6 +23,7 @@ internal sealed class ImageViewport
     internal float Scale { get; private set; } = 1.0f;
     internal PointF Center => new(_centerX, _centerY);
     internal PointF ImageCenter => new(_imageWidth / 2.0f, _imageHeight / 2.0f);
+    internal PointF ViewportCenter => new(_viewportWidth / 2.0f, _viewportHeight / 2.0f);
     internal float FitScale => GetFitScale();
 
     internal void SetViewportSize(int width, int height)

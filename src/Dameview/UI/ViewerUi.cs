@@ -1,4 +1,5 @@
 using System.Drawing;
+using Dameview.Commands;
 using Dameview.Imaging;
 using Dameview.UI.Panels;
 using Vortice.Direct2D1;
@@ -11,6 +12,7 @@ internal sealed class ViewerUi : IUiElement, IDisposable
     private readonly ImagePanel _imagePanel;
     private readonly EmptyStatePanel _emptyStatePanel;
     private readonly StatusPanel _statusPanel;
+    private readonly ToolbarPanel _toolbarPanel;
     private IUiElement? _capturedElement;
     private string _fileName = string.Empty;
     private string? _errorMessage;
@@ -22,12 +24,19 @@ internal sealed class ViewerUi : IUiElement, IDisposable
         int width,
         int height,
         float dpi,
-        UiTheme theme)
+        UiTheme theme,
+        IViewerCommands commands)
     {
         _dpi = dpi;
         _imagePanel = new ImagePanel(deviceContext, width, height);
         _emptyStatePanel = new EmptyStatePanel(deviceContext, directWriteFactory, theme);
         _statusPanel = new StatusPanel(deviceContext, directWriteFactory, theme);
+        _toolbarPanel = new ToolbarPanel(
+            deviceContext,
+            directWriteFactory,
+            theme,
+            commands,
+            dpi);
     }
 
     internal void SetImage(DecodedImage image, string path)
@@ -51,6 +60,7 @@ internal sealed class ViewerUi : IUiElement, IDisposable
     internal void SetDpi(float dpi)
     {
         _dpi = dpi;
+        _toolbarPanel.SetDpi(dpi);
     }
 
     internal bool Update()
@@ -68,10 +78,16 @@ internal sealed class ViewerUi : IUiElement, IDisposable
         return _imagePanel.ShowActualSizeAt(x, y);
     }
 
+    internal bool ShowImageAtActualSize()
+    {
+        return _imagePanel.ShowActualSize();
+    }
+
     public void Draw(in UiDrawContext context, SizeF size)
     {
         bool showStatus = HasStatus;
-        ViewerLayout layout = ViewerLayout.Calculate(size, _dpi, showStatus);
+        bool showToolbar = HasToolbar;
+        ViewerLayout layout = ViewerLayout.Calculate(size, _dpi, showStatus, showToolbar);
         context.DrawElement(GetContentElement(), layout.Content);
 
         if (showStatus)
@@ -84,11 +100,16 @@ internal sealed class ViewerUi : IUiElement, IDisposable
                 _errorMessage);
             context.DrawElement(_statusPanel, layout.Status);
         }
+
+        if (showToolbar)
+        {
+            context.DrawElement(_toolbarPanel, layout.Toolbar);
+        }
     }
 
     public bool HandlePointer(in UiPointerEvent input, SizeF size)
     {
-        ViewerLayout layout = ViewerLayout.Calculate(size, _dpi, HasStatus);
+        ViewerLayout layout = ViewerLayout.Calculate(size, _dpi, HasStatus, HasToolbar);
 
         if (_capturedElement is IUiElement capturedElement)
         {
@@ -105,6 +126,16 @@ internal sealed class ViewerUi : IUiElement, IDisposable
             return handled;
         }
 
+        if (HasToolbar
+            && TryHandlePointer(
+                _toolbarPanel,
+                layout.Toolbar,
+                input,
+                allowOutside: input.Kind == UiPointerEventKind.Moved))
+        {
+            return true;
+        }
+
         if (HasStatus && TryHandlePointer(_statusPanel, layout.Status, input))
         {
             return true;
@@ -115,19 +146,22 @@ internal sealed class ViewerUi : IUiElement, IDisposable
 
     public void Dispose()
     {
+        _toolbarPanel.Dispose();
         _statusPanel.Dispose();
         _emptyStatePanel.Dispose();
         _imagePanel.Dispose();
     }
 
     private bool HasStatus => _imagePanel.HasImage || _errorMessage is not null;
+    private bool HasToolbar => _imagePanel.HasImage;
 
     private bool TryHandlePointer(
         IUiElement element,
         RectangleF bounds,
-        in UiPointerEvent input)
+        in UiPointerEvent input,
+        bool allowOutside = false)
     {
-        if (!bounds.Contains(input.Position))
+        if (!allowOutside && !bounds.Contains(input.Position))
         {
             return false;
         }
@@ -148,6 +182,11 @@ internal sealed class ViewerUi : IUiElement, IDisposable
         if (ReferenceEquals(element, _statusPanel))
         {
             return layout.Status;
+        }
+
+        if (ReferenceEquals(element, _toolbarPanel))
+        {
+            return layout.Toolbar;
         }
 
         return layout.Content;
