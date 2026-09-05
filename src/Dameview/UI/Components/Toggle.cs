@@ -25,7 +25,7 @@ internal sealed class Toggle : InteractiveControl, IDisposable
         _value = value;
         _changed = changed;
         _textFormat = factory.CreateTextFormat(
-            "Segoe UI Variable", FontWeight.Normal, FontStyle.Normal, _design.BodyFontSize);
+            UiTypography.FontFamily, FontWeight.Normal, FontStyle.Normal, _design.BodyFontSize);
         _textFormat.ParagraphAlignment = ParagraphAlignment.Center;
         _textFormat.WordWrapping = WordWrapping.NoWrap;
         SetVisualState(UiVisualState.Selected, value);

@@ -23,7 +23,7 @@ internal sealed class Button : InteractiveControl, IDisposable
         _label = label;
         _clicked = clicked;
         _textFormat = directWriteFactory.CreateTextFormat(
-            "Segoe UI Variable",
+            UiTypography.FontFamily,
             FontWeight.SemiBold,
             FontStyle.Normal,
             _design.BodyFontSize);

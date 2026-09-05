@@ -39,7 +39,7 @@ internal sealed class Dropdown<T> : InteractiveControl, IDisposable
         _changed = changed;
         _selectedIndex = FindIndex(selectedValue);
         _textFormat = factory.CreateTextFormat(
-            "Segoe UI Variable", FontWeight.SemiBold, FontStyle.Normal, _design.BodyFontSize);
+            UiTypography.FontFamily, FontWeight.SemiBold, FontStyle.Normal, _design.BodyFontSize);
         _textFormat.ParagraphAlignment = ParagraphAlignment.Center;
         _textFormat.WordWrapping = WordWrapping.NoWrap;
         _popupList = new PopupList(factory, _options, SelectFromPopup, _design);

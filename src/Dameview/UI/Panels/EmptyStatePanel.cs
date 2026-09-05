@@ -87,7 +87,7 @@ internal sealed class EmptyStatePanel : UiElement, IDisposable
         FontWeight weight)
     {
         IDWriteTextFormat format = factory.CreateTextFormat(
-            "Segoe UI Variable",
+            UiTypography.FontFamily,
             weight,
             FontStyle.Normal,
             size);

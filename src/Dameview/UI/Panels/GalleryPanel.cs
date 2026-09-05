@@ -49,7 +49,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         _scrollbar = new Scrollbar(SetScrollOffset);
         AddChild(_scrollbar);
         _labelFormat = directWriteFactory.CreateTextFormat(
-            "Segoe UI Variable",
+            UiTypography.FontFamily,
             FontWeight.Normal,
             FontStyle.Normal,
             12.0f);

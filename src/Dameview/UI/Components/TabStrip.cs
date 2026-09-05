@@ -31,7 +31,7 @@ internal sealed class TabStrip : UiElement, IDisposable
         _selectionChanged = selectionChanged;
         _selectedIndex = selectedIndex;
         var textFormat = factory.CreateTextFormat(
-            "Segoe UI Variable", FontWeight.SemiBold, FontStyle.Normal, resolvedDesign.BodyFontSize);
+            UiTypography.FontFamily, FontWeight.SemiBold, FontStyle.Normal, resolvedDesign.BodyFontSize);
         textFormat.TextAlignment = TextAlignment.Center;
         textFormat.ParagraphAlignment = ParagraphAlignment.Center;
         textFormat.WordWrapping = WordWrapping.NoWrap;

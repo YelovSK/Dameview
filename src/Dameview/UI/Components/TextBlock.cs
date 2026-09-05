@@ -44,7 +44,7 @@ internal sealed class TextBlock : UiElement, IDisposable
         _tone = tone;
         _lineHeight = style == UiTextStyle.Heading ? 36.0f : 24.0f;
         _format = factory.CreateTextFormat(
-            "Segoe UI Variable",
+            UiTypography.FontFamily,
             style == UiTextStyle.Heading ? FontWeight.SemiBold : FontWeight.Normal,
             FontStyle.Normal,
             style == UiTextStyle.Heading ? resolvedDesign.HeadingFontSize : resolvedDesign.BodyFontSize);

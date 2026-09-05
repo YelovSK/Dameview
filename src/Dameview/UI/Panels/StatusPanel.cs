@@ -90,7 +90,7 @@ internal sealed class StatusPanel : UiElement, IDisposable
         TextAlignment textAlignment)
     {
         IDWriteTextFormat format = factory.CreateTextFormat(
-            "Segoe UI Variable",
+            UiTypography.FontFamily,
             FontWeight.Medium,
             FontStyle.Normal,
             13.0f);
