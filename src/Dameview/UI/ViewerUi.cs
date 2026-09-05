@@ -144,13 +144,17 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     internal void ApplyState(ViewerSessionState state)
     {
+        bool hadDisplayedImage = _state.DisplayedImage is not null;
         bool displayedImageChanged = !ReferenceEquals(_state.DisplayedImage, state.DisplayedImage);
         _state = state;
         if (displayedImageChanged && state.DisplayedImage is { } displayed)
         {
             _root.ClearPointer();
             ApplyDisplayedImage(displayed);
-            _toolbarPanel.Show();
+            if (!hadDisplayedImage)
+            {
+                _toolbarPanel.Show();
+            }
         }
 
         bool hasImage = state.DisplayedImage is not null;

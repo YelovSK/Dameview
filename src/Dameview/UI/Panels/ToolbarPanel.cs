@@ -74,7 +74,7 @@ internal sealed class ToolbarPanel : UiElement, IDisposable
     internal Button SettingsButton => _buttons[^1];
     internal override bool ObservePointerMoves => true;
     internal override float Opacity => _visibility.Current;
-    internal override PointF VisualOffset => new(0.0f, (1.0f - _visibility.Current) * Bounds.Height);
+    internal override PointF VisualOffset => new(0.0f, (_visibility.Current - 1.0f) * Bounds.Height);
 
     internal void Show()
     {
@@ -97,11 +97,12 @@ internal sealed class ToolbarPanel : UiElement, IDisposable
     protected override void ArrangeCore(SizeF finalSize)
     {
         const float padding = 6.0f;
+        RectangleF content = GetContentBounds(finalSize);
         _buttonRow.Arrange(new RectangleF(
-            padding,
-            padding,
-            MathF.Max(0.0f, finalSize.Width - 2.0f * padding),
-            MathF.Max(0.0f, finalSize.Height - 2.0f * padding)));
+            content.X + padding,
+            content.Y + padding,
+            MathF.Max(0.0f, content.Width - 2.0f * padding),
+            MathF.Max(0.0f, content.Height - 2.0f * padding)));
     }
 
     protected override bool UpdateCore(in UiUpdateContext context)
@@ -116,8 +117,9 @@ internal sealed class ToolbarPanel : UiElement, IDisposable
             return;
         }
 
+        RectangleF content = GetContentBounds(Bounds.Size);
         var panel = new RoundedRectangle(
-            new RectangleF(0.0f, 0.0f, Bounds.Width, Bounds.Height),
+            content,
             _design.PanelCornerRadius,
             _design.PanelCornerRadius);
         context.FillRoundedRectangle(panel, context.Palette.OverlaySurface);
@@ -126,7 +128,7 @@ internal sealed class ToolbarPanel : UiElement, IDisposable
 
     protected override void ObservePointerMove(in UiPointerEvent input)
     {
-        bool visible = !HasImage || HasFocusWithin || input.Position.Y >= -28.0f;
+        bool visible = !HasImage || HasFocusWithin || input.Position.Y <= Bounds.Height + 28.0f;
         if (_visibility.SetTarget(visible ? 1.0f : 0.0f))
         {
             InvalidateVisual();
@@ -147,5 +149,15 @@ internal sealed class ToolbarPanel : UiElement, IDisposable
         {
             button.Dispose();
         }
+    }
+
+    private RectangleF GetContentBounds(SizeF availableSize)
+    {
+        float width = MathF.Min(WidthDips, MathF.Max(0.0f, availableSize.Width));
+        return new RectangleF(
+            (availableSize.Width - width) / 2.0f,
+            0.0f,
+            width,
+            availableSize.Height);
     }
 }

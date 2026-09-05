@@ -50,13 +50,12 @@ internal readonly record struct ViewerLayout(
         RectangleF toolbar = RectangleF.Empty;
         if (showToolbar)
         {
-            float bottom = showStatus ? status.Y - design.PanelGap : size.Height - margin;
             float toolbarWidth = MathF.Min(toolbarWidthDips, availableWidth);
-            float availableToolbarHeight = MathF.Max(0.0f, bottom - margin);
+            float availableToolbarHeight = MathF.Max(0.0f, size.Height - 2.0f * margin);
             float toolbarHeight = MathF.Min(design.ToolbarHeight, availableToolbarHeight);
             toolbar = new RectangleF(
                 (contentWidth - toolbarWidth) / 2.0f,
-                MathF.Max(margin, bottom - toolbarHeight),
+                margin,
                 toolbarWidth,
                 toolbarHeight);
         }
