@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
+using Dameview.UI;
 
 namespace Dameview.Platform;
 
@@ -56,7 +57,7 @@ internal sealed unsafe class AppWindow : IDisposable
     internal event Action<int, int>? Resized;
     internal event Action<float>? DpiChanged;
     internal event Action<string>? FileDropped;
-    internal event Action<uint>? KeyPressed;
+    internal event Action<UiKeyEvent>? KeyPressed;
     internal event Action<int, int>? PointerPressed;
     internal event Action<int, int>? PointerMoved;
     internal event Action<int, int>? PointerReleased;
@@ -263,7 +264,7 @@ internal sealed unsafe class AppWindow : IDisposable
                 return 1;
 
             case NativeMethods.MessageKeyDown:
-                KeyPressed?.Invoke((uint)wParam);
+                KeyPressed?.Invoke(new UiKeyEvent((uint)wParam, NativeMethods.GetKeyState(0x10) < 0));
                 return 0;
 
             case NativeMethods.MessageLeftButtonDown:

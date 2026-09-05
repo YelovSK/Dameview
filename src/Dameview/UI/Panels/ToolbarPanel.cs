@@ -14,6 +14,7 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
     private const float ButtonGap = 4.0f;
 
     private readonly Button[] _buttons;
+    private readonly Button[] _settingsOnly;
     private readonly AnimatedFloat _visibility = new(0.0f, 14.0);
     private float _dpi;
     private readonly UiPointerRouter _pointerRouter = new();
@@ -21,7 +22,8 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
     internal ToolbarPanel(
         IDWriteFactory directWriteFactory,
         IViewerCommands commands,
-        float dpi)
+        float dpi,
+        Action showSettings)
     {
         _dpi = dpi;
 
@@ -31,7 +33,57 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
             new Button(directWriteFactory, "→", commands.ShowNextImage),
             new Button(directWriteFactory, "Fit", commands.FitImage),
             new Button(directWriteFactory, "1:1", commands.ShowActualSize),
+            new Button(directWriteFactory, "Settings", showSettings),
         ];
+        _settingsOnly = [_buttons[^1]];
+        Show();
+    }
+
+    internal bool HasImage { get; set; }
+    internal float WidthDips => HasImage ? 332.0f : 104.0f;
+    private Button[] VisibleButtons => HasImage ? _buttons : _settingsOnly;
+
+    internal void FocusSettings()
+    {
+        ClearFocus();
+        _buttons[^1].IsFocused = true;
+        Show();
+    }
+
+    internal void ClearFocus()
+    {
+        foreach (Button button in _buttons)
+        {
+            button.IsFocused = false;
+        }
+    }
+
+    internal bool HandleKey(UiKeyEvent input)
+    {
+        Button[] buttons = VisibleButtons;
+        int focused = Array.FindIndex(buttons, button => button.IsFocused);
+        if (input.Key == 0x09)
+        {
+            int next = focused < 0
+                ? (input.Shift ? buttons.Length - 1 : 0)
+                : (focused + (input.Shift ? -1 : 1));
+            ClearFocus();
+            if (next >= 0 && next < buttons.Length)
+            {
+                buttons[next].IsFocused = true;
+                Show();
+            }
+
+            return true;
+        }
+
+        if (focused >= 0 && input.Key is 0x20 or 0x0D)
+        {
+            buttons[focused].Activate();
+            return true;
+        }
+
+        return false;
     }
 
     internal void Show()
@@ -86,9 +138,9 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
             fadedContext.FillRoundedRectangle(panel, context.Palette.OverlaySurface);
             fadedContext.DrawRoundedRectangle(panel, context.Palette.SurfaceBorder);
 
-            for (int index = 0; index < _buttons.Length; index++)
+            for (int index = 0; index < VisibleButtons.Length; index++)
             {
-                fadedContext.DrawElement(_buttons[index], GetButtonBounds(index, size));
+                fadedContext.DrawElement(VisibleButtons[index], GetButtonBounds(index, size));
             }
         }
         finally
@@ -101,13 +153,20 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
     {
         if (input.Kind == UiPointerEventKind.Cancelled)
         {
-            return _pointerRouter.Cancel();
+            UiPointerResult result = _pointerRouter.Cancel();
+            foreach (Button button in _buttons)
+            {
+                result = result with { NeedsRepaint = button.HandlePointer(input, SizeF.Empty).NeedsRepaint || result.NeedsRepaint };
+            }
+
+            return result;
         }
 
         bool repaint = false;
         if (input.Kind == UiPointerEventKind.Moved && _pointerRouter.Captured is null)
         {
-            repaint = _visibility.SetTarget(IsPointerNearToolbar(input.Position) ? 1.0f : 0.0f);
+            repaint = _visibility.SetTarget(!HasImage || _buttons.Any(button => button.IsFocused)
+                || IsPointerNearToolbar(input.Position) ? 1.0f : 0.0f);
         }
 
         UiPointerEvent visualInput = input with
@@ -116,7 +175,7 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
         };
         if (_pointerRouter.Captured is IUiElement captured)
         {
-            int index = Array.IndexOf(_buttons, captured);
+            int index = Array.IndexOf(VisibleButtons, captured);
             return _pointerRouter.DispatchCaptured(visualInput, GetButtonBounds(index, size));
         }
 
@@ -126,13 +185,13 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
         if (input.Kind == UiPointerEventKind.Moved)
         {
             // Every button observes movement so the previous hover can clear.
-            for (int index = 0; index < _buttons.Length; index++)
+            for (int index = 0; index < VisibleButtons.Length; index++)
             {
                 UiPointerEvent hoverInput = inside ? visualInput : input with
                 {
                     Kind = UiPointerEventKind.Cancelled,
                 };
-                repaint |= _pointerRouter.Route(_buttons[index], GetButtonBounds(index, size),
+                repaint |= _pointerRouter.Route(VisibleButtons[index], GetButtonBounds(index, size),
                     hoverInput, observeOutside: true).NeedsRepaint;
             }
 
@@ -144,9 +203,9 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
             return new UiPointerResult(NeedsRepaint: repaint);
         }
 
-        for (int index = 0; index < _buttons.Length; index++)
+        for (int index = 0; index < VisibleButtons.Length; index++)
         {
-            UiPointerResult result = _pointerRouter.Route(_buttons[index], GetButtonBounds(index, size), visualInput);
+            UiPointerResult result = _pointerRouter.Route(VisibleButtons[index], GetButtonBounds(index, size), visualInput);
             repaint |= result.NeedsRepaint;
             if (result.Consumed)
             {
@@ -182,10 +241,10 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
         float scale = UiDpi.GetScale(_dpi);
         float padding = Padding * scale;
         float buttonGap = ButtonGap * scale;
-        float totalGaps = buttonGap * (_buttons.Length - 1);
+        float totalGaps = buttonGap * (VisibleButtons.Length - 1);
         float buttonWidth = MathF.Max(
             0.0f,
-            (size.Width - (2.0f * padding) - totalGaps) / _buttons.Length);
+            (size.Width - (2.0f * padding) - totalGaps) / VisibleButtons.Length);
         return new RectangleF(
             padding + (index * (buttonWidth + buttonGap)),
             padding,

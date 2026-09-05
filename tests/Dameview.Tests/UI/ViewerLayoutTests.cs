@@ -17,7 +17,7 @@ public sealed class ViewerLayoutTests
 
         Assert.AreEqual(new RectangleF(0.0f, 0.0f, 1000.0f, 800.0f), layout.Content);
         Assert.AreEqual(new RectangleF(18.0f, 719.0f, 964.0f, 63.0f), layout.Status);
-        Assert.AreEqual(new RectangleF(341.0f, 638.0f, 318.0f, 69.0f), layout.Toolbar);
+        Assert.AreEqual(new RectangleF(251.0f, 638.0f, 498.0f, 69.0f), layout.Toolbar);
     }
 
     [TestMethod]
@@ -32,5 +32,16 @@ public sealed class ViewerLayoutTests
         Assert.AreEqual(new RectangleF(0.0f, 0.0f, 1000.0f, 800.0f), layout.Content);
         Assert.AreEqual(RectangleF.Empty, layout.Status);
         Assert.AreEqual(RectangleF.Empty, layout.Toolbar);
+    }
+
+    [TestMethod]
+    public void SettingsToolbarIsAvailableWithoutAStatusPanel()
+    {
+        ViewerLayout layout = ViewerLayout.Calculate(
+            new SizeF(1000, 800), 144,
+            showStatus: false, showToolbar: true, toolbarWidthDips: 104);
+
+        Assert.AreEqual(RectangleF.Empty, layout.Status);
+        Assert.AreEqual(new RectangleF(422, 713, 156, 69), layout.Toolbar);
     }
 }

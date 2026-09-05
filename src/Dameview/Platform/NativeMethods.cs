@@ -47,6 +47,9 @@ internal static partial class NativeMethods
     internal const uint VirtualKeyF = 0x46;
     internal const uint VirtualKeyNumpad1 = 0x61;
 
+    [LibraryImport("user32")]
+    internal static partial short GetKeyState(int virtualKey);
+
     internal static void EnablePerMonitorDpiAwareness()
     {
         // A failure only means awareness was already selected by a manifest or host.

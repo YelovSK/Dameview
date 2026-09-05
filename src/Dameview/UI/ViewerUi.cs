@@ -1,5 +1,7 @@
 using System.Drawing;
 using Dameview.Commands;
+using Dameview.Navigation;
+using Dameview.Settings;
 using Dameview.UI.Animation;
 using Dameview.UI.Panels;
 using Dameview.Viewing;
@@ -17,6 +19,8 @@ internal sealed class ViewerUi : IUiElement, IDisposable
     private readonly EmptyStatePanel _emptyStatePanel;
     private readonly StatusPanel _statusPanel;
     private readonly ToolbarPanel _toolbarPanel;
+    private readonly SettingsPanel _settingsPanel;
+    private readonly ModalHost _modalHost;
     private readonly UiAnimationClock _animationClock;
     private readonly UiPointerRouter _pointerRouter = new();
     private ViewerSessionState _state;
@@ -29,6 +33,8 @@ internal sealed class ViewerUi : IUiElement, IDisposable
         float dpi,
         UiTheme theme,
         IViewerCommands commands,
+        Action<ThemeMode> setTheme,
+        Action<FolderSort> setSort,
         TimeProvider? timeProvider = null)
     {
         _deviceContext = deviceContext;
@@ -43,7 +49,11 @@ internal sealed class ViewerUi : IUiElement, IDisposable
         _toolbarPanel = new ToolbarPanel(
             directWriteFactory,
             commands,
-            dpi);
+            dpi,
+            ShowSettings);
+        _toolbarPanel.HasImage = _state.DisplayedImage is not null;
+        _modalHost = new ModalHost(dpi);
+        _settingsPanel = new SettingsPanel(directWriteFactory, _modalHost.Close, setTheme, setSort, dpi);
         if (_state.DisplayedImage is { } displayed)
         {
             _imagePanel.SetImage(displayed.Image, displayed.IsPreview);
@@ -62,15 +72,42 @@ internal sealed class ViewerUi : IUiElement, IDisposable
         }
 
         _state = state;
+        _toolbarPanel.HasImage = state.DisplayedImage is not null;
     }
 
     internal UiTheme Palette { get; set; }
-    internal string? SettingsError { get; set; }
+    internal string? SettingsError
+    {
+        get => _settingsPanel.Error;
+        set => _settingsPanel.Error = value;
+    }
+
+    internal void ApplySettings(AppSettings settings) => _settingsPanel.ApplySettings(settings);
+
+    private void ShowSettings()
+    {
+        _pointerRouter.Cancel();
+        _toolbarPanel.HandlePointer(new UiPointerEvent(UiPointerEventKind.Cancelled, PointF.Empty), SizeF.Empty);
+        _toolbarPanel.ClearFocus();
+        _modalHost.Show(_settingsPanel, _toolbarPanel.FocusSettings);
+    }
+
+    internal bool HandleKey(UiKeyEvent input)
+    {
+        if (_modalHost.HandleKey(input))
+        {
+            return true;
+        }
+
+        return _toolbarPanel.HandleKey(input);
+    }
 
     internal void SetDpi(float dpi)
     {
         _dpi = dpi;
         _toolbarPanel.SetDpi(dpi);
+        _modalHost.SetDpi(dpi);
+        _settingsPanel.SetDpi(dpi);
     }
 
     internal bool Update()
@@ -88,10 +125,8 @@ internal sealed class ViewerUi : IUiElement, IDisposable
     public bool Update(in UiUpdateContext context)
     {
         bool continues = _imagePanel.Update(context);
-        if (HasToolbar)
-        {
-            continues |= _toolbarPanel.Update(context);
-        }
+        continues |= _modalHost.Update(context);
+        continues |= _toolbarPanel.Update(context);
 
         return continues;
     }
@@ -105,8 +140,7 @@ internal sealed class ViewerUi : IUiElement, IDisposable
     public void Draw(in UiDrawContext context, SizeF size)
     {
         bool showStatus = HasStatus;
-        bool showToolbar = HasToolbar;
-        ViewerLayout layout = ViewerLayout.Calculate(size, _dpi, showStatus, showToolbar);
+        ViewerLayout layout = GetLayout(size);
         context.DrawElement(GetContentElement(), layout.Content);
 
         if (showStatus)
@@ -121,34 +155,38 @@ internal sealed class ViewerUi : IUiElement, IDisposable
             context.DrawElement(_statusPanel, layout.Status);
         }
 
-        if (showToolbar)
-        {
-            context.DrawElement(_toolbarPanel, layout.Toolbar);
-        }
+        context.DrawElement(_toolbarPanel, layout.Toolbar);
+        _modalHost.Draw(context, size);
     }
 
     public UiPointerResult HandlePointer(in UiPointerEvent input, SizeF size)
     {
+        if (_modalHost.IsOpen)
+        {
+            return _modalHost.HandlePointer(input, size);
+        }
+
         if (input.Kind == UiPointerEventKind.Cancelled)
         {
             return _pointerRouter.Cancel();
         }
 
-        ViewerLayout layout = ViewerLayout.Calculate(size, _dpi, HasStatus, HasToolbar);
+        ViewerLayout layout = GetLayout(size);
         if (_pointerRouter.Captured is IUiElement captured)
         {
             return _pointerRouter.DispatchCaptured(input, GetBounds(captured, layout));
         }
 
-        UiPointerResult result = default;
-        if (HasToolbar)
+        if (input.Kind == UiPointerEventKind.Pressed)
         {
-            result = _pointerRouter.Route(_toolbarPanel, layout.Toolbar, input,
-                observeOutside: input.Kind == UiPointerEventKind.Moved);
-            if (result.Consumed)
-            {
-                return result;
-            }
+            _toolbarPanel.ClearFocus();
+        }
+
+        UiPointerResult result = _pointerRouter.Route(_toolbarPanel, layout.Toolbar, input,
+            observeOutside: input.Kind == UiPointerEventKind.Moved);
+        if (result.Consumed)
+        {
+            return result;
         }
 
         UiPointerResult content = _pointerRouter.Route(GetContentElement(), layout.Content, input);
@@ -158,6 +196,8 @@ internal sealed class ViewerUi : IUiElement, IDisposable
     public void Dispose()
     {
         _pointerRouter.Cancel();
+        _modalHost.Close();
+        _settingsPanel.Dispose();
         _toolbarPanel.Dispose();
         _statusPanel.Dispose();
         _emptyStatePanel.Dispose();
@@ -166,7 +206,10 @@ internal sealed class ViewerUi : IUiElement, IDisposable
     }
 
     private bool HasStatus => SettingsError is not null || _state.DisplayedImage is not null || _state.Message is not null;
-    private bool HasToolbar => _state.DisplayedImage is not null;
+    private ViewerLayout GetLayout(SizeF size)
+    {
+        return ViewerLayout.Calculate(size, _dpi, HasStatus, showToolbar: true, toolbarWidthDips: _toolbarPanel.WidthDips);
+    }
 
     private RectangleF GetBounds(IUiElement element, ViewerLayout layout)
     {

@@ -49,7 +49,9 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
             _session,
             _window.Dpi,
             UiTheme.Default,
-            this);
+            this,
+            theme => _settings!.Update(_settings.Current with { Theme = theme }),
+            sort => _settings!.Update(_settings.Current with { Sort = sort }));
         _drawUi = _ui.DrawFrame;
         _session.StateChanged += HandleSessionChanged;
 
@@ -124,9 +126,15 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         ShowActualSize(_session!.Viewport.ViewportCenter);
     }
 
-    private void HandleKeyPress(uint key)
+    private void HandleKeyPress(UiKeyEvent input)
     {
-        switch (key)
+        if (_ui!.HandleKey(input))
+        {
+            _window!.RequestRepaint();
+            return;
+        }
+
+        switch (input.Key)
         {
             case NativeMethods.VirtualKeyLeft:
                 ShowPreviousImage();
@@ -149,6 +157,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
     private void ApplySettings(AppSettings previous, AppSettings current)
     {
+        _ui!.ApplySettings(current);
         if (previous.Theme != current.Theme)
         {
             UiTheme theme = current.Theme == ThemeMode.Light ? UiTheme.Light : UiTheme.Default;
