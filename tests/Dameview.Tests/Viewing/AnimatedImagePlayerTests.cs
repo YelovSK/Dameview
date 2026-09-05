@@ -106,7 +106,6 @@ public sealed class AnimatedImagePlayerTests
         public AnimationFrame FirstFrame { get; }
         public bool IsAnimated => true;
         public bool IsComplete => _frames.Count == 0;
-        public bool IsInfiniteLoop => false;
         public Exception? Error { get; }
 
         public bool TryGetReadyFrame(out AnimationFrame frame)

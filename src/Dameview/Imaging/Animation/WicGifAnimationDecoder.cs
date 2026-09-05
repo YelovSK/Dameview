@@ -67,7 +67,7 @@ internal sealed class WicGifAnimationDecoder : IAnimatedImageDecoder
         public int Width { get; }
         public int Height { get; }
         public bool IsAnimated => _frameCount > 1;
-        public bool IsInfiniteLoop => _loopCount == 0;
+        private bool IsInfiniteLoop => _loopCount == 0;
         public bool IsComplete
         {
             get

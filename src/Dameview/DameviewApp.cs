@@ -32,7 +32,9 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
             _window.ClientWidth,
             _window.ClientHeight,
             _window.Dpi);
-        _imageLoadCoordinator = new ImageLoadCoordinator(_window.Post);
+        _imageLoadCoordinator = new ImageLoadCoordinator(
+            _window.Post,
+            new WindowsImageLoadingBackend());
         using var imageDecoder = new ImageDecoder();
         HashSet<string> extensions = imageDecoder.GetProbablySupportedExtensions();
         _session = new ViewerSession(

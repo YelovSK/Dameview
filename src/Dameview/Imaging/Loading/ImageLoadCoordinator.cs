@@ -9,14 +9,13 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
 
     private readonly object _sync = new();
     private readonly Action<Action> _postToUi;
-    private readonly Func<IImageDecoder> _decoderFactory;
+    private readonly IImageLoadingBackend _backend;
     private readonly DecodedImageCache _cache;
     private readonly Thread _foregroundWorker;
     private readonly Thread _preloadWorker;
     private readonly Queue<string> _pendingPreloads = new();
     private readonly Dictionary<string, TaskCompletionSource<DecodedImage>> _inFlightDecodes =
         new(StringComparer.OrdinalIgnoreCase);
-    private readonly Func<string, DecodedImage?> _thumbnailLoader;
     private LoadRequest? _pendingThumbnail;
     private long _completedRequestId;
     private LoadRequest? _pendingRequest;
@@ -25,13 +24,11 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
 
     internal ImageLoadCoordinator(
         Action<Action> postToUi,
-        Func<IImageDecoder>? decoderFactory = null,
-        long cacheCapacityBytes = DefaultCacheCapacityBytes,
-        Func<string, DecodedImage?>? thumbnailLoader = null)
+        IImageLoadingBackend backend,
+        long cacheCapacityBytes = DefaultCacheCapacityBytes)
     {
         _postToUi = postToUi;
-        _thumbnailLoader = thumbnailLoader ?? WindowsThumbnail.Load;
-        _decoderFactory = decoderFactory ?? (static () => new ImageDecoder());
+        _backend = backend;
         _cache = new DecodedImageCache(cacheCapacityBytes);
         _foregroundWorker = CreateWorker("Dameview image loader", ForegroundWork);
         _preloadWorker = CreateWorker("Dameview image preloader", PreloadWork);
@@ -51,7 +48,7 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
             _pendingThumbnail = null;
         }
 
-        if (!IsAnimatedCandidate(path) && _cache.TryGet(path, out DecodedImage? cachedImage))
+        if (!_backend.SupportsAnimation(path) && _cache.TryGet(path, out DecodedImage? cachedImage))
         {
             var result = new ImageLoaded(path, cachedImage);
             _postToUi(() => Deliver(request, result));
@@ -63,7 +60,7 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
             if (!_stopping && request.Id == _latestRequestId)
             {
                 _pendingRequest = request;
-                _pendingThumbnail = IsAnimatedCandidate(path) ? null : request;
+                _pendingThumbnail = _backend.SupportsAnimation(path) ? null : request;
                 Monitor.PulseAll(_sync);
             }
         }
@@ -133,7 +130,7 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
 
                 try
                 {
-                    if (IsLatest(request.Id) && _thumbnailLoader(request.Path) is { } image)
+                    if (IsLatest(request.Id) && _backend.LoadThumbnail(request.Path) is { } image)
                     {
                         _postToUi(() => Deliver(request, new ImageLoaded(request.Path, image, IsPreview: true)));
                     }
@@ -171,7 +168,7 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
             {
                 NativeMethods.InitializeComApartment(ComApartment.MultiThreaded);
                 comInitialized = true;
-                decoder = _decoderFactory();
+                decoder = _backend.CreateDecoder();
             }
             catch (Exception exception)
             {
@@ -232,12 +229,12 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
 
     private ImageLoaded DecodeForeground(string path, IImageDecoder decoder)
     {
-        if (decoder is not IAnimatedImageDecoder animatedDecoder || !animatedDecoder.CanDecode(path))
+        if (!_backend.SupportsAnimation(path))
         {
             return new ImageLoaded(path, DecodeShared(path, decoder));
         }
 
-        IAnimationSession? animation = animatedDecoder.Open(path);
+        IAnimationSession? animation = _backend.OpenAnimation(path);
         try
         {
             if (!animation.IsAnimated)
@@ -259,7 +256,7 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
     {
         while (TryTakePreload(out string? path))
         {
-            if (initializationError is not null || IsAnimatedCandidate(path) || _cache.TryGet(path, out _))
+            if (initializationError is not null || _backend.SupportsAnimation(path) || _cache.TryGet(path, out _))
             {
                 continue;
             }
@@ -398,11 +395,6 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
         {
             return !_stopping && requestId == _latestRequestId;
         }
-    }
-
-    private static bool IsAnimatedCandidate(string path)
-    {
-        return string.Equals(Path.GetExtension(path), ".gif", StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed record LoadRequest(

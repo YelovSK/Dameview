@@ -10,8 +10,6 @@ internal interface IAnimationSession : IDisposable
 
     public bool IsComplete { get; }
 
-    public bool IsInfiniteLoop { get; }
-
     public Exception? Error { get; }
 
     public bool TryGetReadyFrame(out AnimationFrame frame);

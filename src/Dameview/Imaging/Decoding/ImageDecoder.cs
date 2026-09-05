@@ -4,7 +4,7 @@ using Vortice.WIC;
 
 namespace Dameview.Imaging;
 
-internal sealed class ImageDecoder : IImageDecoder, IAnimatedImageDecoder
+internal sealed class ImageDecoder : IImageDecoder
 {
     private const int BytesPerPixel = 4;
 
@@ -39,11 +39,6 @@ internal sealed class ImageDecoder : IImageDecoder, IAnimatedImageDecoder
     {
         _factory.Dispose();
     }
-
-    public bool CanDecode(string path) =>
-        string.Equals(Path.GetExtension(path), ".gif", StringComparison.OrdinalIgnoreCase);
-
-    public IAnimationSession Open(string path) => new WicGifAnimationDecoder().Open(path);
 
     internal unsafe HashSet<string> GetProbablySupportedExtensions()
     {
