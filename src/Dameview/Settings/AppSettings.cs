@@ -44,7 +44,7 @@ internal sealed record WindowPlacementSettings
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     WriteIndented = true,
-    UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+    UnmappedMemberHandling = JsonUnmappedMemberHandling.Skip,
     Converters = new[] { typeof(ThemeModeJsonConverter), typeof(FolderSortJsonConverter) })]
 [JsonSerializable(typeof(AppSettings))]
 internal sealed partial class SettingsJsonContext : JsonSerializerContext

@@ -36,6 +36,19 @@ public sealed class SettingsServiceTests
     }
 
     [TestMethod]
+    public void UnknownPropertiesAreIgnoredForForwardCompatibility()
+    {
+        using var files = new SettingsFiles();
+        File.WriteAllText(files.Path, "{\"theme\":\"light\",\"window\":{\"width\":1200,\"height\":800},\"futureOption\":true}");
+        using var settings = files.CreateService();
+        settings.Start();
+
+        Assert.AreEqual(ThemeMode.Light, settings.Current.Theme);
+        Assert.AreEqual(FolderSort.NameAscending, settings.Current.Sort);
+        Assert.IsNull(settings.Error);
+    }
+
+    [TestMethod]
     public void ExternalReplacementIsDeliveredOnTheOwningThreadOnce()
     {
         using var files = new SettingsFiles();
@@ -82,7 +95,6 @@ public sealed class SettingsServiceTests
     [DataRow("null")]
     [DataRow("{\"theme\":42}")]
     [DataRow("{\"sort\":\"random\"}")]
-    [DataRow("{\"thmee\":\"light\"}")]
     public void InvalidValuesDoNotReplaceCurrentSettings(string json)
     {
         using var files = new SettingsFiles();
