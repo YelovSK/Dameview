@@ -13,7 +13,7 @@ public sealed class AnimatedImagePlayerTests
             new AnimationFrame(Image(1), TimeSpan.FromMilliseconds(100)),
             new AnimationFrame(Image(2), TimeSpan.FromMilliseconds(100)));
         var time = new ManualTimeProvider();
-        using var player = new AnimatedImagePlayer(session, time);
+        var player = new AnimatedImagePlayer(session, time);
 
         time.Advance(TimeSpan.FromMilliseconds(99));
         Assert.IsFalse(player.Update());
@@ -29,7 +29,7 @@ public sealed class AnimatedImagePlayerTests
         var session = new FakeSession(
             new AnimationFrame(Image(1), TimeSpan.FromMilliseconds(10)));
         var time = new ManualTimeProvider();
-        using var player = new AnimatedImagePlayer(session, time);
+        var player = new AnimatedImagePlayer(session, time);
 
         time.Advance(TimeSpan.FromMilliseconds(20));
         Assert.IsFalse(player.Update());
@@ -43,7 +43,7 @@ public sealed class AnimatedImagePlayerTests
             new AnimationFrame(Image(1), TimeSpan.FromMilliseconds(10)),
             new AnimationFrame(Image(2), TimeSpan.FromMilliseconds(10)));
         var time = new ManualTimeProvider();
-        using var player = new AnimatedImagePlayer(session, time);
+        var player = new AnimatedImagePlayer(session, time);
 
         time.Advance(TimeSpan.FromMilliseconds(10));
         Assert.IsTrue(player.Update());
@@ -60,7 +60,7 @@ public sealed class AnimatedImagePlayerTests
             new AnimationFrame(Image(1), TimeSpan.FromSeconds(1)),
             new AnimationFrame(Image(2), TimeSpan.FromSeconds(1)));
         var time = new ManualTimeProvider();
-        using var player = new AnimatedImagePlayer(session, time);
+        var player = new AnimatedImagePlayer(session, time);
 
         time.Advance(TimeSpan.FromSeconds(1));
 
@@ -76,7 +76,7 @@ public sealed class AnimatedImagePlayerTests
             new AnimationFrame(Image(1), TimeSpan.FromMilliseconds(10)),
             error: failure);
         var time = new ManualTimeProvider();
-        using var player = new AnimatedImagePlayer(session, time);
+        var player = new AnimatedImagePlayer(session, time);
 
         time.Advance(TimeSpan.FromMilliseconds(10));
         Assert.IsFalse(player.Update());

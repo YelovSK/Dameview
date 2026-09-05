@@ -144,6 +144,40 @@ public sealed class ViewerSessionTests
         Assert.AreEqual(ViewportMode.Fit, session.Viewport.Mode);
     }
 
+    [TestMethod]
+    public void DisplayedAnimationSurvivesFailureAndIsDisposedWhenReplaced()
+    {
+        using var files = new SessionFiles();
+        var loader = new ManualImageLoader();
+        using var session = CreateSession(loader);
+        var animation = new TrackingAnimationSession();
+
+        session.OpenImage(files.First);
+        loader.Complete(animation);
+        session.ShowNextImage();
+        loader.Fail(new InvalidDataException("Broken image"));
+        Assert.IsFalse(animation.IsDisposed);
+
+        session.OpenImage(files.Second);
+        loader.Complete(CreateImage());
+        Assert.IsTrue(animation.IsDisposed);
+    }
+
+    [TestMethod]
+    public void DisplayedAnimationIsDisposedWithSession()
+    {
+        using var files = new SessionFiles();
+        var loader = new ManualImageLoader();
+        var session = CreateSession(loader);
+        var animation = new TrackingAnimationSession();
+
+        session.OpenImage(files.First);
+        loader.Complete(animation);
+        session.Dispose();
+
+        Assert.IsTrue(animation.IsDisposed);
+    }
+
     private static ViewerSession CreateSession(ManualImageLoader loader)
     {
         return new ViewerSession(new FolderNavigator(), loader, new ImmediateScanner(), action => action(), 800, 600);
@@ -199,9 +233,39 @@ public sealed class ViewerSessionTests
             _completed!(new ImageLoaded(_path, image));
         }
 
+        internal void Complete(IAnimationSession animation)
+        {
+            _completed!(new ImageLoaded(
+                _path,
+                animation.FirstFrame.Image,
+                Animation: animation));
+        }
+
         internal void Fail(Exception exception)
         {
             _completed!(new ImageLoadFailed(_path, exception));
+        }
+    }
+
+    private sealed class TrackingAnimationSession : IAnimationSession
+    {
+        public AnimationFrame FirstFrame { get; } =
+            new(CreateImage(), TimeSpan.FromMilliseconds(100));
+
+        public bool IsAnimated => true;
+        public bool IsComplete => false;
+        public Exception? Error => null;
+        internal bool IsDisposed { get; private set; }
+
+        public bool TryGetReadyFrame(out AnimationFrame frame)
+        {
+            frame = null!;
+            return false;
+        }
+
+        public void Dispose()
+        {
+            IsDisposed = true;
         }
     }
 

@@ -2,7 +2,8 @@ using Dameview.Imaging;
 
 namespace Dameview.Viewing;
 
-internal sealed class AnimatedImagePlayer : IDisposable
+// Borrows the animation session; ViewerSession owns its lifetime.
+internal sealed class AnimatedImagePlayer
 {
     private const int MaximumCatchUpFrames = 8;
     private readonly IAnimationSession _session;
@@ -70,11 +71,6 @@ internal sealed class AnimatedImagePlayer : IDisposable
         bool changed = _frameChanged;
         _frameChanged = false;
         return changed;
-    }
-
-    public void Dispose()
-    {
-        _session.Dispose();
     }
 
     private static double ToSeconds(TimeSpan duration)

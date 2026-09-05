@@ -89,9 +89,9 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         // so this also remembers the size that will be restored after unmaximizing.
         _settings.Update(_settings.Current with { Window = _window.CapturePlacement() });
         _settings.Dispose();
+        _ui.Dispose();
         _session.Dispose();
         _imageLoadCoordinator.Dispose();
-        _ui.Dispose();
         _renderer.Dispose();
         _window.Dispose();
     }

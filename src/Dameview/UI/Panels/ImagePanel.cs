@@ -38,7 +38,6 @@ internal sealed class ImagePanel : IUiElement, IDisposable
 
     internal unsafe void SetImage(DecodedImage image, bool isPreview)
     {
-        _imageAnimation?.Dispose();
         _imageAnimation = null;
         SetBitmap(image);
         _isPreview = isPreview;
@@ -70,19 +69,10 @@ internal sealed class ImagePanel : IUiElement, IDisposable
 
     internal void SetAnimation(IAnimationSession animation)
     {
-        _imageAnimation?.Dispose();
         _imageAnimation = null;
-        try
-        {
-            SetBitmap(animation.FirstFrame.Image);
-            _isPreview = false;
-            _imageAnimation = new AnimatedImagePlayer(animation, _timeProvider);
-        }
-        catch
-        {
-            animation.Dispose();
-            throw;
-        }
+        SetBitmap(animation.FirstFrame.Image);
+        _isPreview = false;
+        _imageAnimation = new AnimatedImagePlayer(animation, _timeProvider);
     }
 
     public bool Update(in UiUpdateContext context)
@@ -187,7 +177,7 @@ internal sealed class ImagePanel : IUiElement, IDisposable
 
     public void Dispose()
     {
-        _imageAnimation?.Dispose();
+        _imageAnimation = null;
         _image?.Dispose();
     }
 }
