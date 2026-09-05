@@ -17,6 +17,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private const float PanelPadding = 8.0f;
     private const float ItemPadding = 6.0f;
     private const float LabelHeight = 24.0f;
+    private const float MinimumItemWidthDips = 132.0f;
     private const float WheelStep = 72.0f;
 
     private readonly ID2D1DeviceContext _deviceContext;
@@ -131,7 +132,8 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             _entries.Length,
             _scrollOffset,
             Bounds.Height,
-            ItemHeightDips);
+            ItemHeightDips,
+            ColumnCount);
         for (int index = first; index < lastExclusive; index++)
         {
             DrawItem(context, index);
@@ -144,8 +146,15 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             && input.Position.X < Bounds.Width
             && input.Position.Y >= 0.0f
             && input.Position.Y < Bounds.Height;
-        int index = isInside
-            ? HitTestIndex(input.Position.Y, _scrollOffset, _entries.Length, ItemHeightDips)
+        int index = isInside && input.Position.X < ContentWidth
+            ? HitTestIndex(
+                input.Position.X,
+                input.Position.Y,
+                _scrollOffset,
+                _entries.Length,
+                ItemWidth,
+                ItemHeightDips,
+                ColumnCount)
             : -1;
         switch (input.Kind)
         {
@@ -203,40 +212,76 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         int count,
         float scrollOffset,
         float viewportHeight,
-        float itemHeight)
+        float itemHeight,
+        int columnCount = 1)
     {
         if (count <= 0 || viewportHeight <= 0.0f || itemHeight <= 0.0f)
         {
             return (0, 0);
         }
 
-        int first = Math.Max(0, (int)MathF.Floor((scrollOffset - PanelPadding) / itemHeight) - 1);
-        int last = Math.Min(
-            count,
+        columnCount = Math.Max(1, columnCount);
+        int firstRow = Math.Max(0, (int)MathF.Floor((scrollOffset - PanelPadding) / itemHeight) - 1);
+        int lastRow = Math.Max(
+            firstRow,
             (int)MathF.Ceiling((scrollOffset + viewportHeight - PanelPadding) / itemHeight) + 1);
-        return (first, Math.Max(first, last));
+        return (
+            Math.Min(count, firstRow * columnCount),
+            Math.Min(count, lastRow * columnCount));
     }
 
     internal static int HitTestIndex(float y, float scrollOffset, int count, float itemHeight)
+        => HitTestIndex(PanelPadding, y, scrollOffset, count, float.MaxValue, itemHeight, 1);
+
+    internal static int HitTestIndex(
+        float x,
+        float y,
+        float scrollOffset,
+        int count,
+        float itemWidth,
+        float itemHeight,
+        int columnCount,
+        float itemGap = 0.0f)
     {
-        float contentY = y + scrollOffset - PanelPadding;
-        if (contentY < 0.0f || itemHeight <= 0.0f)
+        if (count <= 0 || itemWidth <= 0.0f || itemHeight <= 0.0f || columnCount <= 0)
         {
             return -1;
         }
 
-        int index = (int)(contentY / itemHeight);
+        float contentX = x - PanelPadding;
+        float contentY = y + scrollOffset - PanelPadding;
+        if (contentX < 0.0f || contentY < 0.0f)
+        {
+            return -1;
+        }
+
+        float columnPitch = itemWidth + itemGap;
+        float rowPitch = itemHeight;
+        int column = (int)(contentX / columnPitch);
+        int row = (int)(contentY / rowPitch);
+        if (column >= columnCount
+            || contentX - column * columnPitch > itemWidth
+            || contentY - row * rowPitch > itemHeight - itemGap)
+        {
+            return -1;
+        }
+
+        int index = row * columnCount + column;
         return index < count ? index : -1;
     }
 
     private void DrawItem(in UiDrawContext context, int index)
     {
         FolderEntry entry = _entries[index];
-        float y = PanelPadding + index * ItemHeightDips - _scrollOffset;
+        int columnCount = ColumnCount;
+        int row = index / columnCount;
+        int column = index % columnCount;
+        float itemWidth = ItemWidth;
+        float y = PanelPadding + row * ItemHeightDips - _scrollOffset;
         var itemBounds = new RectangleF(
-            PanelPadding,
+            PanelPadding + column * (itemWidth + _design.SmallSpacing),
             y,
-            MathF.Max(0.0f, ContentWidth - 2.0f * PanelPadding),
+            itemWidth,
             ItemHeightDips - _design.SmallSpacing);
         bool selected = string.Equals(entry.FullName, _selectedPath, StringComparison.OrdinalIgnoreCase);
         if (selected || index == _hoveredIndex || index == _pressedIndex)
@@ -300,7 +345,8 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             _entries.Length,
             _scrollOffset,
             Bounds.Height,
-            ItemHeightDips);
+            ItemHeightDips,
+            ColumnCount);
         var visiblePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         for (int index = first; index < lastExclusive; index++)
         {
@@ -353,7 +399,8 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             return;
         }
 
-        float top = PanelPadding + selectedIndex * ItemHeightDips;
+        int row = selectedIndex / ColumnCount;
+        float top = PanelPadding + row * ItemHeightDips;
         float bottom = top + ItemHeightDips;
         if (top < _scrollOffset)
         {
@@ -376,7 +423,23 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private const float ScrollbarWidth = 12.0f;
     private const float ScrollbarGap = 2.0f;
     private float ContentWidth => MathF.Max(0.0f, Bounds.Width - ScrollbarWidth - ScrollbarGap);
-    private float ContentHeight => 2.0f * PanelPadding + _entries.Length * ItemHeightDips;
+    private int ColumnCount => GetColumnCount(ContentWidth);
+    private float ItemWidth => GetItemWidth(ContentWidth, ColumnCount);
+    private float ContentHeight => 2.0f * PanelPadding + RowCount * ItemHeightDips;
+    private int RowCount => (_entries.Length + ColumnCount - 1) / ColumnCount;
+
+    private int GetColumnCount(float contentWidth)
+    {
+        float pitch = MinimumItemWidthDips + _design.SmallSpacing;
+        return Math.Max(1, (int)MathF.Floor((contentWidth + _design.SmallSpacing) / pitch));
+    }
+
+    private float GetItemWidth(float contentWidth, int columnCount)
+    {
+        return MathF.Max(
+            0.0f,
+            (contentWidth - (columnCount - 1) * _design.SmallSpacing) / columnCount);
+    }
 
     private void SetScrollOffset(float offset)
     {

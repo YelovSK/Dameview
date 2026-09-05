@@ -30,4 +30,43 @@ public sealed class GalleryPanelTests
         Assert.AreEqual(2, index);
         Assert.AreEqual(-1, GalleryPanel.HitTestIndex(0.0f, 0.0f, 10, GalleryPanel.ItemHeightDips));
     }
+
+    [TestMethod]
+    public void VisibleRangeExpandsByRowsWhenThereAreMultipleColumns()
+    {
+        (int first, int last) = GalleryPanel.GetVisibleRange(
+            100,
+            scrollOffset: 0.0f,
+            viewportHeight: 2 * GalleryPanel.ItemHeightDips,
+            GalleryPanel.ItemHeightDips,
+            columnCount: 2);
+
+        Assert.AreEqual(0, first);
+        Assert.AreEqual(6, last);
+    }
+
+    [TestMethod]
+    public void GridHitTestMapsPointerToTheCorrectColumnAndRow()
+    {
+        int index = GalleryPanel.HitTestIndex(
+            x: 117.0f,
+            y: 160.0f,
+            scrollOffset: 0.0f,
+            count: 10,
+            itemWidth: 100.0f,
+            itemHeight: GalleryPanel.ItemHeightDips,
+            columnCount: 2,
+            itemGap: 8.0f);
+
+        Assert.AreEqual(3, index);
+        Assert.AreEqual(-1, GalleryPanel.HitTestIndex(
+            x: 110.0f,
+            y: 20.0f,
+            scrollOffset: 0.0f,
+            count: 10,
+            itemWidth: 100.0f,
+            itemHeight: GalleryPanel.ItemHeightDips,
+            columnCount: 2,
+            itemGap: 8.0f));
+    }
 }
