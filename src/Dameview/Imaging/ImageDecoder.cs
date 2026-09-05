@@ -4,6 +4,18 @@ using Vortice.WIC;
 
 namespace Dameview.Imaging;
 
+internal enum ExifOrientation : ushort
+{
+    Normal = 1,
+    MirrorHorizontal = 2,
+    Rotate180 = 3,
+    MirrorVertical = 4,
+    Transpose = 5,
+    Rotate90Clockwise = 6,
+    Transverse = 7,
+    Rotate270Clockwise = 8,
+}
+
 internal sealed class ImageDecoder : IImageDecoder
 {
     private const int BytesPerPixel = 4;
@@ -22,6 +34,7 @@ internal sealed class ImageDecoder : IImageDecoder
             FileAccess.Read,
             DecodeOptions.CacheOnLoad);
         using IWICBitmapFrameDecode frame = decoder.GetFrame(0);
+        ExifOrientation orientation = GetExifOrientation(frame);
         using IWICFormatConverter converter = _factory.CreateFormatConverter();
 
         converter.Initialize(frame, PixelFormat.Format32bppPBGRA).CheckError();
@@ -32,7 +45,103 @@ internal sealed class ImageDecoder : IImageDecoder
         byte[] pixels = GC.AllocateUninitializedArray<byte>(checked(stride * height));
         converter.CopyPixels((uint)stride, pixels);
 
-        return new DecodedImage(width, height, stride, pixels);
+        return ApplyExifOrientation(orientation, width, height, stride, pixels);
+    }
+
+    internal static ExifOrientation GetExifOrientation(IWICBitmapFrameDecode frame)
+    {
+        try
+        {
+            using IWICMetadataQueryReader reader = frame.MetadataQueryReader;
+            foreach (string query in new[] { "/app1/ifd/{ushort=274}", "/ifd/{ushort=274}" })
+            {
+                try
+                {
+                    Variant metadata = reader.GetMetadataByName(query);
+                    if (metadata.Value is ushort rawOrientation)
+                    {
+                        return Enum.IsDefined((ExifOrientation)rawOrientation)
+                            ? (ExifOrientation)rawOrientation
+                            : ExifOrientation.Normal;
+                    }
+                }
+                catch (SharpGenException)
+                {
+                    // Try the other common container-specific EXIF path.
+                }
+            }
+        }
+        catch (SharpGenException)
+        {
+            // Most images have no EXIF orientation tag. WIC reports that as
+            // a metadata lookup failure, which should not prevent decoding.
+        }
+
+        return ExifOrientation.Normal;
+    }
+
+    internal static BitmapTransformOptions MapExifOrientation(ExifOrientation orientation)
+    {
+        return orientation switch
+        {
+            ExifOrientation.MirrorHorizontal => BitmapTransformOptions.FlipHorizontal,
+            ExifOrientation.Rotate180 => BitmapTransformOptions.Rotate180,
+            ExifOrientation.MirrorVertical => BitmapTransformOptions.FlipVertical,
+            ExifOrientation.Transpose => BitmapTransformOptions.FlipHorizontal | BitmapTransformOptions.Rotate270,
+            ExifOrientation.Rotate90Clockwise => BitmapTransformOptions.Rotate90,
+            ExifOrientation.Transverse => BitmapTransformOptions.FlipHorizontal | BitmapTransformOptions.Rotate90,
+            ExifOrientation.Rotate270Clockwise => BitmapTransformOptions.Rotate270,
+            _ => BitmapTransformOptions.Rotate0,
+        };
+    }
+
+    private static DecodedImage ApplyExifOrientation(
+        ExifOrientation orientation,
+        int width,
+        int height,
+        int sourceStride,
+        byte[] source)
+    {
+        if (orientation == ExifOrientation.Normal)
+        {
+            return new DecodedImage(width, height, sourceStride, source);
+        }
+
+        bool swapsDimensions = orientation is ExifOrientation.Transpose
+            or ExifOrientation.Rotate90Clockwise
+            or ExifOrientation.Transverse
+            or ExifOrientation.Rotate270Clockwise;
+        int outputWidth = swapsDimensions ? height : width;
+        int outputHeight = swapsDimensions ? width : height;
+        int outputStride = checked(outputWidth * BytesPerPixel);
+        byte[] output = GC.AllocateUninitializedArray<byte>(checked(outputStride * outputHeight));
+
+        for (int y = 0; y < outputHeight; y++)
+        {
+            for (int x = 0; x < outputWidth; x++)
+            {
+                (int sourceX, int sourceY) = orientation switch
+                {
+                    ExifOrientation.MirrorHorizontal => (width - 1 - x, y),
+                    ExifOrientation.Rotate180 => (width - 1 - x, height - 1 - y),
+                    ExifOrientation.MirrorVertical => (x, height - 1 - y),
+                    ExifOrientation.Transpose => (y, x),
+                    ExifOrientation.Rotate90Clockwise => (y, height - 1 - x),
+                    ExifOrientation.Transverse => (width - 1 - y, height - 1 - x),
+                    ExifOrientation.Rotate270Clockwise => (width - 1 - y, x),
+                    _ => (x, y),
+                };
+
+                Buffer.BlockCopy(
+                    source,
+                    sourceY * sourceStride + sourceX * BytesPerPixel,
+                    output,
+                    y * outputStride + x * BytesPerPixel,
+                    BytesPerPixel);
+            }
+        }
+
+        return new DecodedImage(outputWidth, outputHeight, outputStride, output);
     }
 
     public void Dispose()
