@@ -32,7 +32,9 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
             _window.ClientWidth,
             _window.ClientHeight,
             _window.Dpi);
-        _imageLoadCoordinator = new ImageLoadCoordinator(_window.Post);
+        _imageLoadCoordinator = new ImageLoadCoordinator(
+            _window.Post,
+            new WindowsImageLoadingBackend());
         using var imageDecoder = new ImageDecoder();
         HashSet<string> extensions = imageDecoder.GetProbablySupportedExtensions();
         _session = new ViewerSession(
@@ -87,9 +89,9 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         // so this also remembers the size that will be restored after unmaximizing.
         _settings.Update(_settings.Current with { Window = _window.CapturePlacement() });
         _settings.Dispose();
+        _ui.Dispose();
         _session.Dispose();
         _imageLoadCoordinator.Dispose();
-        _ui.Dispose();
         _renderer.Dispose();
         _window.Dispose();
     }
@@ -220,6 +222,10 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         if (animationContinues)
         {
             _window.RequestRepaint();
+        }
+        else if (_ui.NextAnimationFrameDelay is { } delay)
+        {
+            _window.RequestRepaintAfter(delay);
         }
     }
 

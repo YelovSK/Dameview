@@ -5,7 +5,8 @@ using SharpGen.Runtime;
 namespace Dameview.Viewing;
 
 // UI-thread owned. The loader delivers only the latest request on this thread.
-// Dependencies are borrowed; the application owns their lifetime.
+// Dependencies are borrowed; the application owns their lifetime. The session owns
+// the animation attached to its currently displayed image.
 internal sealed class ViewerSession : IDisposable
 {
     private readonly FolderNavigator _folderNavigator;
@@ -13,6 +14,7 @@ internal sealed class ViewerSession : IDisposable
     private readonly IFolderScanner _folderScanner;
     private readonly Action<Action> _postToUi;
     private CancellationTokenSource? _folderScan;
+    private IAnimationSession? _animation;
     private string? _navigationError;
     private bool _disposed;
 
@@ -94,10 +96,17 @@ internal sealed class ViewerSession : IDisposable
 
     public void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         _disposed = true;
         _folderScan?.Cancel();
         _folderScan?.Dispose();
         _folderScan = null;
+        _animation?.Dispose();
+        _animation = null;
     }
 
     private async Task ScanFolderAsync(string directoryPath, string currentPath, CancellationToken token)
@@ -206,41 +215,64 @@ internal sealed class ViewerSession : IDisposable
     {
         if (_disposed)
         {
+            if (result is ImageLoaded { Animation: { } animation })
+            {
+                animation.Dispose();
+            }
+
             return;
         }
 
-        switch (result)
+        IAnimationSession? previousAnimation = null;
+        try
         {
-            case ImageLoaded { IsPreview: true } preview:
-                Animator.Reset();
-                Viewport.SetImageSize(preview.Image.Width, preview.Image.Height);
-                State = State with { DisplayedImage = preview };
-                break;
+            switch (result)
+            {
+                case ImageLoaded { IsPreview: true } preview:
+                    previousAnimation = ReplaceAnimation(null);
+                    Animator.Reset();
+                    Viewport.SetImageSize(preview.Image.Width, preview.Image.Height);
+                    State = State with { DisplayedImage = preview };
+                    break;
 
-            case ImageLoaded loaded:
-                Animator.Reset();
-                Viewport.SetImageSize(loaded.Image.Width, loaded.Image.Height);
-                State = new ViewerSessionState(loaded.Path, loaded, false, null, false, State.IsScanningFolder);
-                ApplyNavigationResult(navigationDirection);
+                case ImageLoaded loaded:
+                    previousAnimation = ReplaceAnimation(loaded.Animation);
+                    Animator.Reset();
+                    Viewport.SetImageSize(loaded.Image.Width, loaded.Image.Height);
+                    State = new ViewerSessionState(loaded.Path, loaded, false, null, false, State.IsScanningFolder);
+                    ApplyNavigationResult(navigationDirection);
 
-                break;
+                    break;
 
-            case ImageLoadFailed failed:
-                State = State with
-                {
-                    IsLoading = false,
-                    Message = $"Could not open {Path.GetFileName(failed.Path)}: {failed.Exception.Message}",
-                    IsError = true,
-                };
-                break;
+                case ImageLoadFailed failed:
+                    State = State with
+                    {
+                        IsLoading = false,
+                        Message = $"Could not open {Path.GetFileName(failed.Path)}: {failed.Exception.Message}",
+                        IsError = true,
+                    };
+                    break;
+            }
+
+            StateChanged?.Invoke();
         }
+        finally
+        {
+            previousAnimation?.Dispose();
+        }
+    }
 
-        StateChanged?.Invoke();
+    private IAnimationSession? ReplaceAnimation(IAnimationSession? animation)
+    {
+        IAnimationSession? previous = _animation;
+        _animation = animation;
+        return ReferenceEquals(previous, animation) ? null : previous;
     }
 }
 
-// DisplayedImage retains CPU pixels so graphics resources can be recreated
-// without reloading the file or resetting the viewport.
+// DisplayedImage retains CPU pixels so graphics resources can be recreated without
+// reloading the file or resetting the viewport. Its animation is borrowed from the
+// session and must not be disposed by consumers.
 internal sealed record ViewerSessionState(
     string? RequestedPath,
     ImageLoaded? DisplayedImage,

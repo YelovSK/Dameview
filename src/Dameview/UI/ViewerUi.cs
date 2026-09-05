@@ -1,5 +1,7 @@
+using Dameview.Platform;
 using System.Drawing;
 using Dameview.Commands;
+using Dameview.Imaging;
 using Dameview.Navigation;
 using Dameview.Settings;
 using Dameview.UI.Animation;
@@ -43,7 +45,7 @@ internal sealed class ViewerUi : IUiElement, IDisposable
         Palette = theme;
         _animationClock = new UiAnimationClock(timeProvider);
         _state = session.State;
-        _imagePanel = new ImagePanel(deviceContext, session.Viewport, session.Animator);
+        _imagePanel = new ImagePanel(deviceContext, session.Viewport, session.Animator, timeProvider);
         _emptyStatePanel = new EmptyStatePanel(directWriteFactory);
         _statusPanel = new StatusPanel(directWriteFactory);
         _toolbarPanel = new ToolbarPanel(
@@ -56,7 +58,7 @@ internal sealed class ViewerUi : IUiElement, IDisposable
         _settingsPanel = new SettingsPanel(directWriteFactory, _modalHost.Close, setTheme, setSort, dpi);
         if (_state.DisplayedImage is { } displayed)
         {
-            _imagePanel.SetImage(displayed.Image, displayed.IsPreview);
+            ApplyDisplayedImage(displayed);
             _toolbarPanel.Show();
         }
     }
@@ -67,7 +69,7 @@ internal sealed class ViewerUi : IUiElement, IDisposable
             && state.DisplayedImage is { } displayed)
         {
             _pointerRouter.Cancel();
-            _imagePanel.SetImage(displayed.Image, displayed.IsPreview);
+            ApplyDisplayedImage(displayed);
             _toolbarPanel.Show();
         }
 
@@ -83,6 +85,7 @@ internal sealed class ViewerUi : IUiElement, IDisposable
     }
 
     internal void ApplySettings(AppSettings settings) => _settingsPanel.ApplySettings(settings);
+    internal TimeSpan? NextAnimationFrameDelay => _imagePanel.NextAnimationFrameDelay;
 
     private void ShowSettings()
     {
@@ -114,7 +117,7 @@ internal sealed class ViewerUi : IUiElement, IDisposable
     {
         UiUpdateContext context = _animationClock.GetNextFrame();
         bool continues = Update(context);
-        if (!continues)
+        if (!continues && NextAnimationFrameDelay is null)
         {
             _animationClock.Reset();
         }
@@ -145,13 +148,16 @@ internal sealed class ViewerUi : IUiElement, IDisposable
 
         if (showStatus)
         {
+            string? animationError = _imagePanel.AnimationError is { } exception
+                ? $"Animation stopped: {exception.Message}"
+                : null;
             _statusPanel.Status = new ViewerStatus(
                 Path.GetFileName(_state.RequestedPath) ?? string.Empty,
                 _state.DisplayedImage?.Image.Width ?? 0,
                 _state.DisplayedImage?.Image.Height ?? 0,
                 _imagePanel.ZoomPercentage,
-                SettingsError ?? _state.Message,
-                SettingsError is not null || _state.IsError);
+                SettingsError ?? animationError ?? _state.Message,
+                SettingsError is not null || animationError is not null || _state.IsError);
             context.DrawElement(_statusPanel, layout.Status);
         }
 
@@ -224,5 +230,17 @@ internal sealed class ViewerUi : IUiElement, IDisposable
     private IUiElement GetContentElement()
     {
         return _state.DisplayedImage is not null ? _imagePanel : _emptyStatePanel;
+    }
+
+    private void ApplyDisplayedImage(ImageLoaded displayed)
+    {
+        if (displayed.Animation is { } animation)
+        {
+            _imagePanel.SetAnimation(animation);
+        }
+        else
+        {
+            _imagePanel.SetImage(displayed.Image, displayed.IsPreview);
+        }
     }
 }

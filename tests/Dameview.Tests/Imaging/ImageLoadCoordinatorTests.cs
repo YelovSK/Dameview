@@ -27,7 +27,7 @@ public sealed class ImageLoadCoordinatorTests
         });
         using var coordinator = new ImageLoadCoordinator(
             action => action(),
-            () => decoder);
+            new FakeImageLoadingBackend(() => decoder));
 
         coordinator.Load("first", RecordResult);
         Assert.IsTrue(firstStarted.Wait(TimeSpan.FromSeconds(5)));
@@ -58,7 +58,7 @@ public sealed class ImageLoadCoordinatorTests
             _ => throw new InvalidDataException("Broken image"));
         using var coordinator = new ImageLoadCoordinator(
             action => action(),
-            () => decoder);
+            new FakeImageLoadingBackend(() => decoder));
 
         coordinator.Load("broken.jpg", result =>
         {
@@ -84,7 +84,7 @@ public sealed class ImageLoadCoordinatorTests
                 postedActions.Enqueue(action);
                 resultPosted.Release();
             },
-            () => decoder);
+            new FakeImageLoadingBackend(() => decoder));
 
         coordinator.Load("first", result => deliveredPaths.Add(result.Path));
         Assert.IsTrue(resultPosted.Wait(TimeSpan.FromSeconds(5)));
@@ -98,6 +98,77 @@ public sealed class ImageLoadCoordinatorTests
         deliverSecond();
 
         CollectionAssert.AreEqual(new[] { "second" }, deliveredPaths);
+    }
+
+    [TestMethod]
+    public void SupersededAnimationIsDisposedBeforeUiDelivery()
+    {
+        using var firstStarted = new ManualResetEventSlim();
+        using var releaseFirst = new ManualResetEventSlim();
+        using var secondDelivered = new ManualResetEventSlim();
+        var firstSession = new FakeAnimationSession();
+        var secondSession = new FakeAnimationSession();
+        using var decoder = new FakeAnimatedImageDecoder(path =>
+        {
+            if (path == "first.gif")
+            {
+                firstStarted.Set();
+                releaseFirst.Wait();
+                return firstSession;
+            }
+
+            return secondSession;
+        });
+        using var coordinator = new ImageLoadCoordinator(
+            action => action(),
+            new FakeImageLoadingBackend(() => decoder, decoder));
+
+        try
+        {
+            coordinator.Load("first.gif", _ => Assert.Fail("Superseded result was delivered."));
+            Assert.IsTrue(firstStarted.Wait(TimeSpan.FromSeconds(5)));
+
+            coordinator.Load("second.gif", result =>
+            {
+                ((ImageLoaded)result).Animation!.Dispose();
+                secondDelivered.Set();
+            });
+            releaseFirst.Set();
+
+            Assert.IsTrue(secondDelivered.Wait(TimeSpan.FromSeconds(5)));
+            Assert.IsTrue(firstSession.IsDisposed);
+        }
+        finally
+        {
+            releaseFirst.Set();
+        }
+    }
+
+    [TestMethod]
+    public void AnimatedImageSkipsThumbnailPreview()
+    {
+        using var completed = new ManualResetEventSlim();
+        int thumbnailLoads = 0;
+        using var decoder = new FakeAnimatedImageDecoder(_ => new FakeAnimationSession());
+        using var coordinator = new ImageLoadCoordinator(
+            action => action(),
+            new FakeImageLoadingBackend(
+                () => decoder,
+                decoder,
+                _ =>
+                {
+                    Interlocked.Increment(ref thumbnailLoads);
+                    return CreateImage();
+                }));
+
+        coordinator.Load("animated.gif", result =>
+        {
+            ((ImageLoaded)result).Animation!.Dispose();
+            completed.Set();
+        });
+
+        Assert.IsTrue(completed.Wait(TimeSpan.FromSeconds(5)));
+        Assert.AreEqual(0, Volatile.Read(ref thumbnailLoads));
     }
 
     [TestMethod]
@@ -121,7 +192,7 @@ public sealed class ImageLoadCoordinatorTests
 
         using var coordinator = new ImageLoadCoordinator(
             action => action(),
-            () => new FakeImageDecoder(Decode));
+            new FakeImageLoadingBackend(() => new FakeImageDecoder(Decode)));
 
         try
         {
@@ -157,7 +228,7 @@ public sealed class ImageLoadCoordinatorTests
 
         using var coordinator = new ImageLoadCoordinator(
             action => action(),
-            () => new FakeImageDecoder(Decode));
+            new FakeImageLoadingBackend(() => new FakeImageDecoder(Decode)));
 
         try
         {
@@ -182,8 +253,9 @@ public sealed class ImageLoadCoordinatorTests
         using var release = new ManualResetEventSlim();
         using var posted = new BlockingCollection<Action>();
         using var coordinator = new ImageLoadCoordinator(posted.Add,
-            () => new FakeImageDecoder(_ => { release.Wait(); return CreateImage(); }),
-            thumbnailLoader: _ => CreateImage());
+            new FakeImageLoadingBackend(
+                () => new FakeImageDecoder(_ => { release.Wait(); return CreateImage(); }),
+                thumbnailLoader: _ => CreateImage()));
         var results = new List<ImageLoaded>();
         try
         {
@@ -210,13 +282,14 @@ public sealed class ImageLoadCoordinatorTests
         using var previewStarted = new ManualResetEventSlim();
         using var posted = new BlockingCollection<Action>();
         using var coordinator = new ImageLoadCoordinator(posted.Add,
-            () => new FakeImageDecoder(_ => CreateImage()),
-            thumbnailLoader: _ =>
-            {
-                previewStarted.Set();
-                releasePreview.Wait();
-                return CreateImage();
-            });
+            new FakeImageLoadingBackend(
+                () => new FakeImageDecoder(_ => CreateImage()),
+                thumbnailLoader: _ =>
+                {
+                    previewStarted.Set();
+                    releasePreview.Wait();
+                    return CreateImage();
+                }));
         var results = new List<ImageLoaded>();
         try
         {
@@ -249,8 +322,9 @@ public sealed class ImageLoadCoordinatorTests
     {
         using var posted = new BlockingCollection<Action>();
         using var coordinator = new ImageLoadCoordinator(posted.Add,
-            () => new FakeImageDecoder(_ => CreateImage()),
-            thumbnailLoader: _ => throw new IOException("Thumbnail unavailable"));
+            new FakeImageLoadingBackend(
+                () => new FakeImageDecoder(_ => CreateImage()),
+                thumbnailLoader: _ => throw new IOException("Thumbnail unavailable")));
         ImageLoadResult? result = null;
         coordinator.Load("image", loaded => result = loaded);
         Assert.IsTrue(posted.TryTake(out Action? complete, TimeSpan.FromSeconds(5)));
@@ -280,6 +354,77 @@ public sealed class ImageLoadCoordinatorTests
 
         public void Dispose()
         {
+        }
+    }
+
+    private sealed class FakeImageLoadingBackend : IImageLoadingBackend
+    {
+        private readonly Func<IImageDecoder> _decoderFactory;
+        private readonly IAnimatedImageDecoder? _animatedDecoder;
+        private readonly Func<string, DecodedImage?> _thumbnailLoader;
+
+        internal FakeImageLoadingBackend(
+            Func<IImageDecoder> decoderFactory,
+            IAnimatedImageDecoder? animatedDecoder = null,
+            Func<string, DecodedImage?>? thumbnailLoader = null)
+        {
+            _decoderFactory = decoderFactory;
+            _animatedDecoder = animatedDecoder;
+            _thumbnailLoader = thumbnailLoader ?? (_ => null);
+        }
+
+        public IImageDecoder CreateDecoder() => _decoderFactory();
+
+        public DecodedImage? LoadThumbnail(string path) => _thumbnailLoader(path);
+
+        public bool SupportsAnimation(string path) => _animatedDecoder?.CanDecode(path) == true;
+
+        public IAnimationSession OpenAnimation(string path)
+        {
+            return _animatedDecoder?.Open(path)
+                ?? throw new NotSupportedException("Animation is not configured for this test.");
+        }
+    }
+
+    private sealed class FakeAnimatedImageDecoder : IImageDecoder, IAnimatedImageDecoder
+    {
+        private readonly Func<string, IAnimationSession> _open;
+
+        internal FakeAnimatedImageDecoder(Func<string, IAnimationSession> open)
+        {
+            _open = open;
+        }
+
+        public bool CanDecode(string path) => true;
+
+        public IAnimationSession Open(string path) => _open(path);
+
+        public DecodedImage Decode(string path) => throw new NotSupportedException();
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class FakeAnimationSession : IAnimationSession
+    {
+        public AnimationFrame FirstFrame { get; } =
+            new(CreateImage(), TimeSpan.FromMilliseconds(100));
+
+        public bool IsAnimated => true;
+        public bool IsComplete => false;
+        public Exception? Error => null;
+        public bool IsDisposed { get; private set; }
+
+        public bool TryGetReadyFrame(out AnimationFrame frame)
+        {
+            frame = null!;
+            return false;
+        }
+
+        public void Dispose()
+        {
+            IsDisposed = true;
         }
     }
 }

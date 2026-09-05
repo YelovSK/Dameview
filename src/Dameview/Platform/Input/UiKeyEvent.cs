@@ -1,4 +1,4 @@
-namespace Dameview.UI;
+namespace Dameview.Platform;
 
 // Values match Win32 virtual-key codes so AppWindow can pass through keys
 // that are not handled by the UI yet.
