@@ -22,8 +22,22 @@ internal static unsafe partial class WindowsThumbnail
             const uint biggerSizeOk = 0x1;
             const uint thumbnailOnly = 0x8;
             const uint inCacheOnly = 0x10;
-            result = getImage(factory, new ThumbnailSize(512, 512),
-                biggerSizeOk | thumbnailOnly | inCacheOnly, &bitmap);
+            ThumbnailSize size = new(512, 512);
+            uint cacheOnlyFlags = biggerSizeOk | thumbnailOnly | inCacheOnly;
+            result = getImage(factory, size, cacheOnlyFlags, &bitmap);
+            if (result < 0 || bitmap == 0)
+            {
+                if (bitmap != 0)
+                {
+                    _ = DeleteObject(bitmap);
+                    bitmap = 0;
+                }
+
+                // A cache miss is allowed to fall through to Shell's thumbnail
+                // provider. The common cached case never takes this path.
+                result = getImage(factory, size, biggerSizeOk | thumbnailOnly, &bitmap);
+            }
+
             if (result < 0 || bitmap == 0)
             {
                 return null;

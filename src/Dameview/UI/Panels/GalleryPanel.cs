@@ -2,6 +2,7 @@ using System.Drawing;
 using Dameview.Imaging;
 using Dameview.Navigation;
 using Dameview.Platform;
+using Dameview.UI.Layout;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
 using Vortice.Mathematics;
@@ -20,9 +21,11 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
     private readonly ID2D1DeviceContext _deviceContext;
     private readonly IDWriteTextFormat _labelFormat;
+    private readonly IDWriteInlineObject _ellipsisSign;
     private readonly IThumbnailLoader _thumbnailLoader;
     private readonly Action<string> _openImage;
     private readonly UiDesignTokens _design;
+    private readonly Scrollbar _scrollbar;
     private readonly Dictionary<string, ThumbnailSlot> _slots =
         new(StringComparer.OrdinalIgnoreCase);
     private FolderEntry[] _entries = [];
@@ -42,6 +45,8 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         _thumbnailLoader = thumbnailLoader;
         _openImage = openImage;
         _design = design;
+        _scrollbar = new Scrollbar(SetScrollOffset);
+        AddChild(_scrollbar);
         _labelFormat = directWriteFactory.CreateTextFormat(
             "Segoe UI Variable",
             FontWeight.Normal,
@@ -50,6 +55,10 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         _labelFormat.TextAlignment = TextAlignment.Center;
         _labelFormat.ParagraphAlignment = ParagraphAlignment.Center;
         _labelFormat.WordWrapping = WordWrapping.NoWrap;
+        _ellipsisSign = directWriteFactory.CreateEllipsisTrimmingSign(_labelFormat);
+        _labelFormat.SetTrimming(
+            new Trimming { Granularity = TrimmingGranularity.Character },
+            _ellipsisSign);
     }
 
     internal override bool PreservesFocusOnPointerPress => true;
@@ -81,6 +90,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         }
 
         ClampScroll();
+        _scrollbar.SetMetrics(ContentHeight, Bounds.Height, _scrollOffset);
         RefreshVisibleThumbnails();
         InvalidateVisual();
     }
@@ -94,6 +104,12 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         ScrollSelectionIntoView();
         ClampScroll();
         RefreshVisibleThumbnails();
+        _scrollbar.Arrange(new RectangleF(
+            MathF.Max(0.0f, finalSize.Width - ScrollbarWidth),
+            0.0f,
+            ScrollbarWidth,
+            finalSize.Height));
+        _scrollbar.SetMetrics(ContentHeight, finalSize.Height, _scrollOffset);
     }
 
     protected override void DrawCore(in UiDrawContext context)
@@ -158,12 +174,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
             case UiPointerEventKind.Wheel:
                 float previous = _scrollOffset;
-                _scrollOffset -= input.WheelDelta / 120.0f * WheelStep;
-                ClampScroll();
-                if (_scrollOffset != previous)
-                {
-                    RefreshVisibleThumbnails();
-                }
+                SetScrollOffset(_scrollOffset - input.WheelDelta / 120.0f * WheelStep);
 
                 return new UiPointerResult(Consumed: true, NeedsRepaint: _scrollOffset != previous);
 
@@ -175,6 +186,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     public void Dispose()
     {
         ClearSlots();
+        _ellipsisSign.Dispose();
         _labelFormat.Dispose();
     }
 
@@ -223,7 +235,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         var itemBounds = new RectangleF(
             PanelPadding,
             y,
-            MathF.Max(0.0f, Bounds.Width - 2.0f * PanelPadding),
+            MathF.Max(0.0f, ContentWidth - 2.0f * PanelPadding),
             ItemHeightDips - _design.SmallSpacing);
         bool selected = string.Equals(entry.FullName, _selectedPath, StringComparison.OrdinalIgnoreCase);
         if (selected || index == _hoveredIndex || index == _pressedIndex)
@@ -354,11 +366,29 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
     private void ClampScroll()
     {
-        float contentHeight = 2.0f * PanelPadding + _entries.Length * ItemHeightDips;
         _scrollOffset = Math.Clamp(
             _scrollOffset,
             0.0f,
-            MathF.Max(0.0f, contentHeight - Bounds.Height));
+            MathF.Max(0.0f, ContentHeight - Bounds.Height));
+    }
+
+    private const float ScrollbarWidth = 12.0f;
+    private const float ScrollbarGap = 2.0f;
+    private float ContentWidth => MathF.Max(0.0f, Bounds.Width - ScrollbarWidth - ScrollbarGap);
+    private float ContentHeight => 2.0f * PanelPadding + _entries.Length * ItemHeightDips;
+
+    private void SetScrollOffset(float offset)
+    {
+        float previous = _scrollOffset;
+        _scrollOffset = Math.Clamp(offset, 0.0f, MathF.Max(0.0f, ContentHeight - Bounds.Height));
+        if (_scrollOffset == previous)
+        {
+            return;
+        }
+
+        RefreshVisibleThumbnails();
+        _scrollbar.SetMetrics(ContentHeight, Bounds.Height, _scrollOffset);
+        InvalidateVisual();
     }
 
     private void ClearSlots()

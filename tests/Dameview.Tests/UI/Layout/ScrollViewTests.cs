@@ -47,6 +47,41 @@ public sealed class ScrollViewTests
         Assert.AreEqual(120.0f, focusedBounds.Bottom);
     }
 
+    [TestMethod]
+    public void OverflowShowsAScrollbarAndDraggingItsThumbScrollsContent()
+    {
+        var content = new FixedContent(new SizeF(200.0f, 500.0f));
+        var scrollView = new ScrollView(content);
+        var root = new UiRoot(scrollView, UiDpi.Default);
+        root.Arrange(new SizeF(200.0f, 120.0f));
+
+        Assert.IsTrue(scrollView.IsScrollbarVisible);
+        RectangleF scrollbar = scrollView.Children[^1].Bounds;
+        RectangleF thumb = scrollView.ScrollbarThumbBounds;
+        PointF press = new(scrollbar.X + thumb.X + 4.0f, scrollbar.Y + thumb.Y + thumb.Height / 2.0f);
+        root.HandlePointer(new UiPointerEvent(UiPointerEventKind.Pressed, press, PointerButton.Primary));
+        root.HandlePointer(new UiPointerEvent(
+            UiPointerEventKind.Moved,
+            new PointF(press.X, scrollbar.Bottom - 4.0f)));
+        root.HandlePointer(new UiPointerEvent(
+            UiPointerEventKind.Released,
+            new PointF(press.X, scrollbar.Bottom - 4.0f),
+            PointerButton.Primary));
+
+        Assert.IsTrue(scrollView.ScrollOffset > 0.0f);
+        Assert.AreEqual(-scrollView.ScrollOffset, content.Bounds.Y);
+    }
+
+    [TestMethod]
+    public void ContentThatFitsDoesNotShowAScrollbar()
+    {
+        var scrollView = new ScrollView(new FixedContent(new SizeF(200.0f, 100.0f)));
+        scrollView.Measure(new SizeF(200.0f, 120.0f));
+        scrollView.Arrange(new RectangleF(0.0f, 0.0f, 200.0f, 120.0f));
+
+        Assert.IsFalse(scrollView.IsScrollbarVisible);
+    }
+
     private sealed class FixedContent(SizeF desiredSize) : UiElement
     {
         protected override SizeF MeasureCore(SizeF availableSize) => desiredSize;
