@@ -6,7 +6,7 @@ internal sealed class ViewportAnimator
 {
     private const double ZoomResponse = 18.0;
     private const double ZoomCompletionRatio = 0.001;
-    private const double CenteredTransitionResponse = 14.0;
+    private const double TransformResponse = 14.0;
     private const double CenterCompletionDistance = 0.25;
     private const double MomentumFriction = 6.0;
     private const double MinimumMomentumSpeed = 20.0;
@@ -20,9 +20,9 @@ internal sealed class ViewportAnimator
     private float _zoomViewportX;
     private float _zoomViewportY;
     private PointF _zoomImagePosition;
-    private ViewportMode _zoomTargetMode;
-    private bool _centering;
+    private bool _transforming;
     private PointF _targetCenter;
+    private ViewportMode _transformTargetMode;
     private bool _panning;
     private float _pointerX;
     private float _pointerY;
@@ -37,12 +37,12 @@ internal sealed class ViewportAnimator
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
-    internal bool IsAnimating => _zooming || _centering || (!_panning && HasMomentum);
+    internal bool IsAnimating => _zooming || _transforming || (!_panning && HasMomentum);
 
     internal void Reset()
     {
         _zooming = false;
-        _centering = false;
+        _transforming = false;
         _panning = false;
         _hasPointerVelocity = false;
         _velocityX = 0.0;
@@ -58,7 +58,7 @@ internal sealed class ViewportAnimator
 
         _velocityX = 0.0;
         _velocityY = 0.0;
-        _centering = false;
+        _transforming = false;
 
         float baseScale = _zooming ? _targetScale : _viewport.Scale;
         float targetScale = _viewport.GetZoomScale(baseScale, wheelDelta);
@@ -72,7 +72,6 @@ internal sealed class ViewportAnimator
         _zoomViewportX = viewportX;
         _zoomViewportY = viewportY;
         _zoomImagePosition = _viewport.ViewportToImage(viewportX, viewportY);
-        _zoomTargetMode = ViewportMode.Custom;
         _zooming = true;
         return true;
     }
@@ -80,7 +79,7 @@ internal sealed class ViewportAnimator
     internal void BeginPan(float pointerX, float pointerY)
     {
         _zooming = false;
-        _centering = false;
+        _transforming = false;
         _panning = true;
         _pointerX = pointerX;
         _pointerY = pointerY;
@@ -133,7 +132,10 @@ internal sealed class ViewportAnimator
 
     internal bool Fit()
     {
-        return StartCenteredTransition(_viewport.FitScale);
+        return StartTransform(
+            _viewport.FitScale,
+            _viewport.ImageCenter,
+            ViewportMode.Fit);
     }
 
     internal bool ShowActualSizeAt(float viewportX, float viewportY)
@@ -144,29 +146,23 @@ internal sealed class ViewportAnimator
             return false;
         }
 
-        _targetScale = 1.0f;
         _zoomViewportX = viewportX;
         _zoomViewportY = viewportY;
         _zoomImagePosition = _viewport.ViewportToImage(viewportX, viewportY);
-        _zoomTargetMode = ViewportMode.ActualSize;
-
-        if (_viewport.Scale == _targetScale)
-        {
-            _viewport.SetActualSizeAt(
-                _zoomViewportX,
-                _zoomViewportY,
-                _zoomImagePosition);
-            return false;
-        }
-
-        _zooming = true;
-        return true;
+        PointF targetCenter = _viewport.GetCenterAtScale(
+            1.0f,
+            viewportX,
+            viewportY,
+            _zoomImagePosition);
+        return StartTransform(1.0f, targetCenter, ViewportMode.ActualSize);
     }
 
     internal bool ToggleFitAndActualSizeAt(float viewportX, float viewportY)
     {
-        ViewportMode mode = _zooming ? _zoomTargetMode : _viewport.Mode;
-        if (_centering || mode == ViewportMode.Fit)
+        ViewportMode mode = _transforming
+            ? _transformTargetMode
+            : _zooming ? ViewportMode.Custom : _viewport.Mode;
+        if (mode == ViewportMode.Fit)
         {
             return ShowActualSizeAt(viewportX, viewportY);
         }
@@ -179,7 +175,7 @@ internal sealed class ViewportAnimator
         if (IsAnimating && elapsedSeconds > 0.0)
         {
             UpdateZoom(elapsedSeconds);
-            UpdateCenteredTransition(elapsedSeconds);
+            UpdateTransform(elapsedSeconds);
             UpdateMomentum(elapsedSeconds);
         }
 
@@ -189,19 +185,20 @@ internal sealed class ViewportAnimator
     private bool HasMomentum => Math.Sqrt((_velocityX * _velocityX) + (_velocityY * _velocityY))
         >= MinimumMomentumSpeed;
 
-    private bool StartCenteredTransition(float scale)
+    private bool StartTransform(float scale, PointF center, ViewportMode targetMode)
     {
         Reset();
         _targetScale = scale;
-        _targetCenter = _viewport.ImageCenter;
+        _targetCenter = center;
+        _transformTargetMode = targetMode;
 
         if (_viewport.Scale == _targetScale && _viewport.Center == _targetCenter)
         {
-            CompleteCenteredTransition();
+            CompleteTransform();
             return false;
         }
 
-        _centering = true;
+        _transforming = true;
         return true;
     }
 
@@ -250,40 +247,43 @@ internal sealed class ViewportAnimator
             _zooming = false;
         }
 
-        if (complete && _zoomTargetMode == ViewportMode.ActualSize)
-        {
-            _viewport.SetActualSizeAt(
-                _zoomViewportX,
-                _zoomViewportY,
-                _zoomImagePosition);
-        }
-        else
-        {
-            _viewport.SetScaleAt(
-                scale,
-                _zoomViewportX,
-                _zoomViewportY,
-                _zoomImagePosition);
-        }
+        _viewport.SetScaleAt(
+            scale,
+            _zoomViewportX,
+            _zoomViewportY,
+            _zoomImagePosition);
     }
 
-    private void UpdateCenteredTransition(double elapsed)
+    private void UpdateTransform(double elapsed)
     {
-        if (!_centering)
+        if (!_transforming)
         {
             return;
         }
 
-        double blend = 1.0 - Math.Exp(-CenteredTransitionResponse * elapsed);
-        float scale = (float)Math.Exp(
-            Math.Log(_viewport.Scale)
-            + ((Math.Log(_targetScale) - Math.Log(_viewport.Scale)) * blend));
+        double blend = 1.0 - Math.Exp(-TransformResponse * elapsed);
+        float scale = (float)(_viewport.Scale + ((_targetScale - _viewport.Scale) * blend));
+        PointF viewportCenter = _viewport.ViewportCenter;
+        PointF imageCenter = _viewport.ImageCenter;
+        PointF currentScreenCenter = ImageCenterToViewport(
+            imageCenter,
+            viewportCenter,
+            _viewport.Center,
+            _viewport.Scale);
+        PointF targetScreenCenter = ImageCenterToViewport(
+            imageCenter,
+            viewportCenter,
+            _targetCenter,
+            _targetScale);
+        PointF screenCenter = new(
+            (float)(currentScreenCenter.X + ((targetScreenCenter.X - currentScreenCenter.X) * blend)),
+            (float)(currentScreenCenter.Y + ((targetScreenCenter.Y - currentScreenCenter.Y) * blend)));
         PointF center = new(
-            (float)(_viewport.Center.X + ((_targetCenter.X - _viewport.Center.X) * blend)),
-            (float)(_viewport.Center.Y + ((_targetCenter.Y - _viewport.Center.Y) * blend)));
+            imageCenter.X - ((screenCenter.X - viewportCenter.X) / scale),
+            imageCenter.Y - ((screenCenter.Y - viewportCenter.Y) / scale));
 
-        float centerDistanceX = (center.X - _targetCenter.X) * scale;
-        float centerDistanceY = (center.Y - _targetCenter.Y) * scale;
+        float centerDistanceX = screenCenter.X - targetScreenCenter.X;
+        float centerDistanceY = screenCenter.Y - targetScreenCenter.Y;
         bool scaleComplete = Math.Abs(scale - _targetScale)
             <= _targetScale * ZoomCompletionRatio;
         bool centerComplete = Math.Sqrt(
@@ -292,17 +292,38 @@ internal sealed class ViewportAnimator
 
         if (scaleComplete && centerComplete)
         {
-            CompleteCenteredTransition();
+            CompleteTransform();
             return;
         }
 
-        _viewport.SetTransform(scale, center);
+        _viewport.SetAnimatedTransform(scale, center);
     }
 
-    private void CompleteCenteredTransition()
+    private void CompleteTransform()
     {
-        _centering = false;
-        _viewport.Fit();
+        _transforming = false;
+        if (_transformTargetMode == ViewportMode.Fit)
+        {
+            _viewport.Fit();
+        }
+        else
+        {
+            _viewport.SetActualSizeAt(
+                _zoomViewportX,
+                _zoomViewportY,
+                _zoomImagePosition);
+        }
+    }
+
+    private static PointF ImageCenterToViewport(
+        PointF imageCenter,
+        PointF viewportCenter,
+        PointF center,
+        float scale)
+    {
+        return new PointF(
+            viewportCenter.X + ((imageCenter.X - center.X) * scale),
+            viewportCenter.Y + ((imageCenter.Y - center.Y) * scale));
     }
 
     private void UpdateMomentum(double elapsed)

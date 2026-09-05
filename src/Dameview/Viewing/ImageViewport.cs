@@ -98,13 +98,35 @@ internal sealed class ImageViewport
         }
 
         Scale = newScale;
-        _centerX = imagePosition.X - ((viewportX - (_viewportWidth / 2.0f)) / Scale);
-        _centerY = imagePosition.Y - ((viewportY - (_viewportHeight / 2.0f)) / Scale);
+        PointF center = GetCenterAtScale(
+            Scale,
+            viewportX,
+            viewportY,
+            imagePosition);
+        _centerX = center.X;
+        _centerY = center.Y;
         Mode = ViewportMode.Custom;
-        ClampCenter();
     }
 
-    internal void SetTransform(float scale, PointF center)
+    internal PointF GetCenterAtScale(
+        float scale,
+        float viewportX,
+        float viewportY,
+        PointF imagePosition)
+    {
+        if (!HasImage)
+        {
+            return Center;
+        }
+
+        float clampedScale = Math.Clamp(scale, GetFitScale(), MaximumScale);
+        var center = new PointF(
+            imagePosition.X - ((viewportX - (_viewportWidth / 2.0f)) / clampedScale),
+            imagePosition.Y - ((viewportY - (_viewportHeight / 2.0f)) / clampedScale));
+        return ClampCenter(center, clampedScale);
+    }
+
+    internal void SetAnimatedTransform(float scale, PointF center)
     {
         if (!HasImage)
         {
@@ -115,7 +137,6 @@ internal sealed class ImageViewport
         _centerX = center.X;
         _centerY = center.Y;
         Mode = ViewportMode.Custom;
-        ClampCenter();
     }
 
     internal void SetActualSizeAt(
@@ -185,18 +206,30 @@ internal sealed class ImageViewport
 
     private void ClampCenter()
     {
-        _centerX = ClampAxis(_centerX, _imageWidth, _viewportWidth);
-        _centerY = ClampAxis(_centerY, _imageHeight, _viewportHeight);
+        PointF center = ClampCenter(Center, Scale);
+        _centerX = center.X;
+        _centerY = center.Y;
     }
 
-    private float ClampAxis(float center, float imageSize, float viewportSize)
+    private PointF ClampCenter(PointF center, float scale)
     {
-        if ((imageSize * Scale) <= viewportSize)
+        return new PointF(
+            ClampAxis(center.X, _imageWidth, _viewportWidth, scale),
+            ClampAxis(center.Y, _imageHeight, _viewportHeight, scale));
+    }
+
+    private static float ClampAxis(
+        float center,
+        float imageSize,
+        float viewportSize,
+        float scale)
+    {
+        if ((imageSize * scale) <= viewportSize)
         {
             return imageSize / 2.0f;
         }
 
-        float halfVisibleSize = viewportSize / (2.0f * Scale);
+        float halfVisibleSize = viewportSize / (2.0f * scale);
         return Math.Clamp(center, halfVisibleSize, imageSize - halfVisibleSize);
     }
 }

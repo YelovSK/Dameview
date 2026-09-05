@@ -1,3 +1,4 @@
+using System.Drawing;
 using Dameview.Viewing;
 
 namespace Dameview.Tests.Viewing;
@@ -113,6 +114,26 @@ public sealed class ViewportAnimatorTests
     }
 
     [TestMethod]
+    public void ActualSizeMovesEveryDestinationEdgeWithTheSameProgress()
+    {
+        var viewport = new ImageViewport(1000, 800);
+        viewport.SetImageSize(2000, 1000);
+        var animator = new ViewportAnimator(viewport, new ManualTimeProvider());
+        RectangleF start = viewport.GetDestinationRectangle();
+
+        Assert.IsTrue(animator.ShowActualSizeAt(750.0f, 600.0f));
+        Assert.IsTrue(animator.Update(0.016));
+
+        RectangleF current = viewport.GetDestinationRectangle();
+        var target = new RectangleF(-750.0f, -200.0f, 2000.0f, 1000.0f);
+        float widthProgress = GetProgress(start.Width, current.Width, target.Width);
+
+        Assert.AreEqual(widthProgress, GetProgress(start.X, current.X, target.X), 0.001f);
+        Assert.AreEqual(widthProgress, GetProgress(start.Y, current.Y, target.Y), 0.001f);
+        Assert.AreEqual(widthProgress, GetProgress(start.Height, current.Height, target.Height), 0.001f);
+    }
+
+    [TestMethod]
     public void FitAnimatesScaleAndRecentersAPannedImage()
     {
         var timeProvider = new ManualTimeProvider();
@@ -131,6 +152,27 @@ public sealed class ViewportAnimatorTests
         Assert.AreEqual(0.0f, viewport.GetDestinationRectangle().Y, 0.001f);
     }
 
+    [TestMethod]
+    public void FitMovesEveryDestinationEdgeWithTheSameProgress()
+    {
+        var viewport = new ImageViewport(1000, 800);
+        viewport.SetImageSize(2000, 1000);
+        viewport.SetActualSizeAt(750.0f, 600.0f, new PointF(1500.0f, 900.0f));
+        var animator = new ViewportAnimator(viewport, new ManualTimeProvider());
+        RectangleF start = viewport.GetDestinationRectangle();
+
+        Assert.IsTrue(animator.Fit());
+        Assert.IsTrue(animator.Update(0.016));
+
+        RectangleF current = viewport.GetDestinationRectangle();
+        var target = new RectangleF(0.0f, 150.0f, 1000.0f, 500.0f);
+        float widthProgress = GetProgress(start.Width, current.Width, target.Width);
+
+        Assert.AreEqual(widthProgress, GetProgress(start.X, current.X, target.X), 0.001f);
+        Assert.AreEqual(widthProgress, GetProgress(start.Y, current.Y, target.Y), 0.001f);
+        Assert.AreEqual(widthProgress, GetProgress(start.Height, current.Height, target.Height), 0.001f);
+    }
+
     private static void AdvanceUntilComplete(ViewportAnimator animator)
     {
         for (int frame = 0; frame < 100 && animator.IsAnimating; frame++)
@@ -139,6 +181,11 @@ public sealed class ViewportAnimatorTests
         }
 
         Assert.IsFalse(animator.IsAnimating);
+    }
+
+    private static float GetProgress(float start, float current, float target)
+    {
+        return (current - start) / (target - start);
     }
 
     private sealed class ManualTimeProvider : TimeProvider
