@@ -206,6 +206,11 @@ internal sealed class ViewerSession : IDisposable
     {
         if (_disposed)
         {
+            if (result is ImageLoaded { Animation: { } animation })
+            {
+                animation.Dispose();
+            }
+
             return;
         }
 

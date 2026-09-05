@@ -13,23 +13,37 @@ internal sealed class ImagePanel : IUiElement, IDisposable
     private readonly ID2D1DeviceContext _deviceContext;
     private readonly ImageViewport _viewport;
     private readonly ViewportAnimator _animator;
+    private readonly TimeProvider _timeProvider;
     private ID2D1Bitmap1? _image;
+    private AnimatedImagePlayer? _imageAnimation;
     private bool _isPanning;
     private bool _isPreview;
 
     internal ImagePanel(
         ID2D1DeviceContext deviceContext,
         ImageViewport viewport,
-        ViewportAnimator animator)
+        ViewportAnimator animator,
+        TimeProvider? timeProvider = null)
     {
         _deviceContext = deviceContext;
         _viewport = viewport;
         _animator = animator;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     internal float ZoomPercentage => _viewport.Scale * 100.0f;
+    internal TimeSpan? NextAnimationFrameDelay => _imageAnimation?.NextFrameDelay;
+    internal Exception? AnimationError => _imageAnimation?.Error;
 
     internal unsafe void SetImage(DecodedImage image, bool isPreview)
+    {
+        _imageAnimation?.Dispose();
+        _imageAnimation = null;
+        SetBitmap(image);
+        _isPreview = isPreview;
+    }
+
+    private unsafe void SetBitmap(DecodedImage image)
     {
         BitmapProperties1 properties = new(
             new PixelFormat(
@@ -51,12 +65,52 @@ internal sealed class ImagePanel : IUiElement, IDisposable
 
         _image?.Dispose();
         _image = newImage;
-        _isPreview = isPreview;
+    }
+
+    internal void SetAnimation(IAnimationSession animation)
+    {
+        _imageAnimation?.Dispose();
+        _imageAnimation = null;
+        try
+        {
+            SetBitmap(animation.FirstFrame.Image);
+            _isPreview = false;
+            _imageAnimation = new AnimatedImagePlayer(animation, _timeProvider);
+        }
+        catch
+        {
+            animation.Dispose();
+            throw;
+        }
     }
 
     public bool Update(in UiUpdateContext context)
     {
-        return _animator.Update(context.ElapsedSeconds);
+        bool continues = _animator.Update(context.ElapsedSeconds);
+        if (_imageAnimation is { } animation)
+        {
+            animation.Update();
+            if (animation.TryTakeUpdatedImage(out DecodedImage image))
+            {
+                UpdateImagePixels(image);
+            }
+        }
+
+        return continues;
+    }
+
+    private unsafe void UpdateImagePixels(DecodedImage image)
+    {
+        if (_image is null || _image.PixelSize.Width != image.Width || _image.PixelSize.Height != image.Height)
+        {
+            SetBitmap(image);
+            return;
+        }
+
+        fixed (byte* pixels = image.Pixels)
+        {
+            _image.CopyFromMemory((nint)pixels, (uint)image.Stride);
+        }
     }
 
     public void Draw(in UiDrawContext context, SizeF size)
@@ -132,6 +186,7 @@ internal sealed class ImagePanel : IUiElement, IDisposable
 
     public void Dispose()
     {
+        _imageAnimation?.Dispose();
         _image?.Dispose();
     }
 }

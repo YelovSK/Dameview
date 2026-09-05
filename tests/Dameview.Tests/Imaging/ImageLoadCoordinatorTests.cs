@@ -101,6 +101,48 @@ public sealed class ImageLoadCoordinatorTests
     }
 
     [TestMethod]
+    public void SupersededAnimationIsDisposedBeforeUiDelivery()
+    {
+        using var firstStarted = new ManualResetEventSlim();
+        using var releaseFirst = new ManualResetEventSlim();
+        using var secondDelivered = new ManualResetEventSlim();
+        var firstSession = new FakeAnimationSession();
+        var secondSession = new FakeAnimationSession();
+        using var decoder = new FakeAnimatedImageDecoder(path =>
+        {
+            if (path == "first.gif")
+            {
+                firstStarted.Set();
+                releaseFirst.Wait();
+                return firstSession;
+            }
+
+            return secondSession;
+        });
+        using var coordinator = new ImageLoadCoordinator(action => action(), () => decoder);
+
+        try
+        {
+            coordinator.Load("first.gif", _ => Assert.Fail("Superseded result was delivered."));
+            Assert.IsTrue(firstStarted.Wait(TimeSpan.FromSeconds(5)));
+
+            coordinator.Load("second.gif", result =>
+            {
+                ((ImageLoaded)result).Animation!.Dispose();
+                secondDelivered.Set();
+            });
+            releaseFirst.Set();
+
+            Assert.IsTrue(secondDelivered.Wait(TimeSpan.FromSeconds(5)));
+            Assert.IsTrue(firstSession.IsDisposed);
+        }
+        finally
+        {
+            releaseFirst.Set();
+        }
+    }
+
+    [TestMethod]
     public void PreloadedImageIsServedWithoutForegroundDecoding()
     {
         using var sentinelStarted = new ManualResetEventSlim();
@@ -280,6 +322,49 @@ public sealed class ImageLoadCoordinatorTests
 
         public void Dispose()
         {
+        }
+    }
+
+    private sealed class FakeAnimatedImageDecoder : IImageDecoder, IAnimatedImageDecoder
+    {
+        private readonly Func<string, IAnimationSession> _open;
+
+        internal FakeAnimatedImageDecoder(Func<string, IAnimationSession> open)
+        {
+            _open = open;
+        }
+
+        public bool CanDecode(string path) => true;
+
+        public IAnimationSession Open(string path) => _open(path);
+
+        public DecodedImage Decode(string path) => throw new NotSupportedException();
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class FakeAnimationSession : IAnimationSession
+    {
+        public AnimationFrame FirstFrame { get; } =
+            new(CreateImage(), TimeSpan.FromMilliseconds(100));
+
+        public bool IsAnimated => true;
+        public bool IsComplete => false;
+        public bool IsInfiniteLoop => true;
+        public Exception? Error => null;
+        public bool IsDisposed { get; private set; }
+
+        public bool TryGetReadyFrame(out AnimationFrame frame)
+        {
+            frame = null!;
+            return false;
+        }
+
+        public void Dispose()
+        {
+            IsDisposed = true;
         }
     }
 }

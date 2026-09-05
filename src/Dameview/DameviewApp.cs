@@ -221,6 +221,10 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         {
             _window.RequestRepaint();
         }
+        else if (_ui.NextAnimationFrameDelay is { } delay)
+        {
+            _window.RequestRepaintAfter(delay);
+        }
     }
 
     private void SendPointerEvent(UiPointerEvent input)

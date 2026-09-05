@@ -51,7 +51,7 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
             _pendingThumbnail = null;
         }
 
-        if (_cache.TryGet(path, out DecodedImage? cachedImage))
+        if (!IsAnimatedCandidate(path) && _cache.TryGet(path, out DecodedImage? cachedImage))
         {
             var result = new ImageLoaded(path, cachedImage);
             _postToUi(() => Deliver(request, result));
@@ -203,8 +203,7 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
             {
                 try
                 {
-                    DecodedImage image = DecodeShared(request.Path, decoder!);
-                    result = new ImageLoaded(request.Path, image);
+                    result = DecodeForeground(request.Path, decoder!);
                 }
                 catch (Exception exception)
                 {
@@ -214,8 +213,45 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
 
             if (IsLatest(request.Id))
             {
-                _postToUi(() => Deliver(request, result));
+                try
+                {
+                    _postToUi(() => Deliver(request, result));
+                }
+                catch
+                {
+                    DisposeResult(result);
+                    throw;
+                }
             }
+            else
+            {
+                DisposeResult(result);
+            }
+        }
+    }
+
+    private ImageLoaded DecodeForeground(string path, IImageDecoder decoder)
+    {
+        if (decoder is not IAnimatedImageDecoder animatedDecoder || !animatedDecoder.CanDecode(path))
+        {
+            return new ImageLoaded(path, DecodeShared(path, decoder));
+        }
+
+        IAnimationSession? animation = animatedDecoder.Open(path);
+        try
+        {
+            if (!animation.IsAnimated)
+            {
+                return new ImageLoaded(path, animation.FirstFrame.Image);
+            }
+
+            var result = new ImageLoaded(path, animation.FirstFrame.Image, Animation: animation);
+            animation = null;
+            return result;
+        }
+        finally
+        {
+            animation?.Dispose();
         }
     }
 
@@ -223,7 +259,7 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
     {
         while (TryTakePreload(out string? path))
         {
-            if (initializationError is not null || _cache.TryGet(path, out _))
+            if (initializationError is not null || IsAnimatedCandidate(path) || _cache.TryGet(path, out _))
             {
                 continue;
             }
@@ -329,20 +365,31 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
 
     private void Deliver(LoadRequest request, ImageLoadResult result)
     {
+        bool accepted;
         lock (_sync)
         {
-            if (_stopping || request.Id != _latestRequestId || request.Id <= _completedRequestId)
-            {
-                return;
-            }
-
-            if (result is not ImageLoaded { IsPreview: true })
+            accepted = !_stopping && request.Id == _latestRequestId && request.Id > _completedRequestId;
+            if (accepted && result is not ImageLoaded { IsPreview: true })
             {
                 _completedRequestId = request.Id;
             }
         }
 
+        if (!accepted)
+        {
+            DisposeResult(result);
+            return;
+        }
+
         request.Completed(result);
+    }
+
+    private static void DisposeResult(ImageLoadResult result)
+    {
+        if (result is ImageLoaded { Animation: { } animation })
+        {
+            animation.Dispose();
+        }
     }
 
     private bool IsLatest(long requestId)
@@ -351,6 +398,11 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
         {
             return !_stopping && requestId == _latestRequestId;
         }
+    }
+
+    private static bool IsAnimatedCandidate(string path)
+    {
+        return string.Equals(Path.GetExtension(path), ".gif", StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed record LoadRequest(
@@ -364,7 +416,9 @@ internal abstract record ImageLoadResult(string Path);
 internal sealed record ImageLoaded(
     string Path,
     DecodedImage Image,
-    bool IsPreview = false) : ImageLoadResult(Path);
+    bool IsPreview = false,
+    // The receiver owns this session once the result is delivered.
+    IAnimationSession? Animation = null) : ImageLoadResult(Path);
 
 internal sealed record ImageLoadFailed(
     string Path,

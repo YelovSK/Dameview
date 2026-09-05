@@ -16,6 +16,7 @@ internal sealed unsafe class AppWindow : IDisposable
     private const uint SetWindowNoZOrder = 0x0004;
 
     private readonly ConcurrentQueue<Action> _postedActions = new();
+    private Timer? _repaintTimer;
     private GCHandle _selfHandle;
     private Exception? _unhandledException;
     private bool _frameRequested;
@@ -167,11 +168,35 @@ internal sealed unsafe class AppWindow : IDisposable
 
     internal void RequestRepaint()
     {
+        if (_frameRequested)
+        {
+            return;
+        }
+
         _frameRequested = true;
         if (Handle != 0)
         {
             _ = NativeMethods.PostMessage(Handle, NativeMethods.MessageRenderFrame, 0, 0);
         }
+    }
+
+    internal void RequestRepaintAfter(TimeSpan delay)
+    {
+        if (Handle == 0)
+        {
+            return;
+        }
+
+        _repaintTimer ??= new Timer(
+            static state =>
+            {
+                AppWindow window = (AppWindow)state!;
+                window.Post(window.RequestRepaint);
+            },
+            this,
+            Timeout.InfiniteTimeSpan,
+            Timeout.InfiniteTimeSpan);
+        _repaintTimer.Change(delay, Timeout.InfiniteTimeSpan);
     }
 
     internal void Post(Action action)
@@ -236,6 +261,7 @@ internal sealed unsafe class AppWindow : IDisposable
 
     public void Dispose()
     {
+        _repaintTimer?.Dispose();
         if (Handle != 0)
         {
             NativeMethods.DestroyWindow(Handle);
