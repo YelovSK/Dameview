@@ -25,6 +25,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private readonly ToolbarPanel _toolbarPanel;
     private readonly SettingsPanel _settingsPanel;
     private readonly ModalHost _modalHost;
+    private readonly PopupHost _popupHost;
     private readonly UiAnimationClock _animationClock;
     private readonly UiRoot _root;
     private ViewerSessionState _state;
@@ -51,6 +52,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _statusPanel = new StatusPanel(directWriteFactory);
         _toolbarPanel = new ToolbarPanel(directWriteFactory, commands, theme.Design, ShowSettings);
         _modalHost = new ModalHost(CloseSettings);
+        _popupHost = new PopupHost();
         _settingsPanel = new SettingsPanel(
             directWriteFactory,
             CloseSettings,
@@ -62,6 +64,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         AddChild(_statusPanel);
         AddChild(_toolbarPanel);
         AddChild(_modalHost);
+        AddChild(_popupHost);
         _root = new UiRoot(this, dpi);
 
         bool hasImage = _state.DisplayedImage is not null;
@@ -124,6 +127,19 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     internal bool HandleKey(UiKeyEvent input)
     {
+        if (_popupHost.IsOpen)
+        {
+            if (input.Key == UiKey.Escape)
+            {
+                return _popupHost.HandleEscape();
+            }
+
+            if (input.Key == UiKey.Tab)
+            {
+                _popupHost.Close();
+            }
+        }
+
         if (_modalHost.IsOpen)
         {
             if (input.Key == UiKey.Escape)
@@ -167,6 +183,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _statusPanel.Measure(availableSize);
         _toolbarPanel.Measure(availableSize);
         _modalHost.Measure(availableSize);
+        _popupHost.Measure(availableSize);
         return availableSize;
     }
 
@@ -182,6 +199,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _statusPanel.Arrange(layout.Status);
         _toolbarPanel.Arrange(layout.Toolbar);
         _modalHost.Arrange(new RectangleF(PointF.Empty, finalSize));
+        _popupHost.Arrange(new RectangleF(PointF.Empty, finalSize));
     }
 
     public void Dispose()
@@ -189,6 +207,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _root.ClearPointer();
         _root.SetFocus(null);
         _modalHost.Close();
+        _popupHost.Close();
         _settingsPanel.Dispose();
         _toolbarPanel.Dispose();
         _statusPanel.Dispose();
@@ -205,6 +224,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     {
         _root.ClearPointer();
         _root.SetFocus(null);
+        _popupHost.Close();
         _modalHost.Show(_settingsPanel);
         _root.SetFocus(_settingsPanel.InitialFocus);
     }
@@ -218,6 +238,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
         _root.ClearPointer();
         _root.SetFocus(null);
+        _popupHost.Close();
         _modalHost.Close();
         _root.SetFocus(_toolbarPanel.SettingsButton);
         _toolbarPanel.Show();

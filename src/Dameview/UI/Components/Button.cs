@@ -1,31 +1,27 @@
-using Dameview.Platform;
 using System.Drawing;
-using Dameview.UI.Animation;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
 using Vortice.Mathematics;
 
 namespace Dameview.UI.Components;
 
-internal sealed class Button : UiElement, IDisposable
+internal sealed class Button : InteractiveControl, IDisposable
 {
     private readonly Action _clicked;
     private readonly IDWriteTextFormat _textFormat;
-    private readonly AnimatedFloat _hoverAmount;
-    private readonly AnimatedFloat _pressedAmount;
     private readonly UiDesignTokens _design;
+    private string _label;
 
     internal Button(
         IDWriteFactory directWriteFactory,
         string label,
         Action clicked,
         UiDesignTokens? design = null)
+        : base(design ?? UiDesignTokens.Default)
     {
         _design = design ?? UiDesignTokens.Default;
-        Label = label;
+        _label = label;
         _clicked = clicked;
-        _hoverAmount = new AnimatedFloat(0.0f, _design.HoverResponse);
-        _pressedAmount = new AnimatedFloat(0.0f, _design.PressedResponse);
         _textFormat = directWriteFactory.CreateTextFormat(
             "Segoe UI Variable",
             FontWeight.SemiBold,
@@ -36,19 +32,24 @@ internal sealed class Button : UiElement, IDisposable
         _textFormat.WordWrapping = WordWrapping.NoWrap;
     }
 
-    internal string Label { get; set; }
+    internal string Label
+    {
+        get => _label;
+        set
+        {
+            if (_label == value)
+            {
+                return;
+            }
+
+            _label = value;
+            InvalidateVisual();
+        }
+    }
     internal bool IsSelected
     {
         get => HasVisualState(UiVisualState.Selected);
         set => SetVisualState(UiVisualState.Selected, value);
-    }
-
-    internal override bool IsFocusable => true;
-
-    protected override bool UpdateCore(in UiUpdateContext context)
-    {
-        bool continues = _hoverAmount.Update(context.ElapsedSeconds);
-        return _pressedAmount.Update(context.ElapsedSeconds) || continues;
     }
 
     protected override void DrawCore(in UiDrawContext context)
@@ -66,21 +67,21 @@ internal sealed class Button : UiElement, IDisposable
             context.FillRoundedRectangle(background, context.Palette.Accent, 0.22f);
         }
 
-        if (_hoverAmount.Current > 0.0f)
+        if (HoverAmount > 0.0f)
         {
-            context.FillRoundedRectangle(background, context.Palette.ControlHover, _hoverAmount.Current);
+            context.FillRoundedRectangle(background, context.Palette.ControlHover, HoverAmount);
         }
 
-        if (_pressedAmount.Current > 0.0f)
+        if (PressedAmount > 0.0f)
         {
-            context.FillRoundedRectangle(background, context.Palette.ControlPressed, _pressedAmount.Current);
+            context.FillRoundedRectangle(background, context.Palette.ControlPressed, PressedAmount);
         }
 
         context.DrawText(
             Label,
             _textFormat,
             new Rect(0.0f, 0.0f, width, height),
-            context.Palette.PrimaryText,
+            IsEnabled ? context.Palette.PrimaryText : context.Palette.SecondaryText,
             DrawTextOptions.Clip);
 
         if (HasVisualState(UiVisualState.Focused))
@@ -91,58 +92,10 @@ internal sealed class Button : UiElement, IDisposable
         }
     }
 
-    internal override UiPointerResult OnPointerEvent(in UiPointerEvent input)
-    {
-        bool isInside = new RectangleF(PointF.Empty, Bounds.Size).Contains(input.Position);
-        switch (input.Kind)
-        {
-            case UiPointerEventKind.Pressed
-                when input.Button == PointerButton.Primary && isInside:
-                return new UiPointerResult(Consumed: true, NeedsRepaint: true, CapturePointer: true);
-
-            case UiPointerEventKind.Released when HasVisualState(UiVisualState.Pressed):
-                if (isInside)
-                {
-                    _clicked();
-                }
-
-                return new UiPointerResult(Consumed: true, NeedsRepaint: true);
-
-            case UiPointerEventKind.Cancelled when HasVisualState(UiVisualState.Pressed):
-                return new UiPointerResult(Consumed: true, NeedsRepaint: true);
-
-            case UiPointerEventKind.DoubleClicked
-                when input.Button == PointerButton.Primary && isInside:
-                _clicked();
-                return new UiPointerResult(Consumed: true, NeedsRepaint: true);
-
-            default:
-                return default;
-        }
-    }
-
-    internal override bool OnKeyEvent(UiKeyEvent input)
-    {
-        if (input.Key is not (UiKey.Space or UiKey.Enter))
-        {
-            return false;
-        }
-
-        _clicked();
-        return true;
-    }
-
     public void Dispose()
     {
         _textFormat.Dispose();
     }
 
-    protected override void OnVisualStateChanged()
-    {
-        _hoverAmount.SetTarget(HasVisualState(UiVisualState.Hovered) ? 1.0f : 0.0f);
-        _pressedAmount.SetTarget(
-            HasVisualState(UiVisualState.Pressed) && HasVisualState(UiVisualState.Hovered)
-                ? 1.0f
-                : 0.0f);
-    }
+    protected override void Activate() => _clicked();
 }

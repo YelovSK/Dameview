@@ -144,6 +144,11 @@ internal sealed class UiRoot
             return true;
         }
 
+        if (_focusedElement?.OnKeyEvent(input) == true)
+        {
+            return true;
+        }
+
         if (directionalNavigation && input.Key is UiKey.Left or UiKey.Up or UiKey.Right or UiKey.Down)
         {
             int direction = input.Key is UiKey.Left or UiKey.Up ? -1 : 1;
@@ -151,7 +156,7 @@ internal sealed class UiRoot
             return true;
         }
 
-        return _focusedElement?.OnKeyEvent(input) ?? false;
+        return false;
     }
 
     internal void SetFocus(UiElement? element)

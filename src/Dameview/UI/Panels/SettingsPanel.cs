@@ -4,7 +4,6 @@ using Dameview.Settings;
 using Dameview.UI.Components;
 using Dameview.UI.Layout;
 using Vortice.DirectWrite;
-using Vortice.Mathematics;
 
 namespace Dameview.UI.Panels;
 
@@ -20,9 +19,13 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
 
     private readonly Button[] _buttons;
     private readonly StackPanel[] _buttonRows;
-    private readonly IDWriteTextFormat _heading;
-    private readonly IDWriteTextFormat _text;
+    private readonly TextBlock _title;
+    private readonly TextBlock _themeHeading;
+    private readonly TextBlock _sortHeading;
+    private readonly TextBlock _directionHeading;
+    private readonly TextBlock _message;
     private readonly Action<FolderSort> _setSort;
+    private string? _error;
     private int _field;
     private bool _second;
 
@@ -30,10 +33,17 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
         Action<ThemeMode> setTheme, Action<FolderSort> setSort, UiDesignTokens design)
     {
         _setSort = setSort;
-        _heading = factory.CreateTextFormat(
-            "Segoe UI Variable", FontWeight.SemiBold, FontStyle.Normal, design.HeadingFontSize);
-        _text = factory.CreateTextFormat(
-            "Segoe UI Variable", FontWeight.Normal, FontStyle.Normal, design.BodyFontSize);
+        _title = CreateText(factory, "Settings", UiTextStyle.Heading, UiTextTone.Primary, design);
+        _themeHeading = CreateText(factory, "Theme", UiTextStyle.Body, UiTextTone.Secondary, design);
+        _sortHeading = CreateText(factory, "Sort by", UiTextStyle.Body, UiTextTone.Secondary, design);
+        _directionHeading = CreateText(factory, "Direction", UiTextStyle.Body, UiTextTone.Secondary, design);
+        _message = new TextBlock(
+            factory,
+            "Changes are saved automatically.",
+            UiTextStyle.Body,
+            UiTextTone.Secondary,
+            UiTextWrapping.Wrap,
+            design);
         _buttons =
         [
             new Button(factory, "Close", close, design),
@@ -53,6 +63,11 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
             CreateRow(design, _buttons[5], _buttons[6]),
             CreateRow(design, _buttons[7], _buttons[8]),
         ];
+        AddChild(_title);
+        AddChild(_themeHeading);
+        AddChild(_sortHeading);
+        AddChild(_directionHeading);
+        AddChild(_message);
         AddChild(_buttons[0]);
         foreach (StackPanel row in _buttonRows)
         {
@@ -64,7 +79,16 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
 
     internal override SizeF PreferredSize => new(440, 460);
     internal override UiElement InitialFocus => _buttons[1];
-    internal string? Error { get; set; }
+    internal string? Error
+    {
+        get => _error;
+        set
+        {
+            _error = value;
+            _message.Text = value ?? "Changes are saved automatically.";
+            _message.Tone = value is null ? UiTextTone.Secondary : UiTextTone.Error;
+        }
+    }
 
     internal void ApplySettings(AppSettings settings)
     {
@@ -89,6 +113,11 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
 
     protected override SizeF MeasureCore(SizeF availableSize)
     {
+        _title.Measure(new SizeF(MathF.Max(0.0f, availableSize.Width - 140.0f), 36.0f));
+        _themeHeading.Measure(new SizeF(MathF.Max(0.0f, availableSize.Width - 48.0f), 24.0f));
+        _sortHeading.Measure(new SizeF(MathF.Max(0.0f, availableSize.Width - 48.0f), 24.0f));
+        _directionHeading.Measure(new SizeF(MathF.Max(0.0f, availableSize.Width - 48.0f), 24.0f));
+        _message.Measure(new SizeF(MathF.Max(0.0f, availableSize.Width - 48.0f), 72.0f));
         _buttons[0].Measure(new SizeF(72.0f, 36.0f));
         foreach (StackPanel row in _buttonRows)
         {
@@ -100,6 +129,11 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
 
     protected override void ArrangeCore(SizeF finalSize)
     {
+        _title.Arrange(new RectangleF(24.0f, 22.0f, MathF.Max(0.0f, finalSize.Width - 140.0f), 36.0f));
+        _themeHeading.Arrange(new RectangleF(24.0f, 80.0f, MathF.Max(0.0f, finalSize.Width - 48.0f), 24.0f));
+        _sortHeading.Arrange(new RectangleF(24.0f, 164.0f, MathF.Max(0.0f, finalSize.Width - 48.0f), 24.0f));
+        _directionHeading.Arrange(new RectangleF(24.0f, 292.0f, MathF.Max(0.0f, finalSize.Width - 48.0f), 24.0f));
+        _message.Arrange(new RectangleF(24.0f, 376.0f, MathF.Max(0.0f, finalSize.Width - 48.0f), 72.0f));
         _buttons[0].Arrange(new RectangleF(MathF.Max(0.0f, finalSize.Width - 96.0f), 22.0f, 72.0f, 36.0f));
         float rowWidth = MathF.Max(0.0f, finalSize.Width - 48.0f);
         float[] rowY = [108.0f, 192.0f, 236.0f, 320.0f];
@@ -109,18 +143,6 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
         }
     }
 
-    protected override void DrawCore(in UiDrawContext context)
-    {
-        float width = Bounds.Width;
-        context.DrawText("Settings", _heading, new Rect(24, 22, MathF.Max(0, width - 140), 36), context.Palette.PrimaryText);
-        context.DrawText("Theme", _text, new Rect(24, 80, width - 48, 24), context.Palette.SecondaryText);
-        context.DrawText("Sort by", _text, new Rect(24, 164, width - 48, 24), context.Palette.SecondaryText);
-        context.DrawText("Direction", _text, new Rect(24, 292, width - 48, 24), context.Palette.SecondaryText);
-        context.DrawText(Error ?? "Changes are saved automatically.", _text,
-            new Rect(24, 376, MathF.Max(0, width - 48), 72),
-            Error is null ? context.Palette.SecondaryText : context.Palette.ErrorText);
-    }
-
     public void Dispose()
     {
         foreach (Button button in _buttons)
@@ -128,11 +150,24 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
             button.Dispose();
         }
 
-        _heading.Dispose();
-        _text.Dispose();
+        _title.Dispose();
+        _themeHeading.Dispose();
+        _sortHeading.Dispose();
+        _directionHeading.Dispose();
+        _message.Dispose();
     }
 
     private void SelectSort(int field, bool second) => _setSort(second ? Sorts[field].Second : Sorts[field].First);
+
+    private static TextBlock CreateText(
+        IDWriteFactory factory,
+        string text,
+        UiTextStyle style,
+        UiTextTone tone,
+        UiDesignTokens design)
+    {
+        return new TextBlock(factory, text, style, tone, UiTextWrapping.NoWrap, design);
+    }
 
     private static StackPanel CreateRow(UiDesignTokens design, params UiElement[] children)
     {
