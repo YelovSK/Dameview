@@ -21,6 +21,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private readonly ImagePanel _imagePanel;
     private readonly EmptyStatePanel _emptyStatePanel;
     private readonly Overlay _contentOverlay;
+    private readonly Overlay _mainOverlay;
+    private readonly SplitView _splitView;
     private readonly StatusPanel _statusPanel;
     private readonly ToolbarPanel _toolbarPanel;
     private readonly GalleryPanel _galleryPanel;
@@ -59,6 +61,12 @@ internal sealed class ViewerUi : UiElement, IDisposable
             thumbnailLoader,
             commands.OpenImage,
             theme.Design);
+        _mainOverlay = new Overlay(_contentOverlay, _statusPanel, _toolbarPanel);
+        _splitView = new SplitView(
+            _mainOverlay,
+            _galleryPanel,
+            theme.Design,
+            initialSplitSizeDips: GalleryPanel.DefaultWidthDips);
         _modalHost = new ModalHost(CloseSettings);
         _popupHost = new PopupHost();
         _settingsPanel = new SettingsPanel(
@@ -69,10 +77,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
             setSort,
             theme.Design);
 
-        AddChild(_contentOverlay);
-        AddChild(_galleryPanel);
-        AddChild(_statusPanel);
-        AddChild(_toolbarPanel);
+        AddChild(_splitView);
         AddChild(_modalHost);
         AddChild(_popupHost);
         _root = new UiRoot(this, dpi);
@@ -83,6 +88,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _toolbarPanel.HasImage = hasImage;
         _statusPanel.IsVisible = HasStatus;
         _galleryPanel.IsVisible = _state.FolderEntries.Length > 0;
+        _splitView.SecondPaneVisible = _galleryPanel.IsVisible;
         _galleryPanel.ApplyState(_state.FolderEntries, _state.RequestedPath);
         if (_state.DisplayedImage is { } displayed)
         {
@@ -116,6 +122,17 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     internal TimeSpan? NextAnimationFrameDelay => _imagePanel.NextAnimationFrameDelay;
 
+    internal PointF GetImageViewportPoint(PointF nativePoint)
+    {
+        PointF point = new(
+            UiDpi.PixelsToDips(nativePoint.X, _root.Dpi),
+            UiDpi.PixelsToDips(nativePoint.Y, _root.Dpi));
+        RectangleF imageBounds = _imagePanel.GetBoundsRelativeTo(this);
+        return new PointF(
+            UiDpi.DipsToPixels(point.X - imageBounds.X, _root.Dpi),
+            UiDpi.DipsToPixels(point.Y - imageBounds.Y, _root.Dpi));
+    }
+
     internal void ApplyState(ViewerSessionState state)
     {
         bool displayedImageChanged = !ReferenceEquals(_state.DisplayedImage, state.DisplayedImage);
@@ -133,6 +150,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _toolbarPanel.HasImage = hasImage;
         _statusPanel.IsVisible = HasStatus;
         _galleryPanel.IsVisible = state.FolderEntries.Length > 0;
+        _splitView.SecondPaneVisible = _galleryPanel.IsVisible;
         _galleryPanel.ApplyState(state.FolderEntries, state.RequestedPath);
         _root.InvalidateVisual();
     }
@@ -193,10 +211,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     protected override SizeF MeasureCore(SizeF availableSize)
     {
-        _contentOverlay.Measure(availableSize);
-        _statusPanel.Measure(availableSize);
-        _toolbarPanel.Measure(availableSize);
-        _galleryPanel.Measure(availableSize);
+        _splitView.Measure(availableSize);
         _modalHost.Measure(availableSize);
         _popupHost.Measure(availableSize);
         return availableSize;
@@ -204,16 +219,13 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     protected override void ArrangeCore(SizeF finalSize)
     {
+        _splitView.Arrange(new RectangleF(PointF.Empty, finalSize));
         ViewerLayout layout = ViewerLayout.Calculate(
-            finalSize,
+            _splitView.FirstPaneBounds.Size,
             Palette.Design,
             HasStatus,
             showToolbar: true,
-            toolbarWidthDips: _toolbarPanel.WidthDips,
-            showGallery: _galleryPanel.IsVisible,
-            galleryWidthDips: GalleryPanel.DefaultWidthDips);
-        _contentOverlay.Arrange(layout.Content);
-        _galleryPanel.Arrange(layout.Gallery);
+            toolbarWidthDips: _toolbarPanel.WidthDips);
         _statusPanel.Arrange(layout.Status);
         _toolbarPanel.Arrange(layout.Toolbar);
         _modalHost.Arrange(new RectangleF(PointF.Empty, finalSize));

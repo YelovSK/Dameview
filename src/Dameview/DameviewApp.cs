@@ -162,7 +162,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
             case UiKey.Number1:
             case UiKey.Numpad1:
-                ShowActualSize(new PointF(_pointerX, _pointerY));
+                ShowActualSize(_ui.GetImageViewportPoint(new PointF(_pointerX, _pointerY)));
                 break;
         }
     }
