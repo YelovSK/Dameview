@@ -62,6 +62,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     }
 
     internal override bool PreservesFocusOnPointerPress => true;
+    internal override UiCursor Cursor => _hoveredIndex >= 0 ? UiCursor.Pointer : UiCursor.Default;
 
     internal void ApplyState(FolderEntry[] entries, string? selectedPath)
     {

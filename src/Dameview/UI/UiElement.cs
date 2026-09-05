@@ -3,6 +3,14 @@ using Dameview.Platform;
 
 namespace Dameview.UI;
 
+internal enum UiCursor
+{
+    Default,
+    Pointer,
+    ResizeHorizontal,
+    ResizeVertical,
+}
+
 internal abstract class UiElement
 {
     private readonly List<UiElement> _children = [];
@@ -40,6 +48,7 @@ internal abstract class UiElement
     internal virtual bool IsHitTestVisible => true;
     internal virtual bool ObservePointerMoves => false;
     internal virtual bool PreservesFocusOnPointerPress => false;
+    internal virtual UiCursor Cursor => UiCursor.Default;
     internal virtual float Opacity => 1.0f;
     internal virtual PointF VisualOffset => PointF.Empty;
 

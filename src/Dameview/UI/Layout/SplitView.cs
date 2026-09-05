@@ -236,6 +236,9 @@ internal sealed class SplitView : UiElement
 
         internal override bool IsHitTestVisible => owner.SecondPaneVisible && owner.SecondPaneBounds != RectangleF.Empty;
         internal override bool PreservesFocusOnPointerPress => true;
+        internal override UiCursor Cursor => owner.IsHorizontal
+            ? UiCursor.ResizeHorizontal
+            : UiCursor.ResizeVertical;
 
         protected override void DrawCore(in UiDrawContext context)
         {
@@ -244,27 +247,29 @@ internal sealed class SplitView : UiElement
                 return;
             }
 
+            bool highlighted = HasVisualState(UiVisualState.Hovered) || _dragging;
+            float thickness = highlighted ? 3.0f : 2.0f;
             if (owner.IsHorizontal)
             {
                 float center = Bounds.Width / 2.0f;
                 context.FillRoundedRectangle(
                     new RoundedRectangle(
-                        new RectangleF(center - 1.0f, 12.0f, 2.0f, MathF.Max(0.0f, Bounds.Height - 24.0f)),
+                        new RectangleF(center - thickness / 2.0f, 12.0f, thickness, MathF.Max(0.0f, Bounds.Height - 24.0f)),
                         1.0f,
                         1.0f),
-                    _dragging ? context.Palette.Accent : context.Palette.SurfaceBorder,
-                    _dragging ? 1.0f : 0.65f);
+                    _dragging ? context.Palette.Accent : highlighted ? context.Palette.PrimaryText : context.Palette.SurfaceBorder,
+                    _dragging ? 1.0f : highlighted ? 0.9f : 0.65f);
             }
             else
             {
                 float center = Bounds.Height / 2.0f;
                 context.FillRoundedRectangle(
                     new RoundedRectangle(
-                        new RectangleF(12.0f, center - 1.0f, MathF.Max(0.0f, Bounds.Width - 24.0f), 2.0f),
+                        new RectangleF(12.0f, center - thickness / 2.0f, MathF.Max(0.0f, Bounds.Width - 24.0f), thickness),
                         1.0f,
                         1.0f),
-                    _dragging ? context.Palette.Accent : context.Palette.SurfaceBorder,
-                    _dragging ? 1.0f : 0.65f);
+                    _dragging ? context.Palette.Accent : highlighted ? context.Palette.PrimaryText : context.Palette.SurfaceBorder,
+                    _dragging ? 1.0f : highlighted ? 0.9f : 0.65f);
             }
         }
 

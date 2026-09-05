@@ -31,6 +31,7 @@ internal static partial class NativeMethods
     internal const uint MessageEraseBackground = 0x0014;
     internal const uint MessageKeyDown = 0x0100;
     internal const uint MessageMouseMove = 0x0200;
+    internal const uint MessageSetCursor = 0x0020;
     internal const uint MessageLeftButtonDown = 0x0201;
     internal const uint MessageLeftButtonUp = 0x0202;
     internal const uint MessageLeftButtonDoubleClick = 0x0203;
@@ -239,6 +240,9 @@ internal static partial class NativeMethods
 
     [LibraryImport("user32", EntryPoint = "LoadCursorW", SetLastError = true)]
     internal static partial nint LoadCursor(nint instance, nint cursorName);
+
+    [LibraryImport("user32", EntryPoint = "SetCursor")]
+    internal static partial nint SetCursor(nint cursor);
 
     [LibraryImport("user32", EntryPoint = "LoadIconW", SetLastError = true)]
     internal static partial nint LoadIcon(nint instance, nint iconName);

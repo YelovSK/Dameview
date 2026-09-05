@@ -21,6 +21,7 @@ internal sealed class UiRoot
     }
 
     internal event Action? Invalidated;
+    internal event Action<UiCursor>? CursorChanged;
 
     internal UiElement? CapturedElement => _capturedElement;
     internal UiElement? FocusedElement => _focusedElement;
@@ -92,6 +93,8 @@ internal sealed class UiRoot
             target?.SetVisualState(UiVisualState.Pressed, false);
         }
 
+        UpdateCursor();
+
         return consumed;
     }
 
@@ -106,12 +109,14 @@ internal sealed class UiRoot
 
         captured.OnPointerEvent(new UiPointerEvent(UiPointerEventKind.Cancelled, PointF.Empty));
         captured.SetVisualState(UiVisualState.Pressed, false);
+        UpdateCursor();
     }
 
     internal void ClearPointer()
     {
         CancelPointer();
         SetHovered(null);
+        UpdateCursor();
     }
 
     internal void DisconnectSubtree(UiElement subtree)
@@ -247,6 +252,20 @@ internal sealed class UiRoot
         _hoveredElement = element;
         _hoveredElement?.SetVisualState(UiVisualState.Hovered, true);
     }
+
+    private void UpdateCursor()
+    {
+        UiCursor cursor = (_capturedElement ?? _hoveredElement)?.Cursor ?? UiCursor.Default;
+        if (cursor == _cursor)
+        {
+            return;
+        }
+
+        _cursor = cursor;
+        CursorChanged?.Invoke(cursor);
+    }
+
+    private UiCursor _cursor;
 
     private static UiElement? FindFocusable(UiElement? element)
     {

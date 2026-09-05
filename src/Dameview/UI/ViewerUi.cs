@@ -81,6 +81,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         AddChild(_modalHost);
         AddChild(_popupHost);
         _root = new UiRoot(this, dpi);
+        _root.CursorChanged += cursor => _cursorChanged?.Invoke(cursor);
 
         bool hasImage = _state.DisplayedImage is not null;
         _imagePanel.IsVisible = hasImage;
@@ -101,6 +102,14 @@ internal sealed class ViewerUi : UiElement, IDisposable
     {
         add => _root.Invalidated += value;
         remove => _root.Invalidated -= value;
+    }
+
+    private Action<UiCursor>? _cursorChanged;
+
+    internal event Action<UiCursor>? CursorChanged
+    {
+        add => _cursorChanged += value;
+        remove => _cursorChanged -= value;
     }
 
     internal UiTheme Palette { get; set; }

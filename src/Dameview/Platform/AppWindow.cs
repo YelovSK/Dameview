@@ -2,11 +2,16 @@ using System.Collections.Concurrent;
 using System.Drawing;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
+using Dameview.UI;
 
 namespace Dameview.Platform;
 
 internal sealed unsafe class AppWindow : IDisposable
 {
+    private const nint CursorArrow = 32512;
+    private const nint CursorHand = 32649;
+    private const nint CursorSizeWestEast = 32644;
+    private const nint CursorSizeNorthSouth = 32645;
     private const string WindowClassName = "Dameview.MainWindow";
     private const int ApplicationIconResourceId = 32512;
     private const int WindowUserData = -21;
@@ -20,6 +25,7 @@ internal sealed unsafe class AppWindow : IDisposable
     private bool _frameRequested;
     private int _initialShowCommand = NativeMethods.ShowNormal;
     private WindowPlacementState? _lastPlacement;
+    private UiCursor _cursor = UiCursor.Default;
 
     internal AppWindow(string title, int width, int height)
     {
@@ -68,6 +74,19 @@ internal sealed unsafe class AppWindow : IDisposable
     internal int ClientWidth { get; private set; }
     internal int ClientHeight { get; private set; }
     internal float Dpi { get; private set; }
+
+    internal void SetCursor(UiCursor cursor)
+    {
+        _cursor = cursor;
+        nint cursorHandle = NativeMethods.LoadCursor(0, cursor switch
+        {
+            UiCursor.Pointer => CursorHand,
+            UiCursor.ResizeHorizontal => CursorSizeWestEast,
+            UiCursor.ResizeVertical => CursorSizeNorthSouth,
+            _ => CursorArrow,
+        });
+        _ = NativeMethods.SetCursor(cursorHandle);
+    }
 
     internal void SetTitleBarTheme(bool dark)
     {
@@ -359,6 +378,10 @@ internal sealed unsafe class AppWindow : IDisposable
                 return 0;
 
             case NativeMethods.MessageEraseBackground:
+                return 1;
+
+            case NativeMethods.MessageSetCursor:
+                SetCursor(_cursor);
                 return 1;
 
             case NativeMethods.MessageKeyDown:

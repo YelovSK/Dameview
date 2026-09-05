@@ -35,6 +35,7 @@ internal abstract class InteractiveControl : UiElement
     }
 
     internal override bool IsFocusable => IsEnabled;
+    internal override UiCursor Cursor => IsEnabled ? UiCursor.Pointer : UiCursor.Default;
     protected float HoverAmount => _hoverAmount.Current;
     protected float PressedAmount => _pressedAmount.Current;
 

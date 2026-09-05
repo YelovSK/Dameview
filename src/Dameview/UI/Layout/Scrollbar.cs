@@ -30,6 +30,7 @@ internal sealed class Scrollbar : UiElement
 
     internal override bool IsHitTestVisible => HasOverflow;
     internal override bool PreservesFocusOnPointerPress => true;
+    internal override UiCursor Cursor => UiCursor.Pointer;
 
     internal void SetMetrics(float contentExtent, float viewportExtent, float offset)
     {
