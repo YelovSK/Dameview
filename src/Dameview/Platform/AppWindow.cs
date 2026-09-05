@@ -2,8 +2,6 @@ using System.Collections.Concurrent;
 using System.Drawing;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
-using Dameview.Settings;
-using Dameview.UI;
 
 namespace Dameview.Platform;
 
@@ -21,7 +19,7 @@ internal sealed unsafe class AppWindow : IDisposable
     private Exception? _unhandledException;
     private bool _frameRequested;
     private int _initialShowCommand = NativeMethods.ShowNormal;
-    private WindowPlacementSettings? _lastPlacement;
+    private WindowPlacementState? _lastPlacement;
 
     internal AppWindow(string title, int width, int height)
     {
@@ -103,7 +101,7 @@ internal sealed unsafe class AppWindow : IDisposable
         }
     }
 
-    internal void RestorePlacement(WindowPlacementSettings placement)
+    internal void RestorePlacement(WindowPlacementState placement)
     {
         if (!placement.IsUsable)
         {
@@ -129,11 +127,11 @@ internal sealed unsafe class AppWindow : IDisposable
         }
     }
 
-    internal WindowPlacementSettings CapturePlacement()
+    internal WindowPlacementState CapturePlacement()
     {
         if (Handle == 0)
         {
-            return _lastPlacement ?? new WindowPlacementSettings
+            return _lastPlacement ?? new WindowPlacementState
             {
                 Width = ClientWidth,
                 Height = ClientHeight,
@@ -143,12 +141,12 @@ internal sealed unsafe class AppWindow : IDisposable
         return CapturePlacement(Handle);
     }
 
-    private static WindowPlacementSettings CapturePlacement(nint window)
+    private static WindowPlacementState CapturePlacement(nint window)
     {
         WindowPlacement native = new() { Length = (uint)Marshal.SizeOf<WindowPlacement>() };
         if (!NativeMethods.GetWindowPlacement(window, ref native))
         {
-            return new WindowPlacementSettings
+            return new WindowPlacementState
             {
                 Width = 0,
                 Height = 0,
@@ -156,7 +154,7 @@ internal sealed unsafe class AppWindow : IDisposable
         }
 
         NativeRect normal = native.NormalPosition;
-        return new WindowPlacementSettings
+        return new WindowPlacementState
         {
             X = normal.Left,
             Y = normal.Top,
@@ -454,7 +452,7 @@ internal sealed unsafe class AppWindow : IDisposable
                 return 0;
 
             case NativeMethods.MessageDestroy:
-                WindowPlacementSettings placement = CapturePlacement(window);
+                WindowPlacementState placement = CapturePlacement(window);
                 if (placement.IsUsable)
                 {
                     _lastPlacement = placement;

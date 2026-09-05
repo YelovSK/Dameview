@@ -1,3 +1,4 @@
+using Dameview.Platform;
 using System.Drawing;
 using Dameview.UI;
 using Vortice.Direct2D1;

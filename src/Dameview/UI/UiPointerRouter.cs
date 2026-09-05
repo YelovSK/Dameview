@@ -1,3 +1,4 @@
+using Dameview.Platform;
 using System.Drawing;
 
 namespace Dameview.UI;

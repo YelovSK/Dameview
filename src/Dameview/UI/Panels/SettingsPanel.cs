@@ -1,3 +1,4 @@
+using Dameview.Platform;
 using System.Drawing;
 using Dameview.Navigation;
 using Dameview.Settings;

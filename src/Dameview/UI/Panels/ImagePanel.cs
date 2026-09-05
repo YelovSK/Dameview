@@ -1,3 +1,4 @@
+using Dameview.Platform;
 using System.Drawing;
 using Dameview.Imaging;
 using Dameview.Viewing;
