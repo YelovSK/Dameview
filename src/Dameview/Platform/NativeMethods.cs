@@ -15,6 +15,10 @@ internal static partial class NativeMethods
     internal const uint WaitObject0 = 0x00000000;
     internal const uint WaitFailed = 0xFFFFFFFF;
 
+    internal const uint DwmUseImmersiveDarkMode = 20;
+    internal const uint DwmCaptionColor = 35;
+    internal const uint DwmTextColor = 36;
+
     private const uint Infinite = 0xFFFFFFFF;
     private const uint QueueAllInput = 0x04FF;
     private const uint MessageWaitInputAvailable = 0x0004;
@@ -95,11 +99,24 @@ internal static partial class NativeMethods
             MessageWaitInputAvailable);
     }
 
+    internal static void SetDwmWindowAttribute(nint window, uint attribute, int value)
+    {
+        // Unsupported attributes return an HRESULT on older Windows versions.
+        _ = DwmSetWindowAttribute(window, attribute, in value, sizeof(int));
+    }
+
     [LibraryImport("ole32")]
     private static partial int CoInitializeEx(nint reserved, uint coInit);
 
     [LibraryImport("ole32")]
     private static partial void CoUninitialize();
+
+    [LibraryImport("dwmapi", EntryPoint = "DwmSetWindowAttribute")]
+    private static partial int DwmSetWindowAttribute(
+        nint window,
+        uint attribute,
+        in int value,
+        int valueSize);
 
     [LibraryImport("user32", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

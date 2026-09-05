@@ -69,6 +69,30 @@ internal sealed unsafe class AppWindow : IDisposable
     internal int ClientHeight { get; private set; }
     internal float Dpi { get; private set; }
 
+    internal void SetTitleBarTheme(bool dark)
+    {
+        int useDarkMode = dark ? 1 : 0;
+        int captionColor = dark
+            ? ToColorRef(9, 10, 12)
+            : ToColorRef(235, 237, 242);
+        int textColor = dark
+            ? ToColorRef(240, 242, 247)
+            : ToColorRef(23, 28, 38);
+
+        NativeMethods.SetDwmWindowAttribute(
+            Handle,
+            NativeMethods.DwmUseImmersiveDarkMode,
+            useDarkMode);
+        NativeMethods.SetDwmWindowAttribute(
+            Handle,
+            NativeMethods.DwmCaptionColor,
+            captionColor);
+        NativeMethods.SetDwmWindowAttribute(
+            Handle,
+            NativeMethods.DwmTextColor,
+            textColor);
+    }
+
     internal void RequestRepaint()
     {
         _frameRequested = true;
@@ -346,6 +370,11 @@ internal sealed unsafe class AppWindow : IDisposable
     private static int GetHighWord(nuint value)
     {
         return unchecked((short)((ulong)value >> 16));
+    }
+
+    private static int ToColorRef(byte red, byte green, byte blue)
+    {
+        return red | (green << 8) | (blue << 16);
     }
 }
 
