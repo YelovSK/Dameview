@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Drawing;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using Dameview.UI;
@@ -58,12 +59,7 @@ internal sealed unsafe class AppWindow : IDisposable
     internal event Action<float>? DpiChanged;
     internal event Action<string>? FileDropped;
     internal event Action<UiKeyEvent>? KeyPressed;
-    internal event Action<int, int>? PointerPressed;
-    internal event Action<int, int>? PointerMoved;
-    internal event Action<int, int>? PointerReleased;
-    internal event Action? PointerCancelled;
-    internal event Action<int, int>? PointerDoubleClicked;
-    internal event Action<int, int, int>? MouseWheel;
+    internal event Action<UiPointerEvent>? PointerInput;
 
     internal nint Handle { get; private set; }
     internal int ClientWidth { get; private set; }
@@ -277,24 +273,37 @@ internal sealed unsafe class AppWindow : IDisposable
 
             case NativeMethods.MessageLeftButtonDown:
                 _ = NativeMethods.SetCapture(window);
-                PointerPressed?.Invoke(GetX(lParam), GetY(lParam));
+                PointerInput?.Invoke(new UiPointerEvent(
+                    UiPointerEventKind.Pressed,
+                    new PointF(GetX(lParam), GetY(lParam)),
+                    PointerButton.Primary));
                 return 0;
 
             case NativeMethods.MessageMouseMove:
-                PointerMoved?.Invoke(GetX(lParam), GetY(lParam));
+                PointerInput?.Invoke(new UiPointerEvent(
+                    UiPointerEventKind.Moved,
+                    new PointF(GetX(lParam), GetY(lParam))));
                 return 0;
 
             case NativeMethods.MessageLeftButtonUp:
-                PointerReleased?.Invoke(GetX(lParam), GetY(lParam));
+                PointerInput?.Invoke(new UiPointerEvent(
+                    UiPointerEventKind.Released,
+                    new PointF(GetX(lParam), GetY(lParam)),
+                    PointerButton.Primary));
                 _ = NativeMethods.ReleaseCapture();
                 return 0;
 
             case NativeMethods.MessageCaptureChanged:
-                PointerCancelled?.Invoke();
+                PointerInput?.Invoke(new UiPointerEvent(
+                    UiPointerEventKind.Cancelled,
+                    PointF.Empty));
                 return 0;
 
             case NativeMethods.MessageLeftButtonDoubleClick:
-                PointerDoubleClicked?.Invoke(GetX(lParam), GetY(lParam));
+                PointerInput?.Invoke(new UiPointerEvent(
+                    UiPointerEventKind.DoubleClicked,
+                    new PointF(GetX(lParam), GetY(lParam)),
+                    PointerButton.Primary));
                 return 0;
 
             case NativeMethods.MessageMouseWheel:
@@ -304,7 +313,10 @@ internal sealed unsafe class AppWindow : IDisposable
                     Y = GetY(lParam),
                 };
                 _ = NativeMethods.ScreenToClient(window, ref wheelPoint);
-                MouseWheel?.Invoke(wheelPoint.X, wheelPoint.Y, GetHighWord(wParam));
+                PointerInput?.Invoke(new UiPointerEvent(
+                    UiPointerEventKind.Wheel,
+                    new PointF(wheelPoint.X, wheelPoint.Y),
+                    WheelDelta: GetHighWord(wParam)));
                 return 0;
 
             case NativeMethods.MessageSize:
