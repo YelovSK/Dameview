@@ -146,6 +146,10 @@ internal static partial class NativeMethods
         nint instance,
         nint parameter);
 
+    [LibraryImport("user32", EntryPoint = "SetWindowTextW", StringMarshalling = StringMarshalling.Utf16)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool SetWindowText(nint window, string title);
+
     [LibraryImport("user32", EntryPoint = "DefWindowProcW")]
     internal static partial nint DefWindowProc(nint window, uint message, nuint wParam, nint lParam);
 

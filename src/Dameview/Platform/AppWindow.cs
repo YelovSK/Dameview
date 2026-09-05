@@ -94,6 +94,14 @@ internal sealed unsafe class AppWindow : IDisposable
             textColor);
     }
 
+    internal void SetTitle(string title)
+    {
+        if (Handle != 0)
+        {
+            _ = NativeMethods.SetWindowText(Handle, title);
+        }
+    }
+
     internal void RequestRepaint()
     {
         _frameRequested = true;

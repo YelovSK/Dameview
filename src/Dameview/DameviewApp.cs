@@ -175,7 +175,12 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
     private void HandleSessionChanged()
     {
-        _ui!.ApplyState(_session!.State);
+        ViewerSessionState state = _session!.State;
+        string fileName = state.RequestedPath is null
+            ? "Dameview"
+            : Path.GetFileName(state.RequestedPath);
+        _window!.SetTitle($"{fileName} — Dameview");
+        _ui!.ApplyState(state);
         _window!.RequestRepaint();
     }
 
