@@ -15,7 +15,6 @@ internal enum SplitViewEdge
 internal sealed class SplitView : UiElement
 {
     internal const float MinimumPaneSizeDips = 120.0f;
-    internal const float MaximumPaneSizeDips = 480.0f;
     private const float SplitterSize = 8.0f;
 
     private readonly UiElement _firstPane;
@@ -32,13 +31,13 @@ internal sealed class SplitView : UiElement
         UiElement firstPane,
         UiElement secondPane,
         UiDesignTokens design,
-        float initialSplitSizeDips,
+        float initialDividerOffsetDips,
         SplitViewEdge edge = SplitViewEdge.Right)
     {
         _firstPane = firstPane;
         _secondPane = secondPane;
         _design = design;
-        _splitSize = initialSplitSizeDips;
+        _splitSize = initialDividerOffsetDips;
         Edge = edge;
         _resizer = new Resizer(this);
         _secondPane.IsVisible = false;
@@ -50,7 +49,7 @@ internal sealed class SplitView : UiElement
     internal SplitViewEdge Edge { get; private set; }
     internal RectangleF FirstPaneBounds => _firstPaneBounds;
     internal RectangleF SecondPaneBounds => _secondPaneBounds;
-    internal float SplitSize => _splitSize;
+    internal float DividerOffsetDips => _splitSize;
     internal bool IsHorizontal => Edge is SplitViewEdge.Left or SplitViewEdge.Right;
 
     internal bool FirstPaneVisible
@@ -100,10 +99,10 @@ internal sealed class SplitView : UiElement
         _resizer.Arrange(GetResizerBounds());
     }
 
-    internal void SetSplitSize(float size)
+    internal void SetDividerOffset(float offset)
     {
         float previous = _splitSize;
-        _splitSize = Math.Clamp(size, MinimumPaneSizeDips, MaximumPaneSizeDips);
+        _splitSize = MathF.Max(offset, MinimumPaneSizeDips);
         if (_splitSize != previous)
         {
             InvalidateLayout();
@@ -124,10 +123,11 @@ internal sealed class SplitView : UiElement
     private void CalculateBounds(SizeF finalSize)
     {
         float margin = _design.WindowMargin;
-        float availableSize = IsHorizontal
-            ? finalSize.Width - 2.0f * margin - SplitterSize - MinimumPaneSizeDips
-            : finalSize.Height - 2.0f * margin - SplitterSize - MinimumPaneSizeDips;
-        float splitSize = MathF.Min(_splitSize, MathF.Max(0.0f, availableSize));
+        float usableAxis = (IsHorizontal ? finalSize.Width : finalSize.Height)
+            - 2.0f * margin
+            - SplitterSize;
+        float maximumSplitSize = MathF.Max(MinimumPaneSizeDips, usableAxis - MinimumPaneSizeDips);
+        float splitSize = Math.Clamp(_splitSize, MinimumPaneSizeDips, maximumSplitSize);
 
         if (!_firstPaneVisible && !_secondPaneVisible)
         {
@@ -225,7 +225,7 @@ internal sealed class SplitView : UiElement
     {
         float delta = pointer - dragStartPointer;
         bool growsWithPointer = Edge is SplitViewEdge.Left or SplitViewEdge.Top;
-        SetSplitSize(dragStartSize + (growsWithPointer ? delta : -delta));
+        SetDividerOffset(dragStartSize + (growsWithPointer ? delta : -delta));
     }
 
     private sealed class Resizer(SplitView owner) : UiElement
@@ -280,7 +280,7 @@ internal sealed class SplitView : UiElement
                 case UiPointerEventKind.Pressed when input.Button == PointerButton.Primary:
                     _dragging = true;
                     _dragStartPointer = owner.GetPointerCoordinate(this, input.Position);
-                    _dragStartSize = owner.SplitSize;
+                    _dragStartSize = owner.DividerOffsetDips;
                     return new UiPointerResult(Consumed: true, CapturePointer: true, NeedsRepaint: true);
 
                 case UiPointerEventKind.Moved when _dragging:

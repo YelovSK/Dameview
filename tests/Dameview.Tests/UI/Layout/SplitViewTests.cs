@@ -13,7 +13,7 @@ public sealed class SplitViewTests
     {
         var main = new FixedContent();
         var panel = new FixedContent();
-        var splitView = new SplitView(main, panel, UiDesignTokens.Default, initialSplitSizeDips: 184.0f)
+        var splitView = new SplitView(main, panel, UiDesignTokens.Default, initialDividerOffsetDips: 184.0f)
         {
             SecondPaneVisible = true,
         };
@@ -35,7 +35,7 @@ public sealed class SplitViewTests
             new PointF(760.0f, 400.0f),
             PointerButton.Primary));
 
-        Assert.AreEqual(224.0f, splitView.SplitSize);
+        Assert.AreEqual(224.0f, splitView.DividerOffsetDips);
         Assert.AreEqual(764.0f, splitView.SecondPaneBounds.X);
         Assert.AreEqual(756.0f, splitView.FirstPaneBounds.Width);
     }
@@ -47,7 +47,7 @@ public sealed class SplitViewTests
             new FixedContent(),
             new FixedContent(),
             UiDesignTokens.Default,
-            initialSplitSizeDips: 184.0f)
+            initialDividerOffsetDips: 184.0f)
         {
             SecondPaneVisible = false,
         };
@@ -83,7 +83,7 @@ public sealed class SplitViewTests
                 new FixedContent(),
                 new FixedContent(),
                 UiDesignTokens.Default,
-                initialSplitSizeDips: 184.0f,
+                initialDividerOffsetDips: 184.0f,
                 edge: edge)
             {
                 SecondPaneVisible = true,
