@@ -221,8 +221,7 @@ internal sealed unsafe class AppWindow : IDisposable
 
             if (_frameRequested && waitResult == NativeMethods.WaitObject0)
             {
-                _frameRequested = false;
-                RenderFrame?.Invoke();
+                RenderRequestedFrame();
             }
         }
 
@@ -393,6 +392,7 @@ internal sealed unsafe class AppWindow : IDisposable
                 ClientWidth = unchecked((ushort)(long)lParam);
                 ClientHeight = unchecked((ushort)((long)lParam >> 16));
                 Resized?.Invoke(ClientWidth, ClientHeight);
+                RenderRequestedFrame();
                 return 0;
 
             case NativeMethods.MessageDpiChanged:
@@ -452,6 +452,17 @@ internal sealed unsafe class AppWindow : IDisposable
 
         ClientWidth = clientRect.Width;
         ClientHeight = clientRect.Height;
+    }
+
+    private void RenderRequestedFrame()
+    {
+        if (!_frameRequested)
+        {
+            return;
+        }
+
+        _frameRequested = false;
+        RenderFrame?.Invoke();
     }
 
     private static int GetX(nint value)
