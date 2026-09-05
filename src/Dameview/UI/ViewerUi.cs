@@ -5,11 +5,14 @@ using Dameview.UI.Panels;
 using Dameview.Viewing;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
+using Vortice.Mathematics;
 
 namespace Dameview.UI;
 
 internal sealed class ViewerUi : IUiElement, IDisposable
 {
+    private readonly ID2D1DeviceContext _deviceContext;
+    private readonly ID2D1SolidColorBrush _brush;
     private readonly ImagePanel _imagePanel;
     private readonly EmptyStatePanel _emptyStatePanel;
     private readonly StatusPanel _statusPanel;
@@ -28,16 +31,17 @@ internal sealed class ViewerUi : IUiElement, IDisposable
         IViewerCommands commands,
         TimeProvider? timeProvider = null)
     {
+        _deviceContext = deviceContext;
+        _brush = deviceContext.CreateSolidColorBrush(default(Color4));
         _dpi = dpi;
+        Palette = theme;
         _animationClock = new UiAnimationClock(timeProvider);
         _state = session.State;
         _imagePanel = new ImagePanel(deviceContext, session.Viewport, session.Animator);
-        _emptyStatePanel = new EmptyStatePanel(deviceContext, directWriteFactory, theme);
-        _statusPanel = new StatusPanel(deviceContext, directWriteFactory, theme);
+        _emptyStatePanel = new EmptyStatePanel(directWriteFactory);
+        _statusPanel = new StatusPanel(directWriteFactory);
         _toolbarPanel = new ToolbarPanel(
-            deviceContext,
             directWriteFactory,
-            theme,
             commands,
             dpi);
         if (_state.DisplayedImage is { } displayed)
@@ -59,6 +63,9 @@ internal sealed class ViewerUi : IUiElement, IDisposable
 
         _state = state;
     }
+
+    internal UiTheme Palette { get; set; }
+    internal string? SettingsError { get; set; }
 
     internal void SetDpi(float dpi)
     {
@@ -89,6 +96,12 @@ internal sealed class ViewerUi : IUiElement, IDisposable
         return continues;
     }
 
+    internal void DrawFrame(SizeF size)
+    {
+        var context = new UiDrawContext(_deviceContext, _brush, Palette, _dpi);
+        Draw(context, size);
+    }
+
     public void Draw(in UiDrawContext context, SizeF size)
     {
         bool showStatus = HasStatus;
@@ -103,8 +116,8 @@ internal sealed class ViewerUi : IUiElement, IDisposable
                 _state.DisplayedImage?.Image.Width ?? 0,
                 _state.DisplayedImage?.Image.Height ?? 0,
                 _imagePanel.ZoomPercentage,
-                _state.Message,
-                _state.IsError);
+                SettingsError ?? _state.Message,
+                SettingsError is not null || _state.IsError);
             context.DrawElement(_statusPanel, layout.Status);
         }
 
@@ -149,9 +162,10 @@ internal sealed class ViewerUi : IUiElement, IDisposable
         _statusPanel.Dispose();
         _emptyStatePanel.Dispose();
         _imagePanel.Dispose();
+        _brush.Dispose();
     }
 
-    private bool HasStatus => _state.DisplayedImage is not null || _state.Message is not null;
+    private bool HasStatus => SettingsError is not null || _state.DisplayedImage is not null || _state.Message is not null;
     private bool HasToolbar => _state.DisplayedImage is not null;
 
     private RectangleF GetBounds(IUiElement element, ViewerLayout layout)

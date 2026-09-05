@@ -8,6 +8,26 @@ namespace Dameview.Tests.Viewing;
 public sealed class ViewerSessionTests
 {
     [TestMethod]
+    public void SortChangePreservesImageAndViewportAndUpdatesNeighbors()
+    {
+        using var files = new SessionFiles();
+        var loader = new ManualImageLoader();
+        using var session = CreateSession(loader);
+        session.OpenImage(files.First);
+        loader.Complete(CreateImage());
+        session.Viewport.SetActualSizeAt(400, 300, session.Viewport.ImageCenter);
+        var displayed = session.State.DisplayedImage;
+        var center = session.Viewport.Center;
+        session.SetSort(FolderSort.NameDescending);
+        Assert.AreSame(displayed, session.State.DisplayedImage);
+        Assert.AreEqual(center, session.Viewport.Center);
+        Assert.AreEqual(ViewportMode.ActualSize, session.Viewport.Mode);
+        CollectionAssert.AreEqual(new[] { files.Third, files.Second }, loader.Preloads);
+        session.ShowNextImage();
+        Assert.AreEqual(files.Third, session.State.RequestedPath);
+    }
+
+    [TestMethod]
     public void LoadingAndFailureRetainTheDisplayedImageAndViewport()
     {
         using var files = new SessionFiles();

@@ -7,26 +7,13 @@ namespace Dameview.UI.Panels;
 
 internal sealed class EmptyStatePanel : IUiElement, IDisposable
 {
-    private readonly ID2D1SolidColorBrush _surfaceBrush;
-    private readonly ID2D1SolidColorBrush _borderBrush;
-    private readonly ID2D1SolidColorBrush _accentBrush;
-    private readonly ID2D1SolidColorBrush _primaryTextBrush;
-    private readonly ID2D1SolidColorBrush _secondaryTextBrush;
     private readonly IDWriteTextFormat _titleFormat;
     private readonly IDWriteTextFormat _bodyFormat;
     private readonly IDWriteTextFormat _captionFormat;
 
     internal EmptyStatePanel(
-        ID2D1RenderTarget renderTarget,
-        IDWriteFactory directWriteFactory,
-        UiTheme theme)
+        IDWriteFactory directWriteFactory)
     {
-        _surfaceBrush = renderTarget.CreateSolidColorBrush(theme.Surface);
-        _borderBrush = renderTarget.CreateSolidColorBrush(theme.SurfaceBorder);
-        _accentBrush = renderTarget.CreateSolidColorBrush(theme.Accent);
-        _primaryTextBrush = renderTarget.CreateSolidColorBrush(theme.PrimaryText);
-        _secondaryTextBrush = renderTarget.CreateSolidColorBrush(theme.SecondaryText);
-
         _titleFormat = CreateCenteredFormat(directWriteFactory, 30.0f, FontWeight.SemiBold);
         _bodyFormat = CreateCenteredFormat(directWriteFactory, 15.0f, FontWeight.Normal);
         _captionFormat = CreateCenteredFormat(directWriteFactory, 12.0f, FontWeight.Medium);
@@ -34,7 +21,6 @@ internal sealed class EmptyStatePanel : IUiElement, IDisposable
 
     public void Draw(in UiDrawContext context, SizeF size)
     {
-        ID2D1RenderTarget renderTarget = context.RenderTarget;
         float width = context.PixelsToDips(size.Width);
         float height = context.PixelsToDips(size.Height);
         float cardWidth = MathF.Min(560.0f, MathF.Max(280.0f, width - 48.0f));
@@ -46,8 +32,8 @@ internal sealed class EmptyStatePanel : IUiElement, IDisposable
             new RectangleF(cardX, cardY, cardWidth, cardHeight),
             24.0f,
             24.0f);
-        renderTarget.FillRoundedRectangle(card, _surfaceBrush);
-        renderTarget.DrawRoundedRectangle(card, _borderBrush);
+        context.FillRoundedRectangle(card, context.Palette.Surface);
+        context.DrawRoundedRectangle(card, context.Palette.SurfaceBorder);
 
         float markSize = 72.0f;
         float markX = (width - markSize) / 2.0f;
@@ -56,19 +42,19 @@ internal sealed class EmptyStatePanel : IUiElement, IDisposable
             new RectangleF(markX, markY, markSize, markSize),
             18.0f,
             18.0f);
-        renderTarget.DrawRoundedRectangle(mark, _accentBrush, 2.0f);
+        context.DrawRoundedRectangle(mark, context.Palette.Accent, 2.0f);
 
-        renderTarget.DrawText(
+        context.DrawText(
             "Dameview",
             _titleFormat,
             new Rect(cardX + 24.0f, markY + markSize + 24.0f, cardWidth - 48.0f, 44.0f),
-            _primaryTextBrush);
+            context.Palette.PrimaryText);
 
-        renderTarget.DrawText(
+        context.DrawText(
             "Drop an image here to open it.",
             _bodyFormat,
             new Rect(cardX + 24.0f, markY + markSize + 68.0f, cardWidth - 48.0f, 32.0f),
-            _secondaryTextBrush);
+            context.Palette.SecondaryText);
 
         float pillWidth = 254.0f;
         float pillHeight = 32.0f;
@@ -78,12 +64,12 @@ internal sealed class EmptyStatePanel : IUiElement, IDisposable
             new RectangleF(pillX, pillY, pillWidth, pillHeight),
             16.0f,
             16.0f);
-        renderTarget.DrawRoundedRectangle(pill, _borderBrush);
-        renderTarget.DrawText(
+        context.DrawRoundedRectangle(pill, context.Palette.SurfaceBorder);
+        context.DrawText(
             "Win32  •  Direct2D  •  Native AOT",
             _captionFormat,
             new Rect(pillX, pillY, pillWidth, pillHeight),
-            _secondaryTextBrush);
+            context.Palette.SecondaryText);
     }
 
     public UiPointerResult HandlePointer(in UiPointerEvent input, SizeF size)
@@ -96,11 +82,6 @@ internal sealed class EmptyStatePanel : IUiElement, IDisposable
         _captionFormat.Dispose();
         _bodyFormat.Dispose();
         _titleFormat.Dispose();
-        _secondaryTextBrush.Dispose();
-        _primaryTextBrush.Dispose();
-        _accentBrush.Dispose();
-        _borderBrush.Dispose();
-        _surfaceBrush.Dispose();
     }
 
     private static IDWriteTextFormat CreateCenteredFormat(

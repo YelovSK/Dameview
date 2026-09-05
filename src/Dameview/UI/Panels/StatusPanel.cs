@@ -9,24 +9,12 @@ internal sealed class StatusPanel : IUiElement, IDisposable
 {
     private const float HorizontalPadding = 14.0f;
 
-    private readonly ID2D1SolidColorBrush _backgroundBrush;
-    private readonly ID2D1SolidColorBrush _borderBrush;
-    private readonly ID2D1SolidColorBrush _primaryTextBrush;
-    private readonly ID2D1SolidColorBrush _secondaryTextBrush;
-    private readonly ID2D1SolidColorBrush _errorTextBrush;
     private readonly IDWriteTextFormat _fileNameFormat;
     private readonly IDWriteTextFormat _detailsFormat;
 
     internal StatusPanel(
-        ID2D1RenderTarget renderTarget,
-        IDWriteFactory directWriteFactory,
-        UiTheme theme)
+        IDWriteFactory directWriteFactory)
     {
-        _backgroundBrush = renderTarget.CreateSolidColorBrush(theme.OverlaySurface);
-        _borderBrush = renderTarget.CreateSolidColorBrush(theme.SurfaceBorder);
-        _primaryTextBrush = renderTarget.CreateSolidColorBrush(theme.PrimaryText);
-        _secondaryTextBrush = renderTarget.CreateSolidColorBrush(theme.SecondaryText);
-        _errorTextBrush = renderTarget.CreateSolidColorBrush(theme.ErrorText);
         _fileNameFormat = CreateFormat(directWriteFactory, TextAlignment.Leading);
         _detailsFormat = CreateFormat(directWriteFactory, TextAlignment.Trailing);
     }
@@ -42,13 +30,12 @@ internal sealed class StatusPanel : IUiElement, IDisposable
             return;
         }
 
-        ID2D1RenderTarget renderTarget = context.RenderTarget;
         var panel = new RoundedRectangle(
             new RectangleF(0.0f, 0.0f, width, height),
             10.0f,
             10.0f);
-        renderTarget.FillRoundedRectangle(panel, _backgroundBrush);
-        renderTarget.DrawRoundedRectangle(panel, _borderBrush);
+        context.FillRoundedRectangle(panel, context.Palette.OverlaySurface);
+        context.DrawRoundedRectangle(panel, context.Palette.SurfaceBorder);
 
         var content = new Rect(
             HorizontalPadding,
@@ -58,11 +45,11 @@ internal sealed class StatusPanel : IUiElement, IDisposable
 
         if (Status.Message is string message)
         {
-            renderTarget.DrawText(
+            context.DrawText(
                 message,
                 _fileNameFormat,
                 content,
-                Status.IsError ? _errorTextBrush : _secondaryTextBrush,
+                Status.IsError ? context.Palette.ErrorText : context.Palette.SecondaryText,
                 DrawTextOptions.Clip);
             return;
         }
@@ -70,15 +57,15 @@ internal sealed class StatusPanel : IUiElement, IDisposable
         float detailsWidth = MathF.Min(220.0f, MathF.Max(100.0f, width * 0.38f));
         float fileNameWidth = MathF.Max(0.0f, content.Width - detailsWidth - HorizontalPadding);
 
-        renderTarget.DrawText(
+        context.DrawText(
             Status.FileName,
             _fileNameFormat,
             new Rect(content.X, content.Y, fileNameWidth, content.Height),
-            _primaryTextBrush,
+            context.Palette.PrimaryText,
             DrawTextOptions.Clip);
 
         string details = $"{Status.ImageWidth} × {Status.ImageHeight}    {Status.ZoomPercentage:0.#}%";
-        renderTarget.DrawText(
+        context.DrawText(
             details,
             _detailsFormat,
             new Rect(
@@ -86,7 +73,7 @@ internal sealed class StatusPanel : IUiElement, IDisposable
                 content.Y,
                 detailsWidth,
                 content.Height),
-            _secondaryTextBrush,
+            context.Palette.SecondaryText,
             DrawTextOptions.Clip);
     }
 
@@ -99,11 +86,6 @@ internal sealed class StatusPanel : IUiElement, IDisposable
     {
         _detailsFormat.Dispose();
         _fileNameFormat.Dispose();
-        _errorTextBrush.Dispose();
-        _secondaryTextBrush.Dispose();
-        _primaryTextBrush.Dispose();
-        _borderBrush.Dispose();
-        _backgroundBrush.Dispose();
     }
 
     private static IDWriteTextFormat CreateFormat(

@@ -37,6 +37,15 @@ internal sealed class ViewerSession : IDisposable
     internal ImageViewport Viewport { get; }
     internal ViewportAnimator Animator { get; }
 
+    internal void SetSort(FolderSort sort)
+    {
+        _folderNavigator.SetSort(sort);
+        if (!State.IsLoading && !State.IsError)
+        {
+            ApplyNavigationResult(navigationDirection: 0);
+        }
+    }
+
     internal void ShowPreviousImage()
     {
         OpenNavigatedImage(_folderNavigator.MoveToPreviousPath(), direction: -1);

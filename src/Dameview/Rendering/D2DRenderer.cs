@@ -1,4 +1,4 @@
-using Dameview.UI;
+using System.Drawing;
 using Microsoft.Win32.SafeHandles;
 using Vortice.DCommon;
 using Vortice.Direct2D1;
@@ -6,6 +6,7 @@ using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DirectWrite;
 using Vortice.DXGI;
+using Vortice.Mathematics;
 using static Vortice.Direct2D1.D2D1;
 using static Vortice.Direct3D11.D3D11;
 using static Vortice.DirectWrite.DWrite;
@@ -25,7 +26,6 @@ internal sealed class D2DRenderer : IDisposable
     private readonly ID2D1Device _d2dDevice;
     private readonly ID2D1DeviceContext _deviceContext;
     private readonly IDWriteFactory1 _directWriteFactory;
-    private readonly UiTheme _theme;
     private ID2D1Bitmap1? _targetBitmap;
     private int _width;
     private int _height;
@@ -35,13 +35,11 @@ internal sealed class D2DRenderer : IDisposable
         nint window,
         int width,
         int height,
-        float dpi,
-        UiTheme theme)
+        float dpi)
     {
         _width = width;
         _height = height;
         _dpi = dpi;
-        _theme = theme;
 
         _d3dDevice = D3D11CreateDevice(
             DriverType.Hardware,
@@ -89,7 +87,7 @@ internal sealed class D2DRenderer : IDisposable
     internal ID2D1DeviceContext DeviceContext => _deviceContext;
     internal IDWriteFactory DirectWriteFactory => _directWriteFactory;
 
-    internal void Render(IUiElement content)
+    internal void Render(Action<SizeF> draw, Color4 background)
     {
         if (_width <= 0 || _height <= 0)
         {
@@ -97,9 +95,8 @@ internal sealed class D2DRenderer : IDisposable
         }
 
         _deviceContext.BeginDraw();
-        _deviceContext.Clear(_theme.Background);
-        var drawContext = new UiDrawContext(_deviceContext, _dpi);
-        content.Draw(drawContext, new System.Drawing.SizeF(_width, _height));
+        _deviceContext.Clear(background);
+        draw(new SizeF(_width, _height));
 
         _deviceContext.EndDraw().CheckError();
         _swapChain.Present(1, PresentFlags.None).CheckError();

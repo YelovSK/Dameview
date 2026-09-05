@@ -13,30 +13,24 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
     private const float Padding = 6.0f;
     private const float ButtonGap = 4.0f;
 
-    private readonly ID2D1SolidColorBrush _backgroundBrush;
-    private readonly ID2D1SolidColorBrush _borderBrush;
     private readonly Button[] _buttons;
     private readonly AnimatedFloat _visibility = new(0.0f, 14.0);
     private float _dpi;
     private readonly UiPointerRouter _pointerRouter = new();
 
     internal ToolbarPanel(
-        ID2D1RenderTarget renderTarget,
         IDWriteFactory directWriteFactory,
-        UiTheme theme,
         IViewerCommands commands,
         float dpi)
     {
         _dpi = dpi;
-        _backgroundBrush = renderTarget.CreateSolidColorBrush(theme.OverlaySurface);
-        _borderBrush = renderTarget.CreateSolidColorBrush(theme.SurfaceBorder);
 
         _buttons =
         [
-            new Button(renderTarget, directWriteFactory, theme, "←", commands.ShowPreviousImage),
-            new Button(renderTarget, directWriteFactory, theme, "→", commands.ShowNextImage),
-            new Button(renderTarget, directWriteFactory, theme, "Fit", commands.FitImage),
-            new Button(renderTarget, directWriteFactory, theme, "1:1", commands.ShowActualSize),
+            new Button(directWriteFactory, "←", commands.ShowPreviousImage),
+            new Button(directWriteFactory, "→", commands.ShowNextImage),
+            new Button(directWriteFactory, "Fit", commands.FitImage),
+            new Button(directWriteFactory, "1:1", commands.ShowActualSize),
         ];
     }
 
@@ -77,8 +71,7 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
         }
 
         ID2D1RenderTarget renderTarget = context.RenderTarget;
-        _backgroundBrush.Opacity = context.Opacity * opacity;
-        _borderBrush.Opacity = context.Opacity * opacity;
+        UiDrawContext fadedContext = context.WithOpacity(opacity);
         Matrix3x2 previousTransform = renderTarget.Transform;
         float offsetY = context.PixelsToDips(GetSlideOffset(size));
         renderTarget.Transform = Matrix3x2.CreateTranslation(0.0f, offsetY)
@@ -90,13 +83,12 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
                 new RectangleF(0.0f, 0.0f, width, height),
                 12.0f,
                 12.0f);
-            renderTarget.FillRoundedRectangle(panel, _backgroundBrush);
-            renderTarget.DrawRoundedRectangle(panel, _borderBrush);
+            fadedContext.FillRoundedRectangle(panel, context.Palette.OverlaySurface);
+            fadedContext.DrawRoundedRectangle(panel, context.Palette.SurfaceBorder);
 
-            UiDrawContext buttonContext = context.WithOpacity(opacity);
             for (int index = 0; index < _buttons.Length; index++)
             {
-                buttonContext.DrawElement(_buttons[index], GetButtonBounds(index, size));
+                fadedContext.DrawElement(_buttons[index], GetButtonBounds(index, size));
             }
         }
         finally
@@ -172,9 +164,6 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
         {
             button.Dispose();
         }
-
-        _borderBrush.Dispose();
-        _backgroundBrush.Dispose();
     }
 
     private bool IsPointerNearToolbar(PointF position)

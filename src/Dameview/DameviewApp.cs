@@ -4,6 +4,7 @@ using Dameview.Imaging;
 using Dameview.Navigation;
 using Dameview.Platform;
 using Dameview.Rendering;
+using Dameview.Settings;
 using Dameview.UI;
 using Dameview.Viewing;
 
@@ -12,10 +13,11 @@ namespace Dameview;
 internal sealed class DameviewApp : IViewerCommands, IDisposable
 {
     private readonly ImageDecoder _imageDecoder = new();
-    private readonly UiTheme _theme = UiTheme.Default;
+    private SettingsService? _settings;
     private AppWindow? _window;
     private D2DRenderer? _renderer;
     private ViewerUi? _ui;
+    private Action<SizeF>? _drawUi;
     private ImageLoadCoordinator? _imageLoadCoordinator;
     private ViewerSession? _session;
     private int _pointerX;
@@ -30,8 +32,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
             _window.Handle,
             _window.ClientWidth,
             _window.ClientHeight,
-            _window.Dpi,
-            _theme);
+            _window.Dpi);
         _imageLoadCoordinator = new ImageLoadCoordinator(_window.Post);
         HashSet<string> extensions = _imageDecoder.GetProbablySupportedExtensions();
         _session = new ViewerSession(
@@ -46,8 +47,9 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
             _renderer.DirectWriteFactory,
             _session,
             _window.Dpi,
-            _theme,
+            UiTheme.Default,
             this);
+        _drawUi = _ui.DrawFrame;
         _session.StateChanged += HandleSessionChanged;
 
         _window.RenderFrame += HandleRenderFrame;
@@ -62,6 +64,15 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         _window.PointerDoubleClicked += HandlePointerDoubleClick;
         _window.MouseWheel += HandleMouseWheel;
 
+        _settings = new SettingsService(SettingsService.DefaultPath, _window.Post);
+        _settings.Changed += ApplySettings;
+        _settings.ErrorChanged += () =>
+        {
+            _ui.SettingsError = _settings.Error;
+            _window.RequestRepaint();
+        };
+        _settings.Start();
+
         if (args.FirstOrDefault() is string imagePath)
         {
             _session.OpenImage(imagePath);
@@ -72,6 +83,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
     public void Dispose()
     {
+        _settings?.Dispose();
         _session?.Dispose();
         _imageLoadCoordinator?.Dispose();
         _ui?.Dispose();
@@ -132,6 +144,22 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
                 ShowActualSize(new PointF(_pointerX, _pointerY));
                 break;
         }
+    }
+
+    private void ApplySettings(AppSettings previous, AppSettings current)
+    {
+        if (previous.Theme != current.Theme)
+        {
+            UiTheme theme = current.Theme == ThemeMode.Light ? UiTheme.Light : UiTheme.Default;
+            _ui!.Palette = theme;
+        }
+
+        if (previous.Sort != current.Sort)
+        {
+            _session!.SetSort(current.Sort);
+        }
+
+        _window!.RequestRepaint();
     }
 
     private void HandleSessionChanged()
@@ -210,7 +238,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
     private void HandleRenderFrame()
     {
         bool animationContinues = _ui!.Update();
-        _renderer!.Render(_ui);
+        _renderer!.Render(_drawUi!, _ui.Palette.Background);
 
         if (animationContinues)
         {

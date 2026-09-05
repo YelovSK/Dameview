@@ -83,7 +83,7 @@ internal sealed class ImagePanel : IUiElement, IDisposable
                 destinationInDips.Y,
                 destinationInDips.Width,
                 destinationInDips.Height),
-            1.0f,
+            context.Opacity,
             BitmapInterpolationMode.Linear,
             new Rect(0.0f, 0.0f, _image.PixelSize.Width, _image.PixelSize.Height));
     }

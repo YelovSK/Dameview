@@ -8,24 +8,16 @@ namespace Dameview.UI.Components;
 internal sealed class Button : IUiElement, IDisposable
 {
     private readonly string _label;
-    private readonly ID2D1SolidColorBrush _hoverBrush;
-    private readonly ID2D1SolidColorBrush _pressedBrush;
-    private readonly ID2D1SolidColorBrush _textBrush;
     private readonly IDWriteTextFormat _textFormat;
     private readonly ButtonInteraction _interaction;
 
     internal Button(
-        ID2D1RenderTarget renderTarget,
         IDWriteFactory directWriteFactory,
-        UiTheme theme,
         string label,
         Action clicked)
     {
         _label = label;
         _interaction = new ButtonInteraction(clicked);
-        _hoverBrush = renderTarget.CreateSolidColorBrush(theme.ControlHover);
-        _pressedBrush = renderTarget.CreateSolidColorBrush(theme.ControlPressed);
-        _textBrush = renderTarget.CreateSolidColorBrush(theme.PrimaryText);
         _textFormat = directWriteFactory.CreateTextFormat(
             "Segoe UI Variable",
             FontWeight.SemiBold,
@@ -48,25 +40,21 @@ internal sealed class Button : IUiElement, IDisposable
         var bounds = new RectangleF(0.0f, 0.0f, width, height);
         var background = new RoundedRectangle(bounds, 8.0f, 8.0f);
 
-        _hoverBrush.Opacity = context.Opacity * _interaction.HoverAmount;
-        _pressedBrush.Opacity = context.Opacity * _interaction.PressedAmount;
-        _textBrush.Opacity = context.Opacity;
-
         if (_interaction.HoverAmount > 0.0f)
         {
-            context.RenderTarget.FillRoundedRectangle(background, _hoverBrush);
+            context.FillRoundedRectangle(background, context.Palette.ControlHover, _interaction.HoverAmount);
         }
 
         if (_interaction.PressedAmount > 0.0f)
         {
-            context.RenderTarget.FillRoundedRectangle(background, _pressedBrush);
+            context.FillRoundedRectangle(background, context.Palette.ControlPressed, _interaction.PressedAmount);
         }
 
-        context.RenderTarget.DrawText(
+        context.DrawText(
             _label,
             _textFormat,
             new Rect(0.0f, 0.0f, width, height),
-            _textBrush,
+            context.Palette.PrimaryText,
             DrawTextOptions.Clip);
     }
 
@@ -78,8 +66,5 @@ internal sealed class Button : IUiElement, IDisposable
     public void Dispose()
     {
         _textFormat.Dispose();
-        _textBrush.Dispose();
-        _pressedBrush.Dispose();
-        _hoverBrush.Dispose();
     }
 }
