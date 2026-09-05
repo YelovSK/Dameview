@@ -21,6 +21,7 @@ public sealed class ScrollViewTests
             PointF.Empty,
             WheelDelta: -1200));
 
+        AdvanceScroll(scrollView);
         Assert.AreEqual(380.0f, scrollView.ScrollOffset);
         Assert.AreEqual(-380.0f, content.Bounds.Y);
 
@@ -28,7 +29,16 @@ public sealed class ScrollViewTests
             UiPointerEventKind.Wheel,
             PointF.Empty,
             WheelDelta: 1200));
+        AdvanceScroll(scrollView);
         Assert.AreEqual(0.0f, scrollView.ScrollOffset);
+    }
+
+    private static void AdvanceScroll(ScrollView scrollView)
+    {
+        for (int frame = 0; frame < 120; frame++)
+        {
+            scrollView.UpdateTree(new UiUpdateContext(1.0 / 60.0));
+        }
     }
 
     [TestMethod]

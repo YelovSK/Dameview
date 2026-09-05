@@ -9,8 +9,9 @@ internal sealed class ScrollView : UiElement
     private const float ScrollbarGap = 2.0f;
     private readonly UiElement _content;
     private readonly Scrollbar _scrollbar;
-    private float _scrollOffset;
+    private readonly ScrollOffsetController _scrollOffset = new();
     private float _contentHeight;
+    private float _contentWidth;
 
     internal ScrollView(UiElement content)
     {
@@ -20,7 +21,7 @@ internal sealed class ScrollView : UiElement
         AddChild(_scrollbar);
     }
 
-    internal float ScrollOffset => _scrollOffset;
+    internal float ScrollOffset => _scrollOffset.Offset;
     internal bool IsScrollbarVisible => HasOverflow;
     internal RectangleF ScrollbarThumbBounds => _scrollbar.ThumbBounds;
     internal override bool PreservesFocusOnPointerPress => true;
@@ -46,14 +47,15 @@ internal sealed class ScrollView : UiElement
         }
 
         _contentHeight = MathF.Max(0.0f, _content.DesiredSize.Height);
-        ClampScroll(finalSize.Height);
+        _scrollOffset.SetMaximum(MathF.Max(0.0f, _contentHeight - finalSize.Height));
+        _contentWidth = contentWidth;
         ArrangeContent(finalSize, contentWidth);
         _scrollbar.Arrange(new RectangleF(
             MathF.Max(0.0f, finalSize.Width - ScrollbarWidth),
             0.0f,
             ScrollbarWidth,
             finalSize.Height));
-        _scrollbar.SetMetrics(_contentHeight, finalSize.Height, _scrollOffset);
+        _scrollbar.SetMetrics(_contentHeight, finalSize.Height, _scrollOffset.Offset);
     }
 
     internal override UiPointerResult OnPointerEvent(in UiPointerEvent input)
@@ -63,59 +65,59 @@ internal sealed class ScrollView : UiElement
             return default;
         }
 
-        float previous = _scrollOffset;
-        SetScrollOffset(_scrollOffset - input.WheelDelta / 120.0f * 48.0f);
-        return new UiPointerResult(Consumed: true, NeedsRepaint: _scrollOffset != previous);
+        bool changed = _scrollOffset.ScrollBy(-input.WheelDelta / 120.0f * 48.0f);
+        return new UiPointerResult(Consumed: true, NeedsRepaint: changed);
     }
 
     internal override void BringIntoView(RectangleF descendantBounds)
     {
-        float previous = _scrollOffset;
+        float target = _scrollOffset.TargetOffset;
         if (descendantBounds.Top < 0.0f)
         {
-            SetScrollOffset(_scrollOffset + descendantBounds.Top);
+            target += descendantBounds.Top;
         }
         else if (descendantBounds.Bottom > Bounds.Height)
         {
-            SetScrollOffset(_scrollOffset + descendantBounds.Bottom - Bounds.Height);
+            target += descendantBounds.Bottom - Bounds.Height;
         }
 
-        if (_scrollOffset != previous)
+        if (_scrollOffset.SetImmediate(target))
         {
+            ArrangeContent(Bounds.Size, _contentWidth);
+            _scrollbar.SetMetrics(_contentHeight, Bounds.Height, _scrollOffset.Offset);
             InvalidateVisual();
         }
     }
 
     internal void SetScrollOffset(float offset)
     {
-        float previous = _scrollOffset;
-        _scrollOffset = Math.Clamp(offset, 0.0f, MaximumScrollOffset);
-        if (_scrollOffset != previous)
+        if (_scrollOffset.SetImmediate(offset))
         {
-            ArrangeContent(Bounds.Size, MathF.Max(0.0f, Bounds.Width - ScrollbarWidth - ScrollbarGap));
-            _scrollbar.SetMetrics(_contentHeight, Bounds.Height, _scrollOffset);
+            ArrangeContent(Bounds.Size, _contentWidth);
+            _scrollbar.SetMetrics(_contentHeight, Bounds.Height, _scrollOffset.Offset);
             InvalidateVisual();
         }
     }
 
-    private bool HasOverflow => MaximumScrollOffset > 0.0f;
-    private float MaximumScrollOffset => MathF.Max(0.0f, _contentHeight - Bounds.Height);
+    protected override bool UpdateCore(in UiUpdateContext context)
+    {
+        if (!_scrollOffset.Update(context.ElapsedSeconds))
+        {
+            return false;
+        }
 
+        ArrangeContent(Bounds.Size, _contentWidth);
+        _scrollbar.SetMetrics(_contentHeight, Bounds.Height, _scrollOffset.Offset);
+        return true;
+    }
+
+    private bool HasOverflow => MathF.Max(0.0f, _contentHeight - Bounds.Height) > 0.0f;
     private void ArrangeContent(SizeF viewportSize, float contentWidth)
     {
         _content.Arrange(new RectangleF(
             0.0f,
-            -_scrollOffset,
+            -_scrollOffset.Offset,
             contentWidth,
             MathF.Max(_contentHeight, viewportSize.Height)));
     }
-
-    private void ClampScroll(float viewportHeight)
-    {
-        _scrollOffset = Math.Clamp(
-            _scrollOffset,
-            0.0f,
-            MathF.Max(0.0f, _contentHeight - viewportHeight));
-    }
-
 }

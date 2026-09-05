@@ -27,11 +27,11 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private readonly Action<string> _openImage;
     private readonly UiDesignTokens _design;
     private readonly Scrollbar _scrollbar;
+    private readonly ScrollOffsetController _scrollOffset = new();
     private readonly Dictionary<string, ThumbnailSlot> _slots =
         new(StringComparer.OrdinalIgnoreCase);
     private FolderEntry[] _entries = [];
     private string? _selectedPath;
-    private float _scrollOffset;
     private int _hoveredIndex = -1;
     private int _pressedIndex = -1;
 
@@ -91,8 +91,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             ScrollSelectionIntoView();
         }
 
-        ClampScroll();
-        _scrollbar.SetMetrics(ContentHeight, Bounds.Height, _scrollOffset);
+        UpdateScrollMetrics();
         RefreshVisibleThumbnails();
         InvalidateVisual();
     }
@@ -104,14 +103,14 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     protected override void ArrangeCore(SizeF finalSize)
     {
         ScrollSelectionIntoView();
-        ClampScroll();
+        UpdateScrollMetrics();
         RefreshVisibleThumbnails();
         _scrollbar.Arrange(new RectangleF(
             MathF.Max(0.0f, finalSize.Width - ScrollbarWidth),
             0.0f,
             ScrollbarWidth,
             finalSize.Height));
-        _scrollbar.SetMetrics(ContentHeight, finalSize.Height, _scrollOffset);
+        _scrollbar.SetMetrics(ContentHeight, finalSize.Height, _scrollOffset.Offset);
     }
 
     protected override void DrawCore(in UiDrawContext context)
@@ -130,7 +129,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
         (int first, int lastExclusive) = GetVisibleRange(
             _entries.Length,
-            _scrollOffset,
+            _scrollOffset.Offset,
             Bounds.Height,
             ItemHeightDips,
             ColumnCount);
@@ -150,7 +149,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             ? HitTestIndex(
                 input.Position.X,
                 input.Position.Y,
-                _scrollOffset,
+                _scrollOffset.Offset,
                 _entries.Length,
                 ItemWidth,
                 ItemHeightDips,
@@ -183,10 +182,9 @@ internal sealed class GalleryPanel : UiElement, IDisposable
                 return new UiPointerResult(Consumed: true, NeedsRepaint: wasPressed);
 
             case UiPointerEventKind.Wheel:
-                float previous = _scrollOffset;
-                SetScrollOffset(_scrollOffset - input.WheelDelta / 120.0f * WheelStep);
+                bool scrollChanged = _scrollOffset.ScrollBy(-input.WheelDelta / 120.0f * WheelStep);
 
-                return new UiPointerResult(Consumed: true, NeedsRepaint: _scrollOffset != previous);
+                return new UiPointerResult(Consumed: true, NeedsRepaint: scrollChanged);
 
             default:
                 return new UiPointerResult(Consumed: true);
@@ -198,6 +196,19 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         ClearSlots();
         _ellipsisSign.Dispose();
         _labelFormat.Dispose();
+    }
+
+    protected override bool UpdateCore(in UiUpdateContext context)
+    {
+        if (!_scrollOffset.Update(context.ElapsedSeconds))
+        {
+            return false;
+        }
+
+        RefreshVisibleThumbnails();
+        _scrollbar.SetMetrics(ContentHeight, Bounds.Height, _scrollOffset.Offset);
+        InvalidateVisual();
+        return true;
     }
 
     protected override void OnVisualStateChanged()
@@ -277,7 +288,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         int row = index / columnCount;
         int column = index % columnCount;
         float itemWidth = ItemWidth;
-        float y = PanelPadding + row * ItemHeightDips - _scrollOffset;
+        float y = PanelPadding + row * ItemHeightDips - _scrollOffset.Offset;
         var itemBounds = new RectangleF(
             PanelPadding + column * (itemWidth + _design.SmallSpacing),
             y,
@@ -343,7 +354,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     {
         (int first, int lastExclusive) = GetVisibleRange(
             _entries.Length,
-            _scrollOffset,
+            _scrollOffset.Offset,
             Bounds.Height,
             ItemHeightDips,
             ColumnCount);
@@ -402,22 +413,23 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         int row = selectedIndex / ColumnCount;
         float top = PanelPadding + row * ItemHeightDips;
         float bottom = top + ItemHeightDips;
-        if (top < _scrollOffset)
+        float target = _scrollOffset.TargetOffset;
+        if (top < target)
         {
-            _scrollOffset = top;
+            target = top;
         }
-        else if (bottom > _scrollOffset + Bounds.Height)
+        else if (bottom > target + Bounds.Height)
         {
-            _scrollOffset = bottom - Bounds.Height;
+            target = bottom - Bounds.Height;
         }
+
+        _scrollOffset.SetImmediate(target);
     }
 
-    private void ClampScroll()
+    private void UpdateScrollMetrics()
     {
-        _scrollOffset = Math.Clamp(
-            _scrollOffset,
-            0.0f,
-            MathF.Max(0.0f, ContentHeight - Bounds.Height));
+        _scrollOffset.SetMaximum(MathF.Max(0.0f, ContentHeight - Bounds.Height));
+        _scrollbar.SetMetrics(ContentHeight, Bounds.Height, _scrollOffset.Offset);
     }
 
     private const float ScrollbarWidth = 12.0f;
@@ -443,15 +455,13 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
     private void SetScrollOffset(float offset)
     {
-        float previous = _scrollOffset;
-        _scrollOffset = Math.Clamp(offset, 0.0f, MathF.Max(0.0f, ContentHeight - Bounds.Height));
-        if (_scrollOffset == previous)
+        if (!_scrollOffset.SetImmediate(offset))
         {
             return;
         }
 
         RefreshVisibleThumbnails();
-        _scrollbar.SetMetrics(ContentHeight, Bounds.Height, _scrollOffset);
+        _scrollbar.SetMetrics(ContentHeight, Bounds.Height, _scrollOffset.Offset);
         InvalidateVisual();
     }
 
