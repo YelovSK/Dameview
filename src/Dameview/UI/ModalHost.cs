@@ -1,185 +1,239 @@
-using Dameview.Platform;
 using System.Drawing;
+using Dameview.Platform;
 using Vortice.Direct2D1;
 using Vortice.Mathematics;
 
 namespace Dameview.UI;
 
-internal interface IModalContent : IUiElement
+internal abstract class ModalContent : UiElement
 {
-    public SizeF PreferredSize { get; }
-    public bool DismissOnBackdrop => true;
-    public bool DismissOnEscape => true;
-    public void Focus();
-    public void HandleKey(UiKeyEvent input);
-    public RectangleF GetFocusBounds(SizeF size);
+    internal abstract SizeF PreferredSize { get; }
+    internal virtual bool DismissOnBackdrop => true;
+    internal virtual bool DismissOnEscape => true;
+    internal abstract UiElement InitialFocus { get; }
+    internal override bool PreservesFocusOnPointerPress => true;
 }
 
-// Owns interaction and placement, not the lifetime of the supplied content.
-internal sealed class ModalHost : IUiElement
+// Owns modal interaction and placement, not the lifetime of its content.
+internal sealed class ModalHost : UiElement
 {
-    private readonly UiPointerRouter _pointerRouter = new();
-    private IModalContent? _content;
-    private Action? _restoreFocus;
-    private float _scroll;
-    private float _dpi;
-    private SizeF _size;
+    private readonly Action _dismiss;
+    private readonly ModalSurface _surface;
+    private ModalContent? _content;
     private bool _backdropPressed;
 
-    internal ModalHost(float dpi)
+    internal ModalHost(Action dismiss)
     {
-        _dpi = dpi;
-    }
-
-    internal void SetDpi(float dpi)
-    {
-        _scroll *= dpi / _dpi;
-        _dpi = dpi;
+        _dismiss = dismiss;
+        _surface = new ModalSurface();
+        AddChild(_surface);
+        IsVisible = false;
     }
 
     internal bool IsOpen => _content is not null;
+    internal override bool PreservesFocusOnPointerPress => true;
 
-    internal void Show(IModalContent content, Action restoreFocus)
+    internal void Show(ModalContent content)
     {
-        Close();
+        Root?.ClearPointer();
+        _surface.SetContent(content);
         _content = content;
-        _restoreFocus = restoreFocus;
-        _scroll = 0;
-        content.Focus();
+        _backdropPressed = false;
+        IsVisible = true;
     }
 
     internal void Close()
     {
-        _pointerRouter.Cancel();
-        _content?.HandlePointer(new UiPointerEvent(UiPointerEventKind.Cancelled, PointF.Empty), SizeF.Empty);
+        Root?.ClearPointer();
+        _surface.SetContent(null);
         _content = null;
         _backdropPressed = false;
-        Action? restore = _restoreFocus;
-        _restoreFocus = null;
-        restore?.Invoke();
+        IsVisible = false;
     }
 
-    internal bool HandleKey(UiKeyEvent input)
+    internal bool HandleEscape()
     {
-        if (_content is not { } content)
+        if (_content is null)
         {
             return false;
         }
 
-        if (input.Key == UiKey.Escape && content.DismissOnEscape)
+        if (_content.DismissOnEscape)
         {
-            Close();
+            _dismiss();
         }
         else
         {
-            content.HandleKey(input);
-            if (_content is not null)
-            {
-                RectangleF viewport = GetViewport(_size);
-                RectangleF focus = content.GetFocusBounds(GetContentBounds(viewport).Size);
-                if (focus.Top < _scroll)
-                {
-                    _scroll = focus.Top;
-                }
-                else if (focus.Bottom > _scroll + viewport.Height)
-                {
-                    _scroll = focus.Bottom - viewport.Height;
-                }
-            }
+            _content.OnKeyEvent(new UiKeyEvent(UiKey.Escape));
         }
 
         return true;
     }
 
-    public bool Update(in UiUpdateContext context) => _content?.Update(context) ?? false;
-
-    public void Draw(in UiDrawContext context, SizeF size)
+    protected override SizeF MeasureCore(SizeF availableSize)
     {
-        _size = size;
-        if (_content is not { } content)
+        if (_content is not null)
+        {
+            _surface.Measure(availableSize);
+        }
+
+        return availableSize;
+    }
+
+    protected override void ArrangeCore(SizeF finalSize)
+    {
+        if (_content is null)
         {
             return;
         }
 
-        context.FillRoundedRectangle(new RoundedRectangle(
-            new RectangleF(0, 0, context.PixelsToDips(size.Width), context.PixelsToDips(size.Height)), 0, 0),
-            new Color4(0, 0, 0, 0.45f));
-        RectangleF viewport = GetViewport(size);
-        context.FillRoundedRectangle(new RoundedRectangle(context.PixelsToDips(viewport), 12, 12), context.Palette.Surface);
-        context.DrawRoundedRectangle(new RoundedRectangle(context.PixelsToDips(viewport), 12, 12), context.Palette.SurfaceBorder);
-        RectangleF clip = context.PixelsToDips(viewport);
-        context.RenderTarget.PushAxisAlignedClip(new Rect(clip.X, clip.Y, clip.Width, clip.Height), AntialiasMode.Aliased);
-        try
+        const float margin = 12.0f;
+        SizeF desired = _content.PreferredSize;
+        float width = MathF.Min(desired.Width, MathF.Max(0.0f, finalSize.Width - (2.0f * margin)));
+        float height = MathF.Min(desired.Height, MathF.Max(0.0f, finalSize.Height - (2.0f * margin)));
+        _surface.Arrange(new RectangleF(
+            (finalSize.Width - width) / 2.0f,
+            (finalSize.Height - height) / 2.0f,
+            width,
+            height));
+    }
+
+    protected override void DrawCore(in UiDrawContext context)
+    {
+        context.FillRoundedRectangle(
+            new RoundedRectangle(new RectangleF(0.0f, 0.0f, Bounds.Width, Bounds.Height), 0.0f, 0.0f),
+            new Color4(0.0f, 0.0f, 0.0f, 0.45f));
+    }
+
+    internal override UiPointerResult OnPointerEvent(in UiPointerEvent input)
+    {
+        switch (input.Kind)
         {
-            context.DrawElement(content, GetContentBounds(viewport));
-        }
-        finally
-        {
-            context.RenderTarget.PopAxisAlignedClip();
+            case UiPointerEventKind.Pressed when input.Button == PointerButton.Primary:
+                _backdropPressed = true;
+                return new UiPointerResult(Consumed: true, CapturePointer: true);
+
+            case UiPointerEventKind.Released when _backdropPressed:
+                _backdropPressed = false;
+                if (!_surface.Bounds.Contains(input.Position) && _content?.DismissOnBackdrop == true)
+                {
+                    _dismiss();
+                }
+
+                return new UiPointerResult(Consumed: true, NeedsRepaint: true);
+
+            case UiPointerEventKind.Cancelled:
+                _backdropPressed = false;
+                return new UiPointerResult(Consumed: true);
+
+            default:
+                return new UiPointerResult(Consumed: true);
         }
     }
 
-    public UiPointerResult HandlePointer(in UiPointerEvent input, SizeF size)
+    private sealed class ModalSurface : UiElement
     {
-        if (_content is not { } content)
-        {
-            return default;
-        }
+        private ModalContent? _content;
+        private float _scroll;
 
-        RectangleF viewport = GetViewport(size);
-        RectangleF bounds = GetContentBounds(viewport);
-        if (input.Kind == UiPointerEventKind.Cancelled)
+        internal override bool PreservesFocusOnPointerPress => true;
+
+        internal void SetContent(ModalContent? content)
         {
-            _backdropPressed = false;
-            _pointerRouter.Cancel();
-            content.HandlePointer(input, bounds.Size);
-        }
-        else if (_pointerRouter.Captured is not null)
-        {
-            _pointerRouter.DispatchCaptured(input, bounds);
-        }
-        else if (input.Kind == UiPointerEventKind.Wheel && viewport.Contains(input.Position))
-        {
-            _scroll = Math.Clamp(_scroll - input.WheelDelta / 120f * 48 * UiDpi.GetScale(_dpi),
-                0, MathF.Max(0, bounds.Height - viewport.Height));
-        }
-        else if (input.Kind == UiPointerEventKind.Released && _backdropPressed)
-        {
-            _backdropPressed = false;
-            if (!viewport.Contains(input.Position) && content.DismissOnBackdrop)
+            if (_content is not null)
             {
-                Close();
+                RemoveChild(_content);
+            }
+
+            _content = content;
+            _scroll = 0.0f;
+            if (content is not null)
+            {
+                AddChild(content);
             }
         }
-        else if (input.Kind == UiPointerEventKind.Pressed && !viewport.Contains(input.Position))
+
+        protected override SizeF MeasureCore(SizeF availableSize)
         {
-            _backdropPressed = input.Button == PointerButton.Primary;
-        }
-        else if (viewport.Contains(input.Position))
-        {
-            _pointerRouter.Route(content, bounds, input);
-        }
-        else if (input.Kind == UiPointerEventKind.Moved)
-        {
-            content.HandlePointer(new UiPointerEvent(UiPointerEventKind.Cancelled, PointF.Empty), bounds.Size);
+            if (_content is null)
+            {
+                return SizeF.Empty;
+            }
+
+            _content.Measure(_content.PreferredSize);
+            return new SizeF(
+                MathF.Min(_content.PreferredSize.Width, availableSize.Width),
+                MathF.Min(_content.PreferredSize.Height, availableSize.Height));
         }
 
-        return new UiPointerResult(Consumed: true, NeedsRepaint: true);
-    }
+        protected override void ArrangeCore(SizeF finalSize)
+        {
+            if (_content is null)
+            {
+                return;
+            }
 
-    private RectangleF GetViewport(SizeF size)
-    {
-        float scale = UiDpi.GetScale(_dpi);
-        SizeF desired = _content!.PreferredSize;
-        float width = MathF.Min(desired.Width * scale, MathF.Max(0, size.Width - 24 * scale));
-        float height = MathF.Min(desired.Height * scale, MathF.Max(0, size.Height - 24 * scale));
-        return new RectangleF((size.Width - width) / 2, (size.Height - height) / 2, width, height);
-    }
+            ClampScroll(finalSize.Height);
+            _content.Arrange(new RectangleF(
+                0.0f,
+                -_scroll,
+                finalSize.Width,
+                _content.PreferredSize.Height));
+        }
 
-    private RectangleF GetContentBounds(RectangleF viewport)
-    {
-        float height = _content!.PreferredSize.Height * UiDpi.GetScale(_dpi);
-        _scroll = Math.Clamp(_scroll, 0, MathF.Max(0, height - viewport.Height));
-        return new RectangleF(viewport.X, viewport.Y - _scroll, viewport.Width, height);
+        protected override void DrawCore(in UiDrawContext context)
+        {
+            UiDesignTokens design = context.Palette.Design;
+            var panel = new RoundedRectangle(
+                new RectangleF(0.0f, 0.0f, Bounds.Width, Bounds.Height),
+                design.PanelCornerRadius,
+                design.PanelCornerRadius);
+            context.FillRoundedRectangle(panel, context.Palette.Surface);
+            context.DrawRoundedRectangle(panel, context.Palette.SurfaceBorder);
+        }
+
+        internal override UiPointerResult OnPointerEvent(in UiPointerEvent input)
+        {
+            if (input.Kind != UiPointerEventKind.Wheel || _content is null)
+            {
+                return new UiPointerResult(Consumed: true);
+            }
+
+            float previous = _scroll;
+            _scroll -= input.WheelDelta / 120.0f * 48.0f;
+            ClampScroll(Bounds.Height);
+            if (_scroll != previous)
+            {
+                ArrangeCore(Bounds.Size);
+            }
+
+            return new UiPointerResult(Consumed: true, NeedsRepaint: _scroll != previous);
+        }
+
+        internal override void BringIntoView(RectangleF descendantBounds)
+        {
+            float previous = _scroll;
+            if (descendantBounds.Top < 0.0f)
+            {
+                _scroll += descendantBounds.Top;
+            }
+            else if (descendantBounds.Bottom > Bounds.Height)
+            {
+                _scroll += descendantBounds.Bottom - Bounds.Height;
+            }
+
+            ClampScroll(Bounds.Height);
+            if (_scroll != previous)
+            {
+                ArrangeCore(Bounds.Size);
+                InvalidateVisual();
+            }
+        }
+
+        private void ClampScroll(float viewportHeight)
+        {
+            float contentHeight = _content?.PreferredSize.Height ?? 0.0f;
+            _scroll = Math.Clamp(_scroll, 0.0f, MathF.Max(0.0f, contentHeight - viewportHeight));
+        }
     }
 }

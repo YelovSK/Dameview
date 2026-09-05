@@ -1,4 +1,3 @@
-using Dameview.Platform;
 using System.Drawing;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
@@ -6,7 +5,7 @@ using Vortice.Mathematics;
 
 namespace Dameview.UI.Panels;
 
-internal sealed class EmptyStatePanel : IUiElement, IDisposable
+internal sealed class EmptyStatePanel : UiElement, IDisposable
 {
     private readonly IDWriteTextFormat _titleFormat;
     private readonly IDWriteTextFormat _bodyFormat;
@@ -20,10 +19,12 @@ internal sealed class EmptyStatePanel : IUiElement, IDisposable
         _captionFormat = CreateCenteredFormat(directWriteFactory, 12.0f, FontWeight.Medium);
     }
 
-    public void Draw(in UiDrawContext context, SizeF size)
+    internal override bool IsHitTestVisible => false;
+
+    protected override void DrawCore(in UiDrawContext context)
     {
-        float width = context.PixelsToDips(size.Width);
-        float height = context.PixelsToDips(size.Height);
+        float width = Bounds.Width;
+        float height = Bounds.Height;
         float cardWidth = MathF.Min(560.0f, MathF.Max(280.0f, width - 48.0f));
         float cardHeight = MathF.Min(330.0f, MathF.Max(260.0f, height - 96.0f));
         float cardX = (width - cardWidth) / 2.0f;
@@ -71,11 +72,6 @@ internal sealed class EmptyStatePanel : IUiElement, IDisposable
             _captionFormat,
             new Rect(pillX, pillY, pillWidth, pillHeight),
             context.Palette.SecondaryText);
-    }
-
-    public UiPointerResult HandlePointer(in UiPointerEvent input, SizeF size)
-    {
-        return default;
     }
 
     public void Dispose()

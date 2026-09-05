@@ -54,6 +54,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
             this,
             theme => _settings!.Update(_settings.Current with { Theme = theme }),
             sort => _settings!.Update(_settings.Current with { Sort = sort }));
+        _ui.Invalidated += _window.RequestRepaint;
         _session.StateChanged += HandleSessionChanged;
 
         _window.RenderFrame += HandleRenderFrame;
@@ -89,6 +90,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         // so this also remembers the size that will be restored after unmaximizing.
         _settings.Update(_settings.Current with { Window = _window.CapturePlacement() });
         _settings.Dispose();
+        _ui.Invalidated -= _window.RequestRepaint;
         _ui.Dispose();
         _session.Dispose();
         _imageLoadCoordinator.Dispose();
@@ -231,11 +233,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
     private void SendPointerEvent(UiPointerEvent input)
     {
-        var size = new SizeF(_window.ClientWidth, _window.ClientHeight);
-        if (_ui.HandlePointer(input, size).NeedsRepaint)
-        {
-            _window.RequestRepaint();
-        }
+        _ui.HandlePointer(input);
     }
 }
 

@@ -6,18 +6,7 @@ internal readonly record struct UiPointerEvent(
     UiPointerEventKind Kind,
     PointF Position,
     PointerButton Button = PointerButton.None,
-    int WheelDelta = 0)
-{
-    internal UiPointerEvent ToLocal(RectangleF bounds)
-    {
-        return this with
-        {
-            Position = new PointF(
-                Position.X - bounds.X,
-                Position.Y - bounds.Y),
-        };
-    }
-}
+    int WheelDelta = 0);
 
 internal enum UiPointerEventKind
 {

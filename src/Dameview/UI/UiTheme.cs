@@ -14,6 +14,8 @@ internal sealed record UiTheme(
     Color4 SecondaryText,
     Color4 ErrorText)
 {
+    internal UiDesignTokens Design { get; init; } = UiDesignTokens.Default;
+
     internal static UiTheme Light { get; } = new(
         Background: new Color4(0.92f, 0.93f, 0.95f, 1.0f),
         Surface: new Color4(0.99f, 0.99f, 1.0f, 1.0f),
@@ -37,4 +39,35 @@ internal sealed record UiTheme(
         PrimaryText: new Color4(0.94f, 0.95f, 0.97f, 1.0f),
         SecondaryText: new Color4(0.57f, 0.61f, 0.68f, 1.0f),
         ErrorText: new Color4(1.0f, 0.43f, 0.45f, 1.0f));
+}
+
+internal sealed record UiDesignTokens(
+    float WindowMargin,
+    float PanelGap,
+    float StatusHeight,
+    float ToolbarHeight,
+    float ControlCornerRadius,
+    float PanelCornerRadius,
+    float SmallSpacing,
+    float Spacing,
+    float LargeSpacing,
+    float BodyFontSize,
+    float HeadingFontSize,
+    double HoverResponse,
+    double PressedResponse)
+{
+    internal static UiDesignTokens Default { get; } = new(
+        WindowMargin: 12.0f,
+        PanelGap: 8.0f,
+        StatusHeight: 42.0f,
+        ToolbarHeight: 46.0f,
+        ControlCornerRadius: 8.0f,
+        PanelCornerRadius: 12.0f,
+        SmallSpacing: 4.0f,
+        Spacing: 8.0f,
+        LargeSpacing: 16.0f,
+        BodyFontSize: 14.0f,
+        HeadingFontSize: 22.0f,
+        HoverResponse: 24.0,
+        PressedResponse: 32.0);
 }

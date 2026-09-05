@@ -1,8 +1,8 @@
-using Dameview.Platform;
 using System.Drawing;
 using Dameview.Commands;
 using Dameview.Imaging;
 using Dameview.Navigation;
+using Dameview.Platform;
 using Dameview.Settings;
 using Dameview.UI.Animation;
 using Dameview.UI.Panels;
@@ -13,7 +13,7 @@ using Vortice.Mathematics;
 
 namespace Dameview.UI;
 
-internal sealed class ViewerUi : IUiElement, IDisposable
+internal sealed class ViewerUi : UiElement, IDisposable
 {
     private readonly ID2D1DeviceContext _deviceContext;
     private readonly ID2D1SolidColorBrush _brush;
@@ -24,9 +24,8 @@ internal sealed class ViewerUi : IUiElement, IDisposable
     private readonly SettingsPanel _settingsPanel;
     private readonly ModalHost _modalHost;
     private readonly UiAnimationClock _animationClock;
-    private readonly UiPointerRouter _pointerRouter = new();
+    private readonly UiRoot _root;
     private ViewerSessionState _state;
-    private float _dpi;
 
     internal ViewerUi(
         ID2D1DeviceContext deviceContext,
@@ -41,21 +40,33 @@ internal sealed class ViewerUi : IUiElement, IDisposable
     {
         _deviceContext = deviceContext;
         _brush = deviceContext.CreateSolidColorBrush(default(Color4));
-        _dpi = dpi;
         Palette = theme;
         _animationClock = new UiAnimationClock(timeProvider);
         _state = session.State;
         _imagePanel = new ImagePanel(deviceContext, session.Viewport, session.Animator, timeProvider);
         _emptyStatePanel = new EmptyStatePanel(directWriteFactory);
         _statusPanel = new StatusPanel(directWriteFactory);
-        _toolbarPanel = new ToolbarPanel(
+        _toolbarPanel = new ToolbarPanel(directWriteFactory, commands, theme.Design, ShowSettings);
+        _modalHost = new ModalHost(CloseSettings);
+        _settingsPanel = new SettingsPanel(
             directWriteFactory,
-            commands,
-            dpi,
-            ShowSettings);
-        _toolbarPanel.HasImage = _state.DisplayedImage is not null;
-        _modalHost = new ModalHost(dpi);
-        _settingsPanel = new SettingsPanel(directWriteFactory, _modalHost.Close, setTheme, setSort, dpi);
+            CloseSettings,
+            setTheme,
+            setSort,
+            theme.Design);
+
+        AddChild(_imagePanel);
+        AddChild(_emptyStatePanel);
+        AddChild(_statusPanel);
+        AddChild(_toolbarPanel);
+        AddChild(_modalHost);
+        _root = new UiRoot(this, dpi);
+
+        bool hasImage = _state.DisplayedImage is not null;
+        _imagePanel.IsVisible = hasImage;
+        _emptyStatePanel.IsVisible = !hasImage;
+        _toolbarPanel.HasImage = hasImage;
+        _statusPanel.IsVisible = HasStatus;
         if (_state.DisplayedImage is { } displayed)
         {
             ApplyDisplayedImage(displayed);
@@ -63,60 +74,74 @@ internal sealed class ViewerUi : IUiElement, IDisposable
         }
     }
 
-    internal void ApplyState(ViewerSessionState state)
+    internal event Action? Invalidated
     {
-        if (!ReferenceEquals(_state.DisplayedImage, state.DisplayedImage)
-            && state.DisplayedImage is { } displayed)
-        {
-            _pointerRouter.Cancel();
-            ApplyDisplayedImage(displayed);
-            _toolbarPanel.Show();
-        }
-
-        _state = state;
-        _toolbarPanel.HasImage = state.DisplayedImage is not null;
+        add => _root.Invalidated += value;
+        remove => _root.Invalidated -= value;
     }
 
     internal UiTheme Palette { get; set; }
     internal string? SettingsError
     {
         get => _settingsPanel.Error;
-        set => _settingsPanel.Error = value;
+        set
+        {
+            if (_settingsPanel.Error == value)
+            {
+                return;
+            }
+
+            _settingsPanel.Error = value;
+            _statusPanel.IsVisible = HasStatus;
+            _root.InvalidateVisual();
+        }
+    }
+
+    internal TimeSpan? NextAnimationFrameDelay => _imagePanel.NextAnimationFrameDelay;
+
+    internal void ApplyState(ViewerSessionState state)
+    {
+        bool displayedImageChanged = !ReferenceEquals(_state.DisplayedImage, state.DisplayedImage);
+        _state = state;
+        if (displayedImageChanged && state.DisplayedImage is { } displayed)
+        {
+            _root.ClearPointer();
+            ApplyDisplayedImage(displayed);
+            _toolbarPanel.Show();
+        }
+
+        bool hasImage = state.DisplayedImage is not null;
+        _imagePanel.IsVisible = hasImage;
+        _emptyStatePanel.IsVisible = !hasImage;
+        _toolbarPanel.HasImage = hasImage;
+        _statusPanel.IsVisible = HasStatus;
+        _root.InvalidateVisual();
     }
 
     internal void ApplySettings(AppSettings settings) => _settingsPanel.ApplySettings(settings);
-    internal TimeSpan? NextAnimationFrameDelay => _imagePanel.NextAnimationFrameDelay;
-
-    private void ShowSettings()
-    {
-        _pointerRouter.Cancel();
-        _toolbarPanel.HandlePointer(new UiPointerEvent(UiPointerEventKind.Cancelled, PointF.Empty), SizeF.Empty);
-        _toolbarPanel.ClearFocus();
-        _modalHost.Show(_settingsPanel, _toolbarPanel.FocusSettings);
-    }
 
     internal bool HandleKey(UiKeyEvent input)
     {
-        if (_modalHost.HandleKey(input))
+        if (_modalHost.IsOpen)
         {
+            if (input.Key == UiKey.Escape)
+            {
+                return _modalHost.HandleEscape();
+            }
+
+            _root.HandleKey(input, _settingsPanel, wrapFocus: true, directionalNavigation: true);
             return true;
         }
 
-        return _toolbarPanel.HandleKey(input);
+        return _root.HandleKey(input, _toolbarPanel, wrapFocus: false, directionalNavigation: false);
     }
 
-    internal void SetDpi(float dpi)
-    {
-        _dpi = dpi;
-        _toolbarPanel.SetDpi(dpi);
-        _modalHost.SetDpi(dpi);
-        _settingsPanel.SetDpi(dpi);
-    }
+    internal void SetDpi(float dpi) => _root.SetDpi(dpi);
 
     internal bool Update()
     {
         UiUpdateContext context = _animationClock.GetNextFrame();
-        bool continues = Update(context);
+        bool continues = _root.Update(context);
         if (!continues && NextAnimationFrameDelay is null)
         {
             _animationClock.Reset();
@@ -125,83 +150,44 @@ internal sealed class ViewerUi : IUiElement, IDisposable
         return continues;
     }
 
-    public bool Update(in UiUpdateContext context)
+    internal void DrawFrame(SizeF pixelSize)
     {
-        bool continues = _imagePanel.Update(context);
-        continues |= _modalHost.Update(context);
-        continues |= _toolbarPanel.Update(context);
-
-        return continues;
+        UpdateStatus();
+        var context = new UiDrawContext(_deviceContext, _brush, Palette, _root.Dpi);
+        _root.Draw(context, pixelSize);
     }
 
-    internal void DrawFrame(SizeF size)
+    internal bool HandlePointer(in UiPointerEvent input) => _root.HandlePointer(input);
+
+    protected override SizeF MeasureCore(SizeF availableSize)
     {
-        var context = new UiDrawContext(_deviceContext, _brush, Palette, _dpi);
-        Draw(context, size);
+        _imagePanel.Measure(availableSize);
+        _emptyStatePanel.Measure(availableSize);
+        _statusPanel.Measure(availableSize);
+        _toolbarPanel.Measure(availableSize);
+        _modalHost.Measure(availableSize);
+        return availableSize;
     }
 
-    public void Draw(in UiDrawContext context, SizeF size)
+    protected override void ArrangeCore(SizeF finalSize)
     {
-        bool showStatus = HasStatus;
-        ViewerLayout layout = GetLayout(size);
-        context.DrawElement(GetContentElement(), layout.Content);
-
-        if (showStatus)
-        {
-            string? animationError = _imagePanel.AnimationError is { } exception
-                ? $"Animation stopped: {exception.Message}"
-                : null;
-            _statusPanel.Status = new ViewerStatus(
-                Path.GetFileName(_state.RequestedPath) ?? string.Empty,
-                _state.DisplayedImage?.Image.Width ?? 0,
-                _state.DisplayedImage?.Image.Height ?? 0,
-                _imagePanel.ZoomPercentage,
-                SettingsError ?? animationError ?? _state.Message,
-                SettingsError is not null || animationError is not null || _state.IsError);
-            context.DrawElement(_statusPanel, layout.Status);
-        }
-
-        context.DrawElement(_toolbarPanel, layout.Toolbar);
-        _modalHost.Draw(context, size);
-    }
-
-    public UiPointerResult HandlePointer(in UiPointerEvent input, SizeF size)
-    {
-        if (_modalHost.IsOpen)
-        {
-            return _modalHost.HandlePointer(input, size);
-        }
-
-        if (input.Kind == UiPointerEventKind.Cancelled)
-        {
-            return _pointerRouter.Cancel();
-        }
-
-        ViewerLayout layout = GetLayout(size);
-        if (_pointerRouter.Captured is IUiElement captured)
-        {
-            return _pointerRouter.DispatchCaptured(input, GetBounds(captured, layout));
-        }
-
-        if (input.Kind == UiPointerEventKind.Pressed)
-        {
-            _toolbarPanel.ClearFocus();
-        }
-
-        UiPointerResult result = _pointerRouter.Route(_toolbarPanel, layout.Toolbar, input,
-            observeOutside: input.Kind == UiPointerEventKind.Moved);
-        if (result.Consumed)
-        {
-            return result;
-        }
-
-        UiPointerResult content = _pointerRouter.Route(GetContentElement(), layout.Content, input);
-        return content with { NeedsRepaint = result.NeedsRepaint || content.NeedsRepaint };
+        ViewerLayout layout = ViewerLayout.Calculate(
+            finalSize,
+            Palette.Design,
+            HasStatus,
+            showToolbar: true,
+            toolbarWidthDips: _toolbarPanel.WidthDips);
+        _imagePanel.Arrange(layout.Content);
+        _emptyStatePanel.Arrange(layout.Content);
+        _statusPanel.Arrange(layout.Status);
+        _toolbarPanel.Arrange(layout.Toolbar);
+        _modalHost.Arrange(new RectangleF(PointF.Empty, finalSize));
     }
 
     public void Dispose()
     {
-        _pointerRouter.Cancel();
+        _root.ClearPointer();
+        _root.SetFocus(null);
         _modalHost.Close();
         _settingsPanel.Dispose();
         _toolbarPanel.Dispose();
@@ -211,25 +197,49 @@ internal sealed class ViewerUi : IUiElement, IDisposable
         _brush.Dispose();
     }
 
-    private bool HasStatus => SettingsError is not null || _state.DisplayedImage is not null || _state.Message is not null;
-    private ViewerLayout GetLayout(SizeF size)
+    private bool HasStatus => SettingsError is not null
+        || _state.DisplayedImage is not null
+        || _state.Message is not null;
+
+    private void ShowSettings()
     {
-        return ViewerLayout.Calculate(size, _dpi, HasStatus, showToolbar: true, toolbarWidthDips: _toolbarPanel.WidthDips);
+        _root.ClearPointer();
+        _root.SetFocus(null);
+        _modalHost.Show(_settingsPanel);
+        _root.SetFocus(_settingsPanel.InitialFocus);
     }
 
-    private RectangleF GetBounds(IUiElement element, ViewerLayout layout)
+    private void CloseSettings()
     {
-        if (ReferenceEquals(element, _toolbarPanel))
+        if (!_modalHost.IsOpen)
         {
-            return layout.Toolbar;
+            return;
         }
 
-        return layout.Content;
+        _root.ClearPointer();
+        _root.SetFocus(null);
+        _modalHost.Close();
+        _root.SetFocus(_toolbarPanel.SettingsButton);
+        _toolbarPanel.Show();
     }
 
-    private IUiElement GetContentElement()
+    private void UpdateStatus()
     {
-        return _state.DisplayedImage is not null ? _imagePanel : _emptyStatePanel;
+        if (!HasStatus)
+        {
+            return;
+        }
+
+        string? animationError = _imagePanel.AnimationError is { } exception
+            ? $"Animation stopped: {exception.Message}"
+            : null;
+        _statusPanel.Status = new ViewerStatus(
+            Path.GetFileName(_state.RequestedPath) ?? string.Empty,
+            _state.DisplayedImage?.Image.Width ?? 0,
+            _state.DisplayedImage?.Image.Height ?? 0,
+            _imagePanel.ZoomPercentage,
+            SettingsError ?? animationError ?? _state.Message,
+            SettingsError is not null || animationError is not null || _state.IsError);
     }
 
     private void ApplyDisplayedImage(ImageLoaded displayed)

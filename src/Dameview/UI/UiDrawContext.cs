@@ -49,33 +49,30 @@ internal readonly record struct UiDrawContext
         return _brush;
     }
 
-    internal float PixelsToDips(float pixels)
-    {
-        return UiDpi.PixelsToDips(pixels, Dpi);
-    }
+    internal float PixelsToDips(float pixels) => UiDpi.PixelsToDips(pixels, Dpi);
 
-    internal RectangleF PixelsToDips(RectangleF rectangle)
+    internal void DrawElement(UiElement element)
     {
-        return new RectangleF(
-            PixelsToDips(rectangle.X),
-            PixelsToDips(rectangle.Y),
-            PixelsToDips(rectangle.Width),
-            PixelsToDips(rectangle.Height));
-    }
-
-    internal void DrawElement(IUiElement element, RectangleF bounds)
-    {
-        RectangleF dipBounds = PixelsToDips(bounds);
+        RectangleF bounds = element.Bounds;
+        PointF offset = element.VisualOffset;
         Matrix3x2 previousTransform = RenderTarget.Transform;
-        RenderTarget.Transform = Matrix3x2.CreateTranslation(dipBounds.X, dipBounds.Y)
+        RenderTarget.Transform = Matrix3x2.CreateTranslation(bounds.X + offset.X, bounds.Y + offset.Y)
             * previousTransform;
         RenderTarget.PushAxisAlignedClip(
-            new Rect(0.0f, 0.0f, dipBounds.Width, dipBounds.Height),
+            new Rect(0.0f, 0.0f, bounds.Width, bounds.Height),
             AntialiasMode.Aliased);
 
         try
         {
-            element.Draw(this, bounds.Size);
+            UiDrawContext elementContext = WithOpacity(element.Opacity);
+            element.Draw(elementContext);
+            foreach (UiElement child in element.Children)
+            {
+                if (child.IsVisible)
+                {
+                    elementContext.DrawElement(child);
+                }
+            }
         }
         finally
         {

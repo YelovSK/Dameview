@@ -1,4 +1,3 @@
-using Dameview.Platform;
 using System.Drawing;
 using Dameview.Navigation;
 using Dameview.Settings;
@@ -8,7 +7,7 @@ using Vortice.Mathematics;
 
 namespace Dameview.UI.Panels;
 
-internal sealed class SettingsPanel : IModalContent, IDisposable
+internal sealed class SettingsPanel : ModalContent, IDisposable
 {
     private static readonly (FolderSort First, FolderSort Second)[] Sorts =
     [
@@ -22,41 +21,40 @@ internal sealed class SettingsPanel : IModalContent, IDisposable
     private readonly IDWriteTextFormat _heading;
     private readonly IDWriteTextFormat _text;
     private readonly Action<FolderSort> _setSort;
-    private readonly UiPointerRouter _pointerRouter = new();
-    private int _focus;
     private int _field;
     private bool _second;
-    private float _dpi;
 
     internal SettingsPanel(IDWriteFactory factory, Action close,
-        Action<ThemeMode> setTheme, Action<FolderSort> setSort, float dpi)
+        Action<ThemeMode> setTheme, Action<FolderSort> setSort, UiDesignTokens design)
     {
-        _dpi = dpi;
         _setSort = setSort;
-        _heading = factory.CreateTextFormat("Segoe UI Variable", FontWeight.SemiBold, FontStyle.Normal, 22);
-        _text = factory.CreateTextFormat("Segoe UI Variable", FontWeight.Normal, FontStyle.Normal, 14);
+        _heading = factory.CreateTextFormat(
+            "Segoe UI Variable", FontWeight.SemiBold, FontStyle.Normal, design.HeadingFontSize);
+        _text = factory.CreateTextFormat(
+            "Segoe UI Variable", FontWeight.Normal, FontStyle.Normal, design.BodyFontSize);
         _buttons =
         [
-            new Button(factory, "Close", close),
-            new Button(factory, "Dark", () => setTheme(ThemeMode.Dark)),
-            new Button(factory, "Light", () => setTheme(ThemeMode.Light)),
-            new Button(factory, "Name", () => SelectSort(0, _second)),
-            new Button(factory, "Modified", () => SelectSort(1, _second)),
-            new Button(factory, "Created", () => SelectSort(2, _second)),
-            new Button(factory, "Size", () => SelectSort(3, _second)),
-            new Button(factory, "A–Z", () => SelectSort(_field, false)),
-            new Button(factory, "Z–A", () => SelectSort(_field, true)),
+            new Button(factory, "Close", close, design),
+            new Button(factory, "Dark", () => setTheme(ThemeMode.Dark), design),
+            new Button(factory, "Light", () => setTheme(ThemeMode.Light), design),
+            new Button(factory, "Name", () => SelectSort(0, _second), design),
+            new Button(factory, "Modified", () => SelectSort(1, _second), design),
+            new Button(factory, "Created", () => SelectSort(2, _second), design),
+            new Button(factory, "Size", () => SelectSort(3, _second), design),
+            new Button(factory, "A–Z", () => SelectSort(_field, false), design),
+            new Button(factory, "Z–A", () => SelectSort(_field, true), design),
         ];
+        foreach (Button button in _buttons)
+        {
+            AddChild(button);
+        }
+
         ApplySettings(new AppSettings());
     }
 
-    public SizeF PreferredSize => new(440, 460);
+    internal override SizeF PreferredSize => new(440, 460);
+    internal override UiElement InitialFocus => _buttons[1];
     internal string? Error { get; set; }
-
-    internal void SetDpi(float dpi)
-    {
-        _dpi = dpi;
-    }
 
     internal void ApplySettings(AppSettings settings)
     {
@@ -79,102 +77,38 @@ internal sealed class SettingsPanel : IModalContent, IDisposable
         };
     }
 
-    public void Focus() => SetFocus(1);
-
-    public void HandleKey(UiKeyEvent input)
+    protected override SizeF MeasureCore(SizeF availableSize)
     {
-        switch (input.Key)
-        {
-            case UiKey.Tab:
-                SetFocus((_focus + (input.Shift ? _buttons.Length - 1 : 1)) % _buttons.Length);
-                break;
-            case UiKey.Left:
-            case UiKey.Up:
-                SetFocus((_focus + _buttons.Length - 1) % _buttons.Length);
-                break;
-            case UiKey.Right:
-            case UiKey.Down:
-                SetFocus((_focus + 1) % _buttons.Length);
-                break;
-            case UiKey.Space:
-            case UiKey.Enter:
-                _buttons[_focus].Activate();
-                break;
-        }
-    }
-
-    public RectangleF GetFocusBounds(SizeF size) => GetButtonBounds(_focus, size);
-
-    public bool Update(in UiUpdateContext context)
-    {
-        bool continues = false;
         foreach (Button button in _buttons)
         {
-            continues |= button.Update(context);
+            button.Measure(new SizeF(availableSize.Width, 36.0f));
         }
 
-        return continues;
+        return PreferredSize;
     }
 
-    public void Draw(in UiDrawContext context, SizeF size)
+    protected override void ArrangeCore(SizeF finalSize)
     {
-        float width = context.PixelsToDips(size.Width);
+        for (int index = 0; index < _buttons.Length; index++)
+        {
+            _buttons[index].Arrange(GetButtonBounds(index, finalSize));
+        }
+    }
+
+    protected override void DrawCore(in UiDrawContext context)
+    {
+        float width = Bounds.Width;
         context.DrawText("Settings", _heading, new Rect(24, 22, MathF.Max(0, width - 140), 36), context.Palette.PrimaryText);
         context.DrawText("Theme", _text, new Rect(24, 80, width - 48, 24), context.Palette.SecondaryText);
         context.DrawText("Sort by", _text, new Rect(24, 164, width - 48, 24), context.Palette.SecondaryText);
         context.DrawText("Direction", _text, new Rect(24, 292, width - 48, 24), context.Palette.SecondaryText);
-        for (int index = 0; index < _buttons.Length; index++)
-        {
-            context.DrawElement(_buttons[index], GetButtonBounds(index, size));
-        }
-
         context.DrawText(Error ?? "Changes are saved automatically.", _text,
             new Rect(24, 376, MathF.Max(0, width - 48), 72),
             Error is null ? context.Palette.SecondaryText : context.Palette.ErrorText);
     }
 
-    public UiPointerResult HandlePointer(in UiPointerEvent input, SizeF size)
-    {
-        if (input.Kind == UiPointerEventKind.Cancelled)
-        {
-            _pointerRouter.Cancel();
-            foreach (Button button in _buttons)
-            {
-                button.HandlePointer(input, SizeF.Empty);
-            }
-
-            return new UiPointerResult(NeedsRepaint: true);
-        }
-
-        if (_pointerRouter.Captured is { } captured)
-        {
-            return _pointerRouter.DispatchCaptured(input, GetButtonBounds(Array.IndexOf(_buttons, captured), size));
-        }
-
-        bool repaint = false;
-        for (int index = 0; index < _buttons.Length; index++)
-        {
-            RectangleF bounds = GetButtonBounds(index, size);
-            if (input.Kind == UiPointerEventKind.Pressed && bounds.Contains(input.Position))
-            {
-                SetFocus(index);
-            }
-
-            UiPointerResult result = _pointerRouter.Route(_buttons[index], bounds, input,
-                observeOutside: input.Kind == UiPointerEventKind.Moved);
-            repaint |= result.NeedsRepaint;
-            if (result.Consumed && input.Kind != UiPointerEventKind.Moved)
-            {
-                return result with { NeedsRepaint = repaint };
-            }
-        }
-
-        return new UiPointerResult(Consumed: true, NeedsRepaint: repaint);
-    }
-
     public void Dispose()
     {
-        _pointerRouter.Cancel();
         foreach (Button button in _buttons)
         {
             button.Dispose();
@@ -186,20 +120,12 @@ internal sealed class SettingsPanel : IModalContent, IDisposable
 
     private void SelectSort(int field, bool second) => _setSort(second ? Sorts[field].Second : Sorts[field].First);
 
-    private void SetFocus(int index)
+    private static RectangleF GetButtonBounds(int index, SizeF size)
     {
-        _buttons[_focus].IsFocused = false;
-        _focus = index;
-        _buttons[_focus].IsFocused = true;
-    }
-
-    private RectangleF GetButtonBounds(int index, SizeF size)
-    {
-        float scale = UiDpi.GetScale(_dpi);
-        float width = size.Width / scale;
+        float width = size.Width;
         if (index == 0)
         {
-            return new RectangleF(MathF.Max(0, width - 96) * scale, 22 * scale, 72 * scale, 36 * scale);
+            return new RectangleF(MathF.Max(0, width - 96), 22, 72, 36);
         }
 
         int column = (index - 1) % 2;
@@ -211,6 +137,6 @@ internal sealed class SettingsPanel : IModalContent, IDisposable
             _ => 320,
         };
         float buttonWidth = MathF.Max(0, (width - 56) / 2);
-        return new RectangleF((24 + column * (buttonWidth + 8)) * scale, y * scale, buttonWidth * scale, 36 * scale);
+        return new RectangleF(24 + column * (buttonWidth + 8), y, buttonWidth, 36);
     }
 }

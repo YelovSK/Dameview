@@ -7,24 +7,18 @@ internal readonly record struct ViewerLayout(
     RectangleF Status,
     RectangleF Toolbar)
 {
-    private const float StatusMarginDips = 12.0f;
-    private const float StatusHeightDips = 42.0f;
-    private const float ToolbarHeightDips = 46.0f;
-    private const float PanelGapDips = 8.0f;
-
     internal static ViewerLayout Calculate(
         SizeF size,
-        float dpi,
+        UiDesignTokens design,
         bool showStatus,
         bool showToolbar,
         float toolbarWidthDips = 332.0f)
     {
         var content = new RectangleF(0.0f, 0.0f, size.Width, size.Height);
-        float scale = UiDpi.GetScale(dpi);
-        float margin = StatusMarginDips * scale;
+        float margin = design.WindowMargin;
         float availableWidth = MathF.Max(0.0f, size.Width - (2.0f * margin));
         float availableHeight = MathF.Max(0.0f, size.Height - (2.0f * margin));
-        float statusHeight = MathF.Min(StatusHeightDips * scale, availableHeight);
+        float statusHeight = MathF.Min(design.StatusHeight, availableHeight);
         RectangleF status = showStatus ? new RectangleF(
             margin,
             MathF.Max(margin, size.Height - statusHeight - margin),
@@ -34,10 +28,10 @@ internal readonly record struct ViewerLayout(
         RectangleF toolbar = RectangleF.Empty;
         if (showToolbar)
         {
-            float bottom = showStatus ? status.Y - PanelGapDips * scale : size.Height - margin;
-            float toolbarWidth = MathF.Min(toolbarWidthDips * scale, availableWidth);
+            float bottom = showStatus ? status.Y - design.PanelGap : size.Height - margin;
+            float toolbarWidth = MathF.Min(toolbarWidthDips, availableWidth);
             float availableToolbarHeight = MathF.Max(0.0f, bottom - margin);
-            float toolbarHeight = MathF.Min(ToolbarHeightDips * scale, availableToolbarHeight);
+            float toolbarHeight = MathF.Min(design.ToolbarHeight, availableToolbarHeight);
             toolbar = new RectangleF(
                 (size.Width - toolbarWidth) / 2.0f,
                 MathF.Max(margin, bottom - toolbarHeight),

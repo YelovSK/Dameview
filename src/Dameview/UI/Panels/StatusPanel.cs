@@ -1,4 +1,3 @@
-using Dameview.Platform;
 using System.Drawing;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
@@ -6,7 +5,7 @@ using Vortice.Mathematics;
 
 namespace Dameview.UI.Panels;
 
-internal sealed class StatusPanel : IUiElement, IDisposable
+internal sealed class StatusPanel : UiElement, IDisposable
 {
     private const float HorizontalPadding = 14.0f;
 
@@ -22,10 +21,12 @@ internal sealed class StatusPanel : IUiElement, IDisposable
 
     internal ViewerStatus Status { get; set; }
 
-    public void Draw(in UiDrawContext context, SizeF size)
+    internal override bool IsHitTestVisible => false;
+
+    protected override void DrawCore(in UiDrawContext context)
     {
-        float width = context.PixelsToDips(size.Width);
-        float height = context.PixelsToDips(size.Height);
+        float width = Bounds.Width;
+        float height = Bounds.Height;
         if (width <= 0.0f || height <= 0.0f)
         {
             return;
@@ -76,11 +77,6 @@ internal sealed class StatusPanel : IUiElement, IDisposable
                 content.Height),
             context.Palette.SecondaryText,
             DrawTextOptions.Clip);
-    }
-
-    public UiPointerResult HandlePointer(in UiPointerEvent input, SizeF size)
-    {
-        return default;
     }
 
     public void Dispose()

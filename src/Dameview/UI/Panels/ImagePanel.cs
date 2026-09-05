@@ -9,7 +9,7 @@ using Vortice.Mathematics;
 
 namespace Dameview.UI.Panels;
 
-internal sealed class ImagePanel : IUiElement, IDisposable
+internal sealed class ImagePanel : UiElement, IDisposable
 {
     private readonly ID2D1DeviceContext _deviceContext;
     private readonly ImageViewport _viewport;
@@ -75,7 +75,7 @@ internal sealed class ImagePanel : IUiElement, IDisposable
         _imageAnimation = new AnimatedImagePlayer(animation, _timeProvider);
     }
 
-    public bool Update(in UiUpdateContext context)
+    protected override bool UpdateCore(in UiUpdateContext context)
     {
         bool continues = _animator.Update(context.ElapsedSeconds);
         if (_imageAnimation is { } animation)
@@ -104,7 +104,7 @@ internal sealed class ImagePanel : IUiElement, IDisposable
         }
     }
 
-    public void Draw(in UiDrawContext context, SizeF size)
+    protected override void DrawCore(in UiDrawContext context)
     {
         if (_image is null)
         {
@@ -114,26 +114,33 @@ internal sealed class ImagePanel : IUiElement, IDisposable
         RectangleF destination = _viewport.GetDestinationRectangle();
         if (_isPreview)
         {
-            float scale = MathF.Min(size.Width / _image.PixelSize.Width, size.Height / _image.PixelSize.Height);
+            float scale = MathF.Min(Bounds.Width / _image.PixelSize.Width, Bounds.Height / _image.PixelSize.Height);
             float width = _image.PixelSize.Width * scale;
             float height = _image.PixelSize.Height * scale;
-            destination = new RectangleF((size.Width - width) / 2, (size.Height - height) / 2, width, height);
+            destination = new RectangleF((Bounds.Width - width) / 2, (Bounds.Height - height) / 2, width, height);
         }
-        RectangleF destinationInDips = context.PixelsToDips(destination);
+        else
+        {
+            destination = new RectangleF(
+                context.PixelsToDips(destination.X),
+                context.PixelsToDips(destination.Y),
+                context.PixelsToDips(destination.Width),
+                context.PixelsToDips(destination.Height));
+        }
 
         context.RenderTarget.DrawBitmap(
             _image,
             new Rect(
-                destinationInDips.X,
-                destinationInDips.Y,
-                destinationInDips.Width,
-                destinationInDips.Height),
+                destination.X,
+                destination.Y,
+                destination.Width,
+                destination.Height),
             context.Opacity,
             BitmapInterpolationMode.Linear,
             new Rect(0.0f, 0.0f, _image.PixelSize.Width, _image.PixelSize.Height));
     }
 
-    public UiPointerResult HandlePointer(in UiPointerEvent input, SizeF size)
+    internal override UiPointerResult OnPointerEvent(in UiPointerEvent input)
     {
         if (_isPreview)
         {
@@ -144,11 +151,11 @@ internal sealed class ImagePanel : IUiElement, IDisposable
         {
             case UiPointerEventKind.Pressed when input.Button == PointerButton.Primary:
                 _isPanning = true;
-                _animator.BeginPan(input.Position.X, input.Position.Y);
+                _animator.BeginPan(ToPixels(input.Position.X), ToPixels(input.Position.Y));
                 return new UiPointerResult(Consumed: true, CapturePointer: true);
 
             case UiPointerEventKind.Moved when _isPanning:
-                _animator.PanTo(input.Position.X, input.Position.Y);
+                _animator.PanTo(ToPixels(input.Position.X), ToPixels(input.Position.Y));
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
             case UiPointerEventKind.Released when _isPanning:
@@ -163,11 +170,11 @@ internal sealed class ImagePanel : IUiElement, IDisposable
 
             case UiPointerEventKind.DoubleClicked when input.Button == PointerButton.Primary:
                 _isPanning = false;
-                _animator.ToggleFitAndActualSizeAt(input.Position.X, input.Position.Y);
+                _animator.ToggleFitAndActualSizeAt(ToPixels(input.Position.X), ToPixels(input.Position.Y));
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
             case UiPointerEventKind.Wheel:
-                _animator.ZoomAt(input.Position.X, input.Position.Y, input.WheelDelta);
+                _animator.ZoomAt(ToPixels(input.Position.X), ToPixels(input.Position.Y), input.WheelDelta);
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
             default:
@@ -180,4 +187,6 @@ internal sealed class ImagePanel : IUiElement, IDisposable
         _imageAnimation = null;
         _image?.Dispose();
     }
+
+    private float ToPixels(float value) => Root?.DipsToPixels(value) ?? value;
 }

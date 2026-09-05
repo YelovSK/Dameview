@@ -1,4 +1,3 @@
-using Dameview.Platform;
 using System.Drawing;
 using Dameview.UI;
 using Vortice.Direct2D1;
@@ -53,6 +52,7 @@ public sealed class UiDrawContextTests
         target.SetDpi(96, 96);
         using ID2D1SolidColorBrush brush = target.CreateSolidColorBrush(default(Color4));
         var element = new PaletteElement();
+        element.Arrange(new RectangleF(0, 0, 10, 10));
         var red = UiTheme.Default with { PrimaryText = new Color4(1, 0, 0, 1) };
         var green = UiTheme.Default with { PrimaryText = new Color4(0, 1, 0, 1) };
         foreach (UiTheme palette in new[] { red, green })
@@ -60,7 +60,7 @@ public sealed class UiDrawContextTests
             var context = new UiDrawContext(target, brush, palette, 96);
             target.BeginDraw();
             target.Clear(default(Color4));
-            context.DrawElement(element, new RectangleF(0, 0, 10, 10));
+            context.DrawElement(element);
             target.EndDraw().CheckError();
             byte[] pixels = new byte[40 * 10 * 4];
             bitmap.CopyPixels(40 * 4, pixels);
@@ -84,16 +84,11 @@ public sealed class UiDrawContextTests
         }
     }
 
-    private sealed class PaletteElement : IUiElement
+    private sealed class PaletteElement : UiElement
     {
-        public void Draw(in UiDrawContext context, SizeF size)
+        protected override void DrawCore(in UiDrawContext context)
         {
             context.FillRoundedRectangle(Block(0), context.Palette.PrimaryText);
-        }
-
-        public UiPointerResult HandlePointer(in UiPointerEvent input, SizeF size)
-        {
-            return default;
         }
     }
 }
