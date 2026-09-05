@@ -27,6 +27,8 @@ internal sealed class FolderNavigator
 
     internal FolderSort Sort { get; private set; }
 
+    internal FolderEntry[] GetFiles() => [.. _files];
+
     internal string? GetNextPath()
     {
         return GetRelativePath(1);

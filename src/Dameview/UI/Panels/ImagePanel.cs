@@ -2,9 +2,7 @@ using Dameview.Platform;
 using System.Drawing;
 using Dameview.Imaging;
 using Dameview.Viewing;
-using Vortice.DCommon;
 using Vortice.Direct2D1;
-using Vortice.DXGI;
 using Vortice.Mathematics;
 
 namespace Dameview.UI.Panels;
@@ -19,6 +17,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
     private AnimatedImagePlayer? _imageAnimation;
     private bool _isPanning;
     private bool _isPreview;
+    private System.Drawing.Size _viewportPixelSize;
 
     internal ImagePanel(
         ID2D1DeviceContext deviceContext,
@@ -43,28 +42,27 @@ internal sealed class ImagePanel : UiElement, IDisposable
         _isPreview = isPreview;
     }
 
-    private unsafe void SetBitmap(DecodedImage image)
+    private void SetBitmap(DecodedImage image)
     {
-        BitmapProperties1 properties = new(
-            new PixelFormat(
-                Format.B8G8R8A8_UNorm,
-                Vortice.DCommon.AlphaMode.Premultiplied),
-            UiDpi.Default,
-            UiDpi.Default,
-            BitmapOptions.None);
-
-        ID2D1Bitmap1 newImage;
-        fixed (byte* pixels = image.Pixels)
-        {
-            newImage = _deviceContext.CreateBitmap(
-                new SizeI(image.Width, image.Height),
-                (nint)pixels,
-                (uint)image.Stride,
-                properties);
-        }
+        ID2D1Bitmap1 newImage = D2DBitmapFactory.Create(_deviceContext, image);
 
         _image?.Dispose();
         _image = newImage;
+    }
+
+    protected override void ArrangeCore(SizeF finalSize)
+    {
+        var pixelSize = new System.Drawing.Size(
+            Math.Max(0, (int)MathF.Round(ToPixels(finalSize.Width))),
+            Math.Max(0, (int)MathF.Round(ToPixels(finalSize.Height))));
+        if (pixelSize == _viewportPixelSize)
+        {
+            return;
+        }
+
+        _viewportPixelSize = pixelSize;
+        _animator.Reset();
+        _viewport.SetViewportSize(pixelSize.Width, pixelSize.Height);
     }
 
     internal void SetAnimation(IAnimationSession animation)

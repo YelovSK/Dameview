@@ -23,6 +23,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private readonly Overlay _contentOverlay;
     private readonly StatusPanel _statusPanel;
     private readonly ToolbarPanel _toolbarPanel;
+    private readonly GalleryPanel _galleryPanel;
     private readonly SettingsPanel _settingsPanel;
     private readonly ModalHost _modalHost;
     private readonly PopupHost _popupHost;
@@ -37,6 +38,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         float dpi,
         UiTheme theme,
         IViewerCommands commands,
+        IThumbnailLoader thumbnailLoader,
         Action<ThemeMode> setTheme,
         Action<FolderSort> setSort,
         TimeProvider? timeProvider = null)
@@ -51,6 +53,12 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _contentOverlay = new Overlay(_imagePanel, _emptyStatePanel);
         _statusPanel = new StatusPanel(directWriteFactory);
         _toolbarPanel = new ToolbarPanel(directWriteFactory, commands, theme.Design, ShowSettings);
+        _galleryPanel = new GalleryPanel(
+            deviceContext,
+            directWriteFactory,
+            thumbnailLoader,
+            commands.OpenImage,
+            theme.Design);
         _modalHost = new ModalHost(CloseSettings);
         _popupHost = new PopupHost();
         _settingsPanel = new SettingsPanel(
@@ -62,6 +70,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
             theme.Design);
 
         AddChild(_contentOverlay);
+        AddChild(_galleryPanel);
         AddChild(_statusPanel);
         AddChild(_toolbarPanel);
         AddChild(_modalHost);
@@ -73,6 +82,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _emptyStatePanel.IsVisible = !hasImage;
         _toolbarPanel.HasImage = hasImage;
         _statusPanel.IsVisible = HasStatus;
+        _galleryPanel.IsVisible = _state.FolderEntries.Length > 0;
+        _galleryPanel.ApplyState(_state.FolderEntries, _state.RequestedPath);
         if (_state.DisplayedImage is { } displayed)
         {
             ApplyDisplayedImage(displayed);
@@ -121,6 +132,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _emptyStatePanel.IsVisible = !hasImage;
         _toolbarPanel.HasImage = hasImage;
         _statusPanel.IsVisible = HasStatus;
+        _galleryPanel.IsVisible = state.FolderEntries.Length > 0;
+        _galleryPanel.ApplyState(state.FolderEntries, state.RequestedPath);
         _root.InvalidateVisual();
     }
 
@@ -183,6 +196,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _contentOverlay.Measure(availableSize);
         _statusPanel.Measure(availableSize);
         _toolbarPanel.Measure(availableSize);
+        _galleryPanel.Measure(availableSize);
         _modalHost.Measure(availableSize);
         _popupHost.Measure(availableSize);
         return availableSize;
@@ -195,8 +209,11 @@ internal sealed class ViewerUi : UiElement, IDisposable
             Palette.Design,
             HasStatus,
             showToolbar: true,
-            toolbarWidthDips: _toolbarPanel.WidthDips);
+            toolbarWidthDips: _toolbarPanel.WidthDips,
+            showGallery: _galleryPanel.IsVisible,
+            galleryWidthDips: GalleryPanel.DefaultWidthDips);
         _contentOverlay.Arrange(layout.Content);
+        _galleryPanel.Arrange(layout.Gallery);
         _statusPanel.Arrange(layout.Status);
         _toolbarPanel.Arrange(layout.Toolbar);
         _modalHost.Arrange(new RectangleF(PointF.Empty, finalSize));
@@ -211,6 +228,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _popupHost.Close();
         _settingsPanel.Dispose();
         _toolbarPanel.Dispose();
+        _galleryPanel.Dispose();
         _statusPanel.Dispose();
         _emptyStatePanel.Dispose();
         _imagePanel.Dispose();

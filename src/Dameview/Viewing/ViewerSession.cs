@@ -22,30 +22,31 @@ internal sealed class ViewerSession : IDisposable
         FolderNavigator folderNavigator,
         IImageLoader imageLoader,
         IFolderScanner folderScanner,
-        Action<Action> postToUi,
-        int width,
-        int height)
+        Action<Action> postToUi)
     {
         _folderNavigator = folderNavigator;
         _imageLoader = imageLoader;
         _folderScanner = folderScanner;
         _postToUi = postToUi;
-        Viewport = new ImageViewport(width, height);
+        Viewport = new ImageViewport(0, 0);
         Animator = new ViewportAnimator(Viewport);
     }
 
     internal event Action? StateChanged;
-    internal ViewerSessionState State { get; private set; } = new(null, null, false, null, false);
+    internal ViewerSessionState State { get; private set; } = new(null, null, false, null, false, []);
     internal ImageViewport Viewport { get; }
     internal ViewportAnimator Animator { get; }
 
     internal void SetSort(FolderSort sort)
     {
         _folderNavigator.SetSort(sort);
+        State = State with { FolderEntries = _folderNavigator.GetFiles() };
         if (!State.IsLoading && !State.IsError)
         {
             ApplyNavigationResult(navigationDirection: 0);
         }
+
+        StateChanged?.Invoke();
     }
 
     internal void ShowPreviousImage()
@@ -56,12 +57,6 @@ internal sealed class ViewerSession : IDisposable
     internal void ShowNextImage()
     {
         OpenNavigatedImage(_folderNavigator.MoveToNextPath(), direction: 1);
-    }
-
-    internal void SetViewportSize(int width, int height)
-    {
-        Animator.Reset();
-        Viewport.SetViewportSize(width, height);
     }
 
     internal void OpenImage(string path)
@@ -86,12 +81,28 @@ internal sealed class ViewerSession : IDisposable
             _navigationError = exception.Message;
         }
 
-        State = State with { IsScanningFolder = directoryPath is not null };
+        State = State with
+        {
+            IsScanningFolder = directoryPath is not null,
+            FolderEntries = [],
+        };
         BeginImageLoad(loadPath, navigationDirection: 0);
         if (directoryPath is not null)
         {
             _ = ScanFolderAsync(directoryPath, loadPath, _folderScan.Token);
         }
+    }
+
+    internal void SelectImage(string path)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (string.Equals(path, State.RequestedPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _folderNavigator.SetCurrent(path);
+        BeginImageLoad(path, navigationDirection: 0);
     }
 
     public void Dispose()
@@ -144,7 +155,11 @@ internal sealed class ViewerSession : IDisposable
                 _folderNavigator.SetFiles(files, currentPath);
             }
 
-            State = State with { IsScanningFolder = false };
+            State = State with
+            {
+                IsScanningFolder = false,
+                FolderEntries = error is null ? _folderNavigator.GetFiles() : [],
+            };
             if (!State.IsLoading && !State.IsError)
             {
                 ApplyNavigationResult(navigationDirection: 0);
@@ -239,7 +254,14 @@ internal sealed class ViewerSession : IDisposable
                     previousAnimation = ReplaceAnimation(loaded.Animation);
                     Animator.Reset();
                     Viewport.SetImageSize(loaded.Image.Width, loaded.Image.Height);
-                    State = new ViewerSessionState(loaded.Path, loaded, false, null, false, State.IsScanningFolder);
+                    State = new ViewerSessionState(
+                        loaded.Path,
+                        loaded,
+                        false,
+                        null,
+                        false,
+                        State.FolderEntries,
+                        State.IsScanningFolder);
                     ApplyNavigationResult(navigationDirection);
 
                     break;
@@ -279,4 +301,5 @@ internal sealed record ViewerSessionState(
     bool IsLoading,
     string? Message,
     bool IsError,
+    FolderEntry[] FolderEntries,
     bool IsScanningFolder = false);

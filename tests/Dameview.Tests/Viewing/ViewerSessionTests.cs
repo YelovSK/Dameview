@@ -22,9 +22,32 @@ public sealed class ViewerSessionTests
         Assert.AreSame(displayed, session.State.DisplayedImage);
         Assert.AreEqual(center, session.Viewport.Center);
         Assert.AreEqual(ViewportMode.ActualSize, session.Viewport.Mode);
+        CollectionAssert.AreEqual(
+            new[] { files.Third, files.Second, files.First },
+            session.State.FolderEntries.Select(entry => entry.FullName).ToArray());
         CollectionAssert.AreEqual(new[] { files.Third, files.Second }, loader.Preloads);
         session.ShowNextImage();
         Assert.AreEqual(files.Third, session.State.RequestedPath);
+    }
+
+    [TestMethod]
+    public void GallerySelectionUsesTheExistingFolderAndUpdatesNavigationPosition()
+    {
+        using var files = new SessionFiles();
+        var loader = new ManualImageLoader();
+        var scanner = new ImmediateScanner();
+        using var session = new ViewerSession(
+            new FolderNavigator(), loader, scanner, action => action());
+        session.Viewport.SetViewportSize(800, 600);
+        session.OpenImage(files.First);
+        loader.Complete(CreateImage());
+
+        session.SelectImage(files.Third);
+        Assert.AreEqual(1, scanner.ScanCount);
+        Assert.AreEqual(files.Third, session.State.RequestedPath);
+        loader.Complete(CreateImage());
+        session.ShowNextImage();
+        Assert.AreEqual(files.First, session.State.RequestedPath);
     }
 
     [TestMethod]
@@ -180,13 +203,19 @@ public sealed class ViewerSessionTests
 
     private static ViewerSession CreateSession(ManualImageLoader loader)
     {
-        return new ViewerSession(new FolderNavigator(), loader, new ImmediateScanner(), action => action(), 800, 600);
+        var session = new ViewerSession(
+            new FolderNavigator(), loader, new ImmediateScanner(), action => action());
+        session.Viewport.SetViewportSize(800, 600);
+        return session;
     }
 
     private sealed class ImmediateScanner : IFolderScanner
     {
+        internal int ScanCount { get; private set; }
+
         public Task<FolderEntry[]> ScanAsync(string directoryPath, CancellationToken cancellationToken)
         {
+            ScanCount++;
             try
             {
                 return Task.FromResult(new DirectoryInfo(directoryPath).GetFiles()

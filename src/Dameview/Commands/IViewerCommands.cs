@@ -9,4 +9,6 @@ internal interface IViewerCommands
     public void FitImage();
 
     public void ShowActualSize();
+
+    public void OpenImage(string path);
 }

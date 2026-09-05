@@ -15,6 +15,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
     private readonly AppWindow _window;
     private readonly D2DRenderer _renderer;
     private readonly ViewerUi _ui;
+    private readonly ThumbnailCoordinator _thumbnailCoordinator;
     private readonly ImageLoadCoordinator _imageLoadCoordinator;
     private readonly ViewerSession _session;
     private readonly SettingsService _settings;
@@ -32,18 +33,19 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
             _window.ClientWidth,
             _window.ClientHeight,
             _window.Dpi);
+        var imageBackend = new WindowsImageLoadingBackend();
+        _thumbnailCoordinator = new ThumbnailCoordinator(_window.Post, imageBackend.LoadThumbnail);
         _imageLoadCoordinator = new ImageLoadCoordinator(
             _window.Post,
-            new WindowsImageLoadingBackend());
+            imageBackend,
+            thumbnailLoader: _thumbnailCoordinator);
         using var imageDecoder = new ImageDecoder();
         HashSet<string> extensions = imageDecoder.GetProbablySupportedExtensions();
         _session = new ViewerSession(
             new FolderNavigator(),
             _imageLoadCoordinator,
             new FolderScanner(path => extensions.Contains(Path.GetExtension(path))),
-            _window.Post,
-            _window.ClientWidth,
-            _window.ClientHeight);
+            _window.Post);
         _settings = new SettingsService(SettingsService.DefaultPath, _window.Post);
         _ui = new ViewerUi(
             _renderer.DeviceContext,
@@ -52,6 +54,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
             _window.Dpi,
             UiTheme.Default,
             this,
+            _thumbnailCoordinator,
             theme => _settings!.Update(_settings.Current with { Theme = theme }),
             sort => _settings!.Update(_settings.Current with { Sort = sort }));
         _ui.Invalidated += _window.RequestRepaint;
@@ -94,6 +97,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         _ui.Dispose();
         _session.Dispose();
         _imageLoadCoordinator.Dispose();
+        _thumbnailCoordinator.Dispose();
         _renderer.Dispose();
         _window.Dispose();
     }
@@ -127,6 +131,11 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
     public void ShowActualSize()
     {
         ShowActualSize(_session!.Viewport.ViewportCenter);
+    }
+
+    public void OpenImage(string path)
+    {
+        _session.SelectImage(path);
     }
 
     private void HandleKeyPress(UiKeyEvent input)
@@ -200,7 +209,6 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
     private void HandleResize(int width, int height)
     {
-        _session.SetViewportSize(width, height);
         _renderer.Resize(width, height);
         _window.RequestRepaint();
     }

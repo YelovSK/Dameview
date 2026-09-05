@@ -16,7 +16,9 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
     private readonly Queue<string> _pendingPreloads = new();
     private readonly Dictionary<string, TaskCompletionSource<DecodedImage>> _inFlightDecodes =
         new(StringComparer.OrdinalIgnoreCase);
-    private LoadRequest? _pendingThumbnail;
+    private readonly IThumbnailLoader _thumbnailLoader;
+    private readonly ThumbnailCoordinator? _ownedThumbnailLoader;
+    private IDisposable? _previewRequest;
     private long _completedRequestId;
     private LoadRequest? _pendingRequest;
     private long _latestRequestId;
@@ -25,43 +27,62 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
     internal ImageLoadCoordinator(
         Action<Action> postToUi,
         IImageLoadingBackend backend,
-        long cacheCapacityBytes = DefaultCacheCapacityBytes)
+        long cacheCapacityBytes = DefaultCacheCapacityBytes,
+        IThumbnailLoader? thumbnailLoader = null)
     {
         _postToUi = postToUi;
         _backend = backend;
         _cache = new DecodedImageCache(cacheCapacityBytes);
+        _ownedThumbnailLoader = thumbnailLoader is null
+            ? new ThumbnailCoordinator(postToUi, backend.LoadThumbnail)
+            : null;
+        _thumbnailLoader = thumbnailLoader ?? _ownedThumbnailLoader!;
         _foregroundWorker = CreateWorker("Dameview image loader", ForegroundWork);
         _preloadWorker = CreateWorker("Dameview image preloader", PreloadWork);
         _foregroundWorker.Start();
         _preloadWorker.Start();
-        new Thread(ThumbnailWork) { IsBackground = true, Name = "Dameview thumbnails" }.Start();
     }
 
     public void Load(string path, Action<ImageLoadResult> completed)
     {
         LoadRequest request;
+        IDisposable? previousPreview;
         lock (_sync)
         {
             ObjectDisposedException.ThrowIf(_stopping, this);
             request = new LoadRequest(++_latestRequestId, path, completed);
             _pendingRequest = null;
-            _pendingThumbnail = null;
+            previousPreview = _previewRequest;
+            _previewRequest = null;
         }
+        previousPreview?.Dispose();
 
-        if (!_backend.SupportsAnimation(path) && _cache.TryGet(path, out DecodedImage? cachedImage))
+        bool supportsAnimation = _backend.SupportsAnimation(path);
+        if (!supportsAnimation && _cache.TryGet(path, out DecodedImage? cachedImage))
         {
             var result = new ImageLoaded(path, cachedImage);
             _postToUi(() => Deliver(request, result));
             return;
         }
 
+        IDisposable? previewRequest = supportsAnimation
+            ? null
+            : _thumbnailLoader.Request(
+                path,
+                ThumbnailPriority.Foreground,
+                image => Deliver(request, new ImageLoaded(request.Path, image, IsPreview: true)));
+
         lock (_sync)
         {
             if (!_stopping && request.Id == _latestRequestId)
             {
                 _pendingRequest = request;
-                _pendingThumbnail = _backend.SupportsAnimation(path) ? null : request;
+                _previewRequest = previewRequest;
                 Monitor.PulseAll(_sync);
+            }
+            else
+            {
+                previewRequest?.Dispose();
             }
         }
     }
@@ -88,6 +109,7 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
 
     public void Dispose()
     {
+        IDisposable? previewRequest;
         lock (_sync)
         {
             if (_stopping)
@@ -96,55 +118,15 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
             }
 
             _stopping = true;
-            _pendingThumbnail = null;
+            previewRequest = _previewRequest;
+            _previewRequest = null;
             _pendingRequest = null;
             _pendingPreloads.Clear();
             _latestRequestId++;
             Monitor.PulseAll(_sync);
         }
-    }
-
-    private void ThumbnailWork()
-    {
-        NativeMethods.InitializeComApartment(ComApartment.MultiThreaded);
-        try
-        {
-            while (true)
-            {
-                LoadRequest request;
-                lock (_sync)
-                {
-                    while (!_stopping && _pendingThumbnail is null)
-                    {
-                        Monitor.Wait(_sync);
-                    }
-
-                    if (_stopping)
-                    {
-                        return;
-                    }
-
-                    request = _pendingThumbnail!;
-                    _pendingThumbnail = null;
-                }
-
-                try
-                {
-                    if (IsLatest(request.Id) && _backend.LoadThumbnail(request.Path) is { } image)
-                    {
-                        _postToUi(() => Deliver(request, new ImageLoaded(request.Path, image, IsPreview: true)));
-                    }
-                }
-                catch (Exception)
-                {
-                    // A missing or broken thumbnail must not affect the full decode.
-                }
-            }
-        }
-        finally
-        {
-            NativeMethods.UninitializeComApartment();
-        }
+        previewRequest?.Dispose();
+        _ownedThumbnailLoader?.Dispose();
     }
 
     private Thread CreateWorker(string name, Action<IImageDecoder?, Exception?> work)

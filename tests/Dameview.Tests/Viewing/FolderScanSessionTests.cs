@@ -126,7 +126,7 @@ public sealed class FolderScanSessionTests
 
         internal Fixture()
         {
-            Session = new ViewerSession(new FolderNavigator(), Loader, Scanner, _posts.Add, 800, 600);
+            Session = new ViewerSession(new FolderNavigator(), Loader, Scanner, _posts.Add);
         }
 
         internal Action TakeScan()
