@@ -16,12 +16,12 @@ public sealed class ModalHostTests
         int restored = 0;
         host.Show(content, () => restored++);
         Assert.AreEqual(1, content.FocusCount);
-        Assert.IsTrue(host.HandleKey(new UiKeyEvent(0x1B)));
+        Assert.IsTrue(host.HandleKey(new UiKeyEvent(UiKey.Escape)));
         Assert.IsFalse(host.IsOpen);
         Assert.AreEqual(1, restored);
         host.Close();
         Assert.AreEqual(1, restored);
-        Assert.IsFalse(host.HandleKey(new UiKeyEvent(0x27)));
+        Assert.IsFalse(host.HandleKey(new UiKeyEvent(UiKey.Right)));
     }
 
     [TestMethod]
@@ -71,11 +71,11 @@ public sealed class ModalHostTests
         var host = new ModalHost(UiDpi.Default);
         var content = new Content { DismissOnBackdrop = false, DismissOnEscape = false };
         host.Show(content, () => { });
-        Assert.IsTrue(host.HandleKey(new UiKeyEvent(0x1B)));
+        Assert.IsTrue(host.HandleKey(new UiKeyEvent(UiKey.Escape)));
         host.HandlePointer(Pointer(UiPointerEventKind.Pressed, 5, 5), WindowSize);
         host.HandlePointer(Pointer(UiPointerEventKind.Released, 5, 5), WindowSize);
         Assert.IsTrue(host.IsOpen);
-        Assert.AreEqual(0x1Bu, content.Keys.Single().Key);
+        Assert.AreEqual(UiKey.Escape, content.Keys.Single().Key);
     }
 
     [TestMethod]

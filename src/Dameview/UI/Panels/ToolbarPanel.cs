@@ -62,7 +62,7 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
     {
         Button[] buttons = VisibleButtons;
         int focused = Array.FindIndex(buttons, button => button.IsFocused);
-        if (input.Key == 0x09)
+        if (input.Key == UiKey.Tab)
         {
             int next = focused < 0
                 ? (input.Shift ? buttons.Length - 1 : 0)
@@ -77,7 +77,7 @@ internal sealed class ToolbarPanel : IUiElement, IDisposable
             return true;
         }
 
-        if (focused >= 0 && input.Key is 0x20 or 0x0D)
+        if (focused >= 0 && input.Key is UiKey.Space or UiKey.Enter)
         {
             buttons[focused].Activate();
             return true;

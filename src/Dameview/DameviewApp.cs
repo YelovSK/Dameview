@@ -136,20 +136,20 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
         switch (input.Key)
         {
-            case NativeMethods.VirtualKeyLeft:
+            case UiKey.Left:
                 ShowPreviousImage();
                 break;
 
-            case NativeMethods.VirtualKeyRight:
+            case UiKey.Right:
                 ShowNextImage();
                 break;
 
-            case NativeMethods.VirtualKeyF:
+            case UiKey.F:
                 FitImage();
                 break;
 
-            case NativeMethods.VirtualKey1:
-            case NativeMethods.VirtualKeyNumpad1:
+            case UiKey.Number1:
+            case UiKey.Numpad1:
                 ShowActualSize(new PointF(_pointerX, _pointerY));
                 break;
         }

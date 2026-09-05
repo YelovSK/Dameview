@@ -272,7 +272,7 @@ internal sealed unsafe class AppWindow : IDisposable
                 return 1;
 
             case NativeMethods.MessageKeyDown:
-                KeyPressed?.Invoke(new UiKeyEvent((uint)wParam, NativeMethods.GetKeyState(0x10) < 0));
+                KeyPressed?.Invoke(new UiKeyEvent((UiKey)wParam, NativeMethods.GetKeyState(0x10) < 0));
                 return 0;
 
             case NativeMethods.MessageLeftButtonDown:

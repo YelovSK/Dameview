@@ -84,19 +84,19 @@ internal sealed class SettingsPanel : IModalContent, IDisposable
     {
         switch (input.Key)
         {
-            case 0x09: // Tab
+            case UiKey.Tab:
                 SetFocus((_focus + (input.Shift ? _buttons.Length - 1 : 1)) % _buttons.Length);
                 break;
-            case 0x25: // Left / Up
-            case 0x26:
+            case UiKey.Left:
+            case UiKey.Up:
                 SetFocus((_focus + _buttons.Length - 1) % _buttons.Length);
                 break;
-            case 0x27: // Right / Down
-            case 0x28:
+            case UiKey.Right:
+            case UiKey.Down:
                 SetFocus((_focus + 1) % _buttons.Length);
                 break;
-            case 0x20: // Space / Enter
-            case 0x0D:
+            case UiKey.Space:
+            case UiKey.Enter:
                 _buttons[_focus].Activate();
                 break;
         }

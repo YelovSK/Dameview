@@ -4,8 +4,6 @@ using Vortice.Mathematics;
 
 namespace Dameview.UI;
 
-internal readonly record struct UiKeyEvent(uint Key, bool Shift = false);
-
 internal interface IModalContent : IUiElement
 {
     public SizeF PreferredSize { get; }
@@ -67,7 +65,7 @@ internal sealed class ModalHost : IUiElement
             return false;
         }
 
-        if (input.Key == 0x1B && content.DismissOnEscape)
+        if (input.Key == UiKey.Escape && content.DismissOnEscape)
         {
             Close();
         }
