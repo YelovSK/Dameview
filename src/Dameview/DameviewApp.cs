@@ -83,6 +83,9 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
     public void Dispose()
     {
+        // WINDOWPLACEMENT keeps rcNormalPosition up to date while maximized,
+        // so this also remembers the size that will be restored after unmaximizing.
+        _settings.Update(_settings.Current with { Window = _window.CapturePlacement() });
         _settings.Dispose();
         _session.Dispose();
         _imageLoadCoordinator.Dispose();
@@ -153,6 +156,11 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
     private void ApplySettings(AppSettings previous, AppSettings current)
     {
+        if (current.Window is { IsUsable: true } windowPlacement && previous.Window != windowPlacement)
+        {
+            _window.RestorePlacement(windowPlacement);
+        }
+
         _ui.ApplySettings(current);
         if (previous.Theme != current.Theme)
         {

@@ -11,6 +11,7 @@ internal static partial class NativeMethods
     internal const uint WindowStyleOverlappedWindow = 0x00CF0000;
     internal const int UseDefault = unchecked((int)0x80000000);
     internal const int ShowNormal = 1;
+    internal const int ShowMaximized = 3;
     internal const uint RemoveMessage = 0x0001;
     internal const uint WaitObject0 = 0x00000000;
     internal const uint WaitFailed = 0xFFFFFFFF;
@@ -154,6 +155,14 @@ internal static partial class NativeMethods
     [LibraryImport("user32", EntryPoint = "ShowWindow")]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool ShowWindow(nint window, int command);
+
+    [LibraryImport("user32", EntryPoint = "GetWindowPlacement")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool GetWindowPlacement(nint window, ref WindowPlacement placement);
+
+    [LibraryImport("user32", EntryPoint = "SetWindowPlacement")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool SetWindowPlacement(nint window, in WindowPlacement placement);
 
     [LibraryImport("user32", EntryPoint = "PostMessageW", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -324,5 +333,16 @@ internal unsafe struct CreateStruct
     internal char* Name;
     internal char* ClassName;
     internal uint ExtendedStyle;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct WindowPlacement
+{
+    internal uint Length;
+    internal uint Flags;
+    internal uint ShowCommand;
+    internal NativePoint MinPosition;
+    internal NativePoint MaxPosition;
+    internal NativeRect NormalPosition;
 }
 

@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Drawing;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
+using Dameview.Settings;
 using Dameview.UI;
 
 namespace Dameview.Platform;
@@ -18,6 +19,8 @@ internal sealed unsafe class AppWindow : IDisposable
     private GCHandle _selfHandle;
     private Exception? _unhandledException;
     private bool _frameRequested;
+    private int _initialShowCommand = NativeMethods.ShowNormal;
+    private WindowPlacementSettings? _lastPlacement;
 
     internal AppWindow(string title, int width, int height)
     {
@@ -99,6 +102,69 @@ internal sealed unsafe class AppWindow : IDisposable
         }
     }
 
+    internal void RestorePlacement(WindowPlacementSettings placement)
+    {
+        if (!placement.IsUsable)
+        {
+            return;
+        }
+
+        WindowPlacement native = new()
+        {
+            Length = (uint)Marshal.SizeOf<WindowPlacement>(),
+            ShowCommand = placement.Maximized ? (uint)NativeMethods.ShowMaximized : (uint)NativeMethods.ShowNormal,
+            NormalPosition = new NativeRect
+            {
+                Left = placement.X,
+                Top = placement.Y,
+                Right = placement.X + placement.Width,
+                Bottom = placement.Y + placement.Height,
+            },
+        };
+
+        if (NativeMethods.SetWindowPlacement(Handle, in native))
+        {
+            _initialShowCommand = (int)native.ShowCommand;
+        }
+    }
+
+    internal WindowPlacementSettings CapturePlacement()
+    {
+        if (Handle == 0)
+        {
+            return _lastPlacement ?? new WindowPlacementSettings
+            {
+                Width = ClientWidth,
+                Height = ClientHeight,
+            };
+        }
+
+        return CapturePlacement(Handle);
+    }
+
+    private static WindowPlacementSettings CapturePlacement(nint window)
+    {
+        WindowPlacement native = new() { Length = (uint)Marshal.SizeOf<WindowPlacement>() };
+        if (!NativeMethods.GetWindowPlacement(window, ref native))
+        {
+            return new WindowPlacementSettings
+            {
+                Width = 0,
+                Height = 0,
+            };
+        }
+
+        NativeRect normal = native.NormalPosition;
+        return new WindowPlacementSettings
+        {
+            X = normal.Left,
+            Y = normal.Top,
+            Width = normal.Width,
+            Height = normal.Height,
+            Maximized = native.ShowCommand == NativeMethods.ShowMaximized,
+        };
+    }
+
     internal void RequestRepaint()
     {
         _frameRequested = true;
@@ -122,7 +188,7 @@ internal sealed unsafe class AppWindow : IDisposable
 
     internal int Run(nint frameLatencyWaitHandle)
     {
-        NativeMethods.ShowWindow(Handle, NativeMethods.ShowNormal);
+        NativeMethods.ShowWindow(Handle, _initialShowCommand);
         RequestRepaint();
 
         bool quit = false;
@@ -361,6 +427,12 @@ internal sealed unsafe class AppWindow : IDisposable
                 return 0;
 
             case NativeMethods.MessageDestroy:
+                WindowPlacementSettings placement = CapturePlacement(window);
+                if (placement.IsUsable)
+                {
+                    _lastPlacement = placement;
+                }
+
                 Handle = 0;
                 _postedActions.Clear();
                 NativeMethods.PostQuitMessage(0);
