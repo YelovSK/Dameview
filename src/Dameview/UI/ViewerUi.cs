@@ -5,6 +5,7 @@ using Dameview.Navigation;
 using Dameview.Platform;
 using Dameview.Settings;
 using Dameview.UI.Animation;
+using Dameview.UI.Layout;
 using Dameview.UI.Panels;
 using Dameview.Viewing;
 using Vortice.Direct2D1;
@@ -19,6 +20,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private readonly ID2D1SolidColorBrush _brush;
     private readonly ImagePanel _imagePanel;
     private readonly EmptyStatePanel _emptyStatePanel;
+    private readonly Overlay _contentOverlay;
     private readonly StatusPanel _statusPanel;
     private readonly ToolbarPanel _toolbarPanel;
     private readonly SettingsPanel _settingsPanel;
@@ -45,6 +47,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _state = session.State;
         _imagePanel = new ImagePanel(deviceContext, session.Viewport, session.Animator, timeProvider);
         _emptyStatePanel = new EmptyStatePanel(directWriteFactory);
+        _contentOverlay = new Overlay(_imagePanel, _emptyStatePanel);
         _statusPanel = new StatusPanel(directWriteFactory);
         _toolbarPanel = new ToolbarPanel(directWriteFactory, commands, theme.Design, ShowSettings);
         _modalHost = new ModalHost(CloseSettings);
@@ -55,8 +58,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
             setSort,
             theme.Design);
 
-        AddChild(_imagePanel);
-        AddChild(_emptyStatePanel);
+        AddChild(_contentOverlay);
         AddChild(_statusPanel);
         AddChild(_toolbarPanel);
         AddChild(_modalHost);
@@ -161,8 +163,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     protected override SizeF MeasureCore(SizeF availableSize)
     {
-        _imagePanel.Measure(availableSize);
-        _emptyStatePanel.Measure(availableSize);
+        _contentOverlay.Measure(availableSize);
         _statusPanel.Measure(availableSize);
         _toolbarPanel.Measure(availableSize);
         _modalHost.Measure(availableSize);
@@ -177,8 +178,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
             HasStatus,
             showToolbar: true,
             toolbarWidthDips: _toolbarPanel.WidthDips);
-        _imagePanel.Arrange(layout.Content);
-        _emptyStatePanel.Arrange(layout.Content);
+        _contentOverlay.Arrange(layout.Content);
         _statusPanel.Arrange(layout.Status);
         _toolbarPanel.Arrange(layout.Toolbar);
         _modalHost.Arrange(new RectangleF(PointF.Empty, finalSize));

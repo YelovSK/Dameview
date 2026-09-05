@@ -3,6 +3,7 @@ using Dameview.Commands;
 using Dameview.Platform;
 using Dameview.UI.Animation;
 using Dameview.UI.Components;
+using Dameview.UI.Layout;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
 
@@ -14,7 +15,7 @@ internal sealed class ToolbarPanel : UiElement, IDisposable
     private const float WidthWithoutImage = 104.0f;
 
     private readonly Button[] _buttons;
-    private readonly Button[] _settingsOnly;
+    private readonly StackPanel _buttonRow;
     private readonly AnimatedFloat _visibility = new(0.0f, 14.0);
     private readonly UiDesignTokens _design;
     private bool _hasImage;
@@ -34,11 +35,12 @@ internal sealed class ToolbarPanel : UiElement, IDisposable
             new Button(directWriteFactory, "1:1", commands.ShowActualSize, design),
             new Button(directWriteFactory, "Settings", showSettings, design),
         ];
-        _settingsOnly = [_buttons[^1]];
-        foreach (Button button in _buttons)
-        {
-            AddChild(button);
-        }
+        _buttonRow = new StackPanel(
+            UiOrientation.Horizontal,
+            design.SmallSpacing,
+            StackPanelDistribution.Equal,
+            _buttons);
+        AddChild(_buttonRow);
 
         for (int index = 0; index < _buttons.Length - 1; index++)
         {
@@ -84,31 +86,22 @@ internal sealed class ToolbarPanel : UiElement, IDisposable
 
     protected override SizeF MeasureCore(SizeF availableSize)
     {
-        foreach (Button button in VisibleButtons)
-        {
-            button.Measure(new SizeF(float.PositiveInfinity, _design.ToolbarHeight));
-        }
+        const float padding = 6.0f;
+        _buttonRow.Measure(new SizeF(
+            MathF.Max(0.0f, availableSize.Width - 2.0f * padding),
+            MathF.Max(0.0f, _design.ToolbarHeight - 2.0f * padding)));
 
         return new SizeF(WidthDips, _design.ToolbarHeight);
     }
 
     protected override void ArrangeCore(SizeF finalSize)
     {
-        Button[] buttons = VisibleButtons;
-        float padding = 6.0f;
-        float buttonGap = _design.SmallSpacing;
-        float totalGaps = buttonGap * (buttons.Length - 1);
-        float buttonWidth = MathF.Max(
-            0.0f,
-            (finalSize.Width - (2.0f * padding) - totalGaps) / buttons.Length);
-        for (int index = 0; index < buttons.Length; index++)
-        {
-            buttons[index].Arrange(new RectangleF(
-                padding + (index * (buttonWidth + buttonGap)),
-                padding,
-                buttonWidth,
-                MathF.Max(0.0f, finalSize.Height - (2.0f * padding))));
-        }
+        const float padding = 6.0f;
+        _buttonRow.Arrange(new RectangleF(
+            padding,
+            padding,
+            MathF.Max(0.0f, finalSize.Width - 2.0f * padding),
+            MathF.Max(0.0f, finalSize.Height - 2.0f * padding)));
     }
 
     protected override bool UpdateCore(in UiUpdateContext context)
@@ -155,6 +148,4 @@ internal sealed class ToolbarPanel : UiElement, IDisposable
             button.Dispose();
         }
     }
-
-    private Button[] VisibleButtons => HasImage ? _buttons : _settingsOnly;
 }

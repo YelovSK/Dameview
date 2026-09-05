@@ -2,6 +2,7 @@ using System.Drawing;
 using Dameview.Navigation;
 using Dameview.Settings;
 using Dameview.UI.Components;
+using Dameview.UI.Layout;
 using Vortice.DirectWrite;
 using Vortice.Mathematics;
 
@@ -18,6 +19,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
     ];
 
     private readonly Button[] _buttons;
+    private readonly StackPanel[] _buttonRows;
     private readonly IDWriteTextFormat _heading;
     private readonly IDWriteTextFormat _text;
     private readonly Action<FolderSort> _setSort;
@@ -44,9 +46,17 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
             new Button(factory, "A–Z", () => SelectSort(_field, false), design),
             new Button(factory, "Z–A", () => SelectSort(_field, true), design),
         ];
-        foreach (Button button in _buttons)
+        _buttonRows =
+        [
+            CreateRow(design, _buttons[1], _buttons[2]),
+            CreateRow(design, _buttons[3], _buttons[4]),
+            CreateRow(design, _buttons[5], _buttons[6]),
+            CreateRow(design, _buttons[7], _buttons[8]),
+        ];
+        AddChild(_buttons[0]);
+        foreach (StackPanel row in _buttonRows)
         {
-            AddChild(button);
+            AddChild(row);
         }
 
         ApplySettings(new AppSettings());
@@ -79,9 +89,10 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
 
     protected override SizeF MeasureCore(SizeF availableSize)
     {
-        foreach (Button button in _buttons)
+        _buttons[0].Measure(new SizeF(72.0f, 36.0f));
+        foreach (StackPanel row in _buttonRows)
         {
-            button.Measure(new SizeF(availableSize.Width, 36.0f));
+            row.Measure(new SizeF(MathF.Max(0.0f, availableSize.Width - 48.0f), 36.0f));
         }
 
         return PreferredSize;
@@ -89,9 +100,12 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
 
     protected override void ArrangeCore(SizeF finalSize)
     {
-        for (int index = 0; index < _buttons.Length; index++)
+        _buttons[0].Arrange(new RectangleF(MathF.Max(0.0f, finalSize.Width - 96.0f), 22.0f, 72.0f, 36.0f));
+        float rowWidth = MathF.Max(0.0f, finalSize.Width - 48.0f);
+        float[] rowY = [108.0f, 192.0f, 236.0f, 320.0f];
+        for (int index = 0; index < _buttonRows.Length; index++)
         {
-            _buttons[index].Arrange(GetButtonBounds(index, finalSize));
+            _buttonRows[index].Arrange(new RectangleF(24.0f, rowY[index], rowWidth, 36.0f));
         }
     }
 
@@ -120,23 +134,12 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
 
     private void SelectSort(int field, bool second) => _setSort(second ? Sorts[field].Second : Sorts[field].First);
 
-    private static RectangleF GetButtonBounds(int index, SizeF size)
+    private static StackPanel CreateRow(UiDesignTokens design, params UiElement[] children)
     {
-        float width = size.Width;
-        if (index == 0)
-        {
-            return new RectangleF(MathF.Max(0, width - 96), 22, 72, 36);
-        }
-
-        int column = (index - 1) % 2;
-        float y = index switch
-        {
-            <= 2 => 108,
-            <= 4 => 192,
-            <= 6 => 236,
-            _ => 320,
-        };
-        float buttonWidth = MathF.Max(0, (width - 56) / 2);
-        return new RectangleF(24 + column * (buttonWidth + 8), y, buttonWidth, 36);
+        return new StackPanel(
+            UiOrientation.Horizontal,
+            design.SmallSpacing,
+            StackPanelDistribution.Equal,
+            children);
     }
 }
