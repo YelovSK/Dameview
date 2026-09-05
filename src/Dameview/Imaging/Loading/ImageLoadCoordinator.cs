@@ -63,7 +63,7 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
             if (!_stopping && request.Id == _latestRequestId)
             {
                 _pendingRequest = request;
-                _pendingThumbnail = request;
+                _pendingThumbnail = IsAnimatedCandidate(path) ? null : request;
                 Monitor.PulseAll(_sync);
             }
         }

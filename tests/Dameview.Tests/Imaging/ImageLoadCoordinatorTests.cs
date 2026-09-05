@@ -143,6 +143,31 @@ public sealed class ImageLoadCoordinatorTests
     }
 
     [TestMethod]
+    public void AnimatedImageSkipsThumbnailPreview()
+    {
+        using var completed = new ManualResetEventSlim();
+        int thumbnailLoads = 0;
+        using var decoder = new FakeAnimatedImageDecoder(_ => new FakeAnimationSession());
+        using var coordinator = new ImageLoadCoordinator(
+            action => action(),
+            () => decoder,
+            thumbnailLoader: _ =>
+            {
+                Interlocked.Increment(ref thumbnailLoads);
+                return CreateImage();
+            });
+
+        coordinator.Load("animated.gif", result =>
+        {
+            ((ImageLoaded)result).Animation!.Dispose();
+            completed.Set();
+        });
+
+        Assert.IsTrue(completed.Wait(TimeSpan.FromSeconds(5)));
+        Assert.AreEqual(0, Volatile.Read(ref thumbnailLoads));
+    }
+
+    [TestMethod]
     public void PreloadedImageIsServedWithoutForegroundDecoding()
     {
         using var sentinelStarted = new ManualResetEventSlim();
