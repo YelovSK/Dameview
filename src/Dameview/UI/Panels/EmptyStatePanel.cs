@@ -10,10 +10,13 @@ internal sealed class EmptyStatePanel : UiElement, IDisposable
     private readonly IDWriteTextFormat _titleFormat;
     private readonly IDWriteTextFormat _bodyFormat;
     private readonly IDWriteTextFormat _captionFormat;
+    private readonly ID2D1Bitmap1 _icon;
 
     internal EmptyStatePanel(
-        IDWriteFactory directWriteFactory)
+        IDWriteFactory directWriteFactory,
+        ID2D1Bitmap1 icon)
     {
+        _icon = icon;
         _titleFormat = CreateCenteredFormat(directWriteFactory, 30.0f, FontWeight.SemiBold);
         _bodyFormat = CreateCenteredFormat(directWriteFactory, 15.0f, FontWeight.Normal);
         _captionFormat = CreateCenteredFormat(directWriteFactory, 12.0f, FontWeight.Medium);
@@ -44,7 +47,13 @@ internal sealed class EmptyStatePanel : UiElement, IDisposable
             new RectangleF(markX, markY, markSize, markSize),
             18.0f,
             18.0f);
-        context.DrawRoundedRectangle(mark, context.Palette.Accent, 2.0f);
+        float iconSize = markSize - 8.0f;
+        context.RenderTarget.DrawBitmap(
+            _icon,
+            new Rect(markX + 4.0f, markY + 4.0f, iconSize, iconSize),
+            context.Opacity,
+            BitmapInterpolationMode.Linear,
+            new Rect(0.0f, 0.0f, _icon.PixelSize.Width, _icon.PixelSize.Height));
 
         context.DrawText(
             "Dameview",
@@ -79,6 +88,7 @@ internal sealed class EmptyStatePanel : UiElement, IDisposable
         _captionFormat.Dispose();
         _bodyFormat.Dispose();
         _titleFormat.Dispose();
+        _icon.Dispose();
     }
 
     private static IDWriteTextFormat CreateCenteredFormat(

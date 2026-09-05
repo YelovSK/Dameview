@@ -51,7 +51,9 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _animationClock = new UiAnimationClock(timeProvider);
         _state = session.State;
         _imagePanel = new ImagePanel(deviceContext, session.Viewport, session.Animator, timeProvider);
-        _emptyStatePanel = new EmptyStatePanel(directWriteFactory);
+        _emptyStatePanel = new EmptyStatePanel(
+            directWriteFactory,
+            LoadApplicationIcon(deviceContext));
         _contentOverlay = new Overlay(_imagePanel, _emptyStatePanel);
         _statusPanel = new StatusPanel(directWriteFactory);
         _toolbarPanel = new ToolbarPanel(directWriteFactory, commands, theme.Design, ShowSettings);
@@ -317,5 +319,14 @@ internal sealed class ViewerUi : UiElement, IDisposable
         {
             _imagePanel.SetImage(displayed.Image, displayed.IsPreview);
         }
+    }
+
+    private static ID2D1Bitmap1 LoadApplicationIcon(ID2D1DeviceContext deviceContext)
+    {
+        using Stream stream = typeof(ViewerUi).Assembly.GetManifestResourceStream(
+            "Dameview.Assets.dameview.ico")
+            ?? throw new InvalidOperationException("The embedded application icon could not be found.");
+        using var decoder = new ImageDecoder();
+        return D2DBitmapFactory.Create(deviceContext, decoder.Decode(stream));
     }
 }

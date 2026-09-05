@@ -33,6 +33,21 @@ internal sealed class ImageDecoder : IImageDecoder
             fullPath,
             FileAccess.Read,
             DecodeOptions.CacheOnLoad);
+        return Decode(decoder);
+    }
+
+    internal DecodedImage Decode(Stream stream)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        using IWICStream wicStream = _factory.CreateStream(stream);
+        using IWICBitmapDecoder decoder = _factory.CreateDecoderFromStream(
+            wicStream,
+            DecodeOptions.CacheOnLoad);
+        return Decode(decoder);
+    }
+
+    private DecodedImage Decode(IWICBitmapDecoder decoder)
+    {
         using IWICBitmapFrameDecode frame = decoder.GetFrame(0);
         ExifOrientation orientation = GetExifOrientation(frame);
         using IWICFormatConverter converter = _factory.CreateFormatConverter();
