@@ -188,8 +188,9 @@ internal sealed unsafe class AppWindow : IDisposable
 
     internal int Run(nint frameLatencyWaitHandle)
     {
-        NativeMethods.ShowWindow(Handle, _initialShowCommand);
         RequestRepaint();
+        RenderRequestedFrame();
+        NativeMethods.ShowWindow(Handle, _initialShowCommand);
 
         bool quit = false;
         while (!quit)
