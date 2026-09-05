@@ -54,6 +54,22 @@ internal sealed class Dropdown<T> : InteractiveControl, IDisposable
         set => Select(FindIndex(value), notify: false);
     }
 
+    internal void SetOptionLabel(T value, string label)
+    {
+        int index = FindIndex(value);
+        if (_options[index].Label == label)
+        {
+            return;
+        }
+
+        _options[index] = _options[index] with { Label = label };
+        _popupList.SetLabel(index, label);
+        if (index == _selectedIndex)
+        {
+            InvalidateVisual();
+        }
+    }
+
     internal override bool OnKeyEvent(UiKeyEvent input)
     {
         if (!IsEnabled)
@@ -247,6 +263,8 @@ internal sealed class Dropdown<T> : InteractiveControl, IDisposable
                 }
             }
         }
+
+        internal void SetLabel(int index, string label) => _buttons[index].Label = label;
 
         internal SizeF PreferredSize(float anchorWidth)
         {

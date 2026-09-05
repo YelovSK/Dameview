@@ -55,6 +55,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _popupHost = new PopupHost();
         _settingsPanel = new SettingsPanel(
             directWriteFactory,
+            _popupHost,
             CloseSettings,
             setTheme,
             setSort,

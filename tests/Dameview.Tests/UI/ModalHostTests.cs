@@ -1,6 +1,7 @@
 using System.Drawing;
 using Dameview.Platform;
 using Dameview.UI;
+using Dameview.UI.Layout;
 
 namespace Dameview.Tests.UI;
 
@@ -225,14 +226,14 @@ public sealed class ModalHostTests
     private sealed class ContentWithChild : ModalContent
     {
         private readonly UiElement _focus = new FocusTarget();
-        private readonly float _focusY;
+        private readonly ScrollView _scrollView;
         private readonly float _preferredHeight;
 
         internal ContentWithChild(float focusY, float preferredHeight = 300)
         {
-            _focusY = focusY;
             _preferredHeight = preferredHeight;
-            AddChild(_focus);
+            _scrollView = new ScrollView(new ScrollBody(_focus, focusY, preferredHeight));
+            AddChild(_scrollView);
         }
 
         internal override SizeF PreferredSize => new(400, _preferredHeight);
@@ -240,14 +241,42 @@ public sealed class ModalHostTests
 
         protected override SizeF MeasureCore(SizeF availableSize)
         {
-            _focus.Measure(new SizeF(100, 30));
+            _scrollView.Measure(availableSize);
             return PreferredSize;
         }
 
         protected override void ArrangeCore(SizeF finalSize)
         {
-            _focus.Arrange(new RectangleF(20, _focusY, 100, 30));
+            _scrollView.Arrange(new RectangleF(PointF.Empty, finalSize));
         }
+    }
+
+    private sealed class ScrollBody : UiElement
+    {
+        private readonly UiElement _focus;
+        private readonly float _focusY;
+        private readonly float _height;
+
+        internal ScrollBody(UiElement focus, float focusY, float height)
+        {
+            _focus = focus;
+            _focusY = focusY;
+            _height = height;
+            AddChild(focus);
+        }
+
+        protected override SizeF MeasureCore(SizeF availableSize)
+        {
+            _focus.Measure(new SizeF(100.0f, 30.0f));
+            return new SizeF(availableSize.Width, _height);
+        }
+
+        protected override void ArrangeCore(SizeF finalSize)
+        {
+            _focus.Arrange(new RectangleF(20.0f, _focusY, 100.0f, 30.0f));
+        }
+
+        protected override bool HitTestCore(PointF position) => false;
     }
 
     private sealed class FocusTarget : UiElement

@@ -9,34 +9,68 @@ namespace Dameview.UI.Panels;
 
 internal sealed class SettingsPanel : ModalContent, IDisposable
 {
-    private static readonly (FolderSort First, FolderSort Second)[] Sorts =
+    private enum SettingsTab
+    {
+        Appearance,
+        Sorting,
+    }
+
+    private enum SortField
+    {
+        Name,
+        DateModified,
+        DateCreated,
+        Size,
+    }
+
+    private enum SortDirection
+    {
+        First,
+        Second,
+    }
+
+    private static readonly SortDefinition[] Sorts =
     [
-        (FolderSort.NameAscending, FolderSort.NameDescending),
-        (FolderSort.DateModifiedNewest, FolderSort.DateModifiedOldest),
-        (FolderSort.DateCreatedNewest, FolderSort.DateCreatedOldest),
-        (FolderSort.SizeLargest, FolderSort.SizeSmallest),
+        new(SortField.Name, FolderSort.NameAscending, FolderSort.NameDescending, "A–Z", "Z–A"),
+        new(SortField.DateModified, FolderSort.DateModifiedNewest, FolderSort.DateModifiedOldest, "Newest", "Oldest"),
+        new(SortField.DateCreated, FolderSort.DateCreatedNewest, FolderSort.DateCreatedOldest, "Newest", "Oldest"),
+        new(SortField.Size, FolderSort.SizeLargest, FolderSort.SizeSmallest, "Largest", "Smallest"),
     ];
 
-    private readonly Button[] _buttons;
-    private readonly StackPanel[] _buttonRows;
+    private readonly Button _closeButton;
+    private readonly Button[] _themeButtons;
+    private readonly Dropdown<SortField> _sortField;
+    private readonly Dropdown<SortDirection> _sortDirection;
+    private readonly SettingsRow _themeRow;
+    private readonly SettingsRow _sortFieldRow;
+    private readonly SettingsRow _sortDirectionRow;
+    private readonly TabStrip _tabs;
+    private readonly ScrollView _appearancePage;
+    private readonly ScrollView _sortingPage;
+    private readonly Overlay _pages;
     private readonly TextBlock _title;
-    private readonly TextBlock _themeHeading;
-    private readonly TextBlock _sortHeading;
-    private readonly TextBlock _directionHeading;
     private readonly TextBlock _message;
+    private readonly PopupHost _popupHost;
     private readonly Action<FolderSort> _setSort;
     private string? _error;
-    private int _field;
-    private bool _second;
 
-    internal SettingsPanel(IDWriteFactory factory, Action close,
-        Action<ThemeMode> setTheme, Action<FolderSort> setSort, UiDesignTokens design)
+    internal SettingsPanel(
+        IDWriteFactory factory,
+        PopupHost popupHost,
+        Action close,
+        Action<ThemeMode> setTheme,
+        Action<FolderSort> setSort,
+        UiDesignTokens design)
     {
+        _popupHost = popupHost;
         _setSort = setSort;
-        _title = CreateText(factory, "Settings", UiTextStyle.Heading, UiTextTone.Primary, design);
-        _themeHeading = CreateText(factory, "Theme", UiTextStyle.Body, UiTextTone.Secondary, design);
-        _sortHeading = CreateText(factory, "Sort by", UiTextStyle.Body, UiTextTone.Secondary, design);
-        _directionHeading = CreateText(factory, "Direction", UiTextStyle.Body, UiTextTone.Secondary, design);
+        _title = new TextBlock(
+            factory,
+            "Settings",
+            UiTextStyle.Heading,
+            UiTextTone.Primary,
+            UiTextWrapping.NoWrap,
+            design);
         _message = new TextBlock(
             factory,
             "Changes are saved automatically.",
@@ -44,41 +78,78 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
             UiTextTone.Secondary,
             UiTextWrapping.Wrap,
             design);
-        _buttons =
+        _closeButton = new Button(factory, "Close", close, design);
+
+        _themeButtons =
         [
-            new Button(factory, "Close", close, design),
             new Button(factory, "Dark", () => setTheme(ThemeMode.Dark), design),
             new Button(factory, "Light", () => setTheme(ThemeMode.Light), design),
-            new Button(factory, "Name", () => SelectSort(0, _second), design),
-            new Button(factory, "Modified", () => SelectSort(1, _second), design),
-            new Button(factory, "Created", () => SelectSort(2, _second), design),
-            new Button(factory, "Size", () => SelectSort(3, _second), design),
-            new Button(factory, "A–Z", () => SelectSort(_field, false), design),
-            new Button(factory, "Z–A", () => SelectSort(_field, true), design),
         ];
-        _buttonRows =
-        [
-            CreateRow(design, _buttons[1], _buttons[2]),
-            CreateRow(design, _buttons[3], _buttons[4]),
-            CreateRow(design, _buttons[5], _buttons[6]),
-            CreateRow(design, _buttons[7], _buttons[8]),
-        ];
-        AddChild(_title);
-        AddChild(_themeHeading);
-        AddChild(_sortHeading);
-        AddChild(_directionHeading);
-        AddChild(_message);
-        AddChild(_buttons[0]);
-        foreach (StackPanel row in _buttonRows)
-        {
-            AddChild(row);
-        }
+        var themeChoices = new StackPanel(
+            UiOrientation.Horizontal,
+            design.SmallSpacing,
+            StackPanelDistribution.Equal,
+            _themeButtons);
+        _themeRow = new SettingsRow(factory, "Theme", themeChoices, design);
 
+        _sortField = new Dropdown<SortField>(
+            factory,
+            popupHost,
+            [
+                new("Name", SortField.Name),
+                new("Modified date", SortField.DateModified),
+                new("Created date", SortField.DateCreated),
+                new("Size", SortField.Size),
+            ],
+            SortField.Name,
+            SetSortField,
+            design);
+        _sortDirection = new Dropdown<SortDirection>(
+            factory,
+            popupHost,
+            [
+                new("A–Z", SortDirection.First),
+                new("Z–A", SortDirection.Second),
+            ],
+            SortDirection.First,
+            SetSortDirection,
+            design);
+        _sortFieldRow = new SettingsRow(factory, "Sort by", _sortField, design);
+        _sortDirectionRow = new SettingsRow(factory, "Direction", _sortDirection, design);
+
+        var appearanceContent = new StackPanel(
+            UiOrientation.Vertical,
+            design.LargeSpacing,
+            StackPanelDistribution.Natural,
+            _themeRow);
+        var sortingContent = new StackPanel(
+            UiOrientation.Vertical,
+            design.LargeSpacing,
+            StackPanelDistribution.Natural,
+            _sortFieldRow,
+            _sortDirectionRow);
+        _appearancePage = new ScrollView(appearanceContent);
+        _sortingPage = new ScrollView(sortingContent);
+        _pages = new Overlay(_appearancePage, _sortingPage);
+        _tabs = new TabStrip(
+            factory,
+            ["Appearance", "Sorting"],
+            (int)SettingsTab.Appearance,
+            SelectTab,
+            design);
+
+        AddChild(_title);
+        AddChild(_closeButton);
+        AddChild(_tabs);
+        AddChild(_pages);
+        AddChild(_message);
+
+        SelectTab((int)SettingsTab.Appearance);
         ApplySettings(new AppSettings());
     }
 
-    internal override SizeF PreferredSize => new(440, 460);
-    internal override UiElement InitialFocus => _buttons[1];
+    internal override SizeF PreferredSize => new(440.0f, 460.0f);
+    internal override UiElement InitialFocus => _tabs.SelectedTab;
     internal string? Error
     {
         get => _error;
@@ -92,89 +163,100 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
 
     internal void ApplySettings(AppSettings settings)
     {
-        _field = Array.FindIndex(Sorts, pair => pair.First == settings.Sort || pair.Second == settings.Sort);
-        _second = settings.Sort == Sorts[_field].Second;
-        _buttons[1].IsSelected = settings.Theme == ThemeMode.Dark;
-        _buttons[2].IsSelected = settings.Theme == ThemeMode.Light;
-        for (int index = 0; index < Sorts.Length; index++)
-        {
-            _buttons[index + 3].IsSelected = index == _field;
-        }
+        _themeButtons[0].IsSelected = settings.Theme == ThemeMode.Dark;
+        _themeButtons[1].IsSelected = settings.Theme == ThemeMode.Light;
 
-        _buttons[7].IsSelected = !_second;
-        _buttons[8].IsSelected = _second;
-        (_buttons[7].Label, _buttons[8].Label) = _field switch
-        {
-            0 => ("A–Z", "Z–A"),
-            3 => ("Largest", "Smallest"),
-            _ => ("Newest", "Oldest"),
-        };
+        SortDefinition sort = Array.Find(
+            Sorts,
+            candidate => candidate.First == settings.Sort || candidate.Second == settings.Sort);
+        _sortField.SelectedValue = sort.Field;
+        UpdateDirectionLabels(sort);
+        _sortDirection.SelectedValue = settings.Sort == sort.First
+            ? SortDirection.First
+            : SortDirection.Second;
     }
 
     protected override SizeF MeasureCore(SizeF availableSize)
     {
+        float contentWidth = MathF.Max(0.0f, availableSize.Width - 48.0f);
+        float bodyHeight = CalculateBodyHeight(availableSize.Height);
         _title.Measure(new SizeF(MathF.Max(0.0f, availableSize.Width - 140.0f), 36.0f));
-        _themeHeading.Measure(new SizeF(MathF.Max(0.0f, availableSize.Width - 48.0f), 24.0f));
-        _sortHeading.Measure(new SizeF(MathF.Max(0.0f, availableSize.Width - 48.0f), 24.0f));
-        _directionHeading.Measure(new SizeF(MathF.Max(0.0f, availableSize.Width - 48.0f), 24.0f));
-        _message.Measure(new SizeF(MathF.Max(0.0f, availableSize.Width - 48.0f), 72.0f));
-        _buttons[0].Measure(new SizeF(72.0f, 36.0f));
-        foreach (StackPanel row in _buttonRows)
-        {
-            row.Measure(new SizeF(MathF.Max(0.0f, availableSize.Width - 48.0f), 36.0f));
-        }
-
+        _closeButton.Measure(new SizeF(72.0f, 36.0f));
+        _tabs.Measure(new SizeF(contentWidth, 36.0f));
+        _pages.Measure(new SizeF(contentWidth, bodyHeight));
+        _message.Measure(new SizeF(contentWidth, 40.0f));
         return PreferredSize;
     }
 
     protected override void ArrangeCore(SizeF finalSize)
     {
-        _title.Arrange(new RectangleF(24.0f, 22.0f, MathF.Max(0.0f, finalSize.Width - 140.0f), 36.0f));
-        _themeHeading.Arrange(new RectangleF(24.0f, 80.0f, MathF.Max(0.0f, finalSize.Width - 48.0f), 24.0f));
-        _sortHeading.Arrange(new RectangleF(24.0f, 164.0f, MathF.Max(0.0f, finalSize.Width - 48.0f), 24.0f));
-        _directionHeading.Arrange(new RectangleF(24.0f, 292.0f, MathF.Max(0.0f, finalSize.Width - 48.0f), 24.0f));
-        _message.Arrange(new RectangleF(24.0f, 376.0f, MathF.Max(0.0f, finalSize.Width - 48.0f), 72.0f));
-        _buttons[0].Arrange(new RectangleF(MathF.Max(0.0f, finalSize.Width - 96.0f), 22.0f, 72.0f, 36.0f));
-        float rowWidth = MathF.Max(0.0f, finalSize.Width - 48.0f);
-        float[] rowY = [108.0f, 192.0f, 236.0f, 320.0f];
-        for (int index = 0; index < _buttonRows.Length; index++)
-        {
-            _buttonRows[index].Arrange(new RectangleF(24.0f, rowY[index], rowWidth, 36.0f));
-        }
+        float contentWidth = MathF.Max(0.0f, finalSize.Width - 48.0f);
+        float closeWidth = MathF.Min(72.0f, contentWidth);
+        _title.Arrange(new RectangleF(24.0f, 20.0f, MathF.Max(0.0f, finalSize.Width - 140.0f), 36.0f));
+        _closeButton.Arrange(new RectangleF(MathF.Max(24.0f, finalSize.Width - 96.0f), 20.0f, closeWidth, 36.0f));
+        _tabs.Arrange(new RectangleF(24.0f, 68.0f, contentWidth, 36.0f));
+        _pages.Arrange(new RectangleF(24.0f, 120.0f, contentWidth, CalculateBodyHeight(finalSize.Height)));
+
+        bool showMessage = finalSize.Height >= 300.0f;
+        _message.Arrange(showMessage
+            ? new RectangleF(24.0f, finalSize.Height - 52.0f, contentWidth, 40.0f)
+            : new RectangleF(24.0f, finalSize.Height, contentWidth, 0.0f));
     }
 
     public void Dispose()
     {
-        foreach (Button button in _buttons)
+        _closeButton.Dispose();
+        foreach (Button button in _themeButtons)
         {
             button.Dispose();
         }
 
+        _sortField.Dispose();
+        _sortDirection.Dispose();
+        _themeRow.Dispose();
+        _sortFieldRow.Dispose();
+        _sortDirectionRow.Dispose();
+        _tabs.Dispose();
         _title.Dispose();
-        _themeHeading.Dispose();
-        _sortHeading.Dispose();
-        _directionHeading.Dispose();
         _message.Dispose();
     }
 
-    private void SelectSort(int field, bool second) => _setSort(second ? Sorts[field].Second : Sorts[field].First);
-
-    private static TextBlock CreateText(
-        IDWriteFactory factory,
-        string text,
-        UiTextStyle style,
-        UiTextTone tone,
-        UiDesignTokens design)
+    private static float CalculateBodyHeight(float panelHeight)
     {
-        return new TextBlock(factory, text, style, tone, UiTextWrapping.NoWrap, design);
+        float bottom = panelHeight >= 300.0f ? panelHeight - 64.0f : panelHeight - 12.0f;
+        return MathF.Max(0.0f, bottom - 120.0f);
     }
 
-    private static StackPanel CreateRow(UiDesignTokens design, params UiElement[] children)
+    private void SelectTab(int index)
     {
-        return new StackPanel(
-            UiOrientation.Horizontal,
-            design.SmallSpacing,
-            StackPanelDistribution.Equal,
-            children);
+        _popupHost.Close();
+        _appearancePage.IsVisible = index == (int)SettingsTab.Appearance;
+        _sortingPage.IsVisible = index == (int)SettingsTab.Sorting;
     }
+
+    private void SetSortField(SortField field)
+    {
+        SortDefinition sort = Sorts[(int)field];
+        UpdateDirectionLabels(sort);
+        _setSort(_sortDirection.SelectedValue == SortDirection.First ? sort.First : sort.Second);
+    }
+
+    private void SetSortDirection(SortDirection direction)
+    {
+        SortDefinition sort = Sorts[(int)_sortField.SelectedValue];
+        _setSort(direction == SortDirection.First ? sort.First : sort.Second);
+    }
+
+    private void UpdateDirectionLabels(SortDefinition sort)
+    {
+        _sortDirection.SetOptionLabel(SortDirection.First, sort.FirstLabel);
+        _sortDirection.SetOptionLabel(SortDirection.Second, sort.SecondLabel);
+    }
+
+    private readonly record struct SortDefinition(
+        SortField Field,
+        FolderSort First,
+        FolderSort Second,
+        string FirstLabel,
+        string SecondLabel);
 }

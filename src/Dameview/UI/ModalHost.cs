@@ -134,7 +134,6 @@ internal sealed class ModalHost : UiElement
     private sealed class ModalSurface : UiElement
     {
         private ModalContent? _content;
-        private float _scroll;
 
         internal override bool PreservesFocusOnPointerPress => true;
 
@@ -146,7 +145,6 @@ internal sealed class ModalHost : UiElement
             }
 
             _content = content;
-            _scroll = 0.0f;
             if (content is not null)
             {
                 AddChild(content);
@@ -160,7 +158,10 @@ internal sealed class ModalHost : UiElement
                 return SizeF.Empty;
             }
 
-            _content.Measure(_content.PreferredSize);
+            var contentSize = new SizeF(
+                MathF.Min(_content.PreferredSize.Width, availableSize.Width),
+                MathF.Min(_content.PreferredSize.Height, availableSize.Height));
+            _content.Measure(contentSize);
             return new SizeF(
                 MathF.Min(_content.PreferredSize.Width, availableSize.Width),
                 MathF.Min(_content.PreferredSize.Height, availableSize.Height));
@@ -173,12 +174,7 @@ internal sealed class ModalHost : UiElement
                 return;
             }
 
-            ClampScroll(finalSize.Height);
-            _content.Arrange(new RectangleF(
-                0.0f,
-                -_scroll,
-                finalSize.Width,
-                _content.PreferredSize.Height));
+            _content.Arrange(new RectangleF(PointF.Empty, finalSize));
         }
 
         protected override void DrawCore(in UiDrawContext context)
@@ -194,46 +190,7 @@ internal sealed class ModalHost : UiElement
 
         internal override UiPointerResult OnPointerEvent(in UiPointerEvent input)
         {
-            if (input.Kind != UiPointerEventKind.Wheel || _content is null)
-            {
-                return new UiPointerResult(Consumed: true);
-            }
-
-            float previous = _scroll;
-            _scroll -= input.WheelDelta / 120.0f * 48.0f;
-            ClampScroll(Bounds.Height);
-            if (_scroll != previous)
-            {
-                ArrangeCore(Bounds.Size);
-            }
-
-            return new UiPointerResult(Consumed: true, NeedsRepaint: _scroll != previous);
-        }
-
-        internal override void BringIntoView(RectangleF descendantBounds)
-        {
-            float previous = _scroll;
-            if (descendantBounds.Top < 0.0f)
-            {
-                _scroll += descendantBounds.Top;
-            }
-            else if (descendantBounds.Bottom > Bounds.Height)
-            {
-                _scroll += descendantBounds.Bottom - Bounds.Height;
-            }
-
-            ClampScroll(Bounds.Height);
-            if (_scroll != previous)
-            {
-                ArrangeCore(Bounds.Size);
-                InvalidateVisual();
-            }
-        }
-
-        private void ClampScroll(float viewportHeight)
-        {
-            float contentHeight = _content?.PreferredSize.Height ?? 0.0f;
-            _scroll = Math.Clamp(_scroll, 0.0f, MathF.Max(0.0f, contentHeight - viewportHeight));
+            return new UiPointerResult(Consumed: true);
         }
     }
 }

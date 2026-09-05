@@ -57,6 +57,8 @@ internal sealed class TabStrip : UiElement, IDisposable
         set => Select(value, notify: false, moveFocus: false);
     }
 
+    internal UiElement SelectedTab => _items[_selectedIndex];
+
     private IDWriteTextFormat TextFormat { get; }
 
     protected override SizeF MeasureCore(SizeF availableSize)

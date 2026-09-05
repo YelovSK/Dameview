@@ -52,6 +52,12 @@ internal sealed class Button : InteractiveControl, IDisposable
         set => SetVisualState(UiVisualState.Selected, value);
     }
 
+    protected override SizeF MeasureCore(SizeF availableSize)
+    {
+        float width = float.IsFinite(availableSize.Width) ? availableSize.Width : 96.0f;
+        return new SizeF(MathF.Max(0.0f, width), 36.0f);
+    }
+
     protected override void DrawCore(in UiDrawContext context)
     {
         float width = Bounds.Width;
