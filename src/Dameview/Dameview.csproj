@@ -4,6 +4,7 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <ApplicationIcon>Assets\dameview.ico</ApplicationIcon>
     <PublishAot>true</PublishAot>
     <OptimizationPreference>Size</OptimizationPreference>
     <Nullable>enable</Nullable>
