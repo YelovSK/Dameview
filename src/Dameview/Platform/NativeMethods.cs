@@ -42,6 +42,8 @@ internal static partial class NativeMethods
     internal const uint MessageNonClientCreate = 0x0081;
     internal const uint MessageRenderFrame = 0x8000;
     internal const uint MessageDispatch = 0x8001;
+    internal const int VirtualKeyShift = 0x10;
+    internal const int VirtualKeyControl = 0x11;
 
     [LibraryImport("user32")]
     internal static partial short GetKeyState(int virtualKey);

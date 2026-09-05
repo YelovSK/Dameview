@@ -14,7 +14,11 @@ internal enum UiKey : uint
     Down = 0x28,
     Number1 = 0x31,
     F = 0x46,
+    W = 0x57,
     Numpad1 = 0x61,
 }
 
-internal readonly record struct UiKeyEvent(UiKey Key, bool Shift = false);
+internal readonly record struct UiKeyEvent(
+    UiKey Key,
+    bool Shift = false,
+    bool Control = false);

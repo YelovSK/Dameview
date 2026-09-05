@@ -120,6 +120,14 @@ internal sealed unsafe class AppWindow : IDisposable
         }
     }
 
+    internal void Close()
+    {
+        if (Handle != 0)
+        {
+            NativeMethods.DestroyWindow(Handle);
+        }
+    }
+
     internal void RestorePlacement(WindowPlacementState placement)
     {
         if (!placement.IsUsable)
@@ -385,7 +393,10 @@ internal sealed unsafe class AppWindow : IDisposable
                 return 1;
 
             case NativeMethods.MessageKeyDown:
-                KeyPressed?.Invoke(new UiKeyEvent((UiKey)wParam, NativeMethods.GetKeyState(0x10) < 0));
+                KeyPressed?.Invoke(new UiKeyEvent(
+                    (UiKey)wParam,
+                    NativeMethods.GetKeyState(NativeMethods.VirtualKeyShift) < 0,
+                    NativeMethods.GetKeyState(NativeMethods.VirtualKeyControl) < 0));
                 return 0;
 
             case NativeMethods.MessageLeftButtonDown:

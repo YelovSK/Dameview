@@ -141,6 +141,12 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
     private void HandleKeyPress(UiKeyEvent input)
     {
+        if (input.Control && input.Key == UiKey.W)
+        {
+            _window.Close();
+            return;
+        }
+
         if (_ui.HandleKey(input))
         {
             _window.RequestRepaint();
