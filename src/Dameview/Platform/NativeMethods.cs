@@ -231,6 +231,9 @@ internal static partial class NativeMethods
     [LibraryImport("user32", EntryPoint = "LoadCursorW", SetLastError = true)]
     internal static partial nint LoadCursor(nint instance, nint cursorName);
 
+    [LibraryImport("user32", EntryPoint = "LoadIconW", SetLastError = true)]
+    internal static partial nint LoadIcon(nint instance, nint iconName);
+
     [LibraryImport("shell32", EntryPoint = "DragAcceptFiles")]
     internal static partial void DragAcceptFiles(nint window, [MarshalAs(UnmanagedType.Bool)] bool accept);
 

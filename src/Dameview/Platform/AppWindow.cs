@@ -9,6 +9,7 @@ namespace Dameview.Platform;
 internal sealed unsafe class AppWindow : IDisposable
 {
     private const string WindowClassName = "Dameview.MainWindow";
+    private const int ApplicationIconResourceId = 32512;
     private const int WindowUserData = -21;
     private const uint SetWindowNoActivate = 0x0010;
     private const uint SetWindowNoZOrder = 0x0004;
@@ -193,9 +194,12 @@ internal sealed unsafe class AppWindow : IDisposable
                     | NativeMethods.ClassDoubleClicks,
                 WindowProcedure = &WindowProcedure,
                 Instance = instance,
+                Icon = NativeMethods.LoadIcon(instance, new nint(ApplicationIconResourceId)),
                 Cursor = NativeMethods.LoadCursor(0, new nint(32512)),
                 ClassName = className,
             };
+
+            windowClass.SmallIcon = windowClass.Icon;
 
             if (NativeMethods.RegisterClass(ref windowClass) == 0)
             {
