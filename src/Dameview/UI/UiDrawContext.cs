@@ -52,6 +52,12 @@ internal readonly record struct UiDrawContext
         RenderTarget.DrawText(text, format, bounds, PrepareBrush(color, opacity), options);
     }
 
+    internal void DrawTextLayout(IDWriteTextLayout layout, Vector2 origin, Color4 color,
+        DrawTextOptions options = DrawTextOptions.None, float opacity = 1.0f)
+    {
+        RenderTarget.DrawTextLayout(origin, layout, PrepareBrush(color, opacity), options);
+    }
+
     private ID2D1SolidColorBrush PrepareBrush(Color4 color, float opacity)
     {
         _brush.Color = color;

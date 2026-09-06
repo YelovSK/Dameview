@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Numerics;
 using Dameview.Imaging;
 using Dameview.Navigation;
 using Dameview.Platform;
@@ -21,13 +22,14 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private const float WheelStep = 72.0f;
 
     private readonly ID2D1DeviceContext _deviceContext;
+    private readonly IDWriteFactory _directWriteFactory;
     private readonly IDWriteTextFormat _labelFormat;
     private readonly IDWriteInlineObject _ellipsisSign;
     private readonly IThumbnailLoader _thumbnailLoader;
     private readonly Action<string> _openImage;
     private readonly Scrollbar _scrollbar;
     private readonly ScrollOffsetController _scrollOffset = new();
-    private readonly Dictionary<string, ThumbnailSlot> _slots =
+    private readonly Dictionary<string, GalleryItemSlot> _slots =
         new(StringComparer.OrdinalIgnoreCase);
     private FolderEntry[] _entries = [];
     private string? _selectedPath;
@@ -41,6 +43,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         Action<string> openImage)
     {
         _deviceContext = deviceContext;
+        _directWriteFactory = directWriteFactory;
         _thumbnailLoader = thumbnailLoader;
         _openImage = openImage;
         _scrollbar = new Scrollbar(SetScrollOffset);
@@ -309,7 +312,8 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             itemBounds.Y + ItemPadding,
             MathF.Max(0.0f, itemBounds.Width - 2.0f * ItemPadding),
             imageHeight);
-        if (_slots.TryGetValue(entry.FullName, out ThumbnailSlot? slot) && slot.Bitmap is { } bitmap)
+        _slots.TryGetValue(entry.FullName, out GalleryItemSlot? slot);
+        if (slot?.Bitmap is { } bitmap)
         {
             float scale = MathF.Min(
                 imageBounds.Width / bitmap.PixelSize.Width,
@@ -335,16 +339,14 @@ internal sealed class GalleryPanel : UiElement, IDisposable
                 context.Palette.OverlaySurface);
         }
 
-        context.DrawText(
-            entry.Name,
-            _labelFormat,
-            new Rect(
-                itemBounds.X + ItemPadding,
-                itemBounds.Bottom - LabelHeight,
-                MathF.Max(0.0f, itemBounds.Width - 2.0f * ItemPadding),
-                LabelHeight),
-            context.Palette.PrimaryText,
-            DrawTextOptions.Clip);
+        if (slot is not null)
+        {
+            context.DrawTextLayout(
+                slot.LabelLayout,
+                new Vector2(itemBounds.X + ItemPadding, itemBounds.Bottom - LabelHeight),
+                context.Palette.PrimaryText,
+                DrawTextOptions.Clip);
+        }
     }
 
     private void RefreshVisibleThumbnails()
@@ -356,16 +358,19 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             ItemHeightDips,
             ColumnCount);
         var visiblePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        float labelWidth = MathF.Max(0.0f, ItemWidth - 2.0f * ItemPadding);
         for (int index = first; index < lastExclusive; index++)
         {
-            string path = _entries[index].FullName;
+            FolderEntry entry = _entries[index];
+            string path = entry.FullName;
             visiblePaths.Add(path);
-            if (_slots.ContainsKey(path))
+            if (_slots.TryGetValue(path, out GalleryItemSlot? existing))
             {
+                existing.SetLabelLayout(_directWriteFactory, _labelFormat, entry.Name, labelWidth);
                 continue;
             }
 
-            var slot = new ThumbnailSlot();
+            var slot = new GalleryItemSlot(_directWriteFactory, _labelFormat, entry.Name, labelWidth);
             _slots.Add(path, slot);
             slot.Request = _thumbnailLoader.Request(
                 path,
@@ -373,7 +378,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
                 image => CompleteThumbnail(path, slot, image));
         }
 
-        foreach ((string path, ThumbnailSlot slot) in _slots.ToArray())
+        foreach ((string path, GalleryItemSlot slot) in _slots.ToArray())
         {
             if (!visiblePaths.Contains(path))
             {
@@ -383,9 +388,9 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         }
     }
 
-    private void CompleteThumbnail(string path, ThumbnailSlot slot, DecodedImage image)
+    private void CompleteThumbnail(string path, GalleryItemSlot slot, DecodedImage image)
     {
-        if (!_slots.TryGetValue(path, out ThumbnailSlot? current) || !ReferenceEquals(current, slot))
+        if (!_slots.TryGetValue(path, out GalleryItemSlot? current) || !ReferenceEquals(current, slot))
         {
             return;
         }
@@ -464,7 +469,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
     private void ClearSlots()
     {
-        foreach (ThumbnailSlot slot in _slots.Values)
+        foreach (GalleryItemSlot slot in _slots.Values)
         {
             slot.Dispose();
         }
@@ -472,15 +477,45 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         _slots.Clear();
     }
 
-    private sealed class ThumbnailSlot : IDisposable
+    private sealed class GalleryItemSlot : IDisposable
     {
+        private float _labelWidth;
+
+        internal GalleryItemSlot(
+            IDWriteFactory directWriteFactory,
+            IDWriteTextFormat labelFormat,
+            string label,
+            float labelWidth)
+        {
+            LabelLayout = directWriteFactory.CreateTextLayout(label, labelFormat, labelWidth, LabelHeight);
+            _labelWidth = labelWidth;
+        }
+
         internal IDisposable? Request { get; set; }
         internal ID2D1Bitmap1? Bitmap { get; set; }
+        internal IDWriteTextLayout LabelLayout { get; private set; }
+
+        internal void SetLabelLayout(
+            IDWriteFactory directWriteFactory,
+            IDWriteTextFormat labelFormat,
+            string label,
+            float labelWidth)
+        {
+            if (_labelWidth == labelWidth)
+            {
+                return;
+            }
+
+            LabelLayout.Dispose();
+            LabelLayout = directWriteFactory.CreateTextLayout(label, labelFormat, labelWidth, LabelHeight);
+            _labelWidth = labelWidth;
+        }
 
         public void Dispose()
         {
             Request?.Dispose();
             Bitmap?.Dispose();
+            LabelLayout.Dispose();
         }
     }
 }
