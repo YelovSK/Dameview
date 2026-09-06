@@ -62,6 +62,11 @@ public sealed class SettingsPanelTests
         root.HandleKey(new UiKeyEvent(UiKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new UiKeyEvent(UiKey.Enter), settings, wrapFocus: true, directionalNavigation: true);
         root.Arrange(size);
+        for (int frame = 0; frame < 30; frame++)
+        {
+            root.Update(new UiUpdateContext(1.0 / 60.0));
+            root.Arrange(size);
+        }
 
         UiElement sortingScrollView = settings.Children[3].Children[1];
         RectangleF scrollBounds = sortingScrollView.GetBoundsRelativeTo(scene);

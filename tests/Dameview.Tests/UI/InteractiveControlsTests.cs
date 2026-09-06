@@ -11,6 +11,23 @@ namespace Dameview.Tests.UI;
 public sealed class InteractiveControlsTests
 {
     [TestMethod]
+    public void PointerActivationOccursOnPressOnly()
+    {
+        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
+        int clicks = 0;
+        using var button = new Button(factory, "Test", () => clicks++);
+        var root = new UiRoot(button, UiDpi.Default);
+        root.Arrange(new SizeF(100.0f, 36.0f));
+        PointF center = new(50.0f, 18.0f);
+
+        root.HandlePointer(Pointer(UiPointerEventKind.Pressed, center));
+        Assert.AreEqual(1, clicks);
+
+        root.HandlePointer(Pointer(UiPointerEventKind.Released, center));
+        Assert.AreEqual(1, clicks);
+    }
+
+    [TestMethod]
     public void ToggleSharesKeyboardActivationAndDisabledBehavior()
     {
         using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
@@ -76,7 +93,11 @@ public sealed class InteractiveControlsTests
         Assert.IsTrue(dropdown.IsOpen);
         Assert.IsTrue(popupHost.IsOpen);
 
-        UiElement secondOption = popupHost.Children[0].Children[0].Children[1];
+        UiElement presenter = popupHost.Children[0];
+        float collapsedHeight = presenter.Bounds.Height;
+        AdvanceAnimation(root, size);
+        Assert.IsTrue(presenter.Bounds.Height > collapsedHeight);
+        UiElement secondOption = presenter.Children[0].Children[0].Children[1];
         RectangleF optionBounds = secondOption.GetBoundsRelativeTo(scene);
         PointF center = new(optionBounds.Left + optionBounds.Width / 2.0f, optionBounds.Top + optionBounds.Height / 2.0f);
         root.HandlePointer(Pointer(UiPointerEventKind.Pressed, center));
@@ -86,6 +107,37 @@ public sealed class InteractiveControlsTests
         Assert.AreEqual("modified", changed);
         Assert.IsFalse(popupHost.IsOpen);
         Assert.AreSame(dropdown, root.FocusedElement);
+        Assert.IsTrue(presenter.IsVisible);
+        Assert.AreSame(dropdown, scene.HitTest(new PointF(30.0f, 30.0f)));
+        AdvanceAnimation(root, size);
+        Assert.IsFalse(presenter.IsVisible);
+    }
+
+    [TestMethod]
+    public void DoubleClickingDropdownClosesItDuringOpeningAnimation()
+    {
+        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
+        var popupHost = new PopupHost();
+        using var dropdown = new Dropdown<int>(
+            factory,
+            popupHost,
+            [new("One", 1), new("Two", 2)],
+            1,
+            _ => { });
+        var scene = new TestScene(dropdown, popupHost);
+        var root = new UiRoot(scene, UiDpi.Default);
+        var size = new SizeF(600.0f, 400.0f);
+        root.Arrange(size);
+
+        PointF center = new(110.0f, 38.0f);
+        root.HandlePointer(Pointer(UiPointerEventKind.Pressed, center));
+        root.HandlePointer(Pointer(UiPointerEventKind.Released, center));
+        root.Arrange(size);
+        Assert.IsTrue(popupHost.IsOpen);
+
+        root.HandlePointer(Pointer(UiPointerEventKind.DoubleClicked, center));
+
+        Assert.IsFalse(popupHost.IsOpen);
     }
 
     [TestMethod]
@@ -127,6 +179,15 @@ public sealed class InteractiveControlsTests
     private static UiPointerEvent Pointer(UiPointerEventKind kind, PointF position)
     {
         return new UiPointerEvent(kind, position, PointerButton.Primary);
+    }
+
+    private static void AdvanceAnimation(UiRoot root, SizeF size)
+    {
+        for (int frame = 0; frame < 30; frame++)
+        {
+            root.Update(new UiUpdateContext(1.0 / 60.0));
+            root.Arrange(size);
+        }
     }
 
     private sealed class TestScene : UiElement

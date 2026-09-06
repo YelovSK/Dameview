@@ -51,14 +51,15 @@ internal abstract class InteractiveControl : UiElement
         {
             case UiPointerEventKind.Pressed
                 when input.Button == PointerButton.Primary && isInside:
-                return new UiPointerResult(Consumed: true, NeedsRepaint: true, CapturePointer: true);
+                // We react on mouse down instead of mouse up,
+                // so that the UI feels more responsive.
+                Activate();
+                return new UiPointerResult(
+                    Consumed: true,
+                    NeedsRepaint: true,
+                    CapturePointer: Root is not null);
 
             case UiPointerEventKind.Released when HasVisualState(UiVisualState.Pressed):
-                if (isInside)
-                {
-                    Activate();
-                }
-
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
             case UiPointerEventKind.Cancelled when HasVisualState(UiVisualState.Pressed):
