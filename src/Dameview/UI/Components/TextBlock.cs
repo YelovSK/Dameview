@@ -36,10 +36,8 @@ internal sealed class TextBlock : UiElement, IDisposable
         string text,
         UiTextStyle style,
         UiTextTone tone,
-        UiTextWrapping wrapping,
-        UiDesignTokens? design = null)
+        UiTextWrapping wrapping)
     {
-        UiDesignTokens resolvedDesign = design ?? UiDesignTokens.Default;
         _text = text;
         _tone = tone;
         _lineHeight = style == UiTextStyle.Heading ? 36.0f : 24.0f;
@@ -47,7 +45,7 @@ internal sealed class TextBlock : UiElement, IDisposable
             UiTypography.FontFamily,
             style == UiTextStyle.Heading ? FontWeight.SemiBold : FontWeight.Normal,
             FontStyle.Normal,
-            style == UiTextStyle.Heading ? resolvedDesign.HeadingFontSize : resolvedDesign.BodyFontSize);
+            style == UiTextStyle.Heading ? UiDesign.HeadingFontSize : UiDesign.BodyFontSize);
         _format.WordWrapping = wrapping == UiTextWrapping.Wrap
             ? WordWrapping.Wrap
             : WordWrapping.NoWrap;

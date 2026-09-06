@@ -12,20 +12,17 @@ internal sealed class SettingsRow : UiElement, IDisposable
     internal SettingsRow(
         IDWriteFactory factory,
         string label,
-        UiElement content,
-        UiDesignTokens? design = null)
+        UiElement content)
     {
-        UiDesignTokens resolvedDesign = design ?? UiDesignTokens.Default;
         _label = new TextBlock(
             factory,
             label,
             UiTextStyle.Body,
             UiTextTone.Secondary,
-            UiTextWrapping.NoWrap,
-            resolvedDesign);
+            UiTextWrapping.NoWrap);
         _stack = new StackPanel(
             UiOrientation.Vertical,
-            resolvedDesign.SmallSpacing,
+            UiDesign.SmallSpacing,
             StackPanelDistribution.Natural,
             _label,
             content);

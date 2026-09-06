@@ -53,21 +53,20 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _imagePanel = new ImagePanel(deviceContext, session.Viewport, session.Animator, timeProvider);
         _emptyStatePanel = new EmptyStatePanel(
             directWriteFactory,
-            LoadApplicationIcon(deviceContext));
+            LoadApplicationIcon(deviceContext),
+            ShowSettings);
         _contentOverlay = new Overlay(_imagePanel, _emptyStatePanel);
         _statusPanel = new StatusPanel(directWriteFactory);
-        _toolbarPanel = new ToolbarPanel(directWriteFactory, commands, theme.Design, ShowSettings);
+        _toolbarPanel = new ToolbarPanel(directWriteFactory, commands, ShowSettings);
         _galleryPanel = new GalleryPanel(
             deviceContext,
             directWriteFactory,
             thumbnailLoader,
-            commands.OpenImage,
-            theme.Design);
+            commands.OpenImage);
         _mainOverlay = new Overlay(_contentOverlay, _statusPanel, _toolbarPanel);
         _splitView = new SplitView(
             _mainOverlay,
             _galleryPanel,
-            theme.Design,
             initialDividerOffsetDips: GalleryPanel.DefaultWidthDips);
         _modalHost = new ModalHost(CloseSettings);
         _popupHost = new PopupHost();
@@ -76,8 +75,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
             _popupHost,
             CloseSettings,
             setTheme,
-            setSort,
-            theme.Design);
+            setSort);
 
         AddChild(_splitView);
         AddChild(_modalHost);
@@ -88,7 +86,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         bool hasImage = _state.DisplayedImage is not null;
         _imagePanel.IsVisible = hasImage;
         _emptyStatePanel.IsVisible = !hasImage;
-        _toolbarPanel.HasImage = hasImage;
+        _toolbarPanel.IsVisible = hasImage;
         _statusPanel.IsVisible = HasStatus;
         _galleryPanel.IsVisible = _state.FolderEntries.Length > 0;
         _splitView.SecondPaneVisible = _galleryPanel.IsVisible;
@@ -162,7 +160,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         bool hasImage = state.DisplayedImage is not null;
         _imagePanel.IsVisible = hasImage;
         _emptyStatePanel.IsVisible = !hasImage;
-        _toolbarPanel.HasImage = hasImage;
+        _toolbarPanel.IsVisible = hasImage;
         _statusPanel.IsVisible = HasStatus;
         _galleryPanel.IsVisible = state.FolderEntries.Length > 0;
         _splitView.SecondPaneVisible = _galleryPanel.IsVisible;
@@ -198,7 +196,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
             return true;
         }
 
-        return _root.HandleKey(input, _toolbarPanel, wrapFocus: false, directionalNavigation: false);
+        UiElement focusScope = _toolbarPanel.IsVisible ? _toolbarPanel : _emptyStatePanel;
+        return _root.HandleKey(input, focusScope, wrapFocus: false, directionalNavigation: false);
     }
 
     internal void SetDpi(float dpi) => _root.SetDpi(dpi);
@@ -237,10 +236,9 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _splitView.Arrange(new RectangleF(PointF.Empty, finalSize));
         ViewerLayout layout = ViewerLayout.Calculate(
             _splitView.FirstPaneBounds.Size,
-            Palette.Design,
             HasStatus,
-            showToolbar: true,
-            toolbarWidthDips: _toolbarPanel.WidthDips);
+            showToolbar: _toolbarPanel.IsVisible,
+            toolbarWidthDips: ToolbarPanel.WidthDips);
         _statusPanel.Arrange(layout.Status);
         _toolbarPanel.Arrange(layout.Toolbar);
         _modalHost.Arrange(new RectangleF(PointF.Empty, finalSize));
@@ -286,8 +284,15 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _root.SetFocus(null);
         _popupHost.Close();
         _modalHost.Close();
-        _root.SetFocus(_toolbarPanel.SettingsButton);
-        _toolbarPanel.Show();
+        if (_toolbarPanel.IsVisible)
+        {
+            _root.SetFocus(_toolbarPanel.SettingsButton);
+            _toolbarPanel.Show();
+        }
+        else
+        {
+            _root.SetFocus(_emptyStatePanel.SettingsButton);
+        }
     }
 
     private void UpdateStatus()

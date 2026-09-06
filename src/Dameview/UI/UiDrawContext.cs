@@ -33,7 +33,17 @@ internal readonly record struct UiDrawContext
 
     internal void DrawRoundedRectangle(RoundedRectangle rectangle, Color4 color, float strokeWidth = 1.0f, float opacity = 1.0f)
     {
-        RenderTarget.DrawRoundedRectangle(rectangle, PrepareBrush(color, opacity), strokeWidth);
+        float inset = strokeWidth / 2.0f;
+        RectangleF bounds = rectangle.Rect;
+        var innerRectangle = new RoundedRectangle(
+            new RectangleF(
+                bounds.X + inset,
+                bounds.Y + inset,
+                MathF.Max(0.0f, bounds.Width - strokeWidth),
+                MathF.Max(0.0f, bounds.Height - strokeWidth)),
+            MathF.Max(0.0f, rectangle.RadiusX - inset),
+            MathF.Max(0.0f, rectangle.RadiusY - inset));
+        RenderTarget.DrawRoundedRectangle(innerRectangle, PrepareBrush(color, opacity), strokeWidth);
     }
 
     internal void DrawText(string text, IDWriteTextFormat format, Rect bounds, Color4 color,

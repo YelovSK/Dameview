@@ -11,7 +11,6 @@ public sealed class ViewerLayoutTests
     {
         ViewerLayout layout = ViewerLayout.Calculate(
             new SizeF(1000.0f, 800.0f),
-            UiDesignTokens.Default,
             showStatus: true,
             showToolbar: true);
 
@@ -26,7 +25,6 @@ public sealed class ViewerLayoutTests
     {
         ViewerLayout layout = ViewerLayout.Calculate(
             new SizeF(1000.0f, 800.0f),
-            UiDesignTokens.Default,
             showStatus: false,
             showToolbar: false);
 
@@ -36,10 +34,10 @@ public sealed class ViewerLayoutTests
     }
 
     [TestMethod]
-    public void SettingsToolbarIsAvailableWithoutAStatusPanel()
+    public void ToolbarCanBeShownWithoutAStatusPanel()
     {
         ViewerLayout layout = ViewerLayout.Calculate(
-            new SizeF(1000, 800), UiDesignTokens.Default,
+            new SizeF(1000, 800),
             showStatus: false, showToolbar: true, toolbarWidthDips: 104);
 
         Assert.AreEqual(RectangleF.Empty, layout.Status);
@@ -51,7 +49,6 @@ public sealed class ViewerLayoutTests
     {
         ViewerLayout layout = ViewerLayout.Calculate(
             new SizeF(1000.0f, 800.0f),
-            UiDesignTokens.Default,
             showStatus: true,
             showToolbar: true,
             showGallery: true,

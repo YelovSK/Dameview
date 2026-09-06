@@ -25,7 +25,6 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private readonly IDWriteInlineObject _ellipsisSign;
     private readonly IThumbnailLoader _thumbnailLoader;
     private readonly Action<string> _openImage;
-    private readonly UiDesignTokens _design;
     private readonly Scrollbar _scrollbar;
     private readonly ScrollOffsetController _scrollOffset = new();
     private readonly Dictionary<string, ThumbnailSlot> _slots =
@@ -39,13 +38,11 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         ID2D1DeviceContext deviceContext,
         IDWriteFactory directWriteFactory,
         IThumbnailLoader thumbnailLoader,
-        Action<string> openImage,
-        UiDesignTokens design)
+        Action<string> openImage)
     {
         _deviceContext = deviceContext;
         _thumbnailLoader = thumbnailLoader;
         _openImage = openImage;
-        _design = design;
         _scrollbar = new Scrollbar(SetScrollOffset);
         AddChild(_scrollbar);
         _labelFormat = directWriteFactory.CreateTextFormat(
@@ -122,8 +119,8 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
         var panel = new RoundedRectangle(
             new RectangleF(0.0f, 0.0f, Bounds.Width, Bounds.Height),
-            _design.PanelCornerRadius,
-            _design.PanelCornerRadius);
+            UiDesign.PanelCornerRadius,
+            UiDesign.PanelCornerRadius);
         context.FillRoundedRectangle(panel, context.Palette.Surface);
         context.DrawRoundedRectangle(panel, context.Palette.SurfaceBorder);
 
@@ -290,10 +287,10 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         float itemWidth = ItemWidth;
         float y = PanelPadding + row * ItemHeightDips - _scrollOffset.Offset;
         var itemBounds = new RectangleF(
-            PanelPadding + column * (itemWidth + _design.SmallSpacing),
+            PanelPadding + column * (itemWidth + UiDesign.SmallSpacing),
             y,
             itemWidth,
-            ItemHeightDips - _design.SmallSpacing);
+            ItemHeightDips - UiDesign.SmallSpacing);
         bool selected = string.Equals(entry.FullName, _selectedPath, StringComparison.OrdinalIgnoreCase);
         if (selected || index == _hoveredIndex || index == _pressedIndex)
         {
@@ -301,7 +298,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
                 ? context.Palette.Accent
                 : index == _pressedIndex ? context.Palette.ControlPressed : context.Palette.ControlHover;
             context.FillRoundedRectangle(
-                new RoundedRectangle(itemBounds, _design.ControlCornerRadius, _design.ControlCornerRadius),
+                new RoundedRectangle(itemBounds, UiDesign.ControlCornerRadius, UiDesign.ControlCornerRadius),
                 color,
                 selected ? 0.28f : 1.0f);
         }
@@ -334,7 +331,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         else
         {
             context.FillRoundedRectangle(
-                new RoundedRectangle(imageBounds, _design.ControlCornerRadius, _design.ControlCornerRadius),
+                new RoundedRectangle(imageBounds, UiDesign.ControlCornerRadius, UiDesign.ControlCornerRadius),
                 context.Palette.OverlaySurface);
         }
 
@@ -440,17 +437,17 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private float ContentHeight => 2.0f * PanelPadding + RowCount * ItemHeightDips;
     private int RowCount => (_entries.Length + ColumnCount - 1) / ColumnCount;
 
-    private int GetColumnCount(float contentWidth)
+    private static int GetColumnCount(float contentWidth)
     {
-        float pitch = MinimumItemWidthDips + _design.SmallSpacing;
-        return Math.Max(1, (int)MathF.Floor((contentWidth + _design.SmallSpacing) / pitch));
+        float pitch = MinimumItemWidthDips + UiDesign.SmallSpacing;
+        return Math.Max(1, (int)MathF.Floor((contentWidth + UiDesign.SmallSpacing) / pitch));
     }
 
-    private float GetItemWidth(float contentWidth, int columnCount)
+    private static float GetItemWidth(float contentWidth, int columnCount)
     {
         return MathF.Max(
             0.0f,
-            (contentWidth - (columnCount - 1) * _design.SmallSpacing) / columnCount);
+            (contentWidth - (columnCount - 1) * UiDesign.SmallSpacing) / columnCount);
     }
 
     private void SetScrollOffset(float offset)

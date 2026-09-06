@@ -68,6 +68,31 @@ public sealed class UiDrawContextTests
         }
     }
 
+    [TestMethod]
+    public void RoundedRectangleBorderStaysInsideTheElementClip()
+    {
+        using var wic = new IWICImagingFactory2();
+        using IWICBitmap bitmap = wic.CreateBitmap(10, 10,
+            Vortice.WIC.PixelFormat.Format32bppPBGRA, BitmapCreateCacheOption.CacheOnLoad);
+        using ID2D1Factory factory = D2D1CreateFactory<ID2D1Factory>();
+        using ID2D1RenderTarget target = factory.CreateWicBitmapRenderTarget(bitmap, new RenderTargetProperties());
+        target.SetDpi(96, 96);
+        using ID2D1SolidColorBrush brush = target.CreateSolidColorBrush(default(Color4));
+        var context = new UiDrawContext(target, brush, UiTheme.Default, 96);
+        var element = new BorderElement();
+        element.Arrange(new RectangleF(0, 0, 10, 10));
+
+        target.BeginDraw();
+        target.Clear(default(Color4));
+        context.DrawElement(element);
+        target.EndDraw().CheckError();
+
+        byte[] pixels = new byte[10 * 10 * 4];
+        bitmap.CopyPixels(10 * 4, pixels);
+        Assert.IsGreaterThan(0, AlphaAt(pixels, 10, 5, 9));
+        Assert.IsGreaterThan(0, AlphaAt(pixels, 10, 9, 5));
+    }
+
     private static RoundedRectangle Block(int x)
     {
         return new RoundedRectangle(new RectangleF(x, 0, 10, 10), 0, 0);
@@ -84,11 +109,24 @@ public sealed class UiDrawContextTests
         }
     }
 
+    private static byte AlphaAt(byte[] pixels, int width, int x, int y)
+    {
+        return pixels[((y * width) + x) * 4 + 3];
+    }
+
     private sealed class PaletteElement : UiElement
     {
         protected override void DrawCore(in UiDrawContext context)
         {
             context.FillRoundedRectangle(Block(0), context.Palette.PrimaryText);
+        }
+    }
+
+    private sealed class BorderElement : UiElement
+    {
+        protected override void DrawCore(in UiDrawContext context)
+        {
+            context.DrawRoundedRectangle(Block(0), new Color4(1, 1, 1, 1));
         }
     }
 }

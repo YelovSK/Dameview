@@ -10,14 +10,13 @@ internal readonly record struct ViewerLayout(
 {
     internal static ViewerLayout Calculate(
         SizeF size,
-        UiDesignTokens design,
         bool showStatus,
         bool showToolbar,
         float toolbarWidthDips = 332.0f,
         bool showGallery = false,
         float galleryWidthDips = 184.0f)
     {
-        float margin = design.WindowMargin;
+        float margin = UiDesign.WindowMargin;
         RectangleF gallery = RectangleF.Empty;
         float contentWidth = size.Width;
         if (showGallery)
@@ -25,7 +24,7 @@ internal readonly record struct ViewerLayout(
             const float minimumContentWidth = 120.0f;
             float galleryWidth = MathF.Min(
                 galleryWidthDips,
-                MathF.Max(0.0f, size.Width - 2.0f * margin - design.PanelGap - minimumContentWidth));
+                MathF.Max(0.0f, size.Width - 2.0f * margin - UiDesign.PanelGap - minimumContentWidth));
             if (galleryWidth > 0.0f)
             {
                 gallery = new RectangleF(
@@ -33,14 +32,14 @@ internal readonly record struct ViewerLayout(
                     margin,
                     galleryWidth,
                     MathF.Max(0.0f, size.Height - 2.0f * margin));
-                contentWidth = MathF.Max(0.0f, gallery.X - design.PanelGap);
+                contentWidth = MathF.Max(0.0f, gallery.X - UiDesign.PanelGap);
             }
         }
 
         var content = new RectangleF(0.0f, 0.0f, contentWidth, size.Height);
         float availableWidth = MathF.Max(0.0f, contentWidth - (2.0f * margin));
         float availableHeight = MathF.Max(0.0f, size.Height - (2.0f * margin));
-        float statusHeight = MathF.Min(design.StatusHeight, availableHeight);
+        float statusHeight = MathF.Min(UiDesign.StatusHeight, availableHeight);
         RectangleF status = showStatus ? new RectangleF(
             margin,
             MathF.Max(margin, size.Height - statusHeight - margin),
@@ -52,7 +51,7 @@ internal readonly record struct ViewerLayout(
         {
             float toolbarWidth = MathF.Min(toolbarWidthDips, availableWidth);
             float availableToolbarHeight = MathF.Max(0.0f, size.Height - 2.0f * margin);
-            float toolbarHeight = MathF.Min(design.ToolbarHeight, availableToolbarHeight);
+            float toolbarHeight = MathF.Min(UiDesign.ToolbarHeight, availableToolbarHeight);
             toolbar = new RectangleF(
                 (contentWidth - toolbarWidth) / 2.0f,
                 margin,

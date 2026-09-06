@@ -8,25 +8,27 @@ namespace Dameview.UI.Components;
 internal sealed class Button : InteractiveControl, IDisposable
 {
     private readonly Action _clicked;
+    private readonly float _backgroundInsetY;
     private readonly IDWriteTextFormat _textFormat;
-    private readonly UiDesignTokens _design;
     private string _label;
 
     internal Button(
         IDWriteFactory directWriteFactory,
         string label,
         Action clicked,
-        UiDesignTokens? design = null)
-        : base(design ?? UiDesignTokens.Default)
+        string fontFamily = UiTypography.FontFamily,
+        float fontSize = UiDesign.BodyFontSize,
+        float backgroundInsetY = 0.0f)
     {
-        _design = design ?? UiDesignTokens.Default;
+        ArgumentOutOfRangeException.ThrowIfNegative(backgroundInsetY);
         _label = label;
         _clicked = clicked;
+        _backgroundInsetY = backgroundInsetY;
         _textFormat = directWriteFactory.CreateTextFormat(
-            UiTypography.FontFamily,
+            fontFamily,
             FontWeight.SemiBold,
             FontStyle.Normal,
-            _design.BodyFontSize);
+            fontSize);
         _textFormat.TextAlignment = TextAlignment.Center;
         _textFormat.ParagraphAlignment = ParagraphAlignment.Center;
         _textFormat.WordWrapping = WordWrapping.NoWrap;
@@ -62,11 +64,15 @@ internal sealed class Button : InteractiveControl, IDisposable
     {
         float width = Bounds.Width;
         float height = Bounds.Height;
-        var bounds = new RectangleF(0.0f, 0.0f, width, height);
+        var bounds = new RectangleF(
+            0.0f,
+            _backgroundInsetY,
+            width,
+            MathF.Max(0.0f, height - 2.0f * _backgroundInsetY));
         var background = new RoundedRectangle(
             bounds,
-            _design.ControlCornerRadius,
-            _design.ControlCornerRadius);
+            UiDesign.ControlCornerRadius,
+            UiDesign.ControlCornerRadius);
 
         if (IsSelected)
         {
@@ -89,13 +95,6 @@ internal sealed class Button : InteractiveControl, IDisposable
             new Rect(0.0f, 0.0f, width, height),
             IsEnabled ? context.Palette.PrimaryText : context.Palette.SecondaryText,
             DrawTextOptions.Clip);
-
-        if (HasVisualState(UiVisualState.Focused))
-        {
-            context.DrawRoundedRectangle(new RoundedRectangle(
-                new RectangleF(2, 2, MathF.Max(0, width - 4), MathF.Max(0, height - 4)),
-                6, 6), context.Palette.Accent, 2);
-        }
     }
 
     public void Dispose()

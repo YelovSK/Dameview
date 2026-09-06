@@ -20,7 +20,6 @@ internal sealed class SplitView : UiElement
     private readonly UiElement _firstPane;
     private readonly UiElement _secondPane;
     private readonly Resizer _resizer;
-    private readonly UiDesignTokens _design;
     private float _splitSize;
     private bool _firstPaneVisible = true;
     private bool _secondPaneVisible;
@@ -30,13 +29,11 @@ internal sealed class SplitView : UiElement
     internal SplitView(
         UiElement firstPane,
         UiElement secondPane,
-        UiDesignTokens design,
         float initialDividerOffsetDips,
         SplitViewEdge edge = SplitViewEdge.Right)
     {
         _firstPane = firstPane;
         _secondPane = secondPane;
-        _design = design;
         _splitSize = initialDividerOffsetDips;
         Edge = edge;
         _resizer = new Resizer(this);
@@ -122,7 +119,7 @@ internal sealed class SplitView : UiElement
 
     private void CalculateBounds(SizeF finalSize)
     {
-        float margin = _design.WindowMargin;
+        float margin = UiDesign.WindowMargin;
         float usableAxis = (IsHorizontal ? finalSize.Width : finalSize.Height)
             - 2.0f * margin
             - SplitterSize;

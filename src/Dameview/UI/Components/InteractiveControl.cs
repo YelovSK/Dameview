@@ -9,10 +9,10 @@ internal abstract class InteractiveControl : UiElement
     private readonly AnimatedFloat _hoverAmount;
     private readonly AnimatedFloat _pressedAmount;
 
-    protected InteractiveControl(UiDesignTokens design)
+    protected InteractiveControl()
     {
-        _hoverAmount = new AnimatedFloat(0.0f, design.HoverResponse);
-        _pressedAmount = new AnimatedFloat(0.0f, design.PressedResponse);
+        _hoverAmount = new AnimatedFloat(0.0f, UiDesign.HoverResponse);
+        _pressedAmount = new AnimatedFloat(0.0f, UiDesign.PressedResponse);
     }
 
     internal bool IsEnabled

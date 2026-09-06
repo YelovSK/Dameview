@@ -11,66 +11,40 @@ namespace Dameview.UI.Panels;
 
 internal sealed class ToolbarPanel : UiElement, IDisposable
 {
-    private const float WidthWithImage = 332.0f;
-    private const float WidthWithoutImage = 104.0f;
+    internal const float WidthDips = 332.0f;
 
     private readonly Button[] _buttons;
     private readonly StackPanel _buttonRow;
     private readonly AnimatedFloat _visibility = new(0.0f, 14.0);
-    private readonly UiDesignTokens _design;
-    private bool _hasImage;
 
     internal ToolbarPanel(
         IDWriteFactory directWriteFactory,
         IViewerCommands commands,
-        UiDesignTokens design,
         Action showSettings)
     {
-        _design = design;
         _buttons =
         [
-            new Button(directWriteFactory, "←", commands.ShowPreviousImage, design),
-            new Button(directWriteFactory, "→", commands.ShowNextImage, design),
-            new Button(directWriteFactory, "Fit", commands.FitImage, design),
-            new Button(directWriteFactory, "1:1", commands.ShowActualSize, design),
-            new Button(directWriteFactory, "Settings", showSettings, design),
+            new Button(directWriteFactory, "←", commands.ShowPreviousImage),
+            new Button(directWriteFactory, "→", commands.ShowNextImage),
+            new Button(directWriteFactory, "Fit", commands.FitImage),
+            new Button(directWriteFactory, "1:1", commands.ShowActualSize),
+            new Button(
+                directWriteFactory,
+                UiTypography.SettingsIcon,
+                showSettings,
+                fontFamily: UiTypography.IconFontFamily,
+                fontSize: 16.0f),
         ];
         _buttonRow = new StackPanel(
             UiOrientation.Horizontal,
-            design.SmallSpacing,
+            UiDesign.SmallSpacing,
             StackPanelDistribution.Equal,
             _buttons);
         AddChild(_buttonRow);
 
-        for (int index = 0; index < _buttons.Length - 1; index++)
-        {
-            _buttons[index].IsVisible = false;
-        }
-
         Show();
     }
 
-    internal bool HasImage
-    {
-        get => _hasImage;
-        set
-        {
-            if (_hasImage == value)
-            {
-                return;
-            }
-
-            _hasImage = value;
-            for (int index = 0; index < _buttons.Length - 1; index++)
-            {
-                _buttons[index].IsVisible = value;
-            }
-
-            InvalidateLayout();
-        }
-    }
-
-    internal float WidthDips => HasImage ? WidthWithImage : WidthWithoutImage;
     internal Button SettingsButton => _buttons[^1];
     internal override bool ObservePointerMoves => true;
     internal override float Opacity => _visibility.Current;
@@ -89,9 +63,9 @@ internal sealed class ToolbarPanel : UiElement, IDisposable
         const float padding = 6.0f;
         _buttonRow.Measure(new SizeF(
             MathF.Max(0.0f, availableSize.Width - 2.0f * padding),
-            MathF.Max(0.0f, _design.ToolbarHeight - 2.0f * padding)));
+            MathF.Max(0.0f, UiDesign.ToolbarHeight - 2.0f * padding)));
 
-        return new SizeF(WidthDips, _design.ToolbarHeight);
+        return new SizeF(WidthDips, UiDesign.ToolbarHeight);
     }
 
     protected override void ArrangeCore(SizeF finalSize)
@@ -120,15 +94,15 @@ internal sealed class ToolbarPanel : UiElement, IDisposable
         RectangleF content = GetContentBounds(Bounds.Size);
         var panel = new RoundedRectangle(
             content,
-            _design.PanelCornerRadius,
-            _design.PanelCornerRadius);
+            UiDesign.PanelCornerRadius,
+            UiDesign.PanelCornerRadius);
         context.FillRoundedRectangle(panel, context.Palette.OverlaySurface);
         context.DrawRoundedRectangle(panel, context.Palette.SurfaceBorder);
     }
 
     protected override void ObservePointerMove(in UiPointerEvent input)
     {
-        bool visible = !HasImage || HasFocusWithin || input.Position.Y <= Bounds.Height + 28.0f;
+        bool visible = HasFocusWithin || input.Position.Y <= Bounds.Height + 28.0f;
         if (_visibility.SetTarget(visible ? 1.0f : 0.0f))
         {
             InvalidateVisual();
@@ -151,7 +125,7 @@ internal sealed class ToolbarPanel : UiElement, IDisposable
         }
     }
 
-    private RectangleF GetContentBounds(SizeF availableSize)
+    private static RectangleF GetContentBounds(SizeF availableSize)
     {
         float width = MathF.Min(WidthDips, MathF.Max(0.0f, availableSize.Width));
         return new RectangleF(

@@ -22,8 +22,7 @@ public sealed class SettingsPanelTests
             popupHost,
             () => { },
             _ => { },
-            selectedSorts.Add,
-            UiDesignTokens.Default);
+            selectedSorts.Add);
         var scene = new TestScene(settings, popupHost);
         var root = new UiRoot(scene, UiDpi.Default);
         root.Arrange(new SizeF(440.0f, 220.0f));
@@ -53,8 +52,7 @@ public sealed class SettingsPanelTests
             popupHost,
             () => { },
             _ => { },
-            _ => { },
-            UiDesignTokens.Default);
+            _ => { });
         var scene = new TestScene(settings, popupHost);
         var root = new UiRoot(scene, UiDpi.Default);
         var size = new SizeF(440.0f, 220.0f);

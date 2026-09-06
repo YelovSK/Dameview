@@ -13,7 +13,7 @@ public sealed class SplitViewTests
     {
         var main = new FixedContent();
         var panel = new FixedContent();
-        var splitView = new SplitView(main, panel, UiDesignTokens.Default, initialDividerOffsetDips: 184.0f)
+        var splitView = new SplitView(main, panel, initialDividerOffsetDips: 184.0f)
         {
             SecondPaneVisible = true,
         };
@@ -46,7 +46,6 @@ public sealed class SplitViewTests
         var splitView = new SplitView(
             new FixedContent(),
             new FixedContent(),
-            UiDesignTokens.Default,
             initialDividerOffsetDips: 184.0f)
         {
             SecondPaneVisible = false,
@@ -82,7 +81,6 @@ public sealed class SplitViewTests
             var splitView = new SplitView(
                 new FixedContent(),
                 new FixedContent(),
-                UiDesignTokens.Default,
                 initialDividerOffsetDips: 184.0f,
                 edge: edge)
             {

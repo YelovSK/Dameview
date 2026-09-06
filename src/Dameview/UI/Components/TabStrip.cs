@@ -18,8 +18,7 @@ internal sealed class TabStrip : UiElement, IDisposable
         IDWriteFactory factory,
         IReadOnlyList<string> labels,
         int selectedIndex,
-        Action<int> selectionChanged,
-        UiDesignTokens? design = null)
+        Action<int> selectionChanged)
     {
         if (labels.Count == 0)
         {
@@ -27,11 +26,10 @@ internal sealed class TabStrip : UiElement, IDisposable
         }
 
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)selectedIndex, (uint)labels.Count);
-        UiDesignTokens resolvedDesign = design ?? UiDesignTokens.Default;
         _selectionChanged = selectionChanged;
         _selectedIndex = selectedIndex;
         var textFormat = factory.CreateTextFormat(
-            UiTypography.FontFamily, FontWeight.SemiBold, FontStyle.Normal, resolvedDesign.BodyFontSize);
+            UiTypography.FontFamily, FontWeight.SemiBold, FontStyle.Normal, UiDesign.BodyFontSize);
         textFormat.TextAlignment = TextAlignment.Center;
         textFormat.ParagraphAlignment = ParagraphAlignment.Center;
         textFormat.WordWrapping = WordWrapping.NoWrap;
@@ -39,13 +37,13 @@ internal sealed class TabStrip : UiElement, IDisposable
         _items = new TabItem[labels.Count];
         for (int index = 0; index < labels.Count; index++)
         {
-            _items[index] = new TabItem(this, index, labels[index], textFormat, resolvedDesign);
+            _items[index] = new TabItem(this, index, labels[index], textFormat);
             _items[index].SetVisualState(UiVisualState.Selected, index == selectedIndex);
         }
 
         _row = new StackPanel(
             UiOrientation.Horizontal,
-            resolvedDesign.SmallSpacing,
+            UiDesign.SmallSpacing,
             StackPanelDistribution.Equal,
             _items);
         AddChild(_row);
@@ -102,7 +100,6 @@ internal sealed class TabStrip : UiElement, IDisposable
 
     private sealed class TabItem : InteractiveControl
     {
-        private readonly UiDesignTokens _design;
         private readonly int _index;
         private readonly string _label;
         private readonly TabStrip _owner;
@@ -112,15 +109,12 @@ internal sealed class TabStrip : UiElement, IDisposable
             TabStrip owner,
             int index,
             string label,
-            IDWriteTextFormat textFormat,
-            UiDesignTokens design)
-            : base(design)
+            IDWriteTextFormat textFormat)
         {
             _owner = owner;
             _index = index;
             _label = label;
             _textFormat = textFormat;
-            _design = design;
         }
 
         internal override bool OnKeyEvent(UiKeyEvent input)
@@ -144,8 +138,8 @@ internal sealed class TabStrip : UiElement, IDisposable
             float height = Bounds.Height;
             var bounds = new RoundedRectangle(
                 new RectangleF(0.0f, 0.0f, width, height),
-                _design.ControlCornerRadius,
-                _design.ControlCornerRadius);
+                UiDesign.ControlCornerRadius,
+                UiDesign.ControlCornerRadius);
             if (HasVisualState(UiVisualState.Selected))
             {
                 context.FillRoundedRectangle(bounds, context.Palette.Accent, 0.18f);
@@ -167,13 +161,6 @@ internal sealed class TabStrip : UiElement, IDisposable
                 new Rect(0.0f, 0.0f, width, height),
                 context.Palette.PrimaryText,
                 DrawTextOptions.Clip);
-            if (HasVisualState(UiVisualState.Focused))
-            {
-                context.DrawRoundedRectangle(new RoundedRectangle(
-                    new RectangleF(2.0f, 2.0f, MathF.Max(0.0f, width - 4.0f), MathF.Max(0.0f, height - 4.0f)),
-                    _design.ControlCornerRadius - 2.0f,
-                    _design.ControlCornerRadius - 2.0f), context.Palette.Accent, 2.0f);
-            }
         }
 
         protected override void Activate() => _owner.Select(_index, notify: true, moveFocus: false);

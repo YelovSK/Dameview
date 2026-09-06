@@ -179,11 +179,10 @@ internal sealed class ModalHost : UiElement
 
         protected override void DrawCore(in UiDrawContext context)
         {
-            UiDesignTokens design = context.Palette.Design;
             var panel = new RoundedRectangle(
                 new RectangleF(0.0f, 0.0f, Bounds.Width, Bounds.Height),
-                design.PanelCornerRadius,
-                design.PanelCornerRadius);
+                UiDesign.PanelCornerRadius,
+                UiDesign.PanelCornerRadius);
             context.FillRoundedRectangle(panel, context.Palette.Surface);
             context.DrawRoundedRectangle(panel, context.Palette.SurfaceBorder);
         }

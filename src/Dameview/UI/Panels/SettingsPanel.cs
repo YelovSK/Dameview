@@ -59,8 +59,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
         PopupHost popupHost,
         Action close,
         Action<ThemeMode> setTheme,
-        Action<FolderSort> setSort,
-        UiDesignTokens design)
+        Action<FolderSort> setSort)
     {
         _popupHost = popupHost;
         _setSort = setSort;
@@ -69,28 +68,31 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
             "Settings",
             UiTextStyle.Heading,
             UiTextTone.Primary,
-            UiTextWrapping.NoWrap,
-            design);
+            UiTextWrapping.NoWrap);
         _message = new TextBlock(
             factory,
             "Changes are saved automatically.",
             UiTextStyle.Body,
             UiTextTone.Secondary,
-            UiTextWrapping.Wrap,
-            design);
-        _closeButton = new Button(factory, "Close", close, design);
+            UiTextWrapping.Wrap);
+        _closeButton = new Button(
+            factory,
+            UiTypography.CloseIcon,
+            close,
+            fontFamily: UiTypography.IconFontFamily,
+            fontSize: 16.0f);
 
         _themeButtons =
         [
-            new Button(factory, "Dark", () => setTheme(ThemeMode.Dark), design),
-            new Button(factory, "Light", () => setTheme(ThemeMode.Light), design),
+            new Button(factory, "Dark", () => setTheme(ThemeMode.Dark)),
+            new Button(factory, "Light", () => setTheme(ThemeMode.Light)),
         ];
         var themeChoices = new StackPanel(
             UiOrientation.Horizontal,
-            design.SmallSpacing,
+            UiDesign.SmallSpacing,
             StackPanelDistribution.Equal,
             _themeButtons);
-        _themeRow = new SettingsRow(factory, "Theme", themeChoices, design);
+        _themeRow = new SettingsRow(factory, "Theme", themeChoices);
 
         _sortField = new Dropdown<SortField>(
             factory,
@@ -102,8 +104,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
                 new("Size", SortField.Size),
             ],
             SortField.Name,
-            SetSortField,
-            design);
+            SetSortField);
         _sortDirection = new Dropdown<SortDirection>(
             factory,
             popupHost,
@@ -112,19 +113,18 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
                 new("Z–A", SortDirection.Second),
             ],
             SortDirection.First,
-            SetSortDirection,
-            design);
-        _sortFieldRow = new SettingsRow(factory, "Sort by", _sortField, design);
-        _sortDirectionRow = new SettingsRow(factory, "Direction", _sortDirection, design);
+            SetSortDirection);
+        _sortFieldRow = new SettingsRow(factory, "Sort by", _sortField);
+        _sortDirectionRow = new SettingsRow(factory, "Direction", _sortDirection);
 
         var appearanceContent = new StackPanel(
             UiOrientation.Vertical,
-            design.LargeSpacing,
+            UiDesign.LargeSpacing,
             StackPanelDistribution.Natural,
             _themeRow);
         var sortingContent = new StackPanel(
             UiOrientation.Vertical,
-            design.LargeSpacing,
+            UiDesign.LargeSpacing,
             StackPanelDistribution.Natural,
             _sortFieldRow,
             _sortDirectionRow);
@@ -135,8 +135,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
             factory,
             ["Appearance", "Sorting"],
             (int)SettingsTab.Appearance,
-            SelectTab,
-            design);
+            SelectTab);
 
         AddChild(_title);
         AddChild(_closeButton);

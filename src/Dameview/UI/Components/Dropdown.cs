@@ -12,7 +12,6 @@ internal readonly record struct DropdownOption<T>(string Label, T Value);
 internal sealed class Dropdown<T> : InteractiveControl, IDisposable
 {
     private readonly Action<T> _changed;
-    private readonly UiDesignTokens _design;
     private readonly DropdownOption<T>[] _options;
     private readonly PopupHost _popupHost;
     private readonly PopupList _popupList;
@@ -24,25 +23,22 @@ internal sealed class Dropdown<T> : InteractiveControl, IDisposable
         PopupHost popupHost,
         IReadOnlyList<DropdownOption<T>> options,
         T selectedValue,
-        Action<T> changed,
-        UiDesignTokens? design = null)
-        : base(design ?? UiDesignTokens.Default)
+        Action<T> changed)
     {
         if (options.Count == 0)
         {
             throw new ArgumentException("A dropdown requires at least one option.", nameof(options));
         }
 
-        _design = design ?? UiDesignTokens.Default;
         _popupHost = popupHost;
         _options = [.. options];
         _changed = changed;
         _selectedIndex = FindIndex(selectedValue);
         _textFormat = factory.CreateTextFormat(
-            UiTypography.FontFamily, FontWeight.SemiBold, FontStyle.Normal, _design.BodyFontSize);
+            UiTypography.FontFamily, FontWeight.SemiBold, FontStyle.Normal, UiDesign.BodyFontSize);
         _textFormat.ParagraphAlignment = ParagraphAlignment.Center;
         _textFormat.WordWrapping = WordWrapping.NoWrap;
-        _popupList = new PopupList(factory, _options, SelectFromPopup, _design);
+        _popupList = new PopupList(factory, _options, SelectFromPopup);
         _popupList.SelectedIndex = _selectedIndex;
     }
 
@@ -106,9 +102,8 @@ internal sealed class Dropdown<T> : InteractiveControl, IDisposable
         float height = Bounds.Height;
         var bounds = new RoundedRectangle(
             new RectangleF(0.0f, 0.0f, width, height),
-            _design.ControlCornerRadius,
-            _design.ControlCornerRadius);
-        context.DrawRoundedRectangle(bounds, context.Palette.SurfaceBorder);
+            UiDesign.ControlCornerRadius,
+            UiDesign.ControlCornerRadius);
         if (IsOpen)
         {
             context.FillRoundedRectangle(bounds, context.Palette.Accent, 0.14f);
@@ -127,23 +122,9 @@ internal sealed class Dropdown<T> : InteractiveControl, IDisposable
         context.DrawText(
             _options[_selectedIndex].Label,
             _textFormat,
-            new Rect(12.0f, 0.0f, MathF.Max(12.0f, width - 36.0f), height),
+            new Rect(12.0f, 0.0f, MathF.Max(12.0f, width - 12.0f), height),
             IsEnabled ? context.Palette.PrimaryText : context.Palette.SecondaryText,
             DrawTextOptions.Clip);
-        context.DrawText(
-            IsOpen ? "⌃" : "⌄",
-            _textFormat,
-            new Rect(MathF.Max(0.0f, width - 28.0f), 0.0f, width, height),
-            context.Palette.SecondaryText,
-            DrawTextOptions.Clip);
-
-        if (HasVisualState(UiVisualState.Focused))
-        {
-            context.DrawRoundedRectangle(new RoundedRectangle(
-                new RectangleF(2.0f, 2.0f, MathF.Max(0.0f, width - 4.0f), MathF.Max(0.0f, height - 4.0f)),
-                _design.ControlCornerRadius - 2.0f,
-                _design.ControlCornerRadius - 2.0f), context.Palette.Accent, 2.0f);
-        }
     }
 
     protected override void Activate()
@@ -220,20 +201,18 @@ internal sealed class Dropdown<T> : InteractiveControl, IDisposable
 
     private sealed class PopupList : UiElement, IDisposable
     {
-        private const float Padding = 4.0f;
-        private const float ItemHeight = 36.0f;
+        private const float HorizontalPadding = 4.0f;
+        private const float VerticalPadding = 2.0f;
+        private const float ItemHeight = 40.0f;
 
         private readonly Button[] _buttons;
         private readonly StackPanel _column;
-        private readonly UiDesignTokens _design;
 
         internal PopupList(
             IDWriteFactory factory,
             IReadOnlyList<DropdownOption<T>> options,
-            Action<int> selected,
-            UiDesignTokens design)
+            Action<int> selected)
         {
-            _design = design;
             _buttons = new Button[options.Count];
             for (int index = 0; index < options.Count; index++)
             {
@@ -242,12 +221,12 @@ internal sealed class Dropdown<T> : InteractiveControl, IDisposable
                     factory,
                     options[index].Label,
                     () => selected(optionIndex),
-                    design);
+                    backgroundInsetY: 2.0f);
             }
 
             _column = new StackPanel(
                 UiOrientation.Vertical,
-                design.SmallSpacing,
+                0.0f,
                 StackPanelDistribution.Equal,
                 _buttons);
             AddChild(_column);
@@ -268,17 +247,15 @@ internal sealed class Dropdown<T> : InteractiveControl, IDisposable
 
         internal SizeF PreferredSize(float anchorWidth)
         {
-            float height = 2.0f * Padding
-                + _buttons.Length * ItemHeight
-                + (_buttons.Length - 1) * _design.SmallSpacing;
+            float height = 2.0f * VerticalPadding + _buttons.Length * ItemHeight;
             return new SizeF(MathF.Max(160.0f, anchorWidth), height);
         }
 
         protected override SizeF MeasureCore(SizeF availableSize)
         {
             var contentSize = new SizeF(
-                MathF.Max(0.0f, availableSize.Width - 2.0f * Padding),
-                MathF.Max(0.0f, availableSize.Height - 2.0f * Padding));
+                MathF.Max(0.0f, availableSize.Width - 2.0f * HorizontalPadding),
+                MathF.Max(0.0f, availableSize.Height - 2.0f * VerticalPadding));
             _column.Measure(contentSize);
             return availableSize;
         }
@@ -286,18 +263,18 @@ internal sealed class Dropdown<T> : InteractiveControl, IDisposable
         protected override void ArrangeCore(SizeF finalSize)
         {
             _column.Arrange(new RectangleF(
-                Padding,
-                Padding,
-                MathF.Max(0.0f, finalSize.Width - 2.0f * Padding),
-                MathF.Max(0.0f, finalSize.Height - 2.0f * Padding)));
+                HorizontalPadding,
+                VerticalPadding,
+                MathF.Max(0.0f, finalSize.Width - 2.0f * HorizontalPadding),
+                MathF.Max(0.0f, finalSize.Height - 2.0f * VerticalPadding)));
         }
 
         protected override void DrawCore(in UiDrawContext context)
         {
             var surface = new RoundedRectangle(
                 new RectangleF(0.0f, 0.0f, Bounds.Width, Bounds.Height),
-                _design.ControlCornerRadius,
-                _design.ControlCornerRadius);
+                UiDesign.ControlCornerRadius,
+                UiDesign.ControlCornerRadius);
             context.FillRoundedRectangle(surface, context.Palette.Surface);
             context.DrawRoundedRectangle(surface, context.Palette.SurfaceBorder);
         }

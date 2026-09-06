@@ -8,7 +8,6 @@ namespace Dameview.UI.Components;
 internal sealed class Toggle : InteractiveControl, IDisposable
 {
     private readonly Action<bool> _changed;
-    private readonly UiDesignTokens _design;
     private readonly IDWriteTextFormat _textFormat;
     private bool _value;
 
@@ -16,16 +15,13 @@ internal sealed class Toggle : InteractiveControl, IDisposable
         IDWriteFactory factory,
         string label,
         bool value,
-        Action<bool> changed,
-        UiDesignTokens? design = null)
-        : base(design ?? UiDesignTokens.Default)
+        Action<bool> changed)
     {
-        _design = design ?? UiDesignTokens.Default;
         Label = label;
         _value = value;
         _changed = changed;
         _textFormat = factory.CreateTextFormat(
-            UiTypography.FontFamily, FontWeight.Normal, FontStyle.Normal, _design.BodyFontSize);
+            UiTypography.FontFamily, FontWeight.Normal, FontStyle.Normal, UiDesign.BodyFontSize);
         _textFormat.ParagraphAlignment = ParagraphAlignment.Center;
         _textFormat.WordWrapping = WordWrapping.NoWrap;
         SetVisualState(UiVisualState.Selected, value);
@@ -59,8 +55,8 @@ internal sealed class Toggle : InteractiveControl, IDisposable
         float height = Bounds.Height;
         var controlBounds = new RoundedRectangle(
             new RectangleF(0.0f, 0.0f, width, height),
-            _design.ControlCornerRadius,
-            _design.ControlCornerRadius);
+            UiDesign.ControlCornerRadius,
+            UiDesign.ControlCornerRadius);
         if (HoverAmount > 0.0f)
         {
             context.FillRoundedRectangle(controlBounds, context.Palette.ControlHover, HoverAmount);
@@ -98,14 +94,6 @@ internal sealed class Toggle : InteractiveControl, IDisposable
             thumbSize / 2.0f,
             thumbSize / 2.0f);
         context.FillRoundedRectangle(thumb, context.Palette.PrimaryText, IsEnabled ? 1.0f : 0.65f);
-
-        if (HasVisualState(UiVisualState.Focused))
-        {
-            context.DrawRoundedRectangle(new RoundedRectangle(
-                new RectangleF(2.0f, 2.0f, MathF.Max(0.0f, width - 4.0f), MathF.Max(0.0f, height - 4.0f)),
-                _design.ControlCornerRadius - 2.0f,
-                _design.ControlCornerRadius - 2.0f), context.Palette.Accent, 2.0f);
-        }
     }
 
     protected override void Activate()
