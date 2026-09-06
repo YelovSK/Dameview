@@ -105,6 +105,10 @@ public sealed class WicImageTileSourceTests
             using IImageTileDecoder tileDecoder = tiles.CreateTileDecoder();
             using var decoder = new ImageDecoder();
             DecodedImage fullImage = decoder.Decode(path);
+            using DecodedImageUpload upload = decoder.DecodeUpload(path);
+            Assert.AreEqual(fullImage.Width, upload.Width);
+            Assert.AreEqual(fullImage.Height, upload.Height);
+            CollectionAssert.AreEqual(fullImage.Pixels, upload.Span.ToArray());
             int width = Math.Min(17, tiles.Width);
             int height = Math.Min(11, tiles.Height);
             int x = tiles.Width - width;

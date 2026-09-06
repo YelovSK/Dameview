@@ -12,11 +12,16 @@ namespace Dameview;
 
 internal sealed class DameviewApp : IViewerCommands, IDisposable
 {
+    private const long RenderBitmapCacheCapacityBytes = 256L * 1024L * 1024L;
+
     private readonly AppWindow _window;
     private readonly D2DRenderer _renderer;
     private readonly ViewerUi _ui;
+    private readonly WindowsImageLoadingBackend _imageBackend;
     private readonly ThumbnailCoordinator _thumbnailCoordinator;
     private readonly ImageLoadCoordinator _imageLoadCoordinator;
+    private readonly RenderBitmapCache _renderBitmapCache;
+    private readonly PresentationImageLoader _presentationImageLoader;
     private readonly ViewerSession _session;
     private readonly SettingsService _settings;
     private int _pointerX;
@@ -33,24 +38,30 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
             _window.ClientWidth,
             _window.ClientHeight,
             _window.Dpi);
-        var imageBackend = new WindowsImageLoadingBackend();
-        _thumbnailCoordinator = new ThumbnailCoordinator(_window.Post, imageBackend.LoadThumbnail);
+        _imageBackend = new WindowsImageLoadingBackend();
+        _thumbnailCoordinator = new ThumbnailCoordinator(_window.Post, _imageBackend.LoadThumbnail);
+        _renderBitmapCache = new RenderBitmapCache(RenderBitmapCacheCapacityBytes);
         _imageLoadCoordinator = new ImageLoadCoordinator(
             _window.Post,
-            imageBackend,
+            _imageBackend,
             new ImageRepresentationPolicy(checked((int)_renderer.DeviceContext.MaximumBitmapSize)),
             _thumbnailCoordinator);
+        _presentationImageLoader = new PresentationImageLoader(
+            _imageLoadCoordinator,
+            _renderBitmapCache,
+            _renderer.DeviceContext);
         using var imageDecoder = new ImageDecoder();
         HashSet<string> extensions = imageDecoder.GetProbablySupportedExtensions();
         _session = new ViewerSession(
             new FolderNavigator(),
-            _imageLoadCoordinator,
+            _presentationImageLoader,
             new FolderScanner(path => extensions.Contains(Path.GetExtension(path))),
             _window.Post);
         _settings = new SettingsService(SettingsService.DefaultPath, _window.Post);
         _ui = new ViewerUi(
             _renderer.DeviceContext,
             _renderer.DirectWriteFactory,
+            _renderBitmapCache,
             _session,
             _window.Dpi,
             UiTheme.Default,
@@ -99,7 +110,10 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         _ui.Invalidated -= _window.RequestRepaint;
         _ui.Dispose();
         _session.Dispose();
+        _presentationImageLoader.Dispose();
         _imageLoadCoordinator.Dispose();
+        _renderBitmapCache.Dispose();
+        _imageBackend.Dispose();
         _thumbnailCoordinator.Dispose();
         _renderer.Dispose();
         _window.Dispose();

@@ -36,6 +36,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     internal ViewerUi(
         ID2D1DeviceContext deviceContext,
         IDWriteFactory directWriteFactory,
+        RenderBitmapCache bitmapCache,
         ViewerSession session,
         float dpi,
         UiTheme theme,
@@ -51,7 +52,13 @@ internal sealed class ViewerUi : UiElement, IDisposable
         Palette = theme;
         _animationClock = new UiAnimationClock(timeProvider);
         _state = session.State;
-        _imagePanel = new ImagePanel(deviceContext, session.Viewport, session.Animator, timeProvider, postToUi);
+        _imagePanel = new ImagePanel(
+            deviceContext,
+            bitmapCache,
+            session.Viewport,
+            session.Animator,
+            timeProvider,
+            postToUi);
         _emptyStatePanel = new EmptyStatePanel(
             directWriteFactory,
             LoadApplicationIcon(deviceContext),

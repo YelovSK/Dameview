@@ -25,4 +25,21 @@ internal static class D2DBitmapFactory
                 properties);
         }
     }
+
+    internal static ID2D1Bitmap1 Create(
+        ID2D1DeviceContext deviceContext,
+        DecodedImageUpload image)
+    {
+        BitmapProperties1 properties = new(
+            new PixelFormat(Format.B8G8R8A8_UNorm, Vortice.DCommon.AlphaMode.Premultiplied),
+            UiDpi.Default,
+            UiDpi.Default,
+            BitmapOptions.None);
+
+        return deviceContext.CreateBitmap(
+            new SizeI(image.Width, image.Height),
+            image.Pixels,
+            (uint)image.Stride,
+            properties);
+    }
 }

@@ -3,22 +3,20 @@ using Dameview.Platform;
 
 namespace Dameview.Imaging;
 
-internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
+internal sealed class ImageLoadCoordinator : IDisposable
 {
-    private const long DefaultCacheCapacityBytes = 256L * 1024L * 1024L;
-
     private readonly object _sync = new();
     private readonly UiPost _postToUi;
     private readonly IImageLoadingBackend _backend;
     private readonly ImageRepresentationPolicy _representationPolicy;
-    private readonly DecodedImageCache _cache;
     private readonly Thread _foregroundWorker;
     private readonly Thread _preloadWorker;
-    private readonly Queue<string> _pendingPreloads = new();
-    private readonly Dictionary<string, TaskCompletionSource<DecodedImage>> _inFlightDecodes =
+    private readonly Queue<PreloadRequest> _pendingPreloads = new();
+    private readonly Dictionary<string, InFlightDecode> _inFlightDecodes =
         new(StringComparer.OrdinalIgnoreCase);
     private readonly IThumbnailLoader _thumbnailLoader;
     private IDisposable? _previewRequest;
+    private CancellationTokenSource? _foregroundCancellation;
     private long _completedRequestId;
     private LoadRequest? _pendingRequest;
     private long _latestRequestId;
@@ -33,7 +31,6 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
         _postToUi = postToUi;
         _backend = backend;
         _representationPolicy = representationPolicy;
-        _cache = new DecodedImageCache(DefaultCacheCapacityBytes);
         _thumbnailLoader = thumbnailLoader;
         _foregroundWorker = CreateWorker("Dameview image loader", ForegroundWork);
         _preloadWorker = CreateWorker("Dameview image preloader", PreloadWork);
@@ -41,14 +38,21 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
         _preloadWorker.Start();
     }
 
-    public void Load(string path, Action<ImageLoadResult> completed)
+    internal void Load(string path, Action<ImageLoadResult> completed)
     {
         LoadRequest request;
         IDisposable? previousPreview;
         lock (_sync)
         {
             ObjectDisposedException.ThrowIf(_stopping, this);
-            request = new LoadRequest(++_latestRequestId, path, completed);
+            _foregroundCancellation?.Cancel();
+            _foregroundCancellation?.Dispose();
+            _foregroundCancellation = new CancellationTokenSource();
+            request = new LoadRequest(
+                ++_latestRequestId,
+                path,
+                completed,
+                _foregroundCancellation.Token);
             _pendingRequest = null;
             previousPreview = _previewRequest;
             _previewRequest = null;
@@ -56,13 +60,6 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
         previousPreview?.Dispose();
 
         bool supportsAnimation = _backend.SupportsAnimation(path);
-        if (!supportsAnimation && _cache.TryGet(path, out DecodedImage? cachedImage))
-        {
-            var result = new ImageLoaded(path, new DecodedImageRepresentation(cachedImage));
-            _postToUi(() => Deliver(request, result));
-            return;
-        }
-
         IDisposable? previewRequest = supportsAnimation
             ? null
             : _thumbnailLoader.Request(
@@ -88,7 +85,9 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
         }
     }
 
-    public void Preload(IEnumerable<string?> paths)
+    internal void Preload(
+        IEnumerable<string?> paths,
+        Action<ImageLoadResult> completed)
     {
         lock (_sync)
         {
@@ -100,12 +99,32 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
             {
                 if (!string.IsNullOrWhiteSpace(path) && uniquePaths.Add(path))
                 {
-                    _pendingPreloads.Enqueue(path);
+                    _pendingPreloads.Enqueue(new PreloadRequest(path, completed));
                 }
             }
 
             Monitor.PulseAll(_sync);
         }
+    }
+
+    internal void CancelForeground()
+    {
+        IDisposable? previewRequest;
+        lock (_sync)
+        {
+            if (_stopping)
+            {
+                return;
+            }
+
+            _foregroundCancellation?.Cancel();
+            _pendingRequest = null;
+            previewRequest = _previewRequest;
+            _previewRequest = null;
+            _latestRequestId++;
+        }
+
+        previewRequest?.Dispose();
     }
 
     public void Dispose()
@@ -123,6 +142,9 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
             _previewRequest = null;
             _pendingRequest = null;
             _pendingPreloads.Clear();
+            _foregroundCancellation?.Cancel();
+            _foregroundCancellation?.Dispose();
+            _foregroundCancellation = null;
             _latestRequestId++;
             Monitor.PulseAll(_sync);
         }
@@ -182,7 +204,14 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
             {
                 try
                 {
-                    result = DecodeForeground(request.Path, decoder!);
+                    result = DecodeForeground(
+                        request.Path,
+                        decoder!,
+                        request.CancellationToken);
+                }
+                catch (OperationCanceledException) when (request.CancellationToken.IsCancellationRequested)
+                {
+                    continue;
                 }
                 catch (Exception exception)
                 {
@@ -209,8 +238,12 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
         }
     }
 
-    private ImageLoaded DecodeForeground(string path, IImageDecoder decoder)
+    private ImageLoaded DecodeForeground(
+        string path,
+        IImageDecoder decoder,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (!_backend.SupportsAnimation(path))
         {
             if (RequiresTiledRepresentation(path, decoder))
@@ -219,7 +252,9 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
                 return new ImageLoaded(path, new TiledImageRepresentation(tiledImage));
             }
 
-            return new ImageLoaded(path, new DecodedImageRepresentation(DecodeShared(path, decoder)));
+            return new ImageLoaded(
+                path,
+                new UploadImageRepresentation(DecodeShared(path, decoder, cancellationToken)));
         }
 
         IAnimationSession? animation = _backend.OpenAnimation(path);
@@ -244,25 +279,37 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
 
     private void PreloadWork(IImageDecoder? decoder, Exception? initializationError)
     {
-        while (TryTakePreload(out string? path))
+        while (TryTakePreload(out PreloadRequest? request))
         {
-            if (initializationError is not null || _backend.SupportsAnimation(path) || _cache.TryGet(path, out _))
+            ImageLoadResult? result = null;
+            if (initializationError is not null)
             {
-                continue;
+                result = new ImageLoadFailed(request.Path, initializationError);
             }
-
-            try
+            else if (!_backend.SupportsAnimation(request.Path))
             {
-                if (RequiresTiledRepresentation(path, decoder!))
+                try
                 {
-                    continue;
+                    if (!RequiresTiledRepresentation(request.Path, decoder!))
+                    {
+                        result = new ImageLoaded(
+                            request.Path,
+                            new UploadImageRepresentation(DecodeShared(
+                                request.Path,
+                                decoder!,
+                                CancellationToken.None)));
+                    }
                 }
-
-                _ = DecodeShared(path, decoder!);
+                catch (Exception exception)
+                {
+                    result = new ImageLoadFailed(request.Path, exception);
+                }
             }
-            catch (Exception)
+
+            if (result is not null)
             {
-                // Preloading is speculative. A foreground load will report failures.
+                ImageLoadResult delivered = result;
+                _postToUi(() => request.Completed(delivered));
             }
         }
     }
@@ -272,51 +319,69 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
         return _representationPolicy.RequiresTiling(decoder.GetInfo(path));
     }
 
-    private DecodedImage DecodeShared(string path, IImageDecoder decoder)
+    private DecodedImageUpload DecodeShared(
+        string path,
+        IImageDecoder decoder,
+        CancellationToken cancellationToken)
     {
-        if (_cache.TryGet(path, out DecodedImage? cachedImage))
-        {
-            return cachedImage;
-        }
-
-        TaskCompletionSource<DecodedImage> completion;
+        cancellationToken.ThrowIfCancellationRequested();
+        InFlightDecode pending;
         bool ownsDecode;
 
         lock (_sync)
         {
-            ownsDecode = !_inFlightDecodes.TryGetValue(path, out completion!);
+            ownsDecode = !_inFlightDecodes.TryGetValue(path, out pending!);
             if (ownsDecode)
             {
-                completion = new TaskCompletionSource<DecodedImage>(
-                    TaskCreationOptions.RunContinuationsAsynchronously);
-                _inFlightDecodes.Add(path, completion);
+                pending = new InFlightDecode();
+                _inFlightDecodes.Add(path, pending);
             }
+
+            pending.AddConsumer();
         }
 
-        if (!ownsDecode)
+        if (ownsDecode)
         {
-            return completion.Task.GetAwaiter().GetResult();
+            try
+            {
+                DecodedImageUpload upload = decoder.DecodeUpload(path, cancellationToken);
+                pending.Completion.SetResult(upload);
+            }
+            catch (Exception exception)
+            {
+                pending.Completion.SetException(exception);
+            }
         }
 
         try
         {
-            DecodedImage image = decoder.Decode(path);
-            _cache.Add(path, image);
-            completion.SetResult(image);
-            return image;
+            DecodedImageUpload shared = pending.Completion.Task.GetAwaiter().GetResult();
+            cancellationToken.ThrowIfCancellationRequested();
+            return shared.Retain(() => ReleaseConsumer(path, pending));
         }
-        catch (Exception exception)
+        catch
         {
-            completion.SetException(exception);
-            return completion.Task.GetAwaiter().GetResult();
+            ReleaseConsumer(path, pending);
+            throw;
         }
-        finally
+    }
+
+    private void ReleaseConsumer(string path, InFlightDecode pending)
+    {
+        DecodedImageUpload? owner = null;
+        lock (_sync)
         {
-            lock (_sync)
+            if (pending.ReleaseConsumer() == 0)
             {
                 _inFlightDecodes.Remove(path);
+                if (pending.Completion.Task.IsCompletedSuccessfully)
+                {
+                    owner = pending.Completion.Task.Result;
+                }
             }
         }
+
+        owner?.Dispose();
     }
 
     private bool TryTakeRequest([NotNullWhen(true)] out LoadRequest? request)
@@ -340,7 +405,7 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
         }
     }
 
-    private bool TryTakePreload([NotNullWhen(true)] out string? path)
+    private bool TryTakePreload([NotNullWhen(true)] out PreloadRequest? request)
     {
         lock (_sync)
         {
@@ -351,11 +416,11 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
 
             if (_stopping)
             {
-                path = null;
+                request = null;
                 return false;
             }
 
-            path = _pendingPreloads.Dequeue();
+            request = _pendingPreloads.Dequeue();
             return true;
         }
     }
@@ -397,7 +462,22 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
     private sealed record LoadRequest(
         long Id,
         string Path,
+        Action<ImageLoadResult> Completed,
+        CancellationToken CancellationToken);
+
+    private sealed record PreloadRequest(
+        string Path,
         Action<ImageLoadResult> Completed);
+
+    private sealed class InFlightDecode
+    {
+        internal TaskCompletionSource<DecodedImageUpload> Completion { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal int ConsumerCount { get; private set; }
+
+        internal void AddConsumer() => ConsumerCount++;
+        internal int ReleaseConsumer() => --ConsumerCount;
+    }
 }
 
 internal abstract record ImageLoadResult(string Path);

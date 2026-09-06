@@ -10,12 +10,14 @@ namespace Dameview.UI.Panels;
 internal sealed class ImagePanel : UiElement, IDisposable
 {
     private readonly ID2D1DeviceContext _deviceContext;
+    private readonly RenderBitmapCache _bitmapCache;
     private readonly ImageViewport _viewport;
     private readonly ViewportAnimator _animator;
     private readonly TimeProvider _timeProvider;
     private readonly UiPost? _postToUi;
     private const float PanStartThresholdDips = 4.0f;
-    private ID2D1Bitmap1? _image;
+    private ID2D1Bitmap1? _ownedImage;
+    private CachedBitmap? _cachedImage;
     private TiledImageRenderer? _tiledImage;
     private AnimatedImagePlayer? _imageAnimation;
     private bool _isPanning;
@@ -26,12 +28,14 @@ internal sealed class ImagePanel : UiElement, IDisposable
 
     internal ImagePanel(
         ID2D1DeviceContext deviceContext,
+        RenderBitmapCache bitmapCache,
         ImageViewport viewport,
         ViewportAnimator animator,
         TimeProvider? timeProvider = null,
         UiPost? postToUi = null)
     {
         _deviceContext = deviceContext;
+        _bitmapCache = bitmapCache;
         _viewport = viewport;
         _animator = animator;
         _timeProvider = timeProvider ?? TimeProvider.System;
@@ -46,6 +50,10 @@ internal sealed class ImagePanel : UiElement, IDisposable
     {
         switch (image)
         {
+            case CachedBitmapRepresentation cached:
+                SetCachedImage(cached.Bitmap);
+                break;
+
             case DecodedImageRepresentation decoded:
                 SetDecodedImage(decoded.Image, isPreview);
                 break;
@@ -66,6 +74,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
     private unsafe void SetDecodedImage(DecodedImage image, bool isPreview)
     {
         _imageAnimation = null;
+        ReleaseCachedImage();
         _tiledImage?.Dispose();
         _tiledImage = null;
         SetBitmap(image);
@@ -75,8 +84,9 @@ internal sealed class ImagePanel : UiElement, IDisposable
     private void SetTiledImage(IImageTileSource source)
     {
         _imageAnimation = null;
-        _image?.Dispose();
-        _image = null;
+        ReleaseCachedImage();
+        _ownedImage?.Dispose();
+        _ownedImage = null;
         _tiledImage?.Dispose();
         UiPost postToUi = _postToUi
             ?? throw new InvalidOperationException("Tiled rendering requires UI-thread dispatch.");
@@ -93,8 +103,31 @@ internal sealed class ImagePanel : UiElement, IDisposable
     {
         ID2D1Bitmap1 newImage = D2DBitmapFactory.Create(_deviceContext, image);
 
-        _image?.Dispose();
-        _image = newImage;
+        _ownedImage?.Dispose();
+        _ownedImage = newImage;
+    }
+
+    private void SetCachedImage(CachedBitmap image)
+    {
+        _imageAnimation = null;
+        _ownedImage?.Dispose();
+        _ownedImage = null;
+        _tiledImage?.Dispose();
+        _tiledImage = null;
+        _cachedImage = image;
+        _isPreview = false;
+    }
+
+    private void ReleaseCachedImage()
+    {
+        if (_cachedImage is null)
+        {
+            return;
+        }
+
+        _cachedImage = null;
+        _bitmapCache.Deactivate();
+        _bitmapCache.Trim();
     }
 
     protected override void ArrangeCore(SizeF finalSize)
@@ -115,6 +148,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
     private void SetAnimation(IAnimationSession animation)
     {
         _imageAnimation = null;
+        ReleaseCachedImage();
         _tiledImage?.Dispose();
         _tiledImage = null;
         SetBitmap(animation.FirstFrame.Image);
@@ -139,7 +173,9 @@ internal sealed class ImagePanel : UiElement, IDisposable
 
     private unsafe void UpdateImagePixels(DecodedImage image)
     {
-        if (_image is null || _image.PixelSize.Width != image.Width || _image.PixelSize.Height != image.Height)
+        if (_ownedImage is null
+            || _ownedImage.PixelSize.Width != image.Width
+            || _ownedImage.PixelSize.Height != image.Height)
         {
             SetBitmap(image);
             return;
@@ -147,7 +183,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
 
         fixed (byte* pixels = image.Pixels)
         {
-            _image.CopyFromMemory((nint)pixels, (uint)image.Stride);
+            _ownedImage.CopyFromMemory((nint)pixels, (uint)image.Stride);
         }
     }
 
@@ -159,7 +195,8 @@ internal sealed class ImagePanel : UiElement, IDisposable
             return;
         }
 
-        if (_image is null)
+        ID2D1Bitmap1? image = _cachedImage?.Bitmap ?? _ownedImage;
+        if (image is null)
         {
             return;
         }
@@ -167,9 +204,9 @@ internal sealed class ImagePanel : UiElement, IDisposable
         RectangleF destination = _viewport.GetDestinationRectangle();
         if (_isPreview)
         {
-            float scale = MathF.Min(Bounds.Width / _image.PixelSize.Width, Bounds.Height / _image.PixelSize.Height);
-            float width = _image.PixelSize.Width * scale;
-            float height = _image.PixelSize.Height * scale;
+            float scale = MathF.Min(Bounds.Width / image.PixelSize.Width, Bounds.Height / image.PixelSize.Height);
+            float width = image.PixelSize.Width * scale;
+            float height = image.PixelSize.Height * scale;
             destination = new RectangleF((Bounds.Width - width) / 2, (Bounds.Height - height) / 2, width, height);
         }
         else
@@ -182,7 +219,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
         }
 
         context.RenderTarget.DrawBitmap(
-            _image,
+            image,
             new Rect(
                 destination.X,
                 destination.Y,
@@ -190,7 +227,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
                 destination.Height),
             context.Opacity,
             BitmapInterpolationMode.Linear,
-            new Rect(0.0f, 0.0f, _image.PixelSize.Width, _image.PixelSize.Height));
+            new Rect(0.0f, 0.0f, image.PixelSize.Width, image.PixelSize.Height));
     }
 
     internal override UiPointerResult OnPointerEvent(in UiPointerEvent input)
@@ -265,8 +302,9 @@ internal sealed class ImagePanel : UiElement, IDisposable
     public void Dispose()
     {
         _imageAnimation = null;
+        ReleaseCachedImage();
         _tiledImage?.Dispose();
-        _image?.Dispose();
+        _ownedImage?.Dispose();
     }
 
     private float ToPixels(float value) => Root?.DipsToPixels(value) ?? value;

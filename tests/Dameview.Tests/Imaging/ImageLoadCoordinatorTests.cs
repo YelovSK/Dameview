@@ -54,6 +54,42 @@ public sealed class ImageLoadCoordinatorTests
     }
 
     [TestMethod]
+    public void SupersededForegroundDecodeIsCancelledAndNotDelivered()
+    {
+        using var firstStarted = new ManualResetEventSlim();
+        using var firstCancelled = new ManualResetEventSlim();
+        using var secondCompleted = new ManualResetEventSlim();
+        using var decoder = new FakeImageDecoder((path, token) =>
+        {
+            if (path == "first")
+            {
+                firstStarted.Set();
+                token.WaitHandle.WaitOne();
+                firstCancelled.Set();
+                token.ThrowIfCancellationRequested();
+            }
+
+            return CreateImage();
+        });
+        using var coordinator = new ImageLoadCoordinator(
+            action => action(),
+            new FakeImageLoadingBackend(() => decoder),
+            TestPolicy,
+            NoThumbnailLoader.Instance);
+
+        coordinator.Load("first", _ => Assert.Fail("Cancelled result was delivered."));
+        Assert.IsTrue(firstStarted.Wait(TimeSpan.FromSeconds(5)));
+        coordinator.Load("second", result =>
+        {
+            DisposeResult(result);
+            secondCompleted.Set();
+        });
+
+        Assert.IsTrue(firstCancelled.Wait(TimeSpan.FromSeconds(5)));
+        Assert.IsTrue(secondCompleted.Wait(TimeSpan.FromSeconds(5)));
+    }
+
+    [TestMethod]
     public void DecodeFailuresAreDeliveredAsResults()
     {
         using var completed = new ManualResetEventSlim();
@@ -248,7 +284,7 @@ public sealed class ImageLoadCoordinatorTests
             TestPolicy,
             NoThumbnailLoader.Instance);
 
-        coordinator.Preload(["large", "sentinel"]);
+        coordinator.Preload(["large", "sentinel"], DisposeResult);
 
         Assert.IsTrue(sentinelDecoded.Wait(TimeSpan.FromSeconds(5)));
         CollectionAssert.AreEqual(new[] { "sentinel" }, decodedPaths.ToArray());
@@ -256,44 +292,25 @@ public sealed class ImageLoadCoordinatorTests
     }
 
     [TestMethod]
-    public void PreloadedImageIsServedWithoutForegroundDecoding()
+    public void CompletedPreloadDeliversDisposableUpload()
     {
-        using var sentinelStarted = new ManualResetEventSlim();
-        using var releaseSentinel = new ManualResetEventSlim();
         using var completed = new ManualResetEventSlim();
-        var decodeCounts = new ConcurrentDictionary<string, int>();
-        DecodedImage Decode(string path)
-        {
-            decodeCounts.AddOrUpdate(path, 1, static (_, count) => count + 1);
-            if (path == "sentinel")
-            {
-                sentinelStarted.Set();
-                releaseSentinel.Wait();
-            }
-
-            return CreateImage();
-        }
-
         using var coordinator = new ImageLoadCoordinator(
             action => action(),
-            new FakeImageLoadingBackend(() => new FakeImageDecoder(Decode)),
+            new FakeImageLoadingBackend(() => new FakeImageDecoder(_ => CreateImage())),
             TestPolicy,
             NoThumbnailLoader.Instance);
+        ImageLoaded? loaded = null;
 
-        try
+        coordinator.Preload(["next"], result =>
         {
-            coordinator.Preload(["next", "sentinel"]);
-            Assert.IsTrue(sentinelStarted.Wait(TimeSpan.FromSeconds(5)));
+            loaded = (ImageLoaded)result;
+            completed.Set();
+        });
 
-            coordinator.Load("next", _ => completed.Set());
-
-            Assert.IsTrue(completed.Wait(TimeSpan.FromSeconds(5)));
-            Assert.AreEqual(1, decodeCounts["next"]);
-        }
-        finally
-        {
-            releaseSentinel.Set();
-        }
+        Assert.IsTrue(completed.Wait(TimeSpan.FromSeconds(5)));
+        Assert.IsInstanceOfType<UploadImageRepresentation>(loaded!.Representation);
+        loaded.Dispose();
     }
 
     [TestMethod]
@@ -320,7 +337,7 @@ public sealed class ImageLoadCoordinatorTests
 
         try
         {
-            coordinator.Preload(["same"]);
+            coordinator.Preload(["same"], DisposeResult);
             Assert.IsTrue(decodeStarted.Wait(TimeSpan.FromSeconds(5)));
 
             coordinator.Load("same", _ => completed.Set());
@@ -366,7 +383,7 @@ public sealed class ImageLoadCoordinatorTests
     }
 
     [TestMethod]
-    public void LatePreviewCannotReplaceFullImageOrANewerRequest()
+    public void LatePreviewCannotReplaceFullImage()
     {
         using var releasePreview = new ManualResetEventSlim();
         using var previewStarted = new ManualResetEventSlim();
@@ -395,13 +412,6 @@ public sealed class ImageLoadCoordinatorTests
             Assert.HasCount(1, results);
             Assert.IsFalse(results[0].IsPreview);
 
-            coordinator.Load("image", result => results.Add((ImageLoaded)result));
-            preview();
-            Assert.HasCount(1, results);
-            Assert.IsTrue(posted.TryTake(out Action? cached, TimeSpan.FromSeconds(5)));
-            cached();
-            Assert.HasCount(2, results);
-            Assert.IsFalse(results[1].IsPreview);
         }
         finally
         {
@@ -433,9 +443,15 @@ public sealed class ImageLoadCoordinatorTests
         return new DecodedImage(1, 1, 4, new byte[4]);
     }
 
+    private static void DisposeResult(ImageLoadResult result)
+    {
+        (result as ImageLoaded)?.Dispose();
+    }
+
     private sealed class FakeImageDecoder : IImageDecoder
     {
         private readonly Func<string, DecodedImage> _decode;
+        private readonly Func<string, CancellationToken, DecodedImage>? _decodeWithCancellation;
         private readonly Func<string, ImageInfo> _getInfo;
 
         internal FakeImageDecoder(
@@ -446,11 +462,29 @@ public sealed class ImageLoadCoordinatorTests
             _getInfo = getInfo ?? (_ => new ImageInfo(1, 1));
         }
 
+        internal FakeImageDecoder(
+            Func<string, CancellationToken, DecodedImage> decode,
+            Func<string, ImageInfo>? getInfo = null)
+        {
+            _decode = _ => throw new InvalidOperationException();
+            _decodeWithCancellation = decode;
+            _getInfo = getInfo ?? (_ => new ImageInfo(1, 1));
+        }
+
         public ImageInfo GetInfo(string path) => _getInfo(path);
 
-        public DecodedImage Decode(string path)
+        public DecodedImageUpload DecodeUpload(
+            string path,
+            CancellationToken cancellationToken = default)
         {
-            return _decode(path);
+            DecodedImage image = _decodeWithCancellation?.Invoke(path, cancellationToken)
+                ?? _decode(path);
+            DecodedImageUpload upload = DecodedImageUpload.Allocate(
+                image.Width,
+                image.Height,
+                image.Stride);
+            image.Pixels.CopyTo(upload.Span);
+            return upload;
         }
 
         public void Dispose()
@@ -527,7 +561,10 @@ public sealed class ImageLoadCoordinatorTests
 
         public ImageInfo GetInfo(string path) => throw new NotSupportedException();
 
-        public DecodedImage Decode(string path) => throw new NotSupportedException();
+        public DecodedImageUpload DecodeUpload(
+            string path,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
 
         public void Dispose()
         {

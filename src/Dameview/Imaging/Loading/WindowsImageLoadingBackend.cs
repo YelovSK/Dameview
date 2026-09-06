@@ -1,13 +1,14 @@
 namespace Dameview.Imaging;
 
-internal sealed class WindowsImageLoadingBackend : IImageLoadingBackend
+internal sealed class WindowsImageLoadingBackend : IImageLoadingBackend, IDisposable
 {
     private static readonly IAnimatedImageDecoder[] AnimatedDecoders =
     [
         new WicGifAnimationDecoder(),
     ];
+    private readonly NativePixelBufferPool _uploadPool = new();
 
-    public IImageDecoder CreateDecoder() => new ImageDecoder();
+    public IImageDecoder CreateDecoder() => new ImageDecoder(_uploadPool);
 
     public IImageTileSource OpenTiledImage(string path) => WicImageTileSource.Open(path);
 
@@ -33,5 +34,10 @@ internal sealed class WindowsImageLoadingBackend : IImageLoadingBackend
         }
 
         return null;
+    }
+
+    public void Dispose()
+    {
+        _uploadPool.Dispose();
     }
 }

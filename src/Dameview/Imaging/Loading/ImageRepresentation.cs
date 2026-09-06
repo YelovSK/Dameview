@@ -31,6 +31,14 @@ internal sealed class DecodedImageRepresentation(DecodedImage image)
     internal DecodedImage Image { get; } = image;
 }
 
+internal sealed class UploadImageRepresentation(DecodedImageUpload upload)
+    : ImageRepresentation(upload.Width, upload.Height)
+{
+    internal DecodedImageUpload Upload { get; } = upload;
+
+    protected override void DisposeCore() => Upload.Dispose();
+}
+
 internal sealed class TiledImageRepresentation(IImageTileSource source)
     : ImageRepresentation(source.Width, source.Height)
 {
