@@ -16,7 +16,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Assets\dameview.ico" />
+    <EmbeddedResource Include="Assets\dameview.png" />
   </ItemGroup>
 
   <ItemGroup>

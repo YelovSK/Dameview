@@ -329,7 +329,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private static ID2D1Bitmap1 LoadApplicationIcon(ID2D1DeviceContext deviceContext)
     {
         using Stream stream = typeof(ViewerUi).Assembly.GetManifestResourceStream(
-            "Dameview.Assets.dameview.ico")
+            "Dameview.Assets.dameview.png")
             ?? throw new InvalidOperationException("The embedded application icon could not be found.");
         using var decoder = new ImageDecoder();
         return D2DBitmapFactory.Create(deviceContext, decoder.Decode(stream));
