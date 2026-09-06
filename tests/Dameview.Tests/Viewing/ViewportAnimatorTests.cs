@@ -89,6 +89,31 @@ public sealed class ViewportAnimatorTests
     }
 
     [TestMethod]
+    public void ReversingAnActivePanDoesNotAmplifyItsFirstPointerMove()
+    {
+        var timeProvider = new ManualTimeProvider();
+        var viewport = new ImageViewport(500, 500);
+        viewport.SetImageSize(2000, 2000);
+        viewport.SetActualSizeAt(viewport.ViewportCenter.X, viewport.ViewportCenter.Y, viewport.ImageCenter);
+        var animator = new ViewportAnimator(viewport, timeProvider);
+
+        animator.BeginPan(0.0f, 0.0f);
+        timeProvider.Advance(TimeSpan.FromMilliseconds(10));
+        animator.PanTo(100.0f, 0.0f);
+        Assert.IsTrue(animator.EndPan());
+        animator.Update(0.016);
+
+        animator.BeginPan(100.0f, 0.0f);
+        timeProvider.Advance(TimeSpan.FromMilliseconds(1));
+        animator.PanTo(98.0f, 0.0f);
+        float positionAtRelease = viewport.GetDestinationRectangle().X;
+
+        Assert.IsTrue(animator.EndPan());
+        animator.Update(0.016);
+        Assert.AreEqual(positionAtRelease, viewport.GetDestinationRectangle().X, 1.0f);
+    }
+
+    [TestMethod]
     public void ActualSizeAnimatesScaleTowardThePointer()
     {
         var timeProvider = new ManualTimeProvider();

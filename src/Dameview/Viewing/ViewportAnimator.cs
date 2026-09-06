@@ -214,17 +214,10 @@ internal sealed class ViewportAnimator
 
         double instantaneousX = deltaX / elapsed;
         double instantaneousY = deltaY / elapsed;
-        if (!_hasPointerVelocity)
-        {
-            _velocityX = instantaneousX;
-            _velocityY = instantaneousY;
-            _hasPointerVelocity = true;
-            return;
-        }
-
         double blend = 1.0 - Math.Exp(-VelocityTrackingResponse * elapsed);
         _velocityX += (instantaneousX - _velocityX) * blend;
         _velocityY += (instantaneousY - _velocityY) * blend;
+        _hasPointerVelocity = true;
     }
 
     private void UpdateZoom(double elapsed)
