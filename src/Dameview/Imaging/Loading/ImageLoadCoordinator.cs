@@ -8,8 +8,9 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
     private const long DefaultCacheCapacityBytes = 256L * 1024L * 1024L;
 
     private readonly object _sync = new();
-    private readonly Action<Action> _postToUi;
+    private readonly UiPost _postToUi;
     private readonly IImageLoadingBackend _backend;
+    private readonly ImageRepresentationPolicy _representationPolicy;
     private readonly DecodedImageCache _cache;
     private readonly Thread _foregroundWorker;
     private readonly Thread _preloadWorker;
@@ -17,7 +18,6 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
     private readonly Dictionary<string, TaskCompletionSource<DecodedImage>> _inFlightDecodes =
         new(StringComparer.OrdinalIgnoreCase);
     private readonly IThumbnailLoader _thumbnailLoader;
-    private readonly ThumbnailCoordinator? _ownedThumbnailLoader;
     private IDisposable? _previewRequest;
     private long _completedRequestId;
     private LoadRequest? _pendingRequest;
@@ -25,18 +25,16 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
     private bool _stopping;
 
     internal ImageLoadCoordinator(
-        Action<Action> postToUi,
+        UiPost postToUi,
         IImageLoadingBackend backend,
-        long cacheCapacityBytes = DefaultCacheCapacityBytes,
-        IThumbnailLoader? thumbnailLoader = null)
+        ImageRepresentationPolicy representationPolicy,
+        IThumbnailLoader thumbnailLoader)
     {
         _postToUi = postToUi;
         _backend = backend;
-        _cache = new DecodedImageCache(cacheCapacityBytes);
-        _ownedThumbnailLoader = thumbnailLoader is null
-            ? new ThumbnailCoordinator(postToUi, backend.LoadThumbnail)
-            : null;
-        _thumbnailLoader = thumbnailLoader ?? _ownedThumbnailLoader!;
+        _representationPolicy = representationPolicy;
+        _cache = new DecodedImageCache(DefaultCacheCapacityBytes);
+        _thumbnailLoader = thumbnailLoader;
         _foregroundWorker = CreateWorker("Dameview image loader", ForegroundWork);
         _preloadWorker = CreateWorker("Dameview image preloader", PreloadWork);
         _foregroundWorker.Start();
@@ -60,7 +58,7 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
         bool supportsAnimation = _backend.SupportsAnimation(path);
         if (!supportsAnimation && _cache.TryGet(path, out DecodedImage? cachedImage))
         {
-            var result = new ImageLoaded(path, cachedImage);
+            var result = new ImageLoaded(path, new DecodedImageRepresentation(cachedImage));
             _postToUi(() => Deliver(request, result));
             return;
         }
@@ -70,7 +68,10 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
             : _thumbnailLoader.Request(
                 path,
                 ThumbnailPriority.Foreground,
-                image => Deliver(request, new ImageLoaded(request.Path, image, IsPreview: true)));
+                image => Deliver(request, new ImageLoaded(
+                    request.Path,
+                    new DecodedImageRepresentation(image),
+                    IsPreview: true)));
 
         lock (_sync)
         {
@@ -126,7 +127,6 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
             Monitor.PulseAll(_sync);
         }
         previewRequest?.Dispose();
-        _ownedThumbnailLoader?.Dispose();
     }
 
     private Thread CreateWorker(string name, Action<IImageDecoder?, Exception?> work)
@@ -213,7 +213,13 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
     {
         if (!_backend.SupportsAnimation(path))
         {
-            return new ImageLoaded(path, DecodeShared(path, decoder));
+            if (RequiresTiledRepresentation(path, decoder))
+            {
+                IImageTileSource tiledImage = _backend.OpenTiledImage(path);
+                return new ImageLoaded(path, new TiledImageRepresentation(tiledImage));
+            }
+
+            return new ImageLoaded(path, new DecodedImageRepresentation(DecodeShared(path, decoder)));
         }
 
         IAnimationSession? animation = _backend.OpenAnimation(path);
@@ -221,10 +227,12 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
         {
             if (!animation.IsAnimated)
             {
-                return new ImageLoaded(path, animation.FirstFrame.Image);
+                return new ImageLoaded(
+                    path,
+                    new DecodedImageRepresentation(animation.FirstFrame.Image));
             }
 
-            var result = new ImageLoaded(path, animation.FirstFrame.Image, Animation: animation);
+            var result = new ImageLoaded(path, new AnimatedImageRepresentation(animation));
             animation = null;
             return result;
         }
@@ -245,6 +253,11 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
 
             try
             {
+                if (RequiresTiledRepresentation(path, decoder!))
+                {
+                    continue;
+                }
+
                 _ = DecodeShared(path, decoder!);
             }
             catch (Exception)
@@ -252,6 +265,11 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
                 // Preloading is speculative. A foreground load will report failures.
             }
         }
+    }
+
+    private bool RequiresTiledRepresentation(string path, IImageDecoder decoder)
+    {
+        return _representationPolicy.RequiresTiling(decoder.GetInfo(path));
     }
 
     private DecodedImage DecodeShared(string path, IImageDecoder decoder)
@@ -365,10 +383,7 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
 
     private static void DisposeResult(ImageLoadResult result)
     {
-        if (result is ImageLoaded { Animation: { } animation })
-        {
-            animation.Dispose();
-        }
+        (result as ImageLoaded)?.Dispose();
     }
 
     private bool IsLatest(long requestId)
@@ -387,12 +402,14 @@ internal sealed class ImageLoadCoordinator : IImageLoader, IDisposable
 
 internal abstract record ImageLoadResult(string Path);
 
+// Ownership transfers to the receiver when this result is delivered.
 internal sealed record ImageLoaded(
     string Path,
-    DecodedImage Image,
-    bool IsPreview = false,
-    // The receiver owns this session once the result is delivered.
-    IAnimationSession? Animation = null) : ImageLoadResult(Path);
+    ImageRepresentation Representation,
+    bool IsPreview = false) : ImageLoadResult(Path), IDisposable
+{
+    public void Dispose() => Representation.Dispose();
+}
 
 internal sealed record ImageLoadFailed(
     string Path,

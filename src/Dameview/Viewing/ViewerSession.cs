@@ -1,20 +1,20 @@
 using Dameview.Imaging;
 using Dameview.Navigation;
+using Dameview.Platform;
 using SharpGen.Runtime;
 
 namespace Dameview.Viewing;
 
 // UI-thread owned. The loader delivers only the latest request on this thread.
 // Dependencies are borrowed; the application owns their lifetime. The session owns
-// the animation attached to its currently displayed image.
+// the representation attached to its currently displayed image.
 internal sealed class ViewerSession : IDisposable
 {
     private readonly FolderNavigator _folderNavigator;
     private readonly IImageLoader _imageLoader;
     private readonly IFolderScanner _folderScanner;
-    private readonly Action<Action> _postToUi;
+    private readonly UiPost _postToUi;
     private CancellationTokenSource? _folderScan;
-    private IAnimationSession? _animation;
     private string? _navigationError;
     private bool _disposed;
 
@@ -22,7 +22,7 @@ internal sealed class ViewerSession : IDisposable
         FolderNavigator folderNavigator,
         IImageLoader imageLoader,
         IFolderScanner folderScanner,
-        Action<Action> postToUi)
+        UiPost postToUi)
     {
         _folderNavigator = folderNavigator;
         _imageLoader = imageLoader;
@@ -116,8 +116,7 @@ internal sealed class ViewerSession : IDisposable
         _folderScan?.Cancel();
         _folderScan?.Dispose();
         _folderScan = null;
-        _animation?.Dispose();
-        _animation = null;
+        State.DisplayedImage?.Dispose();
     }
 
     private async Task ScanFolderAsync(string directoryPath, string currentPath, CancellationToken token)
@@ -230,30 +229,30 @@ internal sealed class ViewerSession : IDisposable
     {
         if (_disposed)
         {
-            if (result is ImageLoaded { Animation: { } animation })
-            {
-                animation.Dispose();
-            }
-
+            (result as ImageLoaded)?.Dispose();
             return;
         }
 
-        IAnimationSession? previousAnimation = null;
+        ImageLoaded? previousImage = null;
         try
         {
             switch (result)
             {
                 case ImageLoaded { IsPreview: true } preview:
-                    previousAnimation = ReplaceAnimation(null);
+                    previousImage = State.DisplayedImage;
                     Animator.Reset();
-                    Viewport.SetImageSize(preview.Image.Width, preview.Image.Height);
+                    Viewport.SetImageSize(
+                        preview.Representation.Width,
+                        preview.Representation.Height);
                     State = State with { DisplayedImage = preview };
                     break;
 
                 case ImageLoaded loaded:
-                    previousAnimation = ReplaceAnimation(loaded.Animation);
+                    previousImage = State.DisplayedImage;
                     Animator.Reset();
-                    Viewport.SetImageSize(loaded.Image.Width, loaded.Image.Height);
+                    Viewport.SetImageSize(
+                        loaded.Representation.Width,
+                        loaded.Representation.Height);
                     State = new ViewerSessionState(
                         loaded.Path,
                         loaded,
@@ -280,21 +279,17 @@ internal sealed class ViewerSession : IDisposable
         }
         finally
         {
-            previousAnimation?.Dispose();
+            if (!ReferenceEquals(previousImage, State.DisplayedImage))
+            {
+                previousImage?.Dispose();
+            }
         }
-    }
-
-    private IAnimationSession? ReplaceAnimation(IAnimationSession? animation)
-    {
-        IAnimationSession? previous = _animation;
-        _animation = animation;
-        return ReferenceEquals(previous, animation) ? null : previous;
     }
 }
 
-// DisplayedImage retains CPU pixels so graphics resources can be recreated without
-// reloading the file or resetting the viewport. Its animation is borrowed from the
-// session and must not be disposed by consumers.
+// DisplayedImage retains the resources needed to recreate its presentation without
+// resetting the viewport. Its representation is owned by the session and must not
+// be disposed by consumers.
 internal sealed record ViewerSessionState(
     string? RequestedPath,
     ImageLoaded? DisplayedImage,

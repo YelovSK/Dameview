@@ -77,7 +77,8 @@ public sealed class ViewerSessionTests
 
         Assert.IsFalse(session.State.IsLoading);
         Assert.IsTrue(session.State.IsError);
-        Assert.AreSame(image, session.State.DisplayedImage!.Image);
+        var representation = (DecodedImageRepresentation)session.State.DisplayedImage!.Representation;
+        Assert.AreSame(image, representation.Image);
         Assert.AreEqual(files.First, session.State.DisplayedImage.Path);
         Assert.AreEqual(center, session.Viewport.Center);
         Assert.AreEqual(mode, session.Viewport.Mode);
@@ -201,6 +202,37 @@ public sealed class ViewerSessionTests
         Assert.IsTrue(animation.IsDisposed);
     }
 
+    [TestMethod]
+    public void DisplayedTiledImageIsDisposedWhenPreviewReplacesIt()
+    {
+        using var files = new SessionFiles();
+        var loader = new ManualImageLoader();
+        using var session = CreateSession(loader);
+        var tiles = new TrackingTileSource();
+
+        session.OpenImage(files.First);
+        loader.Complete(tiles);
+        session.ShowNextImage();
+        loader.Preview(CreateImage());
+
+        Assert.IsTrue(tiles.IsDisposed);
+    }
+
+    [TestMethod]
+    public void LateTiledImageIsDisposedAfterSessionShutdown()
+    {
+        using var files = new SessionFiles();
+        var loader = new ManualImageLoader();
+        var session = CreateSession(loader);
+        var tiles = new TrackingTileSource();
+
+        session.OpenImage(files.First);
+        session.Dispose();
+        loader.Complete(tiles);
+
+        Assert.IsTrue(tiles.IsDisposed);
+    }
+
     private static ViewerSession CreateSession(ManualImageLoader loader)
     {
         var session = new ViewerSession(
@@ -254,20 +286,27 @@ public sealed class ViewerSessionTests
 
         internal void Preview(DecodedImage image)
         {
-            _completed!(new ImageLoaded(_path, image, IsPreview: true));
+            _completed!(new ImageLoaded(
+                _path,
+                new DecodedImageRepresentation(image),
+                IsPreview: true));
         }
 
         internal void Complete(DecodedImage image)
         {
-            _completed!(new ImageLoaded(_path, image));
+            _completed!(new ImageLoaded(_path, new DecodedImageRepresentation(image)));
         }
 
         internal void Complete(IAnimationSession animation)
         {
             _completed!(new ImageLoaded(
                 _path,
-                animation.FirstFrame.Image,
-                Animation: animation));
+                new AnimatedImageRepresentation(animation)));
+        }
+
+        internal void Complete(IImageTileSource tiles)
+        {
+            _completed!(new ImageLoaded(_path, new TiledImageRepresentation(tiles)));
         }
 
         internal void Fail(Exception exception)
@@ -291,6 +330,22 @@ public sealed class ViewerSessionTests
             frame = null!;
             return false;
         }
+
+        public void Dispose()
+        {
+            IsDisposed = true;
+        }
+    }
+
+    private sealed class TrackingTileSource : IImageTileSource
+    {
+        public int Width => 20_000;
+        public int Height => 10_000;
+        public int TileSize => 2048;
+        public DecodedImage Overview { get; } = CreateImage();
+        internal bool IsDisposed { get; private set; }
+
+        public IImageTileDecoder CreateTileDecoder() => throw new NotSupportedException();
 
         public void Dispose()
         {

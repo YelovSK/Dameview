@@ -6,6 +6,8 @@ namespace Dameview.Tests.Imaging;
 [TestClass]
 public sealed class ImageLoadCoordinatorTests
 {
+    private static readonly ImageRepresentationPolicy TestPolicy = new(16_384);
+
     [TestMethod]
     public void ActiveDecodeFinishesButOnlyTheNewestPendingRequestIsDelivered()
     {
@@ -27,7 +29,9 @@ public sealed class ImageLoadCoordinatorTests
         });
         using var coordinator = new ImageLoadCoordinator(
             action => action(),
-            new FakeImageLoadingBackend(() => decoder));
+            new FakeImageLoadingBackend(() => decoder),
+            TestPolicy,
+            NoThumbnailLoader.Instance);
 
         coordinator.Load("first", RecordResult);
         Assert.IsTrue(firstStarted.Wait(TimeSpan.FromSeconds(5)));
@@ -58,7 +62,9 @@ public sealed class ImageLoadCoordinatorTests
             _ => throw new InvalidDataException("Broken image"));
         using var coordinator = new ImageLoadCoordinator(
             action => action(),
-            new FakeImageLoadingBackend(() => decoder));
+            new FakeImageLoadingBackend(() => decoder),
+            TestPolicy,
+            NoThumbnailLoader.Instance);
 
         coordinator.Load("broken.jpg", result =>
         {
@@ -84,7 +90,9 @@ public sealed class ImageLoadCoordinatorTests
                 postedActions.Enqueue(action);
                 resultPosted.Release();
             },
-            new FakeImageLoadingBackend(() => decoder));
+            new FakeImageLoadingBackend(() => decoder),
+            TestPolicy,
+            NoThumbnailLoader.Instance);
 
         coordinator.Load("first", result => deliveredPaths.Add(result.Path));
         Assert.IsTrue(resultPosted.Wait(TimeSpan.FromSeconds(5)));
@@ -121,7 +129,9 @@ public sealed class ImageLoadCoordinatorTests
         });
         using var coordinator = new ImageLoadCoordinator(
             action => action(),
-            new FakeImageLoadingBackend(() => decoder, decoder));
+            new FakeImageLoadingBackend(() => decoder, decoder),
+            TestPolicy,
+            NoThumbnailLoader.Instance);
 
         try
         {
@@ -130,7 +140,7 @@ public sealed class ImageLoadCoordinatorTests
 
             coordinator.Load("second.gif", result =>
             {
-                ((ImageLoaded)result).Animation!.Dispose();
+                ((ImageLoaded)result).Dispose();
                 secondDelivered.Set();
             });
             releaseFirst.Set();
@@ -159,16 +169,90 @@ public sealed class ImageLoadCoordinatorTests
                 {
                     Interlocked.Increment(ref thumbnailLoads);
                     return CreateImage();
-                }));
+                }),
+            TestPolicy,
+            NoThumbnailLoader.Instance);
 
         coordinator.Load("animated.gif", result =>
         {
-            ((ImageLoaded)result).Animation!.Dispose();
+            ((ImageLoaded)result).Dispose();
             completed.Set();
         });
 
         Assert.IsTrue(completed.Wait(TimeSpan.FromSeconds(5)));
         Assert.AreEqual(0, Volatile.Read(ref thumbnailLoads));
+    }
+
+    [TestMethod]
+    public void ForegroundUsesTiledRepresentationWithoutFullDecode()
+    {
+        using var completed = new ManualResetEventSlim();
+        int decodeCount = 0;
+        var tiles = new FakeTileSource();
+        using var coordinator = new ImageLoadCoordinator(
+            action => action(),
+            new FakeImageLoadingBackend(
+                () => new FakeImageDecoder(
+                    _ =>
+                    {
+                        Interlocked.Increment(ref decodeCount);
+                        return CreateImage();
+                    },
+                    _ => new ImageInfo(20_000, 10_000)),
+                openTiledImage: _ => tiles),
+            TestPolicy,
+            NoThumbnailLoader.Instance);
+        ImageLoaded? loaded = null;
+
+        coordinator.Load("large.png", result =>
+        {
+            loaded = (ImageLoaded)result;
+            completed.Set();
+        });
+
+        Assert.IsTrue(completed.Wait(TimeSpan.FromSeconds(5)));
+        Assert.IsInstanceOfType<TiledImageRepresentation>(loaded!.Representation);
+        Assert.AreEqual(0, Volatile.Read(ref decodeCount));
+        loaded.Dispose();
+        Assert.IsTrue(tiles.IsDisposed);
+    }
+
+    [TestMethod]
+    public void PreloadSkipsImagesThatRequireTiling()
+    {
+        using var sentinelDecoded = new ManualResetEventSlim();
+        var decodedPaths = new ConcurrentQueue<string>();
+        var openedTilePaths = new ConcurrentQueue<string>();
+        using var coordinator = new ImageLoadCoordinator(
+            action => action(),
+            new FakeImageLoadingBackend(
+                () => new FakeImageDecoder(
+                    path =>
+                    {
+                        decodedPaths.Enqueue(path);
+                        if (path == "sentinel")
+                        {
+                            sentinelDecoded.Set();
+                        }
+
+                        return CreateImage();
+                    },
+                    path => path == "large"
+                        ? new ImageInfo(20_000, 10_000)
+                        : new ImageInfo(1, 1)),
+                openTiledImage: path =>
+                {
+                    openedTilePaths.Enqueue(path);
+                    return new FakeTileSource();
+                }),
+            TestPolicy,
+            NoThumbnailLoader.Instance);
+
+        coordinator.Preload(["large", "sentinel"]);
+
+        Assert.IsTrue(sentinelDecoded.Wait(TimeSpan.FromSeconds(5)));
+        CollectionAssert.AreEqual(new[] { "sentinel" }, decodedPaths.ToArray());
+        Assert.IsEmpty(openedTilePaths);
     }
 
     [TestMethod]
@@ -192,7 +276,9 @@ public sealed class ImageLoadCoordinatorTests
 
         using var coordinator = new ImageLoadCoordinator(
             action => action(),
-            new FakeImageLoadingBackend(() => new FakeImageDecoder(Decode)));
+            new FakeImageLoadingBackend(() => new FakeImageDecoder(Decode)),
+            TestPolicy,
+            NoThumbnailLoader.Instance);
 
         try
         {
@@ -228,7 +314,9 @@ public sealed class ImageLoadCoordinatorTests
 
         using var coordinator = new ImageLoadCoordinator(
             action => action(),
-            new FakeImageLoadingBackend(() => new FakeImageDecoder(Decode)));
+            new FakeImageLoadingBackend(() => new FakeImageDecoder(Decode)),
+            TestPolicy,
+            NoThumbnailLoader.Instance);
 
         try
         {
@@ -252,10 +340,12 @@ public sealed class ImageLoadCoordinatorTests
     {
         using var release = new ManualResetEventSlim();
         using var posted = new BlockingCollection<Action>();
+        using var thumbnails = new ThumbnailCoordinator(posted.Add, _ => CreateImage());
         using var coordinator = new ImageLoadCoordinator(posted.Add,
             new FakeImageLoadingBackend(
-                () => new FakeImageDecoder(_ => { release.Wait(); return CreateImage(); }),
-                thumbnailLoader: _ => CreateImage()));
+                () => new FakeImageDecoder(_ => { release.Wait(); return CreateImage(); })),
+            TestPolicy,
+            thumbnails);
         var results = new List<ImageLoaded>();
         try
         {
@@ -281,15 +371,17 @@ public sealed class ImageLoadCoordinatorTests
         using var releasePreview = new ManualResetEventSlim();
         using var previewStarted = new ManualResetEventSlim();
         using var posted = new BlockingCollection<Action>();
+        using var thumbnails = new ThumbnailCoordinator(posted.Add, _ =>
+        {
+            previewStarted.Set();
+            releasePreview.Wait();
+            return CreateImage();
+        });
         using var coordinator = new ImageLoadCoordinator(posted.Add,
             new FakeImageLoadingBackend(
-                () => new FakeImageDecoder(_ => CreateImage()),
-                thumbnailLoader: _ =>
-                {
-                    previewStarted.Set();
-                    releasePreview.Wait();
-                    return CreateImage();
-                }));
+                () => new FakeImageDecoder(_ => CreateImage())),
+            TestPolicy,
+            thumbnails);
         var results = new List<ImageLoaded>();
         try
         {
@@ -321,10 +413,13 @@ public sealed class ImageLoadCoordinatorTests
     public void ThumbnailFailureDoesNotPreventFullDecode()
     {
         using var posted = new BlockingCollection<Action>();
+        using var thumbnails = new ThumbnailCoordinator(posted.Add, _ =>
+            throw new IOException("Thumbnail unavailable"));
         using var coordinator = new ImageLoadCoordinator(posted.Add,
             new FakeImageLoadingBackend(
-                () => new FakeImageDecoder(_ => CreateImage()),
-                thumbnailLoader: _ => throw new IOException("Thumbnail unavailable")));
+                () => new FakeImageDecoder(_ => CreateImage())),
+            TestPolicy,
+            thumbnails);
         ImageLoadResult? result = null;
         coordinator.Load("image", loaded => result = loaded);
         Assert.IsTrue(posted.TryTake(out Action? complete, TimeSpan.FromSeconds(5)));
@@ -341,11 +436,17 @@ public sealed class ImageLoadCoordinatorTests
     private sealed class FakeImageDecoder : IImageDecoder
     {
         private readonly Func<string, DecodedImage> _decode;
+        private readonly Func<string, ImageInfo> _getInfo;
 
-        internal FakeImageDecoder(Func<string, DecodedImage> decode)
+        internal FakeImageDecoder(
+            Func<string, DecodedImage> decode,
+            Func<string, ImageInfo>? getInfo = null)
         {
             _decode = decode;
+            _getInfo = getInfo ?? (_ => new ImageInfo(1, 1));
         }
+
+        public ImageInfo GetInfo(string path) => _getInfo(path);
 
         public DecodedImage Decode(string path)
         {
@@ -357,23 +458,48 @@ public sealed class ImageLoadCoordinatorTests
         }
     }
 
+    private sealed class NoThumbnailLoader : IThumbnailLoader
+    {
+        internal static readonly NoThumbnailLoader Instance = new();
+
+        public IDisposable Request(
+            string path,
+            ThumbnailPriority priority,
+            Action<DecodedImage> completed) => NoopSubscription.Instance;
+
+        private sealed class NoopSubscription : IDisposable
+        {
+            internal static readonly NoopSubscription Instance = new();
+
+            public void Dispose()
+            {
+            }
+        }
+    }
+
     private sealed class FakeImageLoadingBackend : IImageLoadingBackend
     {
         private readonly Func<IImageDecoder> _decoderFactory;
         private readonly IAnimatedImageDecoder? _animatedDecoder;
         private readonly Func<string, DecodedImage?> _thumbnailLoader;
+        private readonly Func<string, IImageTileSource> _openTiledImage;
 
         internal FakeImageLoadingBackend(
             Func<IImageDecoder> decoderFactory,
             IAnimatedImageDecoder? animatedDecoder = null,
-            Func<string, DecodedImage?>? thumbnailLoader = null)
+            Func<string, DecodedImage?>? thumbnailLoader = null,
+            Func<string, IImageTileSource>? openTiledImage = null)
         {
             _decoderFactory = decoderFactory;
             _animatedDecoder = animatedDecoder;
             _thumbnailLoader = thumbnailLoader ?? (_ => null);
+            _openTiledImage = openTiledImage
+                ?? (_ => throw new NotSupportedException("Tiled images are not configured for this test."));
         }
 
         public IImageDecoder CreateDecoder() => _decoderFactory();
+
+        public IImageTileSource OpenTiledImage(string path) => _openTiledImage(path);
 
         public DecodedImage? LoadThumbnail(string path) => _thumbnailLoader(path);
 
@@ -399,6 +525,8 @@ public sealed class ImageLoadCoordinatorTests
 
         public IAnimationSession Open(string path) => _open(path);
 
+        public ImageInfo GetInfo(string path) => throw new NotSupportedException();
+
         public DecodedImage Decode(string path) => throw new NotSupportedException();
 
         public void Dispose()
@@ -421,6 +549,22 @@ public sealed class ImageLoadCoordinatorTests
             frame = null!;
             return false;
         }
+
+        public void Dispose()
+        {
+            IsDisposed = true;
+        }
+    }
+
+    private sealed class FakeTileSource : IImageTileSource
+    {
+        public int Width => 20_000;
+        public int Height => 10_000;
+        public int TileSize => 2048;
+        public DecodedImage Overview { get; } = CreateImage();
+        internal bool IsDisposed { get; private set; }
+
+        public IImageTileDecoder CreateTileDecoder() => throw new NotSupportedException();
 
         public void Dispose()
         {

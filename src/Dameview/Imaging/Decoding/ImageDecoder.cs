@@ -23,17 +23,15 @@ internal sealed class ImageDecoder : IImageDecoder
     private readonly IWICImagingFactory2 _factory = new();
     internal DecodedImage Decode(string path)
     {
-        string fullPath = Path.GetFullPath(path);
-        if (!File.Exists(fullPath))
-        {
-            throw new FileNotFoundException("The image could not be found.", fullPath);
-        }
-
-        using IWICBitmapDecoder decoder = _factory.CreateDecoderFromFileName(
-            fullPath,
-            FileAccess.Read,
-            DecodeOptions.CacheOnLoad);
+        using IWICBitmapDecoder decoder = CreateDecoder(path, DecodeOptions.CacheOnLoad);
         return Decode(decoder);
+    }
+
+    internal ImageInfo GetInfo(string path)
+    {
+        using IWICBitmapDecoder decoder = CreateDecoder(path, DecodeOptions.CacheOnDemand);
+        using IWICBitmapFrameDecode frame = decoder.GetFrame(0);
+        return new ImageInfo(frame.Size.Width, frame.Size.Height);
     }
 
     internal DecodedImage Decode(Stream stream)
@@ -61,6 +59,17 @@ internal sealed class ImageDecoder : IImageDecoder
         converter.CopyPixels((uint)stride, pixels);
 
         return ApplyExifOrientation(orientation, width, height, stride, pixels);
+    }
+
+    private IWICBitmapDecoder CreateDecoder(string path, DecodeOptions options)
+    {
+        string fullPath = Path.GetFullPath(path);
+        if (!File.Exists(fullPath))
+        {
+            throw new FileNotFoundException("The image could not be found.", fullPath);
+        }
+
+        return _factory.CreateDecoderFromFileName(fullPath, FileAccess.Read, options);
     }
 
     internal static ExifOrientation GetExifOrientation(IWICBitmapFrameDecode frame)
@@ -110,7 +119,7 @@ internal sealed class ImageDecoder : IImageDecoder
         };
     }
 
-    private static DecodedImage ApplyExifOrientation(
+    internal static DecodedImage ApplyExifOrientation(
         ExifOrientation orientation,
         int width,
         int height,
@@ -223,6 +232,11 @@ internal sealed class ImageDecoder : IImageDecoder
     DecodedImage IImageDecoder.Decode(string path)
     {
         return Decode(path);
+    }
+
+    ImageInfo IImageDecoder.GetInfo(string path)
+    {
+        return GetInfo(path);
     }
 }
 

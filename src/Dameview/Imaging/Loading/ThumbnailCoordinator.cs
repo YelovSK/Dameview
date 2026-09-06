@@ -22,7 +22,7 @@ internal sealed class ThumbnailCoordinator : IThumbnailLoader, IDisposable
     private const long DefaultCacheCapacityBytes = 64L * 1024L * 1024L;
 
     private readonly object _sync = new();
-    private readonly Action<Action> _postToUi;
+    private readonly UiPost _postToUi;
     private readonly Func<string, DecodedImage?> _load;
     private readonly DecodedImageCache _cache;
     private readonly Queue<string> _foregroundQueue = new();
@@ -33,13 +33,12 @@ internal sealed class ThumbnailCoordinator : IThumbnailLoader, IDisposable
     private bool _stopping;
 
     internal ThumbnailCoordinator(
-        Action<Action> postToUi,
-        Func<string, DecodedImage?> load,
-        long cacheCapacityBytes = DefaultCacheCapacityBytes)
+        UiPost postToUi,
+        Func<string, DecodedImage?> load)
     {
         _postToUi = postToUi;
         _load = load;
-        _cache = new DecodedImageCache(cacheCapacityBytes);
+        _cache = new DecodedImageCache(DefaultCacheCapacityBytes);
         _worker = new Thread(Work)
         {
             IsBackground = true,

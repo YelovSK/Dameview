@@ -6,6 +6,9 @@ internal interface IImageLoadingBackend
     /// <summary>Creates a decoder whose lifetime is owned by the caller.</summary>
     public IImageDecoder CreateDecoder();
 
+    /// <summary>Opens a self-contained tiled source. The caller owns the returned source.</summary>
+    public IImageTileSource OpenTiledImage(string path);
+
     /// <summary>Loads a best-effort shell or reduced-size thumbnail; returns <see langword="null"/> when unavailable.</summary>
     public DecodedImage? LoadThumbnail(string path);
 

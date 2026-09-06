@@ -9,6 +9,8 @@ internal sealed class WindowsImageLoadingBackend : IImageLoadingBackend
 
     public IImageDecoder CreateDecoder() => new ImageDecoder();
 
+    public IImageTileSource OpenTiledImage(string path) => WicImageTileSource.Open(path);
+
     public DecodedImage? LoadThumbnail(string path) => WindowsThumbnail.Load(path);
 
     public bool SupportsAnimation(string path) => FindAnimationDecoder(path) is not null;

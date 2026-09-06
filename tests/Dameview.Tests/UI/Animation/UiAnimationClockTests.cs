@@ -1,4 +1,3 @@
-using Dameview.UI;
 using Dameview.UI.Animation;
 
 namespace Dameview.Tests.UI.Animation;

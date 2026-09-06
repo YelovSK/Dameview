@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Dameview.Platform;
 
 namespace Dameview.Settings;
 
@@ -7,7 +8,7 @@ namespace Dameview.Settings;
 internal sealed class SettingsService : IDisposable
 {
     private readonly string _path;
-    private readonly Action<Action> _postToUi;
+    private readonly UiPost _postToUi;
     private readonly object _gate = new();
     private readonly Timer _reloadTimer;
     private FileSystemWatcher? _watcher;
@@ -15,7 +16,7 @@ internal sealed class SettingsService : IDisposable
     private bool _disposed;
     private int _readAttempts;
 
-    internal SettingsService(string path, Action<Action> postToUi)
+    internal SettingsService(string path, UiPost postToUi)
     {
         _path = Path.GetFullPath(path);
         _postToUi = postToUi;

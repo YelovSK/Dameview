@@ -43,14 +43,15 @@ internal sealed class ViewerUi : UiElement, IDisposable
         IThumbnailLoader thumbnailLoader,
         Action<ThemeMode> setTheme,
         Action<FolderSort> setSort,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        UiPost? postToUi = null)
     {
         _deviceContext = deviceContext;
         _brush = deviceContext.CreateSolidColorBrush(default(Color4));
         Palette = theme;
         _animationClock = new UiAnimationClock(timeProvider);
         _state = session.State;
-        _imagePanel = new ImagePanel(deviceContext, session.Viewport, session.Animator, timeProvider);
+        _imagePanel = new ImagePanel(deviceContext, session.Viewport, session.Animator, timeProvider, postToUi);
         _emptyStatePanel = new EmptyStatePanel(
             directWriteFactory,
             LoadApplicationIcon(deviceContext),
@@ -307,8 +308,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
             : null;
         _statusPanel.Status = new ViewerStatus(
             Path.GetFileName(_state.RequestedPath) ?? string.Empty,
-            _state.DisplayedImage?.Image.Width ?? 0,
-            _state.DisplayedImage?.Image.Height ?? 0,
+            _state.DisplayedImage?.Representation.Width ?? 0,
+            _state.DisplayedImage?.Representation.Height ?? 0,
             _imagePanel.ZoomPercentage,
             SettingsError ?? animationError ?? _state.Message,
             SettingsError is not null || animationError is not null || _state.IsError);
@@ -316,14 +317,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     private void ApplyDisplayedImage(ImageLoaded displayed)
     {
-        if (displayed.Animation is { } animation)
-        {
-            _imagePanel.SetAnimation(animation);
-        }
-        else
-        {
-            _imagePanel.SetImage(displayed.Image, displayed.IsPreview);
-        }
+        _imagePanel.SetImage(displayed.Representation, displayed.IsPreview);
     }
 
     private static ID2D1Bitmap1 LoadApplicationIcon(ID2D1DeviceContext deviceContext)

@@ -38,7 +38,8 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         _imageLoadCoordinator = new ImageLoadCoordinator(
             _window.Post,
             imageBackend,
-            thumbnailLoader: _thumbnailCoordinator);
+            new ImageRepresentationPolicy(checked((int)_renderer.DeviceContext.MaximumBitmapSize)),
+            _thumbnailCoordinator);
         using var imageDecoder = new ImageDecoder();
         HashSet<string> extensions = imageDecoder.GetProbablySupportedExtensions();
         _session = new ViewerSession(
@@ -56,7 +57,8 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
             this,
             _thumbnailCoordinator,
             theme => _settings!.Update(_settings.Current with { Theme = theme }),
-            sort => _settings!.Update(_settings.Current with { Sort = sort }));
+            sort => _settings!.Update(_settings.Current with { Sort = sort }),
+            postToUi: _window.Post);
         _ui.Invalidated += _window.RequestRepaint;
         _ui.CursorChanged += _window.SetCursor;
         _session.StateChanged += HandleSessionChanged;

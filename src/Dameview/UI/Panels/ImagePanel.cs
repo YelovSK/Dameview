@@ -1,6 +1,6 @@
-using Dameview.Platform;
 using System.Drawing;
 using Dameview.Imaging;
+using Dameview.Platform;
 using Dameview.Viewing;
 using Vortice.Direct2D1;
 using Vortice.Mathematics;
@@ -13,8 +13,10 @@ internal sealed class ImagePanel : UiElement, IDisposable
     private readonly ImageViewport _viewport;
     private readonly ViewportAnimator _animator;
     private readonly TimeProvider _timeProvider;
+    private readonly UiPost? _postToUi;
     private const float PanStartThresholdDips = 4.0f;
     private ID2D1Bitmap1? _image;
+    private TiledImageRenderer? _tiledImage;
     private AnimatedImagePlayer? _imageAnimation;
     private bool _isPanning;
     private bool _pointerPressed;
@@ -26,23 +28,65 @@ internal sealed class ImagePanel : UiElement, IDisposable
         ID2D1DeviceContext deviceContext,
         ImageViewport viewport,
         ViewportAnimator animator,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        UiPost? postToUi = null)
     {
         _deviceContext = deviceContext;
         _viewport = viewport;
         _animator = animator;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _postToUi = postToUi;
     }
 
     internal float ZoomPercentage => _viewport.Scale * 100.0f;
     internal TimeSpan? NextAnimationFrameDelay => _imageAnimation?.NextFrameDelay;
     internal Exception? AnimationError => _imageAnimation?.Error;
 
-    internal unsafe void SetImage(DecodedImage image, bool isPreview)
+    internal void SetImage(ImageRepresentation image, bool isPreview)
+    {
+        switch (image)
+        {
+            case DecodedImageRepresentation decoded:
+                SetDecodedImage(decoded.Image, isPreview);
+                break;
+
+            case TiledImageRepresentation tiled:
+                SetTiledImage(tiled.Source);
+                break;
+
+            case AnimatedImageRepresentation animated:
+                SetAnimation(animated.Animation);
+                break;
+
+            default:
+                throw new NotSupportedException($"Unsupported image representation: {image.GetType().Name}");
+        }
+    }
+
+    private unsafe void SetDecodedImage(DecodedImage image, bool isPreview)
     {
         _imageAnimation = null;
+        _tiledImage?.Dispose();
+        _tiledImage = null;
         SetBitmap(image);
         _isPreview = isPreview;
+    }
+
+    private void SetTiledImage(IImageTileSource source)
+    {
+        _imageAnimation = null;
+        _image?.Dispose();
+        _image = null;
+        _tiledImage?.Dispose();
+        UiPost postToUi = _postToUi
+            ?? throw new InvalidOperationException("Tiled rendering requires UI-thread dispatch.");
+        _tiledImage = new TiledImageRenderer(
+            _deviceContext,
+            source,
+            _viewport,
+            postToUi,
+            InvalidateVisual);
+        _isPreview = false;
     }
 
     private void SetBitmap(DecodedImage image)
@@ -68,9 +112,11 @@ internal sealed class ImagePanel : UiElement, IDisposable
         _viewport.SetViewportSize(pixelSize.Width, pixelSize.Height);
     }
 
-    internal void SetAnimation(IAnimationSession animation)
+    private void SetAnimation(IAnimationSession animation)
     {
         _imageAnimation = null;
+        _tiledImage?.Dispose();
+        _tiledImage = null;
         SetBitmap(animation.FirstFrame.Image);
         _isPreview = false;
         _imageAnimation = new AnimatedImagePlayer(animation, _timeProvider);
@@ -107,6 +153,12 @@ internal sealed class ImagePanel : UiElement, IDisposable
 
     protected override void DrawCore(in UiDrawContext context)
     {
+        if (_tiledImage is { } tiledImage)
+        {
+            tiledImage.Draw(context, ToPixels(Bounds.Width), ToPixels(Bounds.Height));
+            return;
+        }
+
         if (_image is null)
         {
             return;
@@ -213,6 +265,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
     public void Dispose()
     {
         _imageAnimation = null;
+        _tiledImage?.Dispose();
         _image?.Dispose();
     }
 

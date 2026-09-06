@@ -185,7 +185,9 @@ public sealed class FolderScanSessionTests
 
         internal void Complete()
         {
-            _completed!(new ImageLoaded(Path, new DecodedImage(1, 1, 4, new byte[4])));
+            _completed!(new ImageLoaded(
+                Path,
+                new DecodedImageRepresentation(new DecodedImage(1, 1, 4, new byte[4]))));
         }
 
         internal void Fail()
