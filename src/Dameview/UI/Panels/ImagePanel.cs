@@ -13,9 +13,12 @@ internal sealed class ImagePanel : UiElement, IDisposable
     private readonly ImageViewport _viewport;
     private readonly ViewportAnimator _animator;
     private readonly TimeProvider _timeProvider;
+    private const float PanStartThresholdDips = 4.0f;
     private ID2D1Bitmap1? _image;
     private AnimatedImagePlayer? _imageAnimation;
     private bool _isPanning;
+    private bool _pointerPressed;
+    private PointF _panStart;
     private bool _isPreview;
     private System.Drawing.Size _viewportPixelSize;
 
@@ -148,25 +151,52 @@ internal sealed class ImagePanel : UiElement, IDisposable
         switch (input.Kind)
         {
             case UiPointerEventKind.Pressed when input.Button == PointerButton.Primary:
-                _isPanning = true;
-                _animator.BeginPan(ToPixels(input.Position.X), ToPixels(input.Position.Y));
+                _pointerPressed = true;
+                _panStart = new PointF(
+                    ToPixels(input.Position.X),
+                    ToPixels(input.Position.Y));
                 return new UiPointerResult(Consumed: true, CapturePointer: true);
 
-            case UiPointerEventKind.Moved when _isPanning:
-                _animator.PanTo(ToPixels(input.Position.X), ToPixels(input.Position.Y));
+            case UiPointerEventKind.Moved when _pointerPressed:
+                PointF pointer = new(
+                    ToPixels(input.Position.X),
+                    ToPixels(input.Position.Y));
+                if (!_isPanning)
+                {
+                    float threshold = ToPixels(PanStartThresholdDips);
+                    float distanceX = pointer.X - _panStart.X;
+                    float distanceY = pointer.Y - _panStart.Y;
+                    if ((distanceX * distanceX) + (distanceY * distanceY) < threshold * threshold)
+                    {
+                        return new UiPointerResult(Consumed: true);
+                    }
+
+                    _isPanning = true;
+                    _animator.BeginPan(_panStart.X, _panStart.Y);
+                }
+
+                _animator.PanTo(pointer.X, pointer.Y);
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
-            case UiPointerEventKind.Released when _isPanning:
+            case UiPointerEventKind.Released when _pointerPressed:
+                _pointerPressed = false;
+                if (!_isPanning)
+                {
+                    return new UiPointerResult(Consumed: true);
+                }
+
                 _isPanning = false;
                 _animator.EndPan();
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
-            case UiPointerEventKind.Cancelled when _isPanning:
+            case UiPointerEventKind.Cancelled when _pointerPressed:
+                _pointerPressed = false;
                 _isPanning = false;
                 _animator.Reset();
                 return new UiPointerResult(Consumed: true);
 
             case UiPointerEventKind.DoubleClicked when input.Button == PointerButton.Primary:
+                _pointerPressed = false;
                 _isPanning = false;
                 _animator.ToggleFitAndActualSizeAt(ToPixels(input.Position.X), ToPixels(input.Position.Y));
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);

@@ -4,9 +4,9 @@ namespace Dameview.Viewing;
 
 internal sealed class ViewportAnimator
 {
-    private const double ZoomResponse = 18.0;
+    private const double ZoomResponse = 25.0;
     private const double ZoomCompletionRatio = 0.001;
-    private const double TransformResponse = 14.0;
+    private const double TransformResponse = 20.0;
     private const double CenterCompletionDistance = 0.25;
     private const double MomentumFriction = 6.0;
     private const double MinimumMomentumSpeed = 20.0;
