@@ -3,6 +3,7 @@ using Dameview.Platform;
 
 namespace Dameview.UI;
 
+/// <summary>Owns layout, focus, hover, capture, and event routing for a UI tree.</summary>
 internal sealed class UiRoot
 {
     private readonly UiElement _content;
@@ -27,6 +28,7 @@ internal sealed class UiRoot
     internal UiElement? FocusedElement => _focusedElement;
     internal float Dpi => _dpi;
 
+    /// <summary>Updates the root DPI and invalidates layout when it changes.</summary>
     internal void SetDpi(float dpi)
     {
         if (_dpi == dpi)
@@ -38,15 +40,21 @@ internal sealed class UiRoot
         InvalidateLayout();
     }
 
+    /// <summary>Lays out the tree for the pixel surface and draws its content.</summary>
     internal void Draw(in UiDrawContext context, SizeF pixelSize)
     {
         EnsureLayout(pixelSize);
         context.DrawElement(_content);
     }
 
+    /// <summary>Advances animations in the UI tree.</summary>
+    /// <returns><see langword="true"/> when another update may be needed.</returns>
     internal bool Update(in UiUpdateContext context) => _content.UpdateTree(context);
+    /// <summary>Ensures the tree is arranged for the specified pixel surface.</summary>
     internal void Arrange(SizeF pixelSize) => EnsureLayout(pixelSize);
 
+    /// <summary>Converts and routes a native pointer event through the UI tree.</summary>
+    /// <returns><see langword="true"/> when an element consumed the event.</returns>
     internal bool HandlePointer(in UiPointerEvent nativeInput)
     {
         UiPointerEvent input = nativeInput with
@@ -98,6 +106,7 @@ internal sealed class UiRoot
         return consumed;
     }
 
+    /// <summary>Cancels the current pointer capture, if any.</summary>
     internal void CancelPointer()
     {
         UiElement? captured = _capturedElement;
@@ -112,6 +121,7 @@ internal sealed class UiRoot
         UpdateCursor();
     }
 
+    /// <summary>Cancels capture and clears hover state, typically after pointer loss.</summary>
     internal void ClearPointer()
     {
         CancelPointer();
@@ -137,6 +147,8 @@ internal sealed class UiRoot
         }
     }
 
+    /// <summary>Routes a key event and optionally performs focus navigation.</summary>
+    /// <returns><see langword="true"/> when the key was handled or used for navigation.</returns>
     internal bool HandleKey(
         UiKeyEvent input,
         UiElement scope,
@@ -164,6 +176,7 @@ internal sealed class UiRoot
         return false;
     }
 
+    /// <summary>Moves keyboard focus to an element or clears focus when <see langword="null"/>.</summary>
     internal void SetFocus(UiElement? element)
     {
         if (ReferenceEquals(_focusedElement, element))

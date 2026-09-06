@@ -1,5 +1,6 @@
 namespace Dameview.UI.Layout;
 
+/// <summary>Clamps and animates a scroll position toward a requested target.</summary>
 internal sealed class ScrollOffsetController
 {
     private const double Response = 18.0;
@@ -11,6 +12,7 @@ internal sealed class ScrollOffsetController
     internal float Offset => _offset;
     internal float TargetOffset => _targetOffset;
 
+    /// <summary>Sets the largest valid offset and clamps both current and target positions.</summary>
     internal void SetMaximum(float maximumOffset)
     {
         _maximumOffset = MathF.Max(0.0f, maximumOffset);
@@ -18,8 +20,12 @@ internal sealed class ScrollOffsetController
         _targetOffset = Math.Clamp(_targetOffset, 0.0f, _maximumOffset);
     }
 
+    /// <summary>Moves the target by a relative amount.</summary>
+    /// <returns><see langword="true"/> when the target changed.</returns>
     internal bool ScrollBy(float amount) => SetTarget(_targetOffset + amount);
 
+    /// <summary>Sets a clamped target that the current offset will approach smoothly.</summary>
+    /// <returns><see langword="true"/> when the target changed.</returns>
     internal bool SetTarget(float offset)
     {
         float clamped = Math.Clamp(offset, 0.0f, _maximumOffset);
@@ -32,6 +38,8 @@ internal sealed class ScrollOffsetController
         return true;
     }
 
+    /// <summary>Sets both current and target offsets immediately, without animation.</summary>
+    /// <returns><see langword="true"/> when either stored offset changed.</returns>
     internal bool SetImmediate(float offset)
     {
         float clamped = Math.Clamp(offset, 0.0f, _maximumOffset);
@@ -41,6 +49,8 @@ internal sealed class ScrollOffsetController
         return changed;
     }
 
+    /// <summary>Advances the current offset toward its target.</summary>
+    /// <returns><see langword="true"/> while the current offset is not yet at its target.</returns>
     internal bool Update(double elapsedSeconds)
     {
         if (_offset == _targetOffset)
