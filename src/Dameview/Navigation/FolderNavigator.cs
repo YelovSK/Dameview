@@ -12,6 +12,8 @@ internal sealed class FolderNavigator
         Sort = sort;
     }
 
+    internal FolderSort Sort { get; private set; }
+
     internal void Clear()
     {
         _files = [];
@@ -24,8 +26,6 @@ internal sealed class FolderNavigator
         SortFiles(_files, Sort);
         SetCurrent(currentPath);
     }
-
-    internal FolderSort Sort { get; private set; }
 
     internal FolderEntry[] GetFiles() => [.. _files];
 

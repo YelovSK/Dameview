@@ -22,6 +22,8 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
     private readonly ImageLoadCoordinator _imageLoadCoordinator;
     private readonly RenderBitmapCache _renderBitmapCache;
     private readonly PresentationImageLoader _presentationImageLoader;
+    private readonly FolderNavigator _folderNavigator;
+    private readonly FolderMonitor _folderMonitor;
     private readonly ViewerSession _session;
     private readonly SettingsService _settings;
     private int _pointerX;
@@ -52,11 +54,15 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
             _renderer.DeviceContext);
         using var imageDecoder = new ImageDecoder();
         HashSet<string> extensions = imageDecoder.GetProbablySupportedExtensions();
-        _session = new ViewerSession(
-            new FolderNavigator(),
-            _presentationImageLoader,
+        _folderNavigator = new FolderNavigator();
+        _folderMonitor = new FolderMonitor(
             new FolderScanner(path => extensions.Contains(Path.GetExtension(path))),
+            new FileSystemFolderWatcher(),
             _window.Post);
+        _session = new ViewerSession(
+            _folderNavigator,
+            _folderMonitor,
+            _presentationImageLoader);
         _settings = new SettingsService(SettingsService.DefaultPath, _window.Post);
         _ui = new ViewerUi(
             _renderer.DeviceContext,
@@ -110,6 +116,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         _ui.Invalidated -= _window.RequestRepaint;
         _ui.Dispose();
         _session.Dispose();
+        _folderMonitor.Dispose();
         _presentationImageLoader.Dispose();
         _imageLoadCoordinator.Dispose();
         _renderBitmapCache.Dispose();

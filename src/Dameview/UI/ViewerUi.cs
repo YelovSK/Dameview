@@ -270,7 +270,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     private bool HasStatus => SettingsError is not null
         || _state.DisplayedImage is not null
-        || _state.Message is not null;
+        || _state.Message is not null
+        || _state.FolderError is not null;
 
     private void ShowSettings()
     {
@@ -313,13 +314,19 @@ internal sealed class ViewerUi : UiElement, IDisposable
         string? animationError = _imagePanel.AnimationError is { } exception
             ? $"Animation stopped: {exception.Message}"
             : null;
+        string? message = SettingsError ?? animationError ?? _state.Message;
+        if (message is null && _state.FolderError is { } folderError)
+        {
+            message = $"Image opened, but its folder could not be read: {folderError}";
+        }
+
         _statusPanel.Status = new ViewerStatus(
             Path.GetFileName(_state.RequestedPath) ?? string.Empty,
             _state.DisplayedImage?.Representation.Width ?? 0,
             _state.DisplayedImage?.Representation.Height ?? 0,
             _imagePanel.ZoomPercentage,
-            SettingsError ?? animationError ?? _state.Message,
-            SettingsError is not null || animationError is not null || _state.IsError);
+            message,
+            SettingsError is not null || animationError is not null || _state.IsError || _state.FolderError is not null);
     }
 
     private void ApplyDisplayedImage(ImageLoaded displayed)

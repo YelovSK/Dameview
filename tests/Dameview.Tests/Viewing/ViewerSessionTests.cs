@@ -36,8 +36,8 @@ public sealed class ViewerSessionTests
         using var files = new SessionFiles();
         var loader = new ManualImageLoader();
         var scanner = new ImmediateScanner();
-        using var session = new ViewerSession(
-            new FolderNavigator(), loader, scanner, action => action());
+        var monitor = new FolderMonitor(scanner, new FakeFolderWatcher(), action => action(), debounceMilliseconds: 0);
+        using var session = new ViewerSession(new FolderNavigator(), monitor, loader);
         session.Viewport.SetViewportSize(800, 600);
         session.OpenImage(files.First);
         loader.Complete(CreateImage());
@@ -145,8 +145,8 @@ public sealed class ViewerSessionTests
 
         Assert.AreEqual(path, session.State.DisplayedImage!.Path);
         Assert.IsFalse(session.State.IsLoading);
-        Assert.IsTrue(session.State.IsError);
-        StringAssert.StartsWith(session.State.Message!, "Image opened, but its folder could not be read:");
+        Assert.IsFalse(session.State.IsError);
+        Assert.IsNotNull(session.State.FolderError);
         Assert.HasCount(0, loader.Preloads);
     }
 
@@ -235,8 +235,8 @@ public sealed class ViewerSessionTests
 
     private static ViewerSession CreateSession(ManualImageLoader loader)
     {
-        var session = new ViewerSession(
-            new FolderNavigator(), loader, new ImmediateScanner(), action => action());
+        var monitor = new FolderMonitor(new ImmediateScanner(), new FakeFolderWatcher(), action => action(), debounceMilliseconds: 0);
+        var session = new ViewerSession(new FolderNavigator(), monitor, loader);
         session.Viewport.SetViewportSize(800, 600);
         return session;
     }
@@ -244,6 +244,8 @@ public sealed class ViewerSessionTests
     private sealed class ImmediateScanner : IFolderScanner
     {
         internal int ScanCount { get; private set; }
+
+        public bool IsProbablySupported(string path) => true;
 
         public Task<FolderEntry[]> ScanAsync(string directoryPath, CancellationToken cancellationToken)
         {

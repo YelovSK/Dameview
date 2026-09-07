@@ -5,10 +5,15 @@ internal interface IFolderScanner
 {
     /// <summary>Scans a directory and returns file metadata in an arbitrary enumeration order.</summary>
     public Task<FolderEntry[]> ScanAsync(string directoryPath, CancellationToken cancellationToken);
+
+    /// <summary>Whether a path is a supported image file. Used to ignore unrelated directory events.</summary>
+    public bool IsProbablySupported(string path);
 }
 
 internal sealed class FolderScanner(Func<string, bool> isProbablySupported) : IFolderScanner
 {
+    public bool IsProbablySupported(string path) => isProbablySupported(path);
+
     public Task<FolderEntry[]> ScanAsync(string directoryPath, CancellationToken cancellationToken)
     {
         return Task.Run(() =>

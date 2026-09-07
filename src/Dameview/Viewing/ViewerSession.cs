@@ -1,7 +1,5 @@
 using Dameview.Imaging;
 using Dameview.Navigation;
-using Dameview.Platform;
-using SharpGen.Runtime;
 
 namespace Dameview.Viewing;
 
@@ -11,23 +9,19 @@ namespace Dameview.Viewing;
 internal sealed class ViewerSession : IDisposable
 {
     private readonly FolderNavigator _folderNavigator;
+    private readonly IFolderMonitor _folderMonitor;
     private readonly IImageLoader _imageLoader;
-    private readonly IFolderScanner _folderScanner;
-    private readonly UiPost _postToUi;
-    private CancellationTokenSource? _folderScan;
-    private string? _navigationError;
     private bool _disposed;
 
     internal ViewerSession(
         FolderNavigator folderNavigator,
-        IImageLoader imageLoader,
-        IFolderScanner folderScanner,
-        UiPost postToUi)
+        IFolderMonitor folderMonitor,
+        IImageLoader imageLoader)
     {
         _folderNavigator = folderNavigator;
         _imageLoader = imageLoader;
-        _folderScanner = folderScanner;
-        _postToUi = postToUi;
+        _folderMonitor = folderMonitor;
+        _folderMonitor.Updated += HandleFolderUpdated;
         Viewport = new ImageViewport(0, 0);
         Animator = new ViewportAnimator(Viewport);
     }
@@ -41,7 +35,7 @@ internal sealed class ViewerSession : IDisposable
     {
         _folderNavigator.SetSort(sort);
         State = State with { FolderEntries = _folderNavigator.GetFiles() };
-        if (!State.IsLoading && !State.IsError)
+        if (!State.IsLoading)
         {
             ApplyNavigationResult(navigationDirection: 0);
         }
@@ -62,35 +56,48 @@ internal sealed class ViewerSession : IDisposable
     internal void OpenImage(string path)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        _folderScan?.Cancel();
-        _folderScan?.Dispose();
-        _folderScan = new CancellationTokenSource();
-        _folderNavigator.Clear();
         _imageLoader.Preload([]);
-        _navigationError = null;
-        string loadPath = path;
-        string? directoryPath = null;
+
+        string fullPath;
+        string directoryPath;
         try
         {
-            loadPath = Path.GetFullPath(path);
-            directoryPath = Path.GetDirectoryName(loadPath)
+            fullPath = Path.GetFullPath(path);
+            directoryPath = Path.GetDirectoryName(fullPath)
                 ?? throw new ArgumentException("The image path has no containing directory.", nameof(path));
         }
-        catch (Exception exception) when (IsRecoverableImageError(exception))
+        catch (Exception exception) when (IsRecoverablePathError(exception))
         {
-            _navigationError = exception.Message;
+            _folderNavigator.Clear();
+            _folderMonitor.Close();
+            State = State with
+            {
+                RequestedPath = path,
+                IsLoading = false,
+                Message = $"Could not open image: {exception.Message}",
+                IsError = true,
+                FolderEntries = [],
+                FolderError = null,
+            };
+            StateChanged?.Invoke();
+            return;
         }
 
+        if (string.Equals(directoryPath, _folderMonitor.CurrentDirectory, StringComparison.OrdinalIgnoreCase))
+        {
+            _folderNavigator.SetCurrent(fullPath);
+            BeginImageLoad(fullPath, navigationDirection: 0);
+            return;
+        }
+
+        _folderNavigator.Clear();
         State = State with
         {
-            IsScanningFolder = directoryPath is not null,
             FolderEntries = [],
+            FolderError = null,
         };
-        BeginImageLoad(loadPath, navigationDirection: 0);
-        if (directoryPath is not null)
-        {
-            _ = ScanFolderAsync(directoryPath, loadPath, _folderScan.Token);
-        }
+        BeginImageLoad(fullPath, navigationDirection: 0);
+        _folderMonitor.Open(directoryPath);
     }
 
     internal void SelectImage(string path)
@@ -113,72 +120,38 @@ internal sealed class ViewerSession : IDisposable
         }
 
         _disposed = true;
-        _folderScan?.Cancel();
-        _folderScan?.Dispose();
-        _folderScan = null;
+        _folderMonitor.Updated -= HandleFolderUpdated;
+        _folderMonitor.Close();
         State.DisplayedImage?.Dispose();
     }
 
-    private async Task ScanFolderAsync(string directoryPath, string currentPath, CancellationToken token)
+    private void HandleFolderUpdated(FolderUpdate update)
     {
-        FolderEntry[] files = [];
-        string? error = null;
-        try
-        {
-            files = await _folderScanner.ScanAsync(directoryPath, token).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (token.IsCancellationRequested)
-        {
-            return;
-        }
-        catch (Exception exception) when (IsRecoverableImageError(exception))
-        {
-            error = exception.Message;
-        }
-
-        if (token.IsCancellationRequested)
+        if (_disposed)
         {
             return;
         }
 
-        _postToUi(() =>
+        if (update.Error is null)
         {
-            if (_disposed || token.IsCancellationRequested)
-            {
-                return;
-            }
+            _folderNavigator.SetFiles(update.Entries, State.RequestedPath!);
+        }
 
-            _navigationError = error;
-            if (error is null)
-            {
-                _folderNavigator.SetFiles(files, currentPath);
-            }
+        State = update.Error is null
+            ? State with { FolderEntries = _folderNavigator.GetFiles(), FolderError = null }
+            : State with { FolderEntries = [], FolderError = update.Error };
 
-            State = State with
-            {
-                IsScanningFolder = false,
-                FolderEntries = error is null ? _folderNavigator.GetFiles() : [],
-            };
-            if (!State.IsLoading && !State.IsError)
-            {
-                ApplyNavigationResult(navigationDirection: 0);
-            }
+        if (!State.IsLoading)
+        {
+            ApplyNavigationResult(navigationDirection: 0);
+        }
 
-            StateChanged?.Invoke();
-        });
+        StateChanged?.Invoke();
     }
 
     private void ApplyNavigationResult(int navigationDirection)
     {
-        if (_navigationError is not null)
-        {
-            State = State with
-            {
-                Message = $"Image opened, but its folder could not be read: {_navigationError}",
-                IsError = true,
-            };
-        }
-        else if (!State.IsScanningFolder)
+        if (!State.IsError && State.FolderError is null)
         {
             string? previousPath = _folderNavigator.GetPreviousPath();
             string? nextPath = _folderNavigator.GetNextPath();
@@ -188,14 +161,13 @@ internal sealed class ViewerSession : IDisposable
         }
     }
 
-    private static bool IsRecoverableImageError(Exception exception)
+    private static bool IsRecoverablePathError(Exception exception)
     {
         return exception is IOException
             or UnauthorizedAccessException
             or ArgumentException
             or NotSupportedException
-            or OverflowException
-            or SharpGenException;
+            or OverflowException;
     }
 
     private void OpenNavigatedImage(string? path, int direction)
@@ -253,14 +225,14 @@ internal sealed class ViewerSession : IDisposable
                     Viewport.SetImageSize(
                         loaded.Representation.Width,
                         loaded.Representation.Height);
-                    State = new ViewerSessionState(
-                        loaded.Path,
-                        loaded,
-                        false,
-                        null,
-                        false,
-                        State.FolderEntries,
-                        State.IsScanningFolder);
+                    State = State with
+                    {
+                        RequestedPath = loaded.Path,
+                        DisplayedImage = loaded,
+                        IsLoading = false,
+                        Message = null,
+                        IsError = false,
+                    };
                     ApplyNavigationResult(navigationDirection);
 
                     break;
@@ -297,4 +269,4 @@ internal sealed record ViewerSessionState(
     string? Message,
     bool IsError,
     FolderEntry[] FolderEntries,
-    bool IsScanningFolder = false);
+    string? FolderError = null);
