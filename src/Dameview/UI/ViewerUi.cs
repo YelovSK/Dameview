@@ -42,7 +42,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         UiTheme theme,
         IViewerCommands commands,
         IThumbnailLoader thumbnailLoader,
-        Action<ThemeMode> setTheme,
+        Action<Theme> setTheme,
         Action<FolderSort> setSort,
         TimeProvider? timeProvider = null,
         UiPost? postToUi = null)

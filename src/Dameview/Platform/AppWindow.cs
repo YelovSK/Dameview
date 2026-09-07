@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using Dameview.UI;
+using Vortice.Mathematics;
 
 namespace Dameview.Platform;
 
@@ -88,28 +89,20 @@ internal sealed unsafe class AppWindow : IDisposable
         _ = NativeMethods.SetCursor(cursorHandle);
     }
 
-    internal void SetTitleBarTheme(bool dark)
+    internal void SetTitleBarTheme(bool dark, Color4 captionColor, Color4 textColor)
     {
-        int useDarkMode = dark ? 1 : 0;
-        int captionColor = dark
-            ? ToColorRef(9, 10, 12)
-            : ToColorRef(235, 237, 242);
-        int textColor = dark
-            ? ToColorRef(240, 242, 247)
-            : ToColorRef(23, 28, 38);
-
         NativeMethods.SetDwmWindowAttribute(
             Handle,
             NativeMethods.DwmUseImmersiveDarkMode,
-            useDarkMode);
+            dark ? 1 : 0);
         NativeMethods.SetDwmWindowAttribute(
             Handle,
             NativeMethods.DwmCaptionColor,
-            captionColor);
+            ToColorRef(captionColor));
         NativeMethods.SetDwmWindowAttribute(
             Handle,
             NativeMethods.DwmTextColor,
-            textColor);
+            ToColorRef(textColor));
     }
 
     internal void SetTitle(string title)
@@ -549,6 +542,14 @@ internal sealed unsafe class AppWindow : IDisposable
     private static int ToColorRef(byte red, byte green, byte blue)
     {
         return red | (green << 8) | (blue << 16);
+    }
+
+    private static int ToColorRef(Color4 color)
+    {
+        return ToColorRef(
+            (byte)MathF.Round(color.R * 255f),
+            (byte)MathF.Round(color.G * 255f),
+            (byte)MathF.Round(color.B * 255f));
     }
 }
 

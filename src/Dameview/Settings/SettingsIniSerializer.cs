@@ -2,6 +2,7 @@ using System.Globalization;
 using Dameview.Navigation;
 using Dameview.Platform;
 using Dameview.Serialization;
+using Dameview.UI;
 
 namespace Dameview.Settings;
 
@@ -10,7 +11,7 @@ internal static class SettingsIniSerializer
     internal static AppSettings Read(string text)
     {
         var document = IniDocument.Parse(text);
-        ThemeMode theme = ReadTheme(document.Get(string.Empty, "theme"));
+        Theme theme = ReadTheme(document.Get(string.Empty, "theme"));
         FolderSort sort = ReadSort(document.Get(string.Empty, "sort"));
         WindowPlacementState? window = !document.HasSection("window") ? null : new WindowPlacementState
         {
@@ -41,13 +42,15 @@ internal static class SettingsIniSerializer
         return document.Write();
     }
 
-    private static ThemeMode ReadTheme(string? value) => value switch
+    private static Theme ReadTheme(string? value)
     {
-        null => ThemeMode.Dark,
-        "dark" => ThemeMode.Dark,
-        "light" => ThemeMode.Light,
-        _ => throw new IniFormatException("Unknown theme value."),
-    };
+        if (value is null)
+        {
+            return Themes.Dark;
+        }
+
+        return Themes.FromId(value) ?? throw new IniFormatException("Unknown theme value.");
+    }
 
     private static FolderSort ReadSort(string? value) => value switch
     {
@@ -80,12 +83,7 @@ internal static class SettingsIniSerializer
         _ => throw new IniFormatException("Expected true or false."),
     };
 
-    private static string WriteTheme(ThemeMode value) => value switch
-    {
-        ThemeMode.Dark => "dark",
-        ThemeMode.Light => "light",
-        _ => throw new ArgumentOutOfRangeException(nameof(value)),
-    };
+    private static string WriteTheme(Theme value) => value.Id;
 
     private static string WriteSort(FolderSort value) => value switch
     {

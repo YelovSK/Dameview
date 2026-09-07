@@ -38,7 +38,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
     ];
 
     private readonly Button _closeButton;
-    private readonly Button[] _themeButtons;
+    private readonly Dropdown<Theme> _themeDropdown;
     private readonly Dropdown<SortField> _sortField;
     private readonly Dropdown<SortDirection> _sortDirection;
     private readonly SettingsRow _themeRow;
@@ -57,7 +57,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
         IDWriteFactory factory,
         PopupHost popupHost,
         Action close,
-        Action<ThemeMode> setTheme,
+        Action<Theme> setTheme,
         Action<FolderSort> setSort)
     {
         _popupHost = popupHost;
@@ -81,17 +81,15 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
             fontFamily: UiTypography.IconFontFamily,
             fontSize: 16.0f);
 
-        _themeButtons =
-        [
-            new Button(factory, "Dark", () => setTheme(ThemeMode.Dark)),
-            new Button(factory, "Light", () => setTheme(ThemeMode.Light)),
-        ];
-        var themeChoices = new StackPanel(
-            UiOrientation.Horizontal,
-            UiDesign.SmallSpacing,
-            StackPanelDistribution.Equal,
-            _themeButtons);
-        _themeRow = new SettingsRow(factory, "Theme", themeChoices);
+        _themeDropdown = new Dropdown<Theme>(
+            factory,
+            popupHost,
+            Themes.All
+                .Select(theme => new DropdownOption<Theme>(theme.DisplayName, theme))
+                .ToArray(),
+            Themes.Dark,
+            setTheme);
+        _themeRow = new SettingsRow(factory, "Theme", _themeDropdown);
 
         _sortField = new Dropdown<SortField>(
             factory,
@@ -161,8 +159,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
 
     internal void ApplySettings(AppSettings settings)
     {
-        _themeButtons[0].IsSelected = settings.Theme == ThemeMode.Dark;
-        _themeButtons[1].IsSelected = settings.Theme == ThemeMode.Light;
+        _themeDropdown.SelectedValue = settings.Theme;
 
         SortDefinition sort = Array.Find(
             Sorts,
@@ -204,11 +201,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
     public void Dispose()
     {
         _closeButton.Dispose();
-        foreach (Button button in _themeButtons)
-        {
-            button.Dispose();
-        }
-
+        _themeDropdown.Dispose();
         _sortField.Dispose();
         _sortDirection.Dispose();
         _themeRow.Dispose();

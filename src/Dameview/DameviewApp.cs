@@ -33,7 +33,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
     public DameviewApp()
     {
         _window = new AppWindow("Dameview", 1100, 720);
-        _window.SetTitleBarTheme(dark: true);
+        _window.SetTitleBarTheme(dark: true, UiTheme.Default.Background, UiTheme.Default.PrimaryText);
         _pointerX = _window.ClientWidth / 2;
         _pointerY = _window.ClientHeight / 2;
         _renderer = new D2DRenderer(
@@ -220,9 +220,8 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         _ui.ApplySettings(current);
         if (previous.Theme != current.Theme)
         {
-            UiTheme theme = current.Theme == ThemeMode.Light ? UiTheme.Light : UiTheme.Default;
-            _ui.Palette = theme;
-            _window.SetTitleBarTheme(current.Theme == ThemeMode.Dark);
+            _ui.Palette = current.Theme.Palette;
+            _window.SetTitleBarTheme(current.Theme.IsDark, current.Theme.Palette.Background, current.Theme.Palette.PrimaryText);
         }
 
         if (previous.Sort != current.Sort)
