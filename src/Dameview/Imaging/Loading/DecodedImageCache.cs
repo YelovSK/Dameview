@@ -4,7 +4,7 @@ namespace Dameview.Imaging;
 
 internal sealed class DecodedImageCache
 {
-    private readonly object _sync = new();
+    private readonly Lock _sync = new();
     private readonly long _capacityBytes;
     private readonly Dictionary<string, LinkedListNode<Entry>> _entries =
         new(StringComparer.OrdinalIgnoreCase);

@@ -128,7 +128,7 @@ internal readonly record struct NativePixelBuffer(nint Pointer, int Capacity);
 internal sealed unsafe class NativePixelBufferPool : IDisposable
 {
     private const int MaximumRetainedBuffers = 2;
-    private readonly object _sync = new();
+    private readonly Lock _sync = new();
     private readonly List<NativePixelBuffer> _available = [];
     private bool _disposed;
 

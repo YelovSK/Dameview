@@ -9,7 +9,7 @@ internal sealed class SettingsService : IDisposable
 {
     private readonly string _path;
     private readonly UiPost _postToUi;
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private readonly Timer _reloadTimer;
     private FileSystemWatcher? _watcher;
     private AppSettings? _fileSettings;

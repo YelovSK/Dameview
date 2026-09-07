@@ -11,6 +11,7 @@ indent_style = space
 indent_size = 4
 
 dotnet_diagnostic.IDE0005.severity = warning
+dotnet_diagnostic.IDE0330.severity = warning
 
 dotnet_sort_system_directives_first = true
 dotnet_separate_import_directive_groups = false

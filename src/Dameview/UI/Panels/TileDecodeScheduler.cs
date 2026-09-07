@@ -15,7 +15,7 @@ internal sealed class TileDecodeScheduler : IDisposable
     private readonly UiPost _postToUi;
     private readonly Action<ImageTile, DecodedImage?> _completed;
     private readonly int _maximumWorkers;
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private readonly List<ImageTile> _pending = [];
     private readonly HashSet<ImageTile> _scheduled = [];
     private readonly CancellationTokenSource _cancellation = new();

@@ -15,7 +15,7 @@ internal sealed class WicGifAnimationDecoder : IAnimatedImageDecoder
     private sealed class Session : IAnimationSession
     {
         private const int QueueCapacity = 2;
-        private readonly object _stateLock = new();
+        private readonly Lock _stateLock = new();
         private readonly BlockingCollection<AnimationFrame> _frames = new(QueueCapacity);
         private readonly CancellationTokenSource _cancellation = new();
         private readonly int _frameCount;
