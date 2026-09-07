@@ -20,9 +20,6 @@ internal sealed class SplitView : UiElement
     private readonly UiElement _firstPane;
     private readonly UiElement _secondPane;
     private readonly Resizer _resizer;
-    private float _splitSize;
-    private bool _firstPaneVisible = true;
-    private bool _secondPaneVisible;
     private RectangleF _firstPaneBounds;
     private RectangleF _secondPaneBounds;
 
@@ -34,7 +31,7 @@ internal sealed class SplitView : UiElement
     {
         _firstPane = firstPane;
         _secondPane = secondPane;
-        _splitSize = initialDividerOffsetDips;
+        DividerOffsetDips = initialDividerOffsetDips;
         Edge = edge;
         _resizer = new Resizer(this);
         _secondPane.IsVisible = false;
@@ -46,40 +43,32 @@ internal sealed class SplitView : UiElement
     internal SplitViewEdge Edge { get; private set; }
     internal RectangleF FirstPaneBounds => _firstPaneBounds;
     internal RectangleF SecondPaneBounds => _secondPaneBounds;
-    internal float DividerOffsetDips => _splitSize;
+    internal float DividerOffsetDips { get; private set; }
     internal bool IsHorizontal => Edge is SplitViewEdge.Left or SplitViewEdge.Right;
 
-    internal bool FirstPaneVisible
-    {
-        get => _firstPaneVisible;
-        set
+    internal bool FirstPaneVisible { get; set
         {
-            if (_firstPaneVisible == value)
+            if (field == value)
             {
                 return;
             }
 
-            _firstPaneVisible = value;
+            field = value;
             _firstPane.IsVisible = value;
             InvalidateLayout();
-        }
-    }
+        } } = true;
 
-    internal bool SecondPaneVisible
-    {
-        get => _secondPaneVisible;
-        set
+    internal bool SecondPaneVisible { get; set
         {
-            if (_secondPaneVisible == value)
+            if (field == value)
             {
                 return;
             }
 
-            _secondPaneVisible = value;
+            field = value;
             _secondPane.IsVisible = value;
             InvalidateLayout();
-        }
-    }
+        } }
 
     protected override SizeF MeasureCore(SizeF availableSize)
     {
@@ -98,9 +87,9 @@ internal sealed class SplitView : UiElement
 
     internal void SetDividerOffset(float offset)
     {
-        float previous = _splitSize;
-        _splitSize = MathF.Max(offset, MinimumPaneSizeDips);
-        if (_splitSize != previous)
+        float previous = DividerOffsetDips;
+        DividerOffsetDips = MathF.Max(offset, MinimumPaneSizeDips);
+        if (DividerOffsetDips != previous)
         {
             InvalidateLayout();
         }
@@ -124,25 +113,25 @@ internal sealed class SplitView : UiElement
             - 2.0f * margin
             - SplitterSize;
         float maximumSplitSize = MathF.Max(MinimumPaneSizeDips, usableAxis - MinimumPaneSizeDips);
-        float splitSize = Math.Clamp(_splitSize, MinimumPaneSizeDips, maximumSplitSize);
+        float splitSize = Math.Clamp(DividerOffsetDips, MinimumPaneSizeDips, maximumSplitSize);
 
-        if (!_firstPaneVisible && !_secondPaneVisible)
+        if (!FirstPaneVisible && !SecondPaneVisible)
         {
             _firstPaneBounds = RectangleF.Empty;
             _secondPaneBounds = RectangleF.Empty;
             return;
         }
 
-        if (!_secondPaneVisible || splitSize <= 0.0f)
+        if (!SecondPaneVisible || splitSize <= 0.0f)
         {
-            _firstPaneBounds = _firstPaneVisible
+            _firstPaneBounds = FirstPaneVisible
                 ? new RectangleF(0.0f, 0.0f, finalSize.Width, finalSize.Height)
                 : RectangleF.Empty;
             _secondPaneBounds = RectangleF.Empty;
             return;
         }
 
-        if (!_firstPaneVisible)
+        if (!FirstPaneVisible)
         {
             _firstPaneBounds = RectangleF.Empty;
             _secondPaneBounds = new RectangleF(0.0f, 0.0f, finalSize.Width, finalSize.Height);

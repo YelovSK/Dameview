@@ -284,13 +284,13 @@ internal sealed class WicImageTileSource : IImageTileSource
         int width,
         int height)
     {
-        Span<Point> corners = stackalloc Point[4]
-        {
+        Span<Point> corners =
+        [
             MapDisplayToRaw(orientation, rawImageWidth, rawImageHeight, x, y),
             MapDisplayToRaw(orientation, rawImageWidth, rawImageHeight, x + width - 1, y),
             MapDisplayToRaw(orientation, rawImageWidth, rawImageHeight, x, y + height - 1),
             MapDisplayToRaw(orientation, rawImageWidth, rawImageHeight, x + width - 1, y + height - 1),
-        };
+        ];
         int minX = corners[0].X;
         int maxX = corners[0].X;
         int minY = corners[0].Y;

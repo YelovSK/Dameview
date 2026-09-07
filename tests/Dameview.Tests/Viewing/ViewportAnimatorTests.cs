@@ -13,7 +13,7 @@ public sealed class ViewportAnimatorTests
         var viewport = new ImageViewport(1000, 800);
         viewport.SetImageSize(2000, 1600);
         var animator = new ViewportAnimator(viewport, timeProvider);
-        var imagePosition = viewport.ViewportToImage(600.0f, 400.0f);
+        PointF imagePosition = viewport.ViewportToImage(600.0f, 400.0f);
 
         Assert.IsTrue(animator.ZoomAt(600.0f, 400.0f, 120));
         Assert.IsTrue(animator.Update(0.016));
@@ -120,7 +120,7 @@ public sealed class ViewportAnimatorTests
         var viewport = new ImageViewport(1000, 800);
         viewport.SetImageSize(2000, 1600);
         var animator = new ViewportAnimator(viewport, timeProvider);
-        var imagePosition = viewport.ViewportToImage(600.0f, 400.0f);
+        PointF imagePosition = viewport.ViewportToImage(600.0f, 400.0f);
 
         Assert.IsTrue(animator.ShowActualSizeAt(600.0f, 400.0f));
         Assert.IsTrue(animator.Update(0.016));

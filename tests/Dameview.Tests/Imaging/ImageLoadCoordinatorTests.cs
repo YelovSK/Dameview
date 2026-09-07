@@ -479,7 +479,7 @@ public sealed class ImageLoadCoordinatorTests
         {
             DecodedImage image = _decodeWithCancellation?.Invoke(path, cancellationToken)
                 ?? _decode(path);
-            DecodedImageUpload upload = DecodedImageUpload.Allocate(
+            var upload = DecodedImageUpload.Allocate(
                 image.Width,
                 image.Height,
                 image.Stride);

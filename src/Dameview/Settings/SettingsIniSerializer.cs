@@ -9,7 +9,7 @@ internal static class SettingsIniSerializer
 {
     internal static AppSettings Read(string text)
     {
-        IniDocument document = IniDocument.Parse(text);
+        var document = IniDocument.Parse(text);
         ThemeMode theme = ReadTheme(document.Get(string.Empty, "theme"));
         FolderSort sort = ReadSort(document.Get(string.Empty, "sort"));
         WindowPlacementState? window = !document.HasSection("window") ? null : new WindowPlacementState

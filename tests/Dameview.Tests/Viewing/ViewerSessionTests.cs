@@ -1,3 +1,4 @@
+using System.Drawing;
 using Dameview.Imaging;
 using Dameview.Navigation;
 using Dameview.Viewing;
@@ -12,12 +13,12 @@ public sealed class ViewerSessionTests
     {
         using var files = new SessionFiles();
         var loader = new ManualImageLoader();
-        using var session = CreateSession(loader);
+        using ViewerSession session = CreateSession(loader);
         session.OpenImage(files.First);
         loader.Complete(CreateImage());
         session.Viewport.SetActualSizeAt(400, 300, session.Viewport.ImageCenter);
-        var displayed = session.State.DisplayedImage;
-        var center = session.Viewport.Center;
+        ImageLoaded? displayed = session.State.DisplayedImage;
+        PointF center = session.Viewport.Center;
         session.SetSort(FolderSort.NameDescending);
         Assert.AreSame(displayed, session.State.DisplayedImage);
         Assert.AreEqual(center, session.Viewport.Center);
@@ -55,7 +56,7 @@ public sealed class ViewerSessionTests
     {
         using var files = new SessionFiles();
         var loader = new ManualImageLoader();
-        using var session = CreateSession(loader);
+        using ViewerSession session = CreateSession(loader);
         var states = new List<ViewerSessionState>();
         session.StateChanged += () => states.Add(session.State);
 
@@ -66,9 +67,9 @@ public sealed class ViewerSessionTests
         loader.Complete(image);
         session.Viewport.SetActualSizeAt(400, 300, session.Viewport.ImageCenter);
         session.Viewport.PanBy(100, 50);
-        var center = session.Viewport.Center;
-        var mode = session.Viewport.Mode;
-        var displayed = session.State.DisplayedImage;
+        PointF center = session.Viewport.Center;
+        ViewportMode mode = session.Viewport.Mode;
+        ImageLoaded? displayed = session.State.DisplayedImage;
 
         session.ShowNextImage();
         Assert.AreEqual(files.Second, session.State.RequestedPath);
@@ -95,7 +96,7 @@ public sealed class ViewerSessionTests
     {
         using var files = new SessionFiles();
         var loader = new ManualImageLoader();
-        using var session = CreateSession(loader);
+        using ViewerSession session = CreateSession(loader);
         session.OpenImage(files.First);
         loader.Complete(CreateImage());
         CollectionAssert.AreEqual(new[] { files.Second, files.Third }, loader.Preloads);
@@ -120,7 +121,7 @@ public sealed class ViewerSessionTests
     {
         using var files = new SessionFiles();
         var loader = new ManualImageLoader();
-        using var session = CreateSession(loader);
+        using ViewerSession session = CreateSession(loader);
         session.OpenImage(files.First);
         loader.Fail(new InvalidDataException("Broken image"));
         session.ShowNextImage();
@@ -138,7 +139,7 @@ public sealed class ViewerSessionTests
     public void FolderDiscoveryFailureStillAllowsTheImageToLoad()
     {
         var loader = new ManualImageLoader();
-        using var session = CreateSession(loader);
+        using ViewerSession session = CreateSession(loader);
         string path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString(), "image.jpg");
         session.OpenImage(path);
         loader.Complete(CreateImage());
@@ -155,7 +156,7 @@ public sealed class ViewerSessionTests
     {
         using var files = new SessionFiles();
         var loader = new ManualImageLoader();
-        using var session = CreateSession(loader);
+        using ViewerSession session = CreateSession(loader);
         session.OpenImage(files.First);
         loader.Preview(CreateImage());
         Assert.IsTrue(session.State.IsLoading);
@@ -173,7 +174,7 @@ public sealed class ViewerSessionTests
     {
         using var files = new SessionFiles();
         var loader = new ManualImageLoader();
-        using var session = CreateSession(loader);
+        using ViewerSession session = CreateSession(loader);
         var animation = new TrackingAnimationSession();
 
         session.OpenImage(files.First);
@@ -192,7 +193,7 @@ public sealed class ViewerSessionTests
     {
         using var files = new SessionFiles();
         var loader = new ManualImageLoader();
-        var session = CreateSession(loader);
+        ViewerSession session = CreateSession(loader);
         var animation = new TrackingAnimationSession();
 
         session.OpenImage(files.First);
@@ -207,7 +208,7 @@ public sealed class ViewerSessionTests
     {
         using var files = new SessionFiles();
         var loader = new ManualImageLoader();
-        using var session = CreateSession(loader);
+        using ViewerSession session = CreateSession(loader);
         var tiles = new TrackingTileSource();
 
         session.OpenImage(files.First);
@@ -223,7 +224,7 @@ public sealed class ViewerSessionTests
     {
         using var files = new SessionFiles();
         var loader = new ManualImageLoader();
-        var session = CreateSession(loader);
+        ViewerSession session = CreateSession(loader);
         var tiles = new TrackingTileSource();
 
         session.OpenImage(files.First);
@@ -283,7 +284,7 @@ public sealed class ViewerSessionTests
 
         public void Preload(IEnumerable<string?> paths)
         {
-            Preloads = paths.ToArray();
+            Preloads = [.. paths];
         }
 
         internal void Preview(DecodedImage image)

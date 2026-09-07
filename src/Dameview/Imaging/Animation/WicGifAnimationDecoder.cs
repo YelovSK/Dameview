@@ -20,7 +20,6 @@ internal sealed class WicGifAnimationDecoder : IAnimatedImageDecoder
         private readonly CancellationTokenSource _cancellation = new();
         private readonly int _frameCount;
         private readonly int _loopCount;
-        private Exception? _error;
         private bool _isComplete;
         private bool _disposed;
         private bool _resourcesDisposed;
@@ -85,9 +84,11 @@ internal sealed class WicGifAnimationDecoder : IAnimatedImageDecoder
             {
                 lock (_stateLock)
                 {
-                    return _error;
+                    return field;
                 }
             }
+
+            private set;
         }
 
         public bool TryGetReadyFrame(out AnimationFrame frame) => _frames.TryTake(out frame!);
@@ -141,7 +142,7 @@ internal sealed class WicGifAnimationDecoder : IAnimatedImageDecoder
             {
                 lock (_stateLock)
                 {
-                    _error = exception;
+                    Error = exception;
                 }
             }
             finally

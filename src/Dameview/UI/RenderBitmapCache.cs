@@ -116,7 +116,7 @@ internal sealed class RenderBitmapCache : IDisposable
 
         long sizeBytes = checked((long)width * height * 4);
         var entry = new CachedBitmap(path, bitmap, width, height, sizeBytes);
-        var node = _recentlyUsed.AddFirst(entry);
+        LinkedListNode<CachedBitmap> node = _recentlyUsed.AddFirst(entry);
         _entries.Add(path, node);
         _sizeBytes += sizeBytes;
         return entry;

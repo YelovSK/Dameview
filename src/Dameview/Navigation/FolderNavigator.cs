@@ -22,7 +22,7 @@ internal sealed class FolderNavigator
 
     internal void SetFiles(IEnumerable<FolderEntry> files, string currentPath)
     {
-        _files = files.ToArray();
+        _files = [.. files];
         SortFiles(_files, Sort);
         SetCurrent(currentPath);
     }

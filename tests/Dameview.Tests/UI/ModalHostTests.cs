@@ -21,7 +21,7 @@ public sealed class ModalHostTests
             host!.Close();
         });
         var content = new Content();
-        var root = CreateRoot(host);
+        UiRoot root = CreateRoot(host);
         host.Show(content);
         root.SetFocus(content.InitialFocus);
 
@@ -39,7 +39,7 @@ public sealed class ModalHostTests
         ModalHost? host = null;
         host = new ModalHost(() => host!.Close());
         var content = new Content();
-        var root = CreateRoot(host);
+        UiRoot root = CreateRoot(host);
         host.Show(content);
         root.Arrange(WindowSize);
 
@@ -56,7 +56,7 @@ public sealed class ModalHostTests
         ModalHost? host = null;
         host = new ModalHost(() => host!.Close());
         var content = new Content();
-        var root = CreateRoot(host);
+        UiRoot root = CreateRoot(host);
         host.Show(content);
         root.Arrange(WindowSize);
 
@@ -73,7 +73,7 @@ public sealed class ModalHostTests
         var host = new ModalHost(() => { });
         var previous = new Content();
         var next = new Content();
-        var root = CreateRoot(host);
+        UiRoot root = CreateRoot(host);
         host.Show(previous);
         root.Arrange(WindowSize);
         root.HandlePointer(Pointer(UiPointerEventKind.Pressed, 400, 300));
@@ -96,7 +96,7 @@ public sealed class ModalHostTests
             CanDismissOnBackdrop = false,
             CanDismissOnEscape = false,
         };
-        var root = CreateRoot(host);
+        UiRoot root = CreateRoot(host);
         host.Show(content);
         root.Arrange(WindowSize);
 
@@ -113,7 +113,7 @@ public sealed class ModalHostTests
     {
         var host = new ModalHost(() => { });
         var content = new Content();
-        var root = CreateRoot(host, 144);
+        UiRoot root = CreateRoot(host, 144);
         host.Show(content);
         root.Arrange(WindowSize);
 
@@ -132,7 +132,7 @@ public sealed class ModalHostTests
     {
         var host = new ModalHost(() => { });
         var content = new ContentWithChild(40);
-        var root = CreateRoot(host);
+        UiRoot root = CreateRoot(host);
         host.Show(content);
         root.Arrange(WindowSize);
         root.SetFocus(content.InitialFocus);
@@ -147,7 +147,7 @@ public sealed class ModalHostTests
     {
         var host = new ModalHost(() => { });
         var content = new ContentWithChild(650, preferredHeight: 700);
-        var root = CreateRoot(host);
+        UiRoot root = CreateRoot(host);
         host.Show(content);
         root.Arrange(WindowSize);
 

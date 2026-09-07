@@ -9,7 +9,7 @@ public sealed class ViewerLayoutTests
     [TestMethod]
     public void StatusPanelOverlaysTheFullSizeContentInDips()
     {
-        ViewerLayout layout = ViewerLayout.Calculate(
+        var layout = ViewerLayout.Calculate(
             new SizeF(1000.0f, 800.0f),
             showStatus: true,
             showToolbar: true);
@@ -23,7 +23,7 @@ public sealed class ViewerLayoutTests
     [TestMethod]
     public void StatusPanelIsEmptyWhenItIsHidden()
     {
-        ViewerLayout layout = ViewerLayout.Calculate(
+        var layout = ViewerLayout.Calculate(
             new SizeF(1000.0f, 800.0f),
             showStatus: false,
             showToolbar: false);
@@ -36,7 +36,7 @@ public sealed class ViewerLayoutTests
     [TestMethod]
     public void ToolbarCanBeShownWithoutAStatusPanel()
     {
-        ViewerLayout layout = ViewerLayout.Calculate(
+        var layout = ViewerLayout.Calculate(
             new SizeF(1000, 800),
             showStatus: false, showToolbar: true, toolbarWidthDips: 104);
 
@@ -47,7 +47,7 @@ public sealed class ViewerLayoutTests
     [TestMethod]
     public void GalleryReservesTheRightSideForTheImageViewportAndOverlays()
     {
-        ViewerLayout layout = ViewerLayout.Calculate(
+        var layout = ViewerLayout.Calculate(
             new SizeF(1000.0f, 800.0f),
             showStatus: true,
             showToolbar: true,

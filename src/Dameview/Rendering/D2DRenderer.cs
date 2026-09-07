@@ -24,7 +24,6 @@ internal sealed class D2DRenderer : IDisposable
     private readonly SafeWaitHandle _frameLatencyWaitHandle;
     private readonly ID2D1Factory1 _d2dFactory;
     private readonly ID2D1Device _d2dDevice;
-    private readonly ID2D1DeviceContext _deviceContext;
     private readonly IDWriteFactory1 _directWriteFactory;
     private ID2D1Bitmap1? _targetBitmap;
     private int _width;
@@ -54,8 +53,8 @@ internal sealed class D2DRenderer : IDisposable
 
         _d2dFactory = D2D1CreateFactory<ID2D1Factory1>();
         _d2dDevice = _d2dFactory.CreateDevice(_dxgiDevice);
-        _deviceContext = _d2dDevice.CreateDeviceContext();
-        _deviceContext.SetDpi(dpi, dpi);
+        DeviceContext = _d2dDevice.CreateDeviceContext();
+        DeviceContext.SetDpi(dpi, dpi);
         _directWriteFactory = DWriteCreateFactory<IDWriteFactory1>();
 
         SwapChainDescription1 description = new(
@@ -84,7 +83,7 @@ internal sealed class D2DRenderer : IDisposable
     }
 
     internal nint FrameLatencyWaitHandle => _frameLatencyWaitHandle.DangerousGetHandle();
-    internal ID2D1DeviceContext DeviceContext => _deviceContext;
+    internal ID2D1DeviceContext DeviceContext { get; }
     internal IDWriteFactory DirectWriteFactory => _directWriteFactory;
 
     internal void Render(Action<SizeF> draw, Color4 background)
@@ -94,11 +93,11 @@ internal sealed class D2DRenderer : IDisposable
             return;
         }
 
-        _deviceContext.BeginDraw();
-        _deviceContext.Clear(background);
+        DeviceContext.BeginDraw();
+        DeviceContext.Clear(background);
         draw(new SizeF(_width, _height));
 
-        _deviceContext.EndDraw().CheckError();
+        DeviceContext.EndDraw().CheckError();
         _swapChain.Present(1, PresentFlags.None).CheckError();
     }
 
@@ -125,7 +124,7 @@ internal sealed class D2DRenderer : IDisposable
     internal void SetDpi(float dpi)
     {
         _dpi = dpi;
-        _deviceContext.SetDpi(dpi, dpi);
+        DeviceContext.SetDpi(dpi, dpi);
 
         if (_width > 0 && _height > 0)
         {
@@ -136,9 +135,9 @@ internal sealed class D2DRenderer : IDisposable
 
     public void Dispose()
     {
-        _deviceContext.Target = null;
+        DeviceContext.Target = null;
         _targetBitmap?.Dispose();
-        _deviceContext.Dispose();
+        DeviceContext.Dispose();
         _d2dDevice.Dispose();
         _directWriteFactory.Dispose();
         _d2dFactory.Dispose();
@@ -160,13 +159,13 @@ internal sealed class D2DRenderer : IDisposable
             _dpi,
             BitmapOptions.Target | BitmapOptions.CannotDraw);
 
-        _targetBitmap = _deviceContext.CreateBitmapFromDxgiSurface(surface, properties);
-        _deviceContext.Target = _targetBitmap;
+        _targetBitmap = DeviceContext.CreateBitmapFromDxgiSurface(surface, properties);
+        DeviceContext.Target = _targetBitmap;
     }
 
     private void ReleaseTargetBitmap()
     {
-        _deviceContext.Target = null;
+        DeviceContext.Target = null;
         _targetBitmap?.Dispose();
         _targetBitmap = null;
     }

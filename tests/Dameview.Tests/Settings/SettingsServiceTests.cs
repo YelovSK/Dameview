@@ -12,13 +12,13 @@ public sealed class SettingsServiceTests
     public void CreatesDefaultsAndPersistsTypedUpdates()
     {
         using var files = new SettingsFiles();
-        using var settings = files.CreateService();
+        using SettingsService settings = files.CreateService();
         settings.Start();
         StringAssert.Contains(File.ReadAllText(files.Path), "theme=dark");
         settings.Update(new AppSettings { Theme = ThemeMode.Light, Sort = FolderSort.SizeLargest });
         Assert.IsNull(settings.Error);
 
-        using var reopened = files.CreateService();
+        using SettingsService reopened = files.CreateService();
         reopened.Start();
         Assert.AreEqual(settings.Current, reopened.Current);
         StringAssert.Contains(File.ReadAllText(files.Path), "sizeLargest");
@@ -29,7 +29,7 @@ public sealed class SettingsServiceTests
     {
         using var files = new SettingsFiles();
         File.WriteAllText(files.Path, "theme=light");
-        using var settings = files.CreateService();
+        using SettingsService settings = files.CreateService();
         settings.Start();
         Assert.AreEqual(ThemeMode.Light, settings.Current.Theme);
         Assert.AreEqual(FolderSort.NameAscending, settings.Current.Sort);
@@ -40,7 +40,7 @@ public sealed class SettingsServiceTests
     {
         using var files = new SettingsFiles();
         File.WriteAllText(files.Path, "theme=light\nfutureOption=true\n[window]\nx=0\ny=0\nwidth=1200\nheight=800\nmaximized=false\nunknown=true");
-        using var settings = files.CreateService();
+        using SettingsService settings = files.CreateService();
         settings.Start();
 
         Assert.AreEqual(ThemeMode.Light, settings.Current.Theme);
@@ -52,7 +52,7 @@ public sealed class SettingsServiceTests
     public void ExternalReplacementIsDeliveredOnTheOwningThreadOnce()
     {
         using var files = new SettingsFiles();
-        using var settings = files.CreateService();
+        using SettingsService settings = files.CreateService();
         settings.Start();
         int changes = 0;
         int ownerThread = Environment.CurrentManagedThreadId;
@@ -81,7 +81,7 @@ public sealed class SettingsServiceTests
         using var files = new SettingsFiles();
         const string broken = "theme=purple";
         File.WriteAllText(files.Path, broken);
-        using var settings = files.CreateService();
+        using SettingsService settings = files.CreateService();
         settings.Start();
         files.PumpUntil(() => settings.Error is not null);
         Assert.AreEqual(new AppSettings(), settings.Current);
@@ -98,7 +98,7 @@ public sealed class SettingsServiceTests
     public void InvalidValuesDoNotReplaceCurrentSettings(string json)
     {
         using var files = new SettingsFiles();
-        using var settings = files.CreateService();
+        using SettingsService settings = files.CreateService();
         settings.Start();
         settings.Update(new AppSettings { Theme = ThemeMode.Light });
         File.WriteAllText(files.Path, json);
@@ -110,7 +110,7 @@ public sealed class SettingsServiceTests
     public void TemporaryReadLockRecoversWithoutAnError()
     {
         using var files = new SettingsFiles();
-        using var settings = files.CreateService();
+        using SettingsService settings = files.CreateService();
         settings.Start();
         File.WriteAllText(files.Path, "theme=light");
         using (var locked = new FileStream(files.Path, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
@@ -129,7 +129,7 @@ public sealed class SettingsServiceTests
     public void SaveFailureKeepsLiveChangeAndReportsFailure()
     {
         using var files = new SettingsFiles();
-        using var settings = files.CreateService();
+        using SettingsService settings = files.CreateService();
         settings.Start();
         files.PumpUntil(() => !files.Posted.IsEmpty, drain: false);
         using var locked = new FileStream(files.Path, FileMode.Open, FileAccess.Read, FileShare.Read);
@@ -144,7 +144,7 @@ public sealed class SettingsServiceTests
     public void QueuedReloadAfterDisposalDoesNothing()
     {
         using var files = new SettingsFiles();
-        var settings = files.CreateService();
+        SettingsService settings = files.CreateService();
         settings.Start();
         File.WriteAllText(files.Path, "theme=light");
         files.PumpUntil(() => !files.Posted.IsEmpty, drain: false);

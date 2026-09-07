@@ -52,7 +52,6 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
     private readonly TextBlock _message;
     private readonly PopupHost _popupHost;
     private readonly Action<FolderSort> _setSort;
-    private string? _error;
 
     internal SettingsPanel(
         IDWriteFactory factory,
@@ -151,10 +150,10 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
     internal override UiElement InitialFocus => _tabs.SelectedTab;
     internal string? Error
     {
-        get => _error;
+        get;
         set
         {
-            _error = value;
+            field = value;
             _message.Text = value ?? "Changes are saved automatically.";
             _message.Tone = value is null ? UiTextTone.Secondary : UiTextTone.Error;
         }

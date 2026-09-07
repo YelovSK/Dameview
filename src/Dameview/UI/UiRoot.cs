@@ -7,36 +7,33 @@ namespace Dameview.UI;
 internal sealed class UiRoot
 {
     private readonly UiElement _content;
-    private UiElement? _capturedElement;
-    private UiElement? _focusedElement;
     private UiElement? _hoveredElement;
     private SizeF _pixelSize;
     private bool _layoutDirty = true;
-    private float _dpi;
 
     internal UiRoot(UiElement content, float dpi)
     {
         _content = content;
-        _dpi = dpi;
+        Dpi = dpi;
         content.AttachToRoot(this);
     }
 
     internal event Action? Invalidated;
     internal event Action<UiCursor>? CursorChanged;
 
-    internal UiElement? CapturedElement => _capturedElement;
-    internal UiElement? FocusedElement => _focusedElement;
-    internal float Dpi => _dpi;
+    internal UiElement? CapturedElement { get; private set; }
+    internal UiElement? FocusedElement { get; private set; }
+    internal float Dpi { get; private set; }
 
     /// <summary>Updates the root DPI and invalidates layout when it changes.</summary>
     internal void SetDpi(float dpi)
     {
-        if (_dpi == dpi)
+        if (Dpi == dpi)
         {
             return;
         }
 
-        _dpi = dpi;
+        Dpi = dpi;
         InvalidateLayout();
     }
 
@@ -60,13 +57,13 @@ internal sealed class UiRoot
         UiPointerEvent input = nativeInput with
         {
             Position = new PointF(
-                UiDpi.PixelsToDips(nativeInput.Position.X, _dpi),
-                UiDpi.PixelsToDips(nativeInput.Position.Y, _dpi)),
+                UiDpi.PixelsToDips(nativeInput.Position.X, Dpi),
+                UiDpi.PixelsToDips(nativeInput.Position.Y, Dpi)),
         };
 
         if (input.Kind == UiPointerEventKind.Cancelled)
         {
-            bool hadCapture = _capturedElement is not null;
+            bool hadCapture = CapturedElement is not null;
             CancelPointer();
             return hadCapture;
         }
@@ -80,7 +77,7 @@ internal sealed class UiRoot
         UiElement? hit = _content.HitTest(input.Position);
         SetHovered(hit);
 
-        UiElement? target = _capturedElement ?? hit;
+        UiElement? target = CapturedElement ?? hit;
         if (input.Kind == UiPointerEventKind.Pressed)
         {
             UiElement? focusable = FindFocusable(target);
@@ -92,7 +89,7 @@ internal sealed class UiRoot
 
         if (input.Kind == UiPointerEventKind.Released)
         {
-            _capturedElement = null;
+            CapturedElement = null;
         }
 
         bool consumed = RoutePointer(target, input);
@@ -109,8 +106,8 @@ internal sealed class UiRoot
     /// <summary>Cancels the current pointer capture, if any.</summary>
     internal void CancelPointer()
     {
-        UiElement? captured = _capturedElement;
-        _capturedElement = null;
+        UiElement? captured = CapturedElement;
+        CapturedElement = null;
         if (captured is null)
         {
             return;
@@ -131,7 +128,7 @@ internal sealed class UiRoot
 
     internal void DisconnectSubtree(UiElement subtree)
     {
-        if (IsWithin(_capturedElement, subtree))
+        if (IsWithin(CapturedElement, subtree))
         {
             CancelPointer();
         }
@@ -141,7 +138,7 @@ internal sealed class UiRoot
             SetHovered(null);
         }
 
-        if (IsWithin(_focusedElement, subtree))
+        if (IsWithin(FocusedElement, subtree))
         {
             SetFocus(null);
         }
@@ -161,7 +158,7 @@ internal sealed class UiRoot
             return true;
         }
 
-        if (_focusedElement?.OnKeyEvent(input) == true)
+        if (FocusedElement?.OnKeyEvent(input) == true)
         {
             return true;
         }
@@ -179,13 +176,13 @@ internal sealed class UiRoot
     /// <summary>Moves keyboard focus to an element or clears focus when <see langword="null"/>.</summary>
     internal void SetFocus(UiElement? element)
     {
-        if (ReferenceEquals(_focusedElement, element))
+        if (ReferenceEquals(FocusedElement, element))
         {
             return;
         }
 
-        UiElement? previous = _focusedElement;
-        _focusedElement = element;
+        UiElement? previous = FocusedElement;
+        FocusedElement = element;
         previous?.SetVisualState(UiVisualState.Focused, false);
         element?.SetVisualState(UiVisualState.Focused, true);
         UpdateFocusWithin(previous, element);
@@ -204,7 +201,7 @@ internal sealed class UiRoot
         Invalidated?.Invoke();
     }
 
-    internal float DipsToPixels(float value) => UiDpi.DipsToPixels(value, _dpi);
+    internal float DipsToPixels(float value) => UiDpi.DipsToPixels(value, Dpi);
 
     private void EnsureLayout(SizeF pixelSize)
     {
@@ -220,8 +217,8 @@ internal sealed class UiRoot
         }
 
         var size = new SizeF(
-            UiDpi.PixelsToDips(pixelSize.Width, _dpi),
-            UiDpi.PixelsToDips(pixelSize.Height, _dpi));
+            UiDpi.PixelsToDips(pixelSize.Width, Dpi),
+            UiDpi.PixelsToDips(pixelSize.Height, Dpi));
         _content.Measure(size);
         _content.Arrange(new RectangleF(PointF.Empty, size));
         _layoutDirty = false;
@@ -240,7 +237,7 @@ internal sealed class UiRoot
 
             if (result.CapturePointer && input.Kind == UiPointerEventKind.Pressed)
             {
-                _capturedElement = element;
+                CapturedElement = element;
                 element.SetVisualState(UiVisualState.Pressed, true);
             }
 
@@ -268,7 +265,7 @@ internal sealed class UiRoot
 
     private void UpdateCursor()
     {
-        UiCursor cursor = (_capturedElement ?? _hoveredElement)?.Cursor ?? UiCursor.Default;
+        UiCursor cursor = (CapturedElement ?? _hoveredElement)?.Cursor ?? UiCursor.Default;
         if (cursor == _cursor)
         {
             return;
@@ -314,7 +311,7 @@ internal sealed class UiRoot
             return;
         }
 
-        int current = focusable.IndexOf(_focusedElement!);
+        int current = focusable.IndexOf(FocusedElement!);
         int next = current < 0
             ? (direction > 0 ? 0 : focusable.Count - 1)
             : current + direction;

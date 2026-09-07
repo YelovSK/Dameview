@@ -10,12 +10,12 @@ public sealed class DecodedImageUploadTests
     {
         using var pool = new NativePixelBufferPool();
         nint firstPointer;
-        using (DecodedImageUpload first = DecodedImageUpload.Rent(pool, 4, 4, 16))
+        using (var first = DecodedImageUpload.Rent(pool, 4, 4, 16))
         {
             firstPointer = first.Pixels;
         }
 
-        using DecodedImageUpload second = DecodedImageUpload.Rent(pool, 2, 2, 8);
+        using var second = DecodedImageUpload.Rent(pool, 2, 2, 8);
         Assert.AreEqual(firstPointer, second.Pixels);
     }
 
@@ -23,12 +23,12 @@ public sealed class DecodedImageUploadTests
     public void RetainedLeaseKeepsNativeBufferOutOfPoolUntilEveryLeaseIsDisposed()
     {
         using var pool = new NativePixelBufferPool();
-        DecodedImageUpload first = DecodedImageUpload.Rent(pool, 4, 4, 16);
+        var first = DecodedImageUpload.Rent(pool, 4, 4, 16);
         using DecodedImageUpload retained = first.Retain();
         nint sharedPointer = first.Pixels;
         first.Dispose();
 
-        using DecodedImageUpload other = DecodedImageUpload.Rent(pool, 4, 4, 16);
+        using var other = DecodedImageUpload.Rent(pool, 4, 4, 16);
         Assert.AreNotEqual(sharedPointer, other.Pixels);
         Assert.AreEqual(sharedPointer, retained.Pixels);
     }

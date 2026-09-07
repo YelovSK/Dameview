@@ -21,7 +21,6 @@ internal enum UiCursor
 internal abstract class UiElement
 {
     private readonly List<UiElement> _children = [];
-    private bool _isVisible = true;
 
     internal RectangleF Bounds { get; private set; }
     internal SizeF DesiredSize { get; private set; }
@@ -33,10 +32,10 @@ internal abstract class UiElement
 
     internal bool IsVisible
     {
-        get => _isVisible;
+        get;
         set
         {
-            if (_isVisible == value)
+            if (field == value)
             {
                 return;
             }
@@ -46,10 +45,10 @@ internal abstract class UiElement
                 Root?.DisconnectSubtree(this);
             }
 
-            _isVisible = value;
+            field = value;
             InvalidateLayout();
         }
-    }
+    } = true;
 
     /// <summary>Whether this element can receive keyboard focus.</summary>
     internal virtual bool IsFocusable => false;

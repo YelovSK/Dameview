@@ -64,7 +64,7 @@ public sealed class TileDecodeSchedulerTests
             publish();
         }
 
-        ImageTile[] decodedTiles = calls.ToArray();
+        ImageTile[] decodedTiles = [.. calls];
         Assert.AreEqual(expectedCount, decodedTiles.Length);
         Assert.AreEqual(workerCount, maximumActive);
         Assert.AreEqual(workerCount, decodedTiles.Count(oldTiles.Contains));
@@ -163,7 +163,7 @@ public sealed class TileDecodeSchedulerTests
     }
 
     private static ImageTile[] CreateTiles(int startX, int count) =>
-        Enumerable.Range(startX, count).Select(x => new ImageTile(x, 0, 1, 1)).ToArray();
+        [.. Enumerable.Range(startX, count).Select(x => new ImageTile(x, 0, 1, 1))];
 
     private static DecodedImage CreateImage() => new(1, 1, 4, [0, 0, 0, 255]);
 

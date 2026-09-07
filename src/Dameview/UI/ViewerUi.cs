@@ -242,7 +242,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     protected override void ArrangeCore(SizeF finalSize)
     {
         _splitView.Arrange(new RectangleF(PointF.Empty, finalSize));
-        ViewerLayout layout = ViewerLayout.Calculate(
+        var layout = ViewerLayout.Calculate(
             _splitView.FirstPaneBounds.Size,
             HasStatus,
             showToolbar: _toolbarPanel.IsVisible,

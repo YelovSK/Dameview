@@ -53,8 +53,8 @@ public sealed class UiDrawContextTests
         using ID2D1SolidColorBrush brush = target.CreateSolidColorBrush(default(Color4));
         var element = new PaletteElement();
         element.Arrange(new RectangleF(0, 0, 10, 10));
-        var red = UiTheme.Default with { PrimaryText = new Color4(1, 0, 0, 1) };
-        var green = UiTheme.Default with { PrimaryText = new Color4(0, 1, 0, 1) };
+        UiTheme red = UiTheme.Default with { PrimaryText = new Color4(1, 0, 0, 1) };
+        UiTheme green = UiTheme.Default with { PrimaryText = new Color4(0, 1, 0, 1) };
         foreach (UiTheme palette in new[] { red, green })
         {
             var context = new UiDrawContext(target, brush, palette, 96);

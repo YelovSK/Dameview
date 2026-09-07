@@ -27,7 +27,6 @@ internal sealed class FolderMonitor : IFolderMonitor
     private readonly Lock _gate = new();
     private readonly Timer _debounceTimer;
     private CancellationTokenSource? _scanCts;
-    private string? _currentDirectory;
     private bool _disposed;
 
     internal FolderMonitor(
@@ -50,7 +49,7 @@ internal sealed class FolderMonitor : IFolderMonitor
 
     public event Action<FolderUpdate>? Updated;
 
-    public string? CurrentDirectory => _currentDirectory;
+    public string? CurrentDirectory { get; private set; }
 
     public void Open(string directoryPath)
     {
@@ -59,7 +58,7 @@ internal sealed class FolderMonitor : IFolderMonitor
         CancellationTokenSource cts;
         lock (_gate)
         {
-            _currentDirectory = directoryPath;
+            CurrentDirectory = directoryPath;
             _scanCts?.Cancel();
             _scanCts?.Dispose();
             cts = new CancellationTokenSource();
@@ -75,7 +74,7 @@ internal sealed class FolderMonitor : IFolderMonitor
     {
         lock (_gate)
         {
-            _currentDirectory = null;
+            CurrentDirectory = null;
             _scanCts?.Cancel();
             _scanCts?.Dispose();
             _scanCts = null;
@@ -94,7 +93,7 @@ internal sealed class FolderMonitor : IFolderMonitor
             }
 
             _disposed = true;
-            _currentDirectory = null;
+            CurrentDirectory = null;
             _scanCts?.Cancel();
             _scanCts?.Dispose();
             _scanCts = null;
@@ -161,12 +160,12 @@ internal sealed class FolderMonitor : IFolderMonitor
         CancellationTokenSource cts;
         lock (_gate)
         {
-            if (_disposed || _currentDirectory is null)
+            if (_disposed || CurrentDirectory is null)
             {
                 return;
             }
 
-            directory = _currentDirectory;
+            directory = CurrentDirectory;
             _scanCts?.Cancel();
             _scanCts?.Dispose();
             cts = new CancellationTokenSource();

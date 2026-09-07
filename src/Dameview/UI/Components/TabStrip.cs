@@ -28,7 +28,7 @@ internal sealed class TabStrip : UiElement, IDisposable
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)selectedIndex, (uint)labels.Count);
         _selectionChanged = selectionChanged;
         _selectedIndex = selectedIndex;
-        var textFormat = factory.CreateTextFormat(
+        IDWriteTextFormat textFormat = factory.CreateTextFormat(
             UiTypography.FontFamily, FontWeight.SemiBold, FontStyle.Normal, UiDesign.BodyFontSize);
         textFormat.TextAlignment = TextAlignment.Center;
         textFormat.ParagraphAlignment = ParagraphAlignment.Center;

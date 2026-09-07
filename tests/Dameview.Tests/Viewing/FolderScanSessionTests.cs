@@ -106,7 +106,7 @@ public sealed class FolderScanSessionTests
         fixture.Session.OpenImage(Fixture.First);
         fixture.Scanner.Complete(0, Fixture.First, Fixture.Second);
         Action delivery = fixture.TakeScan();
-        var state = fixture.Session.State;
+        ViewerSessionState state = fixture.Session.State;
         fixture.Session.Dispose();
         delivery();
         Assert.AreSame(state, fixture.Session.State);
@@ -260,7 +260,7 @@ public sealed class FolderScanSessionTests
 
         internal void Complete(int index, params string[] paths)
         {
-            Requests[index].Completion.SetResult(paths.Select(path => new FolderEntry(path, 1, default, default)).ToArray());
+            Requests[index].Completion.SetResult([.. paths.Select(path => new FolderEntry(path, 1, default, default))]);
         }
     }
 
@@ -280,7 +280,7 @@ public sealed class FolderScanSessionTests
 
         public void Preload(IEnumerable<string?> paths)
         {
-            Preloads = paths.ToArray();
+            Preloads = [.. paths];
         }
 
         internal void Complete()

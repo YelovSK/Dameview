@@ -16,7 +16,6 @@ internal sealed class Dropdown<T> : InteractiveControl, IDisposable
     private readonly PopupHost _popupHost;
     private readonly PopupList _popupList;
     private readonly IDWriteTextFormat _textFormat;
-    private int _selectedIndex;
 
     internal Dropdown(
         IDWriteFactory factory,
@@ -33,20 +32,20 @@ internal sealed class Dropdown<T> : InteractiveControl, IDisposable
         _popupHost = popupHost;
         _options = [.. options];
         _changed = changed;
-        _selectedIndex = FindIndex(selectedValue);
+        SelectedIndex = FindIndex(selectedValue);
         _textFormat = factory.CreateTextFormat(
             UiTypography.FontFamily, FontWeight.SemiBold, FontStyle.Normal, UiDesign.BodyFontSize);
         _textFormat.ParagraphAlignment = ParagraphAlignment.Center;
         _textFormat.WordWrapping = WordWrapping.NoWrap;
         _popupList = new PopupList(factory, _options, SelectFromPopup);
-        _popupList.SelectedIndex = _selectedIndex;
+        _popupList.SelectedIndex = SelectedIndex;
     }
 
     internal bool IsOpen => HasVisualState(UiVisualState.Open);
-    internal int SelectedIndex => _selectedIndex;
+    internal int SelectedIndex { get; private set; }
     internal T SelectedValue
     {
-        get => _options[_selectedIndex].Value;
+        get => _options[SelectedIndex].Value;
         set => Select(FindIndex(value), notify: false);
     }
 
@@ -60,7 +59,7 @@ internal sealed class Dropdown<T> : InteractiveControl, IDisposable
 
         _options[index] = _options[index] with { Label = label };
         _popupList.SetLabel(index, label);
-        if (index == _selectedIndex)
+        if (index == SelectedIndex)
         {
             InvalidateVisual();
         }
@@ -82,7 +81,7 @@ internal sealed class Dropdown<T> : InteractiveControl, IDisposable
         if (input.Key is UiKey.Up or UiKey.Down)
         {
             int direction = input.Key == UiKey.Up ? -1 : 1;
-            int next = (_selectedIndex + direction + _options.Length) % _options.Length;
+            int next = (SelectedIndex + direction + _options.Length) % _options.Length;
             Select(next, notify: true);
             return true;
         }
@@ -120,7 +119,7 @@ internal sealed class Dropdown<T> : InteractiveControl, IDisposable
         }
 
         context.DrawText(
-            _options[_selectedIndex].Label,
+            _options[SelectedIndex].Label,
             _textFormat,
             new Rect(12.0f, 0.0f, MathF.Max(12.0f, width - 12.0f), height),
             IsEnabled ? context.Palette.PrimaryText : context.Palette.SecondaryText,
@@ -171,12 +170,12 @@ internal sealed class Dropdown<T> : InteractiveControl, IDisposable
 
     private void Select(int index, bool notify)
     {
-        if (_selectedIndex == index)
+        if (SelectedIndex == index)
         {
             return;
         }
 
-        _selectedIndex = index;
+        SelectedIndex = index;
         _popupList.SelectedIndex = index;
         InvalidateVisual();
         if (notify)

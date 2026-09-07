@@ -12,7 +12,6 @@ internal sealed class EmptyStatePanel : UiElement, IDisposable
     private readonly IDWriteTextFormat _bodyFormat;
     private readonly IDWriteTextFormat _captionFormat;
     private readonly ID2D1Bitmap1 _icon;
-    private readonly Button _settingsButton;
 
     internal EmptyStatePanel(
         IDWriteFactory directWriteFactory,
@@ -23,26 +22,26 @@ internal sealed class EmptyStatePanel : UiElement, IDisposable
         _titleFormat = CreateCenteredFormat(directWriteFactory, 30.0f, FontWeight.SemiBold);
         _bodyFormat = CreateCenteredFormat(directWriteFactory, 15.0f, FontWeight.Normal);
         _captionFormat = CreateCenteredFormat(directWriteFactory, 12.0f, FontWeight.Medium);
-        _settingsButton = new Button(
+        SettingsButton = new Button(
             directWriteFactory,
             UiTypography.SettingsIcon,
             showSettings,
             fontFamily: UiTypography.IconFontFamily,
             fontSize: 16.0f);
-        AddChild(_settingsButton);
+        AddChild(SettingsButton);
     }
 
-    internal Button SettingsButton => _settingsButton;
+    internal Button SettingsButton { get; }
 
     protected override SizeF MeasureCore(SizeF availableSize)
     {
-        _settingsButton.Measure(new SizeF(104.0f, 36.0f));
+        SettingsButton.Measure(new SizeF(104.0f, 36.0f));
         return availableSize;
     }
 
     protected override void ArrangeCore(SizeF finalSize)
     {
-        _settingsButton.Arrange(CalculateLayout(finalSize).SettingsButton);
+        SettingsButton.Arrange(CalculateLayout(finalSize).SettingsButton);
     }
 
     protected override void DrawCore(in UiDrawContext context)
@@ -106,7 +105,7 @@ internal sealed class EmptyStatePanel : UiElement, IDisposable
 
     public void Dispose()
     {
-        _settingsButton.Dispose();
+        SettingsButton.Dispose();
         _captionFormat.Dispose();
         _bodyFormat.Dispose();
         _titleFormat.Dispose();

@@ -6,35 +6,33 @@ internal sealed class ScrollOffsetController
     private const double Response = 18.0;
     private const float CompletionDistance = 0.1f;
     private float _maximumOffset;
-    private float _offset;
-    private float _targetOffset;
 
-    internal float Offset => _offset;
-    internal float TargetOffset => _targetOffset;
+    internal float Offset { get; private set; }
+    internal float TargetOffset { get; private set; }
 
     /// <summary>Sets the largest valid offset and clamps both current and target positions.</summary>
     internal void SetMaximum(float maximumOffset)
     {
         _maximumOffset = MathF.Max(0.0f, maximumOffset);
-        _offset = Math.Clamp(_offset, 0.0f, _maximumOffset);
-        _targetOffset = Math.Clamp(_targetOffset, 0.0f, _maximumOffset);
+        Offset = Math.Clamp(Offset, 0.0f, _maximumOffset);
+        TargetOffset = Math.Clamp(TargetOffset, 0.0f, _maximumOffset);
     }
 
     /// <summary>Moves the target by a relative amount.</summary>
     /// <returns><see langword="true"/> when the target changed.</returns>
-    internal bool ScrollBy(float amount) => SetTarget(_targetOffset + amount);
+    internal bool ScrollBy(float amount) => SetTarget(TargetOffset + amount);
 
     /// <summary>Sets a clamped target that the current offset will approach smoothly.</summary>
     /// <returns><see langword="true"/> when the target changed.</returns>
     internal bool SetTarget(float offset)
     {
         float clamped = Math.Clamp(offset, 0.0f, _maximumOffset);
-        if (_targetOffset == clamped)
+        if (TargetOffset == clamped)
         {
             return false;
         }
 
-        _targetOffset = clamped;
+        TargetOffset = clamped;
         return true;
     }
 
@@ -43,9 +41,9 @@ internal sealed class ScrollOffsetController
     internal bool SetImmediate(float offset)
     {
         float clamped = Math.Clamp(offset, 0.0f, _maximumOffset);
-        bool changed = _offset != clamped || _targetOffset != clamped;
-        _offset = clamped;
-        _targetOffset = clamped;
+        bool changed = Offset != clamped || TargetOffset != clamped;
+        Offset = clamped;
+        TargetOffset = clamped;
         return changed;
     }
 
@@ -53,7 +51,7 @@ internal sealed class ScrollOffsetController
     /// <returns><see langword="true"/> while the current offset is not yet at its target.</returns>
     internal bool Update(double elapsedSeconds)
     {
-        if (_offset == _targetOffset)
+        if (Offset == TargetOffset)
         {
             return false;
         }
@@ -61,10 +59,10 @@ internal sealed class ScrollOffsetController
         if (elapsedSeconds > 0.0)
         {
             double blend = 1.0 - Math.Exp(-Response * elapsedSeconds);
-            _offset += (_targetOffset - _offset) * (float)blend;
-            if (MathF.Abs(_targetOffset - _offset) <= CompletionDistance)
+            Offset += (TargetOffset - Offset) * (float)blend;
+            if (MathF.Abs(TargetOffset - Offset) <= CompletionDistance)
             {
-                _offset = _targetOffset;
+                Offset = TargetOffset;
             }
         }
 

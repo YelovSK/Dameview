@@ -215,7 +215,7 @@ internal sealed unsafe class AppWindow : IDisposable
         _repaintTimer ??= new Timer(
             static state =>
             {
-                AppWindow window = (AppWindow)state!;
+                var window = (AppWindow)state!;
                 window.Post(window.RequestRepaint);
             },
             this,
