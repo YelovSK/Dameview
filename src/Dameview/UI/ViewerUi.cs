@@ -70,7 +70,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
             deviceContext,
             directWriteFactory,
             thumbnailLoader,
-            commands.OpenImage);
+            commands.OpenImage,
+            commands.OpenImageInNewWindow);
         _mainOverlay = new Overlay(_contentOverlay, _statusPanel, _toolbarPanel);
         _splitView = new SplitView(
             _mainOverlay,

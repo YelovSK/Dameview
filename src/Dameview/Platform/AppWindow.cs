@@ -434,6 +434,13 @@ internal sealed unsafe class AppWindow : IDisposable
                     PointerButton.Primary));
                 return 0;
 
+            case NativeMethods.MessageMiddleButtonDown:
+                PointerInput?.Invoke(new UiPointerEvent(
+                    UiPointerEventKind.Pressed,
+                    new PointF(GetX(lParam), GetY(lParam)),
+                    PointerButton.Middle));
+                return 0;
+
             case NativeMethods.MessageMouseWheel:
                 var wheelPoint = new NativePoint
                 {

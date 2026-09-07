@@ -35,6 +35,7 @@ internal static partial class NativeMethods
     internal const uint MessageLeftButtonDown = 0x0201;
     internal const uint MessageLeftButtonUp = 0x0202;
     internal const uint MessageLeftButtonDoubleClick = 0x0203;
+    internal const uint MessageMiddleButtonDown = 0x0207;
     internal const uint MessageMouseWheel = 0x020A;
     internal const uint MessageCaptureChanged = 0x0215;
     internal const uint MessageDropFiles = 0x0233;

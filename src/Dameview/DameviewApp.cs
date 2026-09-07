@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Drawing;
 using Dameview.Commands;
 using Dameview.Imaging;
@@ -160,6 +161,18 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
     public void OpenImage(string path)
     {
         _session.SelectImage(path);
+    }
+
+    public void OpenImageInNewWindow(string path)
+    {
+        if (Environment.ProcessPath is { } executable)
+        {
+            Process.Start(new ProcessStartInfo(executable)
+            {
+                ArgumentList = { path },
+                UseShellExecute = false,
+            });
+        }
     }
 
     private void HandleKeyPress(UiKeyEvent input)

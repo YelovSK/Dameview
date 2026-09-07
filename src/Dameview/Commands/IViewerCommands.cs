@@ -11,4 +11,6 @@ internal interface IViewerCommands
     public void ShowActualSize();
 
     public void OpenImage(string path);
+
+    public void OpenImageInNewWindow(string path);
 }
