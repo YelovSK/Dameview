@@ -78,7 +78,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
             sort => _settings!.Update(_settings.Current with { Sort = sort }),
             postToUi: _window.Post);
         _ui.Invalidated += _window.RequestRepaint;
-        _ui.CursorChanged += _window.SetCursor;
+        _ui.CursorChanged += _window.ApplyCursor;
         _session.StateChanged += HandleSessionChanged;
 
         _window.RenderFrame += HandleRenderFrame;

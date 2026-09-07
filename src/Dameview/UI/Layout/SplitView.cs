@@ -46,7 +46,9 @@ internal sealed class SplitView : UiElement
     internal float DividerOffsetDips { get; private set; }
     internal bool IsHorizontal => Edge is SplitViewEdge.Left or SplitViewEdge.Right;
 
-    internal bool FirstPaneVisible { get; set
+    internal bool FirstPaneVisible
+    {
+        get; set
         {
             if (field == value)
             {
@@ -56,9 +58,12 @@ internal sealed class SplitView : UiElement
             field = value;
             _firstPane.IsVisible = value;
             InvalidateLayout();
-        } } = true;
+        }
+    } = true;
 
-    internal bool SecondPaneVisible { get; set
+    internal bool SecondPaneVisible
+    {
+        get; set
         {
             if (field == value)
             {
@@ -68,7 +73,8 @@ internal sealed class SplitView : UiElement
             field = value;
             _secondPane.IsVisible = value;
             InvalidateLayout();
-        } }
+        }
+    }
 
     protected override SizeF MeasureCore(SizeF availableSize)
     {

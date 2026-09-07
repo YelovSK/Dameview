@@ -1,36 +1,36 @@
 using System.Collections.Concurrent;
 using System.Drawing;
+using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using Dameview.UI;
 using Vortice.Mathematics;
+using Windows.Win32.Foundation;
+using Windows.Win32.Graphics.Dwm;
+using Windows.Win32.Graphics.Gdi;
+using Windows.Win32.UI.Input.KeyboardAndMouse;
+using Windows.Win32.UI.Shell;
+using Windows.Win32.UI.WindowsAndMessaging;
+using static Windows.Win32.PInvoke;
 
 namespace Dameview.Platform;
 
 internal sealed unsafe class AppWindow : IDisposable
 {
-    private const nint CursorArrow = 32512;
-    private const nint CursorHand = 32649;
-    private const nint CursorSizeWestEast = 32644;
-    private const nint CursorSizeNorthSouth = 32645;
     private const string WindowClassName = "Dameview.MainWindow";
-    private const int ApplicationIconResourceId = 32512;
-    private const int WindowUserData = -21;
-    private const uint SetWindowNoActivate = 0x0010;
-    private const uint SetWindowNoZOrder = 0x0004;
 
     private readonly ConcurrentQueue<Action> _postedActions = new();
     private Timer? _repaintTimer;
     private GCHandle _selfHandle;
     private Exception? _unhandledException;
     private bool _frameRequested;
-    private int _initialShowCommand = NativeMethods.ShowNormal;
+    private SHOW_WINDOW_CMD _initialShowCommand = SHOW_WINDOW_CMD.SW_SHOWNORMAL;
     private WindowPlacementState? _lastPlacement;
     private UiCursor _cursor = UiCursor.Default;
 
     internal AppWindow(string title, int width, int height)
     {
-        nint instance = NativeMethods.GetModuleHandle(null);
+        nint instance = GetModuleHandle(default(PCWSTR));
         if (instance == 0)
         {
             throw NativeMethods.CreateLastErrorException("Could not get the application module handle.");
@@ -39,19 +39,7 @@ internal sealed unsafe class AppWindow : IDisposable
         RegisterWindowClass(instance);
 
         _selfHandle = GCHandle.Alloc(this);
-        Handle = NativeMethods.CreateWindow(
-            0,
-            WindowClassName,
-            title,
-            NativeMethods.WindowStyleOverlappedWindow,
-            NativeMethods.UseDefault,
-            NativeMethods.UseDefault,
-            width,
-            height,
-            0,
-            0,
-            instance,
-            GCHandle.ToIntPtr(_selfHandle));
+        Handle = CreateWindow(instance, title, width, height);
 
         if (Handle == 0)
         {
@@ -60,8 +48,8 @@ internal sealed unsafe class AppWindow : IDisposable
         }
 
         UpdateClientSize();
-        Dpi = NativeMethods.GetDpiForWindow(Handle);
-        NativeMethods.DragAcceptFiles(Handle, true);
+        Dpi = GetDpiForWindow((HWND)Handle);
+        DragAcceptFiles((HWND)Handle, true);
     }
 
     internal event Action? RenderFrame;
@@ -76,32 +64,33 @@ internal sealed unsafe class AppWindow : IDisposable
     internal int ClientHeight { get; private set; }
     internal float Dpi { get; private set; }
 
-    internal void SetCursor(UiCursor cursor)
+    internal void ApplyCursor(UiCursor cursor)
     {
         _cursor = cursor;
-        nint cursorHandle = NativeMethods.LoadCursor(0, cursor switch
+        PCWSTR cursorName = cursor switch
         {
-            UiCursor.Pointer => CursorHand,
-            UiCursor.ResizeHorizontal => CursorSizeWestEast,
-            UiCursor.ResizeVertical => CursorSizeNorthSouth,
-            _ => CursorArrow,
-        });
-        _ = NativeMethods.SetCursor(cursorHandle);
+            UiCursor.Pointer => IDC_HAND,
+            UiCursor.ResizeHorizontal => IDC_SIZEWE,
+            UiCursor.ResizeVertical => IDC_SIZENS,
+            _ => IDC_ARROW,
+        };
+        HCURSOR cursorHandle = LoadCursor(default, cursorName);
+        _ = SetCursor(cursorHandle);
     }
 
     internal void SetTitleBarTheme(bool dark, Color4 captionColor, Color4 textColor)
     {
         NativeMethods.SetDwmWindowAttribute(
-            Handle,
-            NativeMethods.DwmUseImmersiveDarkMode,
+            (HWND)Handle,
+            DWMWINDOWATTRIBUTE.DWMWA_USE_IMMERSIVE_DARK_MODE,
             dark ? 1 : 0);
         NativeMethods.SetDwmWindowAttribute(
-            Handle,
-            NativeMethods.DwmCaptionColor,
+            (HWND)Handle,
+            DWMWINDOWATTRIBUTE.DWMWA_CAPTION_COLOR,
             ToColorRef(captionColor));
         NativeMethods.SetDwmWindowAttribute(
-            Handle,
-            NativeMethods.DwmTextColor,
+            (HWND)Handle,
+            DWMWINDOWATTRIBUTE.DWMWA_TEXT_COLOR,
             ToColorRef(textColor));
     }
 
@@ -109,7 +98,7 @@ internal sealed unsafe class AppWindow : IDisposable
     {
         if (Handle != 0)
         {
-            _ = NativeMethods.SetWindowText(Handle, title);
+            _ = SetWindowText((HWND)Handle, title);
         }
     }
 
@@ -117,7 +106,7 @@ internal sealed unsafe class AppWindow : IDisposable
     {
         if (Handle != 0)
         {
-            NativeMethods.DestroyWindow(Handle);
+            DestroyWindow((HWND)Handle);
         }
     }
 
@@ -128,22 +117,20 @@ internal sealed unsafe class AppWindow : IDisposable
             return;
         }
 
-        WindowPlacement native = new()
+        WINDOWPLACEMENT native = new()
         {
-            Length = (uint)Marshal.SizeOf<WindowPlacement>(),
-            ShowCommand = placement.Maximized ? (uint)NativeMethods.ShowMaximized : (uint)NativeMethods.ShowNormal,
-            NormalPosition = new NativeRect
-            {
-                Left = placement.X,
-                Top = placement.Y,
-                Right = placement.X + placement.Width,
-                Bottom = placement.Y + placement.Height,
-            },
+            length = (uint)sizeof(WINDOWPLACEMENT),
+            showCmd = placement.Maximized ? SHOW_WINDOW_CMD.SW_SHOWMAXIMIZED : SHOW_WINDOW_CMD.SW_SHOWNORMAL,
+            rcNormalPosition = new RECT(
+                placement.X,
+                placement.Y,
+                placement.X + placement.Width,
+                placement.Y + placement.Height),
         };
 
-        if (NativeMethods.SetWindowPlacement(Handle, in native))
+        if (SetWindowPlacement((HWND)Handle, in native))
         {
-            _initialShowCommand = (int)native.ShowCommand;
+            _initialShowCommand = native.showCmd;
         }
     }
 
@@ -163,8 +150,8 @@ internal sealed unsafe class AppWindow : IDisposable
 
     private static WindowPlacementState CapturePlacement(nint window)
     {
-        WindowPlacement native = new() { Length = (uint)Marshal.SizeOf<WindowPlacement>() };
-        if (!NativeMethods.GetWindowPlacement(window, ref native))
+        WINDOWPLACEMENT native = new() { length = (uint)sizeof(WINDOWPLACEMENT) };
+        if (!GetWindowPlacement((HWND)window, ref native))
         {
             return new WindowPlacementState
             {
@@ -173,14 +160,14 @@ internal sealed unsafe class AppWindow : IDisposable
             };
         }
 
-        NativeRect normal = native.NormalPosition;
+        RECT normal = native.rcNormalPosition;
         return new WindowPlacementState
         {
-            X = normal.Left,
-            Y = normal.Top,
+            X = normal.left,
+            Y = normal.top,
             Width = normal.Width,
             Height = normal.Height,
-            Maximized = native.ShowCommand == NativeMethods.ShowMaximized,
+            Maximized = native.showCmd == SHOW_WINDOW_CMD.SW_SHOWMAXIMIZED,
         };
     }
 
@@ -194,7 +181,7 @@ internal sealed unsafe class AppWindow : IDisposable
         _frameRequested = true;
         if (Handle != 0)
         {
-            _ = NativeMethods.PostMessage(Handle, NativeMethods.MessageRenderFrame, 0, 0);
+            _ = PostMessage((HWND)Handle, NativeMethods.MessageRenderFrame, 0, 0);
         }
     }
 
@@ -226,28 +213,28 @@ internal sealed unsafe class AppWindow : IDisposable
         }
 
         _postedActions.Enqueue(action);
-        _ = NativeMethods.PostMessage(window, NativeMethods.MessageDispatch, 0, 0);
+        _ = PostMessage((HWND)window, NativeMethods.MessageDispatch, 0, 0);
     }
 
     internal int Run(nint frameLatencyWaitHandle)
     {
         RequestRepaint();
         RenderRequestedFrame();
-        NativeMethods.ShowWindow(Handle, _initialShowCommand);
+        ShowWindow((HWND)Handle, _initialShowCommand);
 
         bool quit = false;
         while (!quit)
         {
-            while (NativeMethods.PeekMessage(out WindowMessage message, 0, 0, 0, NativeMethods.RemoveMessage))
+            while (PeekMessage(out MSG message, default, 0, 0, PEEK_MESSAGE_REMOVE_TYPE.PM_REMOVE))
             {
-                if (message.Message == NativeMethods.MessageQuit)
+                if (message.message == WM_QUIT)
                 {
                     quit = true;
                     break;
                 }
 
-                NativeMethods.TranslateMessage(in message);
-                NativeMethods.DispatchMessage(in message);
+                TranslateMessage(in message);
+                DispatchMessage(in message);
             }
 
             if (quit)
@@ -255,15 +242,15 @@ internal sealed unsafe class AppWindow : IDisposable
                 break;
             }
 
-            uint waitResult = NativeMethods.WaitForMessageOrHandle(
+            WAIT_EVENT waitResult = NativeMethods.WaitForMessageOrHandle(
                 frameLatencyWaitHandle,
                 _frameRequested);
-            if (waitResult == NativeMethods.WaitFailed)
+            if (waitResult == WAIT_EVENT.WAIT_FAILED)
             {
                 throw NativeMethods.CreateLastErrorException("Could not wait for a window message or frame.");
             }
 
-            if (_frameRequested && waitResult == NativeMethods.WaitObject0)
+            if (_frameRequested && waitResult == WAIT_EVENT.WAIT_OBJECT_0)
             {
                 RenderRequestedFrame();
             }
@@ -282,7 +269,7 @@ internal sealed unsafe class AppWindow : IDisposable
         _repaintTimer?.Dispose();
         if (Handle != 0)
         {
-            NativeMethods.DestroyWindow(Handle);
+            DestroyWindow((HWND)Handle);
             Handle = 0;
         }
 
@@ -292,39 +279,62 @@ internal sealed unsafe class AppWindow : IDisposable
         }
     }
 
+    private nint CreateWindow(nint instance, string title, int width, int height)
+    {
+        fixed (char* className = WindowClassName)
+        fixed (char* windowTitle = title)
+        {
+            HWND window = CreateWindowEx(
+                default,
+                className,
+                windowTitle,
+                WINDOW_STYLE.WS_OVERLAPPEDWINDOW,
+                CW_USEDEFAULT,
+                CW_USEDEFAULT,
+                width,
+                height,
+                default,
+                default,
+                (HINSTANCE)instance,
+                (void*)GCHandle.ToIntPtr(_selfHandle));
+
+            return window;
+        }
+    }
+
     private static void RegisterWindowClass(nint instance)
     {
         fixed (char* className = WindowClassName)
         {
-            WindowClass windowClass = new()
+            WNDCLASSEXW windowClass = new()
             {
-                Size = (uint)sizeof(WindowClass),
-                Style = NativeMethods.ClassHorizontalRedraw
-                    | NativeMethods.ClassVerticalRedraw
-                    | NativeMethods.ClassDoubleClicks,
-                WindowProcedure = &WindowProcedure,
-                Instance = instance,
-                Icon = NativeMethods.LoadIcon(instance, new nint(ApplicationIconResourceId)),
-                Cursor = NativeMethods.LoadCursor(0, new nint(32512)),
-                ClassName = className,
+                cbSize = (uint)sizeof(WNDCLASSEXW),
+                style = WNDCLASS_STYLES.CS_HREDRAW
+                    | WNDCLASS_STYLES.CS_VREDRAW
+                    | WNDCLASS_STYLES.CS_DBLCLKS,
+                lpfnWndProc = &WindowProcedure,
+                hInstance = (HINSTANCE)instance,
+                hIcon = LoadIcon(default, IDI_APPLICATION),
+                hCursor = LoadCursor(default, IDC_ARROW),
+                lpszClassName = className,
             };
 
-            windowClass.SmallIcon = windowClass.Icon;
+            windowClass.hIconSm = windowClass.hIcon;
 
-            if (NativeMethods.RegisterClass(ref windowClass) == 0)
+            if (RegisterClassEx(in windowClass) == 0)
             {
                 throw NativeMethods.CreateLastErrorException("Could not register the window class.");
             }
         }
     }
 
-    [UnmanagedCallersOnly(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvStdcall)])]
-    private static nint WindowProcedure(nint window, uint message, nuint wParam, nint lParam)
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvStdcall)])]
+    private static LRESULT WindowProcedure(HWND window, uint message, WPARAM wParam, LPARAM lParam)
     {
         AppWindow? appWindow = GetWindow(window, message, lParam);
         if (appWindow is null)
         {
-            return NativeMethods.DefWindowProc(window, message, wParam, lParam);
+            return DefWindowProc(window, message, wParam, lParam);
         }
 
         try
@@ -334,41 +344,41 @@ internal sealed unsafe class AppWindow : IDisposable
         catch (Exception exception)
         {
             appWindow._unhandledException = exception;
-            NativeMethods.DestroyWindow(window);
-            return 0;
+            DestroyWindow(window);
+            return default;
         }
     }
 
-    private static AppWindow? GetWindow(nint window, uint message, nint lParam)
+    private static AppWindow? GetWindow(HWND window, uint message, LPARAM lParam)
     {
         nint handle;
 
-        if (message == NativeMethods.MessageNonClientCreate)
+        if (message == WM_NCCREATE)
         {
-            var create = (CreateStruct*)lParam;
-            handle = (nint)create->CreateParameters;
-            NativeMethods.SetWindowLongPointer(window, WindowUserData, handle);
+            var create = (CREATESTRUCTW*)(nint)lParam;
+            handle = (nint)create->lpCreateParams;
+            SetWindowLongPtr(window, WINDOW_LONG_PTR_INDEX.GWLP_USERDATA, handle);
         }
         else
         {
-            handle = NativeMethods.GetWindowLongPointer(window, WindowUserData);
+            handle = GetWindowLongPtr(window, WINDOW_LONG_PTR_INDEX.GWLP_USERDATA);
         }
 
         return handle == 0 ? null : GCHandle.FromIntPtr(handle).Target as AppWindow;
     }
 
-    private nint ProcessMessage(nint window, uint message, nuint wParam, nint lParam)
+    private LRESULT ProcessMessage(HWND window, uint message, WPARAM wParam, LPARAM lParam)
     {
         switch (message)
         {
-            case NativeMethods.MessagePaint:
-                NativeMethods.BeginPaint(window, out PaintStruct paint);
-                NativeMethods.EndPaint(window, in paint);
+            case WM_PAINT:
+                BeginPaint(window, out PAINTSTRUCT paint);
+                EndPaint(window, in paint);
                 _frameRequested = true;
-                return 0;
+                return default;
 
             case NativeMethods.MessageRenderFrame:
-                return 0;
+                return default;
 
             case NativeMethods.MessageDispatch:
                 while (_postedActions.TryDequeue(out Action? action))
@@ -376,100 +386,96 @@ internal sealed unsafe class AppWindow : IDisposable
                     action();
                 }
 
-                return 0;
+                return default;
 
-            case NativeMethods.MessageEraseBackground:
-                return 1;
+            case WM_ERASEBKGND:
+                return (LRESULT)1;
 
-            case NativeMethods.MessageSetCursor:
-                SetCursor(_cursor);
-                return 1;
+            case WM_SETCURSOR:
+                ApplyCursor(_cursor);
+                return (LRESULT)1;
 
-            case NativeMethods.MessageKeyDown:
+            case WM_KEYDOWN:
                 KeyPressed?.Invoke(new UiKeyEvent(
-                    (UiKey)wParam,
-                    NativeMethods.GetKeyState(NativeMethods.VirtualKeyShift) < 0,
-                    NativeMethods.GetKeyState(NativeMethods.VirtualKeyControl) < 0));
-                return 0;
+                    (UiKey)(nuint)wParam,
+                    GetKeyState((int)VIRTUAL_KEY.VK_SHIFT) < 0,
+                    GetKeyState((int)VIRTUAL_KEY.VK_CONTROL) < 0));
+                return default;
 
-            case NativeMethods.MessageLeftButtonDown:
-                _ = NativeMethods.SetCapture(window);
+            case WM_LBUTTONDOWN:
+                _ = SetCapture(window);
                 PointerInput?.Invoke(new UiPointerEvent(
                     UiPointerEventKind.Pressed,
                     new PointF(GetX(lParam), GetY(lParam)),
                     PointerButton.Primary));
-                return 0;
+                return default;
 
-            case NativeMethods.MessageMouseMove:
+            case WM_MOUSEMOVE:
                 PointerInput?.Invoke(new UiPointerEvent(
                     UiPointerEventKind.Moved,
                     new PointF(GetX(lParam), GetY(lParam))));
-                return 0;
+                return default;
 
-            case NativeMethods.MessageLeftButtonUp:
+            case WM_LBUTTONUP:
                 PointerInput?.Invoke(new UiPointerEvent(
                     UiPointerEventKind.Released,
                     new PointF(GetX(lParam), GetY(lParam)),
                     PointerButton.Primary));
-                _ = NativeMethods.ReleaseCapture();
-                return 0;
+                _ = ReleaseCapture();
+                return default;
 
-            case NativeMethods.MessageCaptureChanged:
+            case WM_CAPTURECHANGED:
                 PointerInput?.Invoke(new UiPointerEvent(
                     UiPointerEventKind.Cancelled,
                     PointF.Empty));
-                return 0;
+                return default;
 
-            case NativeMethods.MessageLeftButtonDoubleClick:
+            case WM_LBUTTONDBLCLK:
                 PointerInput?.Invoke(new UiPointerEvent(
                     UiPointerEventKind.DoubleClicked,
                     new PointF(GetX(lParam), GetY(lParam)),
                     PointerButton.Primary));
-                return 0;
+                return default;
 
-            case NativeMethods.MessageMiddleButtonDown:
+            case WM_MBUTTONDOWN:
                 PointerInput?.Invoke(new UiPointerEvent(
                     UiPointerEventKind.Pressed,
                     new PointF(GetX(lParam), GetY(lParam)),
                     PointerButton.Middle));
-                return 0;
+                return default;
 
-            case NativeMethods.MessageMouseWheel:
-                var wheelPoint = new NativePoint
-                {
-                    X = GetX(lParam),
-                    Y = GetY(lParam),
-                };
-                _ = NativeMethods.ScreenToClient(window, ref wheelPoint);
+            case WM_MOUSEWHEEL:
+                var wheelPoint = new Point(GetX(lParam), GetY(lParam));
+                _ = ScreenToClient(window, ref wheelPoint);
                 PointerInput?.Invoke(new UiPointerEvent(
                     UiPointerEventKind.Wheel,
                     new PointF(wheelPoint.X, wheelPoint.Y),
                     WheelDelta: GetHighWord(wParam)));
-                return 0;
+                return default;
 
-            case NativeMethods.MessageSize:
+            case WM_SIZE:
                 ClientWidth = unchecked((ushort)(long)lParam);
                 ClientHeight = unchecked((ushort)((long)lParam >> 16));
                 Resized?.Invoke(ClientWidth, ClientHeight);
                 RenderRequestedFrame();
-                return 0;
+                return default;
 
-            case NativeMethods.MessageDpiChanged:
+            case WM_DPICHANGED:
                 Dpi = unchecked((ushort)(ulong)wParam);
-                var suggested = (NativeRect*)lParam;
-                NativeMethods.SetWindowPosition(
+                var suggested = (RECT*)(nint)lParam;
+                SetWindowPos(
                     window,
-                    0,
-                    suggested->Left,
-                    suggested->Top,
+                    default,
+                    suggested->left,
+                    suggested->top,
                     suggested->Width,
                     suggested->Height,
-                    SetWindowNoActivate | SetWindowNoZOrder);
+                    SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE | SET_WINDOW_POS_FLAGS.SWP_NOZORDER);
                 DpiChanged?.Invoke(Dpi);
-                return 0;
+                return default;
 
-            case NativeMethods.MessageDropFiles:
-                nint dropHandle = (nint)wParam;
+            case WM_DROPFILES:
+                nint dropHandle = (nint)(nuint)wParam;
                 try
                 {
                     string path = NativeMethods.GetDroppedFilePath(dropHandle);
@@ -480,12 +486,12 @@ internal sealed unsafe class AppWindow : IDisposable
                 }
                 finally
                 {
-                    NativeMethods.DragFinish(dropHandle);
+                    DragFinish((HDROP)dropHandle);
                 }
 
-                return 0;
+                return default;
 
-            case NativeMethods.MessageDestroy:
+            case WM_DESTROY:
                 WindowPlacementState placement = CapturePlacement(window);
                 if (placement.IsUsable)
                 {
@@ -494,17 +500,17 @@ internal sealed unsafe class AppWindow : IDisposable
 
                 Handle = 0;
                 _postedActions.Clear();
-                NativeMethods.PostQuitMessage(0);
-                return 0;
+                PostQuitMessage(0);
+                return default;
 
             default:
-                return NativeMethods.DefWindowProc(window, message, wParam, lParam);
+                return DefWindowProc(window, message, wParam, lParam);
         }
     }
 
     private void UpdateClientSize()
     {
-        if (!NativeMethods.GetClientRect(Handle, out NativeRect clientRect))
+        if (!GetClientRect((HWND)Handle, out RECT clientRect))
         {
             throw NativeMethods.CreateLastErrorException("Could not get the client size.");
         }
@@ -552,4 +558,3 @@ internal sealed unsafe class AppWindow : IDisposable
             (byte)MathF.Round(color.B * 255f));
     }
 }
-

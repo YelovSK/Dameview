@@ -1,0 +1,88 @@
+// User32
+CreateWindowEx
+RegisterClassEx
+DefWindowProc
+DestroyWindow
+ShowWindow
+GetWindowPlacement
+SetWindowPlacement
+PostMessage
+PeekMessage
+MsgWaitForMultipleObjectsEx
+TranslateMessage
+DispatchMessage
+PostQuitMessage
+BeginPaint
+EndPaint
+GetClientRect
+GetDpiForWindow
+ScreenToClient
+SetCapture
+ReleaseCapture
+SetWindowPos
+SetWindowLongPtr
+GetWindowLongPtr
+LoadCursor
+SetCursor
+LoadIcon
+SetWindowText
+GetKeyState
+SetProcessDpiAwarenessContext
+
+// Gdi32
+
+// Shell32
+DragAcceptFiles
+DragQueryFile
+DragFinish
+
+// Ole32
+CoInitializeEx
+CoUninitialize
+
+// Dwmapi
+DwmSetWindowAttribute
+
+// Kernel32
+GetModuleHandle
+
+// Structs
+WNDCLASSEXW
+MSG
+RECT
+PAINTSTRUCT
+CREATESTRUCTW
+WINDOWPLACEMENT
+
+// Enums / constants
+WNDCLASS_STYLES
+WINDOW_STYLE
+SHOW_WINDOW_CMD
+PEEK_MESSAGE_REMOVE_TYPE
+DWMWINDOWATTRIBUTE
+VIRTUAL_KEY
+WM_NCCREATE
+WM_QUIT
+WM_SIZE
+WM_PAINT
+WM_ERASEBKGND
+WM_KEYDOWN
+WM_MOUSEMOVE
+WM_SETCURSOR
+WM_LBUTTONDOWN
+WM_LBUTTONUP
+WM_LBUTTONDBLCLK
+WM_MBUTTONDOWN
+WM_MOUSEWHEEL
+WM_CAPTURECHANGED
+WM_DROPFILES
+WM_DPICHANGED
+WM_DESTROY
+WM_APP
+CW_USEDEFAULT
+INFINITE
+IDI_APPLICATION
+IDC_ARROW
+IDC_HAND
+IDC_SIZEWE
+IDC_SIZENS
