@@ -14,7 +14,7 @@ public sealed class SettingsServiceTests
         using var files = new SettingsFiles();
         using var settings = files.CreateService();
         settings.Start();
-        StringAssert.Contains(File.ReadAllText(files.Path), "\"theme\": \"dark\"");
+        StringAssert.Contains(File.ReadAllText(files.Path), "theme=dark");
         settings.Update(new AppSettings { Theme = ThemeMode.Light, Sort = FolderSort.SizeLargest });
         Assert.IsNull(settings.Error);
 
@@ -28,7 +28,7 @@ public sealed class SettingsServiceTests
     public void MissingPropertiesUseDefaults()
     {
         using var files = new SettingsFiles();
-        File.WriteAllText(files.Path, "{\"theme\":\"light\"}");
+        File.WriteAllText(files.Path, "theme=light");
         using var settings = files.CreateService();
         settings.Start();
         Assert.AreEqual(ThemeMode.Light, settings.Current.Theme);
@@ -39,7 +39,7 @@ public sealed class SettingsServiceTests
     public void UnknownPropertiesAreIgnoredForForwardCompatibility()
     {
         using var files = new SettingsFiles();
-        File.WriteAllText(files.Path, "{\"theme\":\"light\",\"window\":{\"width\":1200,\"height\":800},\"futureOption\":true}");
+        File.WriteAllText(files.Path, "theme=light\nfutureOption=true\n[window]\nx=0\ny=0\nwidth=1200\nheight=800\nmaximized=false\nunknown=true");
         using var settings = files.CreateService();
         settings.Start();
 
@@ -64,12 +64,12 @@ public sealed class SettingsServiceTests
             changes++;
         };
         string replacement = files.Path + ".tmp";
-        File.WriteAllText(replacement, "{\"theme\":\"light\"}");
+        File.WriteAllText(replacement, "theme=light");
         File.Move(replacement, files.Path, overwrite: true);
         files.PumpUntil(() => changes == 1);
         settings.Update(settings.Current);
         // Force a later, distinct reload through a malformed file.
-        File.WriteAllText(files.Path, "{");
+        File.WriteAllText(files.Path, "theme");
         files.PumpUntil(() => settings.Error is not null);
         Assert.AreEqual(1, changes);
         Assert.AreEqual(ThemeMode.Light, settings.Current.Theme);
@@ -79,22 +79,22 @@ public sealed class SettingsServiceTests
     public void InvalidStartupFileIsPreservedAndLaterEditsRecover()
     {
         using var files = new SettingsFiles();
-        const string broken = "{\"theme\":\"purple\"}";
+        const string broken = "theme=purple";
         File.WriteAllText(files.Path, broken);
         using var settings = files.CreateService();
         settings.Start();
         files.PumpUntil(() => settings.Error is not null);
         Assert.AreEqual(new AppSettings(), settings.Current);
         Assert.AreEqual(broken, File.ReadAllText(files.Path));
-        File.WriteAllText(files.Path, "{\"sort\":\"nameDescending\"}");
+        File.WriteAllText(files.Path, "sort=nameDescending");
         files.PumpUntil(() => settings.Current.Sort == FolderSort.NameDescending);
         Assert.IsNull(settings.Error);
     }
 
     [TestMethod]
-    [DataRow("null")]
-    [DataRow("{\"theme\":42}")]
-    [DataRow("{\"sort\":\"random\"}")]
+    [DataRow("theme=")]
+    [DataRow("theme=42")]
+    [DataRow("sort=random")]
     public void InvalidValuesDoNotReplaceCurrentSettings(string json)
     {
         using var files = new SettingsFiles();
@@ -112,7 +112,7 @@ public sealed class SettingsServiceTests
         using var files = new SettingsFiles();
         using var settings = files.CreateService();
         settings.Start();
-        File.WriteAllText(files.Path, "{\"theme\":\"light\"}");
+        File.WriteAllText(files.Path, "theme=light");
         using (var locked = new FileStream(files.Path, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
         {
             files.PumpUntil(() => !files.Posted.IsEmpty, drain: false);
@@ -146,7 +146,7 @@ public sealed class SettingsServiceTests
         using var files = new SettingsFiles();
         var settings = files.CreateService();
         settings.Start();
-        File.WriteAllText(files.Path, "{\"theme\":\"light\"}");
+        File.WriteAllText(files.Path, "theme=light");
         files.PumpUntil(() => !files.Posted.IsEmpty, drain: false);
         settings.Dispose();
         files.Drain();
@@ -158,7 +158,7 @@ public sealed class SettingsServiceTests
         private readonly string _directory = System.IO.Path.Combine(
             System.IO.Path.GetTempPath(), "Dameview-settings-tests-" + Guid.NewGuid());
         internal ConcurrentQueue<Action> Posted { get; } = new();
-        internal string Path => System.IO.Path.Combine(_directory, "settings.json");
+        internal string Path => System.IO.Path.Combine(_directory, "settings.ini");
 
         internal SettingsFiles()
         {

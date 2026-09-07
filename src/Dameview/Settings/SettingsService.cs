@@ -1,5 +1,5 @@
-using System.Text.Json;
 using Dameview.Platform;
+using Dameview.Serialization;
 
 namespace Dameview.Settings;
 
@@ -25,7 +25,7 @@ internal sealed class SettingsService : IDisposable
 
     internal static string DefaultPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "Dameview", "settings.json");
+        "Dameview", "settings.ini");
 
     internal AppSettings Current { get; private set; } = new();
     internal string? Error { get; private set; }
@@ -97,9 +97,7 @@ internal sealed class SettingsService : IDisposable
 
         try
         {
-            AppSettings settings = JsonSerializer.Deserialize(
-                File.ReadAllText(_path), SettingsJsonContext.Default.AppSettings)
-                ?? throw new JsonException("Settings must be a JSON object.");
+            AppSettings settings = SettingsIniSerializer.Read(File.ReadAllText(_path));
             settings.Validate();
             _readAttempts = 0;
             // A delayed notification for our last save must not roll back a
@@ -144,7 +142,7 @@ internal sealed class SettingsService : IDisposable
         string temporaryPath = _path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
-            File.WriteAllText(temporaryPath, JsonSerializer.Serialize(settings, SettingsJsonContext.Default.AppSettings));
+            File.WriteAllText(temporaryPath, SettingsIniSerializer.Write(settings));
             File.Move(temporaryPath, _path, overwrite: true);
             _fileSettings = settings;
         }
@@ -181,6 +179,6 @@ internal sealed class SettingsService : IDisposable
 
     private static bool IsSettingsError(Exception exception)
     {
-        return exception is IOException or UnauthorizedAccessException or JsonException;
+        return exception is IOException or UnauthorizedAccessException or IniFormatException;
     }
 }
