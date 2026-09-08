@@ -67,4 +67,25 @@ public sealed class ViewerTabStripTests
 
         Assert.AreEqual(1, closed);
     }
+
+    [TestMethod]
+    public void MiddleClickReportsItsTabIndexForClosing()
+    {
+        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
+        int closed = -1;
+        using var tabs = new ViewerTabStrip(
+            factory,
+            ["One", "Two"],
+            0,
+            _ => { },
+            index => closed = index);
+        var root = new UiRoot(tabs, UiDpi.Default);
+        root.Arrange(new SizeF(400.0f, ViewerTabStrip.HeightDips));
+        root.HandlePointer(new UiPointerEvent(
+            UiPointerEventKind.Pressed,
+            new PointF(180.0f + UiDesign.SmallSpacing + 60.0f, ViewerTabStrip.HeightDips / 2.0f),
+            PointerButton.Middle));
+
+        Assert.AreEqual(1, closed);
+    }
 }

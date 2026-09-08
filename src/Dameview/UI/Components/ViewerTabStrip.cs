@@ -110,6 +110,14 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
 
                 return new UiPointerResult(Consumed: true, NeedsRepaint: index >= 0);
 
+            case UiPointerEventKind.Pressed when input.Button == PointerButton.Middle:
+                if (index >= 0)
+                {
+                    _closeRequested(index);
+                }
+
+                return new UiPointerResult(Consumed: true, NeedsRepaint: index >= 0);
+
             case UiPointerEventKind.Wheel:
                 bool scrollChanged = _scrollOffset.ScrollBy(
                     -input.WheelDelta / 120.0f * WheelStepDips);
