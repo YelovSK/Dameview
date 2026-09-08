@@ -123,7 +123,7 @@ internal sealed unsafe class DecodedImageUpload : IDisposable
 
 internal readonly record struct NativePixelBuffer(nint Pointer, int Capacity);
 
-// Shared by the two static-image workers. It bounds retained decode memory to
+// Shared by the static-image workers. It bounds retained decode memory to
 // two reusable buffers and frees any excess immediately.
 internal sealed unsafe class NativePixelBufferPool : IDisposable
 {

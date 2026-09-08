@@ -7,14 +7,14 @@ namespace Dameview.UI;
 // producer, and converts temporary uploads into cache-owned Direct2D bitmaps.
 internal sealed class PresentationImageLoader : IImageLoader, IDisposable
 {
-    private readonly ImageLoadCoordinator _producer;
+    private readonly ImageLoadClient _producer;
     private readonly RenderBitmapCache _cache;
     private readonly Func<DecodedImageUpload, ID2D1Bitmap1> _createUploadBitmap;
     private readonly Func<DecodedImage, ID2D1Bitmap1> _createDecodedBitmap;
     private bool _disposed;
 
     internal PresentationImageLoader(
-        ImageLoadCoordinator producer,
+        ImageLoadClient producer,
         RenderBitmapCache cache,
         ID2D1DeviceContext deviceContext)
         : this(
@@ -26,7 +26,7 @@ internal sealed class PresentationImageLoader : IImageLoader, IDisposable
     }
 
     internal PresentationImageLoader(
-        ImageLoadCoordinator producer,
+        ImageLoadClient producer,
         RenderBitmapCache cache,
         Func<DecodedImageUpload, ID2D1Bitmap1> createUploadBitmap,
         Func<DecodedImage, ID2D1Bitmap1> createDecodedBitmap)
@@ -40,10 +40,10 @@ internal sealed class PresentationImageLoader : IImageLoader, IDisposable
     public void Load(string path, Action<ImageLoadResult> completed)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (_cache.TryActivate(path, out CachedBitmap? cached))
+        if (_cache.TryAcquire(path, out CachedBitmapLease? lease))
         {
             _producer.CancelForeground();
-            completed(new ImageLoaded(path, new CachedBitmapRepresentation(cached)));
+            completed(new ImageLoaded(path, new CachedBitmapRepresentation(lease)));
             _cache.Trim();
             return;
         }
@@ -118,7 +118,7 @@ internal sealed class PresentationImageLoader : IImageLoader, IDisposable
         DecodedImageUpload upload,
         Action<ImageLoadResult> completed)
     {
-        if (_cache.TryActivate(path, out CachedBitmap? existing))
+        if (_cache.TryAcquire(path, out CachedBitmapLease? existing))
         {
             completed(new ImageLoaded(path, new CachedBitmapRepresentation(existing)));
             _cache.Trim();
@@ -126,11 +126,11 @@ internal sealed class PresentationImageLoader : IImageLoader, IDisposable
         }
 
         ID2D1Bitmap1? bitmap = null;
-        CachedBitmap cached;
+        CachedBitmapLease lease;
         try
         {
             bitmap = _createUploadBitmap(upload);
-            cached = _cache.AddAndActivate(path, bitmap, upload.Width, upload.Height);
+            lease = _cache.AddAndAcquire(path, bitmap, upload.Width, upload.Height);
             bitmap = null;
         }
         catch (Exception exception)
@@ -144,7 +144,7 @@ internal sealed class PresentationImageLoader : IImageLoader, IDisposable
             return;
         }
 
-        completed(new ImageLoaded(path, new CachedBitmapRepresentation(cached)));
+        completed(new ImageLoaded(path, new CachedBitmapRepresentation(lease)));
         _cache.Trim();
     }
 
@@ -154,11 +154,11 @@ internal sealed class PresentationImageLoader : IImageLoader, IDisposable
         Action<ImageLoadResult> completed)
     {
         ID2D1Bitmap1? bitmap = null;
-        CachedBitmap cached;
+        CachedBitmapLease lease;
         try
         {
             bitmap = _createDecodedBitmap(image);
-            cached = _cache.AddAndActivate(path, bitmap, image.Width, image.Height);
+            lease = _cache.AddAndAcquire(path, bitmap, image.Width, image.Height);
             bitmap = null;
         }
         catch (Exception exception)
@@ -172,7 +172,7 @@ internal sealed class PresentationImageLoader : IImageLoader, IDisposable
             return;
         }
 
-        completed(new ImageLoaded(path, new CachedBitmapRepresentation(cached)));
+        completed(new ImageLoaded(path, new CachedBitmapRepresentation(lease)));
         _cache.Trim();
     }
 

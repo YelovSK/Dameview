@@ -5,6 +5,7 @@ using Dameview.Navigation;
 using Dameview.Platform;
 using Dameview.Settings;
 using Dameview.UI.Animation;
+using Dameview.UI.Components;
 using Dameview.UI.Layout;
 using Dameview.UI.Panels;
 using Dameview.Viewing;
@@ -19,6 +20,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private readonly ID2D1DeviceContext _deviceContext;
     private readonly ID2D1SolidColorBrush _brush;
     private readonly ImagePanel _imagePanel;
+    private readonly ViewerTabStrip _viewerTabs;
     private readonly EmptyStatePanel _emptyStatePanel;
     private readonly Overlay _contentOverlay;
     private readonly Overlay _mainOverlay;
@@ -36,7 +38,6 @@ internal sealed class ViewerUi : UiElement, IDisposable
     internal ViewerUi(
         ID2D1DeviceContext deviceContext,
         IDWriteFactory directWriteFactory,
-        RenderBitmapCache bitmapCache,
         ViewerSession session,
         float dpi,
         UiTheme theme,
@@ -54,11 +55,17 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _state = session.State;
         _imagePanel = new ImagePanel(
             deviceContext,
-            bitmapCache,
             session.Viewport,
             session.Animator,
             timeProvider,
             postToUi);
+        _viewerTabs = new ViewerTabStrip(
+            directWriteFactory,
+            ["Dameview"],
+            0,
+            commands.SelectTab,
+            commands.CloseTab);
+        _viewerTabs.IsVisible = false;
         _emptyStatePanel = new EmptyStatePanel(
             directWriteFactory,
             LoadApplicationIcon(deviceContext),
@@ -71,7 +78,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
             directWriteFactory,
             thumbnailLoader,
             commands.OpenImage,
-            commands.OpenImageInNewWindow);
+            commands.OpenImageInNewTab);
         _mainOverlay = new Overlay(_contentOverlay, _statusPanel, _toolbarPanel);
         _splitView = new SplitView(
             _mainOverlay,
@@ -86,6 +93,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
             setTheme,
             setSort);
 
+        AddChild(_viewerTabs);
         AddChild(_splitView);
         AddChild(_modalHost);
         AddChild(_popupHost);
@@ -151,6 +159,12 @@ internal sealed class ViewerUi : UiElement, IDisposable
             UiDpi.DipsToPixels(point.Y - imageBounds.Y, _root.Dpi));
     }
 
+    internal void BindSession(ViewerSession session)
+    {
+        _root.ClearPointer();
+        _imagePanel.Bind(session.Viewport, session.Animator);
+    }
+
     internal void ApplyState(ViewerSessionState state)
     {
         bool hadDisplayedImage = _state.DisplayedImage is not null;
@@ -178,6 +192,12 @@ internal sealed class ViewerUi : UiElement, IDisposable
     }
 
     internal void ApplySettings(AppSettings settings) => _settingsPanel.ApplySettings(settings);
+
+    internal void ApplyTabs(IReadOnlyList<string> labels, int selectedIndex)
+    {
+        _viewerTabs.SetTabs(labels, selectedIndex);
+        _viewerTabs.IsVisible = labels.Count > 1;
+    }
 
     internal bool HandleKey(UiKeyEvent input)
     {
@@ -234,7 +254,12 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     protected override SizeF MeasureCore(SizeF availableSize)
     {
-        _splitView.Measure(availableSize);
+        float tabHeight = _viewerTabs.IsVisible
+            ? _viewerTabs.Measure(new SizeF(availableSize.Width, ViewerTabStrip.HeightDips)).Height
+            : 0.0f;
+        _splitView.Measure(new SizeF(
+            availableSize.Width,
+            MathF.Max(0.0f, availableSize.Height - tabHeight)));
         _modalHost.Measure(availableSize);
         _popupHost.Measure(availableSize);
         return availableSize;
@@ -242,7 +267,13 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     protected override void ArrangeCore(SizeF finalSize)
     {
-        _splitView.Arrange(new RectangleF(PointF.Empty, finalSize));
+        float tabHeight = _viewerTabs.IsVisible ? ViewerTabStrip.HeightDips : 0.0f;
+        _viewerTabs.Arrange(new RectangleF(0.0f, 0.0f, finalSize.Width, tabHeight));
+        _splitView.Arrange(new RectangleF(
+            0.0f,
+            tabHeight,
+            finalSize.Width,
+            MathF.Max(0.0f, finalSize.Height - tabHeight)));
         var layout = ViewerLayout.Calculate(
             _splitView.FirstPaneBounds.Size,
             HasStatus,
@@ -261,6 +292,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _modalHost.Close();
         _popupHost.Close();
         _settingsPanel.Dispose();
+        _viewerTabs.Dispose();
         _toolbarPanel.Dispose();
         _galleryPanel.Dispose();
         _statusPanel.Dispose();

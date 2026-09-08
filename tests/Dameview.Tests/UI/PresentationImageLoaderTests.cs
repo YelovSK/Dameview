@@ -13,7 +13,7 @@ public sealed class PresentationImageLoaderTests
     {
         using var firstCompleted = new ManualResetEventSlim();
         int decodeCount = 0;
-        using var producer = new ImageLoadCoordinator(
+        using var service = new ImageLoadService(
             action => action(),
             new FakeBackend(() =>
             {
@@ -22,6 +22,7 @@ public sealed class PresentationImageLoaderTests
             }),
             TestPolicy,
             NoThumbnailLoader.Instance);
+        using ImageLoadClient producer = service.CreateClient();
         using var cache = new RenderBitmapCache(1024, _ => { });
         using var loader = new PresentationImageLoader(
             producer,
@@ -52,7 +53,7 @@ public sealed class PresentationImageLoaderTests
     public void FullRenderCacheSuppressesSpeculativeDecode()
     {
         int decodeCount = 0;
-        using var producer = new ImageLoadCoordinator(
+        using var service = new ImageLoadService(
             action => action(),
             new FakeBackend(() =>
             {
@@ -61,8 +62,9 @@ public sealed class PresentationImageLoaderTests
             }),
             TestPolicy,
             NoThumbnailLoader.Instance);
+        using ImageLoadClient producer = service.CreateClient();
         using var cache = new RenderBitmapCache(4, _ => { });
-        cache.AddAndActivate("current", null!, 1, 1);
+        using CachedBitmapLease current = cache.AddAndAcquire("current", null!, 1, 1);
         using var loader = new PresentationImageLoader(
             producer,
             cache,

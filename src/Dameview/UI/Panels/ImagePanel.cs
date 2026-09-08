@@ -10,14 +10,13 @@ namespace Dameview.UI.Panels;
 internal sealed class ImagePanel : UiElement, IDisposable
 {
     private readonly ID2D1DeviceContext _deviceContext;
-    private readonly RenderBitmapCache _bitmapCache;
-    private readonly ImageViewport _viewport;
-    private readonly ViewportAnimator _animator;
+    private ImageViewport _viewport;
+    private ViewportAnimator _animator;
     private readonly TimeProvider _timeProvider;
     private readonly UiPost? _postToUi;
     private const float PanStartThresholdDips = 4.0f;
     private ID2D1Bitmap1? _ownedImage;
-    private CachedBitmap? _cachedImage;
+    private ID2D1Bitmap1? _cachedImage;
     private TiledImageRenderer? _tiledImage;
     private AnimatedImagePlayer? _imageAnimation;
     private bool _isPanning;
@@ -28,14 +27,12 @@ internal sealed class ImagePanel : UiElement, IDisposable
 
     internal ImagePanel(
         ID2D1DeviceContext deviceContext,
-        RenderBitmapCache bitmapCache,
         ImageViewport viewport,
         ViewportAnimator animator,
         TimeProvider? timeProvider = null,
         UiPost? postToUi = null)
     {
         _deviceContext = deviceContext;
-        _bitmapCache = bitmapCache;
         _viewport = viewport;
         _animator = animator;
         _timeProvider = timeProvider ?? TimeProvider.System;
@@ -45,6 +42,24 @@ internal sealed class ImagePanel : UiElement, IDisposable
     internal float ZoomPercentage => _viewport.Scale * 100.0f;
     internal TimeSpan? NextAnimationFrameDelay => _imageAnimation?.NextFrameDelay;
     internal Exception? AnimationError => _imageAnimation?.Error;
+
+    internal void Bind(
+        ImageViewport viewport,
+        ViewportAnimator animator)
+    {
+        _imageAnimation = null;
+        _cachedImage = null;
+        _tiledImage?.Dispose();
+        _tiledImage = null;
+        _ownedImage?.Dispose();
+        _ownedImage = null;
+        _pointerPressed = false;
+        _isPanning = false;
+        _viewport = viewport;
+        _animator = animator;
+        _animator.Reset();
+        _viewport.SetViewportSize(_viewportPixelSize.Width, _viewportPixelSize.Height);
+    }
 
     internal void SetImage(ImageRepresentation image, bool isPreview)
     {
@@ -74,7 +89,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
     private unsafe void SetDecodedImage(DecodedImage image, bool isPreview)
     {
         _imageAnimation = null;
-        ReleaseCachedImage();
+        ClearCachedImage();
         _tiledImage?.Dispose();
         _tiledImage = null;
         SetBitmap(image);
@@ -84,7 +99,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
     private void SetTiledImage(IImageTileSource source)
     {
         _imageAnimation = null;
-        ReleaseCachedImage();
+        ClearCachedImage();
         _ownedImage?.Dispose();
         _ownedImage = null;
         _tiledImage?.Dispose();
@@ -107,7 +122,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
         _ownedImage = newImage;
     }
 
-    private void SetCachedImage(CachedBitmap image)
+    private void SetCachedImage(ID2D1Bitmap1 image)
     {
         _imageAnimation = null;
         _ownedImage?.Dispose();
@@ -118,16 +133,9 @@ internal sealed class ImagePanel : UiElement, IDisposable
         _isPreview = false;
     }
 
-    private void ReleaseCachedImage()
+    private void ClearCachedImage()
     {
-        if (_cachedImage is null)
-        {
-            return;
-        }
-
         _cachedImage = null;
-        _bitmapCache.Deactivate();
-        _bitmapCache.Trim();
     }
 
     protected override void ArrangeCore(SizeF finalSize)
@@ -148,7 +156,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
     private void SetAnimation(IAnimationSession animation)
     {
         _imageAnimation = null;
-        ReleaseCachedImage();
+        ClearCachedImage();
         _tiledImage?.Dispose();
         _tiledImage = null;
         SetBitmap(animation.FirstFrame.Image);
@@ -195,7 +203,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
             return;
         }
 
-        ID2D1Bitmap1? image = _cachedImage?.Bitmap ?? _ownedImage;
+        ID2D1Bitmap1? image = _cachedImage ?? _ownedImage;
         if (image is null)
         {
             return;
@@ -302,7 +310,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
     public void Dispose()
     {
         _imageAnimation = null;
-        ReleaseCachedImage();
+        ClearCachedImage();
         _tiledImage?.Dispose();
         _ownedImage?.Dispose();
     }

@@ -4,8 +4,8 @@ using Vortice.Direct2D1;
 
 namespace Dameview.UI;
 
-// UI-thread owned. The cache owns every bitmap; the image panel only borrows
-// Current.Bitmap while the entry is protected from eviction.
+// UI-thread owned. The cache owns every bitmap; displayed images hold leases
+// that protect their entries from eviction.
 internal sealed class RenderBitmapCache : IDisposable
 {
     private readonly Dictionary<string, LinkedListNode<CachedBitmap>> _entries =
@@ -31,37 +31,33 @@ internal sealed class RenderBitmapCache : IDisposable
     }
 
     internal long CapacityBytes { get; }
-    internal CachedBitmap? Current { get; private set; }
     internal bool HasPreloadCapacity => _sizeBytes < CapacityBytes;
 
     internal bool Contains(string path) => _entries.ContainsKey(path);
 
-    internal bool TryActivate(
+    internal bool TryAcquire(
         string path,
-        [NotNullWhen(true)] out CachedBitmap? bitmap)
+        [NotNullWhen(true)] out CachedBitmapLease? lease)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (!_entries.TryGetValue(path, out LinkedListNode<CachedBitmap>? node))
         {
-            bitmap = null;
+            lease = null;
             return false;
         }
 
         Touch(node);
-        Current = node.Value;
-        bitmap = node.Value;
+        lease = Acquire(node.Value);
         return true;
     }
 
-    internal CachedBitmap AddAndActivate(
+    internal CachedBitmapLease AddAndAcquire(
         string path,
         ID2D1Bitmap1 bitmap,
         int width,
         int height)
     {
-        CachedBitmap entry = Add(path, bitmap, width, height);
-        Current = entry;
-        return entry;
+        return Acquire(Add(path, bitmap, width, height));
     }
 
     internal void AddInactive(
@@ -72,11 +68,6 @@ internal sealed class RenderBitmapCache : IDisposable
     {
         _ = Add(path, bitmap, width, height);
         Trim();
-    }
-
-    internal void Deactivate()
-    {
-        Current = null;
     }
 
     internal void DisposeUncached(ID2D1Bitmap1 bitmap)
@@ -90,7 +81,7 @@ internal sealed class RenderBitmapCache : IDisposable
         while (_sizeBytes > CapacityBytes)
         {
             LinkedListNode<CachedBitmap>? candidate = _recentlyUsed.Last;
-            while (candidate is not null && ReferenceEquals(candidate.Value, Current))
+            while (candidate is not null && candidate.Value.PinCount > 0)
             {
                 candidate = candidate.Previous;
             }
@@ -122,6 +113,28 @@ internal sealed class RenderBitmapCache : IDisposable
         return entry;
     }
 
+    private CachedBitmapLease Acquire(CachedBitmap bitmap)
+    {
+        bitmap.PinCount++;
+        return new CachedBitmapLease(this, bitmap);
+    }
+
+    internal void Release(CachedBitmap bitmap)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (bitmap.PinCount <= 0)
+        {
+            throw new InvalidOperationException("The cached bitmap has no active lease.");
+        }
+
+        bitmap.PinCount--;
+        Trim();
+    }
+
     private void Touch(LinkedListNode<CachedBitmap> node)
     {
         _recentlyUsed.Remove(node);
@@ -144,7 +157,6 @@ internal sealed class RenderBitmapCache : IDisposable
         }
 
         _disposed = true;
-        Current = null;
         foreach (CachedBitmap entry in _recentlyUsed)
         {
             _disposeBitmap(entry.Bitmap);
@@ -156,15 +168,41 @@ internal sealed class RenderBitmapCache : IDisposable
     }
 }
 
-internal sealed record CachedBitmap(
-    string Path,
-    ID2D1Bitmap1 Bitmap,
-    int Width,
-    int Height,
-    long SizeBytes);
-
-internal sealed class CachedBitmapRepresentation(CachedBitmap bitmap)
-    : ImageRepresentation(bitmap.Width, bitmap.Height)
+internal sealed class CachedBitmap(
+    string path,
+    ID2D1Bitmap1 bitmap,
+    int width,
+    int height,
+    long sizeBytes)
 {
+    internal string Path { get; } = path;
+    internal ID2D1Bitmap1 Bitmap { get; } = bitmap;
+    internal int Width { get; } = width;
+    internal int Height { get; } = height;
+    internal long SizeBytes { get; } = sizeBytes;
+    internal int PinCount { get; set; }
+}
+
+internal sealed class CachedBitmapLease(
+    RenderBitmapCache owner,
+    CachedBitmap bitmap) : IDisposable
+{
+    private RenderBitmapCache? _owner = owner;
+
     internal CachedBitmap Bitmap { get; } = bitmap;
+
+    public void Dispose()
+    {
+        RenderBitmapCache? currentOwner = _owner;
+        _owner = null;
+        currentOwner?.Release(Bitmap);
+    }
+}
+
+internal sealed class CachedBitmapRepresentation(CachedBitmapLease lease)
+    : ImageRepresentation(lease.Bitmap.Width, lease.Bitmap.Height)
+{
+    internal ID2D1Bitmap1 Bitmap => lease.Bitmap.Bitmap;
+
+    protected override void DisposeCore() => lease.Dispose();
 }

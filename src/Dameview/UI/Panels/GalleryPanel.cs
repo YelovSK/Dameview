@@ -27,7 +27,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private readonly IDWriteInlineObject _ellipsisSign;
     private readonly IThumbnailLoader _thumbnailLoader;
     private readonly Action<string> _openImage;
-    private readonly Action<string> _openInNewWindow;
+    private readonly Action<string> _openInNewTab;
     private readonly Scrollbar _scrollbar;
     private readonly ScrollOffsetController _scrollOffset = new();
     private readonly Dictionary<string, GalleryItemSlot> _slots =
@@ -42,13 +42,13 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         IDWriteFactory directWriteFactory,
         IThumbnailLoader thumbnailLoader,
         Action<string> openImage,
-        Action<string> openInNewWindow)
+        Action<string> openInNewTab)
     {
         _deviceContext = deviceContext;
         _directWriteFactory = directWriteFactory;
         _thumbnailLoader = thumbnailLoader;
         _openImage = openImage;
-        _openInNewWindow = openInNewWindow;
+        _openInNewTab = openInNewTab;
         _scrollbar = new Scrollbar(SetScrollOffset);
         AddChild(_scrollbar);
         _labelFormat = directWriteFactory.CreateTextFormat(
@@ -172,7 +172,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             case UiPointerEventKind.Pressed when input.Button == PointerButton.Middle:
                 if (index >= 0)
                 {
-                    _openInNewWindow(_entries[index].FullName);
+                    _openInNewTab(_entries[index].FullName);
                 }
 
                 return new UiPointerResult(Consumed: true);

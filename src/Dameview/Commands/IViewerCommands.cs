@@ -12,5 +12,9 @@ internal interface IViewerCommands
 
     public void OpenImage(string path);
 
-    public void OpenImageInNewWindow(string path);
+    public void OpenImageInNewTab(string path);
+
+    public void SelectTab(int index);
+
+    public void CloseTab(int index);
 }

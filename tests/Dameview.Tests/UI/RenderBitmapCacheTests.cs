@@ -7,7 +7,7 @@ namespace Dameview.Tests.UI;
 public sealed class RenderBitmapCacheTests
 {
     [TestMethod]
-    public void TrimmingProtectsCurrentAndEvictsLeastRecentlyUsedInactiveEntry()
+    public void TrimmingProtectsLeasedAndEvictsLeastRecentlyUsedInactiveEntry()
     {
         var disposed = new List<ID2D1Bitmap1>();
         using var cache = new RenderBitmapCache(8, disposed.Add);
@@ -15,11 +15,11 @@ public sealed class RenderBitmapCacheTests
         ID2D1Bitmap1 second = null!;
         ID2D1Bitmap1 third = null!;
 
-        CachedBitmap current = cache.AddAndActivate("first", first, 1, 1);
+        using CachedBitmapLease lease = cache.AddAndAcquire("first", first, 1, 1);
         cache.AddInactive("second", second, 1, 1);
         cache.AddInactive("third", third, 1, 1);
 
-        Assert.AreSame(current, cache.Current);
+        Assert.AreSame(first, lease.Bitmap.Bitmap);
         Assert.IsTrue(cache.Contains("first"));
         Assert.IsFalse(cache.Contains("second"));
         Assert.IsTrue(cache.Contains("third"));
@@ -27,7 +27,7 @@ public sealed class RenderBitmapCacheTests
     }
 
     [TestMethod]
-    public void ActivatingAnotherEntryMakesTheOldCurrentEvictable()
+    public void ReleasingAnEntryMakesItEvictable()
     {
         var disposed = new List<ID2D1Bitmap1>();
         using var cache = new RenderBitmapCache(8, disposed.Add);
@@ -35,15 +35,37 @@ public sealed class RenderBitmapCacheTests
         ID2D1Bitmap1 second = null!;
         ID2D1Bitmap1 third = null!;
 
-        cache.AddAndActivate("first", first, 1, 1);
+        CachedBitmapLease firstLease = cache.AddAndAcquire("first", first, 1, 1);
         cache.AddInactive("second", second, 1, 1);
-        Assert.IsTrue(cache.TryActivate("second", out CachedBitmap? current));
+        Assert.IsTrue(cache.TryAcquire("second", out CachedBitmapLease? secondLease));
+        firstLease.Dispose();
         cache.AddInactive("third", third, 1, 1);
 
-        Assert.AreSame(second, current.Bitmap);
+        Assert.AreSame(second, secondLease.Bitmap.Bitmap);
         Assert.IsFalse(cache.Contains("first"));
         Assert.IsTrue(cache.Contains("second"));
         Assert.IsTrue(cache.Contains("third"));
         CollectionAssert.AreEqual(new[] { first }, disposed);
+        secondLease.Dispose();
+    }
+
+    [TestMethod]
+    public void MultipleLeasesKeepOneSharedBitmapPinned()
+    {
+        var disposed = new List<ID2D1Bitmap1>();
+        using var cache = new RenderBitmapCache(4, disposed.Add);
+        ID2D1Bitmap1 first = null!;
+        ID2D1Bitmap1 second = null!;
+
+        CachedBitmapLease firstLease = cache.AddAndAcquire("first", first, 1, 1);
+        Assert.IsTrue(cache.TryAcquire("first", out CachedBitmapLease? secondLease));
+        firstLease.Dispose();
+        cache.AddInactive("second", second, 1, 1);
+
+        Assert.IsTrue(cache.Contains("first"));
+        Assert.IsFalse(cache.Contains("second"));
+        CollectionAssert.AreEqual(new[] { second }, disposed);
+
+        secondLease.Dispose();
     }
 }

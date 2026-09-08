@@ -438,6 +438,7 @@ internal sealed unsafe class AppWindow : IDisposable
                 return default;
 
             case WM_MBUTTONDOWN:
+            case WM_MBUTTONDBLCLK:
                 PointerInput?.Invoke(new UiPointerEvent(
                     UiPointerEventKind.Pressed,
                     new PointF(GetX(lParam), GetY(lParam)),

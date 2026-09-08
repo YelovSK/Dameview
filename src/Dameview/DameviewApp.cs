@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Drawing;
 using Dameview.Commands;
 using Dameview.Imaging;
@@ -20,12 +19,10 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
     private readonly ViewerUi _ui;
     private readonly WindowsImageLoadingBackend _imageBackend;
     private readonly ThumbnailCoordinator _thumbnailCoordinator;
-    private readonly ImageLoadCoordinator _imageLoadCoordinator;
+    private readonly ImageLoadService _imageLoadService;
     private readonly RenderBitmapCache _renderBitmapCache;
-    private readonly PresentationImageLoader _presentationImageLoader;
-    private readonly FolderNavigator _folderNavigator;
-    private readonly FolderMonitor _folderMonitor;
-    private readonly ViewerSession _session;
+    private readonly IFolderScanner _folderScanner;
+    private readonly ViewerWorkspace _workspace;
     private readonly SettingsService _settings;
     private int _pointerX;
     private int _pointerY;
@@ -43,33 +40,21 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
             _window.Dpi);
         _imageBackend = new WindowsImageLoadingBackend();
         _thumbnailCoordinator = new ThumbnailCoordinator(_window.Post, _imageBackend.LoadThumbnail);
-        _renderBitmapCache = new RenderBitmapCache(RenderBitmapCacheCapacityBytes);
-        _imageLoadCoordinator = new ImageLoadCoordinator(
+        _imageLoadService = new ImageLoadService(
             _window.Post,
             _imageBackend,
             new ImageRepresentationPolicy(checked((int)_renderer.DeviceContext.MaximumBitmapSize)),
             _thumbnailCoordinator);
-        _presentationImageLoader = new PresentationImageLoader(
-            _imageLoadCoordinator,
-            _renderBitmapCache,
-            _renderer.DeviceContext);
+        _renderBitmapCache = new RenderBitmapCache(RenderBitmapCacheCapacityBytes);
         using var imageDecoder = new ImageDecoder();
         HashSet<string> extensions = imageDecoder.GetProbablySupportedExtensions();
-        _folderNavigator = new FolderNavigator();
-        _folderMonitor = new FolderMonitor(
-            new FolderScanner(path => extensions.Contains(Path.GetExtension(path))),
-            new FileSystemFolderWatcher(),
-            _window.Post);
-        _session = new ViewerSession(
-            _folderNavigator,
-            _folderMonitor,
-            _presentationImageLoader);
+        _folderScanner = new FolderScanner(path => extensions.Contains(Path.GetExtension(path)));
+        _workspace = new ViewerWorkspace(CreateTab);
         _settings = new SettingsService(SettingsService.DefaultPath, _window.Post);
         _ui = new ViewerUi(
             _renderer.DeviceContext,
             _renderer.DirectWriteFactory,
-            _renderBitmapCache,
-            _session,
+            _workspace.ActiveSession,
             _window.Dpi,
             UiTheme.Default,
             this,
@@ -79,12 +64,15 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
             postToUi: _window.Post);
         _ui.Invalidated += _window.RequestRepaint;
         _ui.CursorChanged += _window.ApplyCursor;
-        _session.StateChanged += HandleSessionChanged;
+        _workspace.ActiveTabChanged += HandleActiveTabChanged;
+        _workspace.ActiveSessionStateChanged += HandleSessionChanged;
+        _workspace.TabsChanged += HandleTabsChanged;
+        HandleTabsChanged();
 
         _window.RenderFrame += HandleRenderFrame;
         _window.Resized += HandleResize;
         _window.DpiChanged += HandleDpiChanged;
-        _window.FileDropped += _session.OpenImage;
+        _window.FileDropped += _workspace.OpenImage;
         _window.KeyPressed += HandleKeyPress;
         _window.PointerInput += HandlePointerInput;
 
@@ -102,7 +90,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
         if (args.FirstOrDefault() is string imagePath)
         {
-            _session.OpenImage(imagePath);
+            _workspace.OpenImage(imagePath);
         }
 
         return _window.Run(_renderer.FrameLatencyWaitHandle);
@@ -116,11 +104,9 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         _settings.Dispose();
         _ui.Invalidated -= _window.RequestRepaint;
         _ui.Dispose();
-        _session.Dispose();
-        _folderMonitor.Dispose();
-        _presentationImageLoader.Dispose();
-        _imageLoadCoordinator.Dispose();
+        _workspace.Dispose();
         _renderBitmapCache.Dispose();
+        _imageLoadService.Dispose();
         _imageBackend.Dispose();
         _thumbnailCoordinator.Dispose();
         _renderer.Dispose();
@@ -129,17 +115,17 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
     public void ShowPreviousImage()
     {
-        _session.ShowPreviousImage();
+        _workspace.ActiveSession.ShowPreviousImage();
     }
 
     public void ShowNextImage()
     {
-        _session.ShowNextImage();
+        _workspace.ActiveSession.ShowNextImage();
     }
 
     public void FitImage()
     {
-        if (_session.Animator.Fit())
+        if (_workspace.ActiveSession.Animator.Fit())
         {
             _window.RequestRepaint();
         }
@@ -147,7 +133,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
     private void ShowActualSize(PointF anchor)
     {
-        if (_session.Animator.ShowActualSizeAt(anchor.X, anchor.Y))
+        if (_workspace.ActiveSession.Animator.ShowActualSizeAt(anchor.X, anchor.Y))
         {
             _window.RequestRepaint();
         }
@@ -155,23 +141,29 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
     public void ShowActualSize()
     {
-        ShowActualSize(_session!.Viewport.ViewportCenter);
+        ShowActualSize(_workspace.ActiveSession.Viewport.ViewportCenter);
     }
 
     public void OpenImage(string path)
     {
-        _session.SelectImage(path);
+        _workspace.SelectImage(path);
     }
 
-    public void OpenImageInNewWindow(string path)
+    public void OpenImageInNewTab(string path)
     {
-        if (Environment.ProcessPath is { } executable)
+        _workspace.OpenImageInNewTab(path);
+    }
+
+    public void SelectTab(int index)
+    {
+        _workspace.SelectTab(index);
+    }
+
+    public void CloseTab(int index)
+    {
+        if (!_workspace.CloseTab(index))
         {
-            Process.Start(new ProcessStartInfo(executable)
-            {
-                ArgumentList = { path },
-                UseShellExecute = false,
-            });
+            _window.Close();
         }
     }
 
@@ -179,7 +171,17 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
     {
         if (input.Control && input.Key == UiKey.W)
         {
-            _window.Close();
+            if (!_workspace.CloseActiveTab())
+            {
+                _window.Close();
+            }
+
+            return;
+        }
+
+        if (input.Control && input.Key == UiKey.Tab)
+        {
+            _workspace.SelectRelativeTab(input.Shift ? -1 : 1);
             return;
         }
 
@@ -226,7 +228,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
         if (previous.Sort != current.Sort)
         {
-            _session.SetSort(current.Sort);
+            _workspace.SetSort(current.Sort);
         }
 
         _window.RequestRepaint();
@@ -234,13 +236,50 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
     private void HandleSessionChanged()
     {
-        ViewerSessionState state = _session.State;
+        ViewerSessionState state = _workspace.ActiveSession.State;
         string fileName = state.RequestedPath is null
             ? "Dameview"
             : Path.GetFileName(state.RequestedPath);
         _window.SetTitle($"{fileName} — Dameview");
         _ui.ApplyState(state);
         _window.RequestRepaint();
+    }
+
+    private void HandleActiveTabChanged()
+    {
+        _ui.BindSession(_workspace.ActiveSession);
+        HandleSessionChanged();
+    }
+
+    private void HandleTabsChanged()
+    {
+        _ui.ApplyTabs(
+            _workspace.Tabs
+                .Select(tab => Path.GetFileName(tab.Session.State.RequestedPath) ?? "New tab")
+                .ToArray(),
+            _workspace.ActiveIndex);
+    }
+
+    private ViewerTab CreateTab()
+    {
+        ImageLoadClient loadClient = _imageLoadService.CreateClient();
+        var imageLoader = new PresentationImageLoader(
+            loadClient,
+            _renderBitmapCache,
+            _renderer.DeviceContext);
+        var folderMonitor = new FolderMonitor(
+            _folderScanner,
+            new FileSystemFolderWatcher(),
+            _window.Post);
+        var session = new ViewerSession(
+            new FolderNavigator(),
+            folderMonitor,
+            imageLoader);
+        return new ViewerTab(
+            session,
+            folderMonitor,
+            imageLoader,
+            loadClient);
     }
 
     private void HandleDpiChanged(float dpi)
