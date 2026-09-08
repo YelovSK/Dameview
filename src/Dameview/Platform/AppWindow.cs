@@ -314,7 +314,7 @@ internal sealed unsafe class AppWindow : IDisposable
                     | WNDCLASS_STYLES.CS_DBLCLKS,
                 lpfnWndProc = &WindowProcedure,
                 hInstance = (HINSTANCE)instance,
-                hIcon = LoadIcon(default, IDI_APPLICATION),
+                hIcon = LoadIcon((HINSTANCE)instance, IDI_APPLICATION),
                 hCursor = LoadCursor(default, IDC_ARROW),
                 lpszClassName = className,
             };
