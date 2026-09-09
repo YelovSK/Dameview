@@ -15,11 +15,11 @@ internal sealed class ViewerWorkspace : IDisposable
         AttachPane(ActivePane);
     }
 
-    internal event Action? ActiveTabChanged;
-    internal event Action? ActiveSessionStateChanged;
-    internal event Action? ActivePaneChanged;
+    internal event Action<ViewerPane>? ActivePaneChanged;
     internal event Action? LayoutChanged;
-    internal event Action? TabsChanged;
+    internal event Action<ViewerPane>? PaneActiveTabChanged;
+    internal event Action<ViewerPane>? PaneSessionStateChanged;
+    internal event Action<ViewerPane>? PaneTabsChanged;
 
     internal WorkspaceNode Root { get; private set; }
     internal ViewerPane ActivePane { get; private set; }
@@ -42,16 +42,28 @@ internal sealed class ViewerWorkspace : IDisposable
 
     internal void SelectTab(int index) => ActivePane.SelectTab(index);
 
+    internal void SelectTab(ViewerPane pane, int index)
+    {
+        EnsureContains(pane);
+        pane.SelectTab(index);
+    }
+
     internal bool CloseActiveTab() => CloseTab(ActivePane.ActiveIndex);
 
     internal bool CloseTab(int index)
     {
-        if (ActivePane.CloseTab(index))
+        return CloseTab(ActivePane, index);
+    }
+
+    internal bool CloseTab(ViewerPane pane, int index)
+    {
+        EnsureContains(pane);
+        if (pane.CloseTab(index))
         {
             return true;
         }
 
-        return RemovePane(ActivePane);
+        return RemovePane(pane);
     }
 
     internal ViewerPane SplitPane(ViewerPane pane, WorkspaceSplitOrientation orientation)
@@ -80,9 +92,7 @@ internal sealed class ViewerWorkspace : IDisposable
         }
 
         ActivePane = pane;
-        ActivePaneChanged?.Invoke();
-        ActiveTabChanged?.Invoke();
-        TabsChanged?.Invoke();
+        ActivePaneChanged?.Invoke(pane);
     }
 
     internal bool RemovePane(ViewerPane pane)
@@ -101,9 +111,7 @@ internal sealed class ViewerWorkspace : IDisposable
         if (ReferenceEquals(ActivePane, pane))
         {
             ActivePane = FindFirstPane(sibling);
-            ActivePaneChanged?.Invoke();
-            ActiveTabChanged?.Invoke();
-            TabsChanged?.Invoke();
+            ActivePaneChanged?.Invoke(ActivePane);
         }
 
         LayoutChanged?.Invoke();
@@ -134,27 +142,9 @@ internal sealed class ViewerWorkspace : IDisposable
 
     private void AttachPane(ViewerPane pane)
     {
-        pane.ActiveTabChanged += () =>
-        {
-            if (ReferenceEquals(pane, ActivePane))
-            {
-                ActiveTabChanged?.Invoke();
-            }
-        };
-        pane.ActiveSessionStateChanged += () =>
-        {
-            if (ReferenceEquals(pane, ActivePane))
-            {
-                ActiveSessionStateChanged?.Invoke();
-            }
-        };
-        pane.TabsChanged += () =>
-        {
-            if (ReferenceEquals(pane, ActivePane))
-            {
-                TabsChanged?.Invoke();
-            }
-        };
+        pane.ActiveTabChanged += () => PaneActiveTabChanged?.Invoke(pane);
+        pane.ActiveSessionStateChanged += () => PaneSessionStateChanged?.Invoke(pane);
+        pane.TabsChanged += () => PaneTabsChanged?.Invoke(pane);
     }
 
     private void EnsureContains(ViewerPane pane)

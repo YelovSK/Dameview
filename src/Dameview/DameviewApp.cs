@@ -64,10 +64,11 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
             postToUi: _window.Post);
         _ui.Invalidated += _window.RequestRepaint;
         _ui.CursorChanged += _window.ApplyCursor;
-        _workspace.ActiveTabChanged += HandleActiveTabChanged;
-        _workspace.ActiveSessionStateChanged += HandleSessionChanged;
-        _workspace.TabsChanged += HandleTabsChanged;
-        HandleTabsChanged();
+        _workspace.ActivePaneChanged += HandleActivePaneChanged;
+        _workspace.PaneActiveTabChanged += HandleActiveTabChanged;
+        _workspace.PaneSessionStateChanged += HandleSessionChanged;
+        _workspace.PaneTabsChanged += HandleTabsChanged;
+        HandleTabsChanged(_workspace.ActivePane);
 
         _window.RenderFrame += HandleRenderFrame;
         _window.Resized += HandleResize;
@@ -154,14 +155,14 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         _workspace.OpenImageInNewTab(path);
     }
 
-    public void SelectTab(int index)
+    public void SelectTab(ViewerPane pane, int index)
     {
-        _workspace.SelectTab(index);
+        _workspace.SelectTab(pane, index);
     }
 
-    public void CloseTab(int index)
+    public void CloseTab(ViewerPane pane, int index)
     {
-        if (!_workspace.CloseTab(index))
+        if (!_workspace.CloseTab(pane, index))
         {
             _window.Close();
         }
@@ -234,32 +235,43 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         _window.RequestRepaint();
     }
 
-    private void HandleSessionChanged()
+    private void HandleSessionChanged(ViewerPane pane)
     {
-        ViewerSessionState state = _workspace.ActiveSession.State;
-        string fileName = state.RequestedPath is null
-            ? "Dameview"
-            : Path.GetFileName(state.RequestedPath);
-        _window.SetTitle($"{fileName} — Dameview");
-        _ui.ApplyState(state);
+        ViewerSessionState state = pane.ActiveSession.State;
+        _ui.ApplyState(pane, state);
+        if (ReferenceEquals(pane, _workspace.ActivePane))
+        {
+            string fileName = state.RequestedPath is null
+                ? "Dameview"
+                : Path.GetFileName(state.RequestedPath);
+            _window.SetTitle($"{fileName} — Dameview");
+        }
+
         _window.RequestRepaint();
     }
 
-    private void HandleActiveTabChanged()
+    private void HandleActiveTabChanged(ViewerPane pane)
     {
-        _ui.BindTab(_workspace.ActiveTab);
-        HandleSessionChanged();
+        _ui.BindTab(pane, pane.ActiveTab);
+        HandleSessionChanged(pane);
     }
 
-    private void HandleTabsChanged()
+    private void HandleActivePaneChanged(ViewerPane pane)
+    {
+        _ui.BindActivePane(pane);
+        HandleSessionChanged(pane);
+    }
+
+    private void HandleTabsChanged(ViewerPane pane)
     {
         _ui.ApplyTabs(
-            _workspace.Tabs
+            pane,
+            pane.Tabs
                 .Select(tab => new ViewerTabInfo(
                     Path.GetFileName(tab.Session.State.RequestedPath) ?? "New tab",
                     tab.Session.State.RequestedPath))
                 .ToArray(),
-            _workspace.ActiveIndex);
+            pane.ActiveIndex);
     }
 
     private ViewerTab CreateTab()

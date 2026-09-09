@@ -19,7 +19,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
 {
     private readonly ID2D1DeviceContext _deviceContext;
     private readonly ID2D1SolidColorBrush _brush;
-    private readonly ViewerPaneView _paneView;
+    private readonly List<ViewerPaneView> _paneViews;
     private readonly TabPreview _tabPreview;
     private readonly Overlay _mainOverlay;
     private readonly SplitView _splitView;
@@ -30,6 +30,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private readonly PopupHost _popupHost;
     private readonly UiAnimationClock _animationClock;
     private readonly UiRoot _root;
+    private ViewerPane _activePane;
+    private ViewerPaneView _activePaneView;
 
     internal ViewerUi(
         ID2D1DeviceContext deviceContext,
@@ -48,17 +50,20 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _brush = deviceContext.CreateSolidColorBrush(default(Color4));
         Palette = theme;
         _animationClock = new UiAnimationClock(timeProvider);
+        _activePane = pane;
         _tabPreview = new TabPreview(deviceContext, thumbnailLoader);
-        _paneView = new ViewerPaneView(
+        var paneView = new ViewerPaneView(
             deviceContext,
             directWriteFactory,
             pane,
-            commands.SelectTab,
-            commands.CloseTab,
+            index => commands.SelectTab(pane, index),
+            index => commands.CloseTab(pane, index),
             ShowSettings,
             ShowTabPreview,
             timeProvider,
             postToUi);
+        _paneViews = [paneView];
+        _activePaneView = paneView;
         _toolbarPanel = new ToolbarPanel(directWriteFactory, commands, ShowSettings);
         _galleryPanel = new GalleryPanel(
             deviceContext,
@@ -67,7 +72,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
             commands.OpenImage,
             commands.OpenImageInNewTab);
         _galleryPanel.Bind(pane.ActiveTab.GalleryState);
-        _mainOverlay = new Overlay(_paneView, _toolbarPanel);
+        _mainOverlay = new Overlay(paneView, _toolbarPanel);
         _splitView = new SplitView(
             _mainOverlay,
             _galleryPanel,
@@ -89,7 +94,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _root.CursorChanged += cursor => _cursorChanged?.Invoke(cursor);
 
         ViewerSessionState state = pane.ActiveSession.State;
-        bool hasImage = _paneView.HasImage;
+        bool hasImage = paneView.HasImage;
         _toolbarPanel.IsVisible = hasImage;
         _galleryPanel.IsVisible = state.FolderEntries.Length > 0;
         _splitView.SecondPaneVisible = _galleryPanel.IsVisible;
@@ -126,53 +131,90 @@ internal sealed class ViewerUi : UiElement, IDisposable
             }
 
             _settingsPanel.Error = value;
-            _paneView.SettingsError = value;
+            _activePaneView.SettingsError = value;
             _root.InvalidateVisual();
         }
     }
 
-    internal TimeSpan? NextAnimationFrameDelay => _paneView.NextAnimationFrameDelay;
+    internal TimeSpan? NextAnimationFrameDelay
+    {
+        get
+        {
+            TimeSpan? nextDelay = null;
+            foreach (ViewerPaneView paneView in _paneViews)
+            {
+                if (!paneView.IsVisible || paneView.NextAnimationFrameDelay is not { } delay)
+                {
+                    continue;
+                }
+
+                nextDelay = nextDelay is null || delay < nextDelay ? delay : nextDelay;
+            }
+
+            return nextDelay;
+        }
+    }
 
     internal PointF GetImageViewportPoint(PointF nativePoint)
     {
         PointF point = new(
             UiDpi.PixelsToDips(nativePoint.X, _root.Dpi),
             UiDpi.PixelsToDips(nativePoint.Y, _root.Dpi));
-        RectangleF paneBounds = _paneView.GetBoundsRelativeTo(this);
-        return _paneView.GetImageViewportPoint(
+        RectangleF paneBounds = _activePaneView.GetBoundsRelativeTo(this);
+        return _activePaneView.GetImageViewportPoint(
             new PointF(point.X - paneBounds.X, point.Y - paneBounds.Y),
             _root.Dpi);
     }
 
-    internal void BindTab(ViewerTab tab)
+    internal void BindActivePane(ViewerPane pane)
     {
         _root.ClearPointer();
-        _paneView.BindTab(tab);
-        _galleryPanel.Bind(tab.GalleryState);
-    }
-
-    internal void ApplyState(ViewerSessionState state)
-    {
-        bool hadDisplayedImage = _paneView.HasImage;
-        _paneView.ApplyState(state);
-        bool hasImage = _paneView.HasImage;
-        _toolbarPanel.IsVisible = hasImage;
-        if (hasImage && !hadDisplayedImage)
+        _activePane = pane;
+        if (FindPaneView(pane) is { } paneView)
         {
-            _toolbarPanel.Show();
+            if (!ReferenceEquals(paneView, _activePaneView))
+            {
+                _activePaneView.SettingsError = null;
+            }
+
+            _activePaneView = paneView;
+            paneView.SettingsError = _settingsPanel.Error;
         }
 
-        _galleryPanel.IsVisible = state.FolderEntries.Length > 0;
-        _splitView.SecondPaneVisible = _galleryPanel.IsVisible;
-        _galleryPanel.ApplyState(state.FolderEntries, state.RequestedPath);
+        ViewerSessionState state = pane.ActiveSession.State;
+        _galleryPanel.Bind(pane.ActiveTab.GalleryState);
+        ApplyActivePaneState(state, showToolbar: false);
+    }
+
+    internal void BindTab(ViewerPane pane, ViewerTab tab)
+    {
+        _root.ClearPointer();
+        FindPaneView(pane)?.BindTab(tab);
+        if (ReferenceEquals(pane, _activePane))
+        {
+            _galleryPanel.Bind(tab.GalleryState);
+        }
+    }
+
+    internal void ApplyState(ViewerPane pane, ViewerSessionState state)
+    {
+        ViewerPaneView? paneView = FindPaneView(pane);
+        bool hadDisplayedImage = paneView?.HasImage == true;
+        bool isActivePane = ReferenceEquals(pane, _activePane);
+        paneView?.ApplyState(state, clearPointer: isActivePane);
+        if (isActivePane)
+        {
+            ApplyActivePaneState(state, showToolbar: state.DisplayedImage is not null && !hadDisplayedImage);
+        }
+
         _root.InvalidateVisual();
     }
 
     internal void ApplySettings(AppSettings settings) => _settingsPanel.ApplySettings(settings);
 
-    internal void ApplyTabs(IReadOnlyList<ViewerTabInfo> tabs, int selectedIndex)
+    internal void ApplyTabs(ViewerPane pane, IReadOnlyList<ViewerTabInfo> tabs, int selectedIndex)
     {
-        _paneView.ApplyTabs(tabs, selectedIndex);
+        FindPaneView(pane)?.ApplyTabs(tabs, selectedIndex);
     }
 
     internal bool HandleKey(UiKeyEvent input)
@@ -201,7 +243,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
             return true;
         }
 
-        UiElement focusScope = _toolbarPanel.IsVisible ? _toolbarPanel : _paneView.EmptyStateFocusScope;
+        UiElement focusScope = _toolbarPanel.IsVisible ? _toolbarPanel : _activePaneView.EmptyStateFocusScope;
         return _root.HandleKey(input, focusScope, wrapFocus: false, directionalNavigation: false);
     }
 
@@ -221,7 +263,14 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     internal void DrawFrame(SizeF pixelSize)
     {
-        _paneView.UpdateStatus();
+        foreach (ViewerPaneView paneView in _paneViews)
+        {
+            if (paneView.IsVisible)
+            {
+                paneView.UpdateStatus();
+            }
+        }
+
         var context = new UiDrawContext(_deviceContext, _brush, Palette, _root.Dpi);
         _root.Draw(context, pixelSize);
     }
@@ -240,8 +289,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
     protected override void ArrangeCore(SizeF finalSize)
     {
         _splitView.Arrange(new RectangleF(PointF.Empty, finalSize));
-        RectangleF paneBounds = _paneView.GetBoundsRelativeTo(_mainOverlay);
-        RectangleF contentBounds = _paneView.ContentBounds;
+        RectangleF paneBounds = _activePaneView.GetBoundsRelativeTo(_mainOverlay);
+        RectangleF contentBounds = _activePaneView.ContentBounds;
         contentBounds.Offset(paneBounds.Location);
         var layout = ViewerLayout.Calculate(
             contentBounds.Size,
@@ -266,11 +315,15 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _settingsPanel.Dispose();
         _toolbarPanel.Dispose();
         _galleryPanel.Dispose();
-        _paneView.Dispose();
+        foreach (ViewerPaneView paneView in _paneViews)
+        {
+            paneView.Dispose();
+        }
+
         _brush.Dispose();
     }
 
-    private void ShowTabPreview(ViewerTabInfo? tab, RectangleF tabBounds)
+    private void ShowTabPreview(ViewerPane pane, ViewerTabInfo? tab, RectangleF tabBounds)
     {
         if (tab is not { ImagePath: string path })
         {
@@ -278,7 +331,9 @@ internal sealed class ViewerUi : UiElement, IDisposable
             return;
         }
 
-        RectangleF paneBounds = _paneView.GetBoundsRelativeTo(this);
+        ViewerPaneView paneView = FindPaneView(pane)
+            ?? throw new InvalidOperationException("The pane view is not attached.");
+        RectangleF paneBounds = paneView.GetBoundsRelativeTo(this);
         tabBounds.Offset(paneBounds.Location);
         _tabPreview.Show(path, tabBounds);
     }
@@ -310,8 +365,27 @@ internal sealed class ViewerUi : UiElement, IDisposable
         }
         else
         {
-            _root.SetFocus(_paneView.EmptyStateSettingsButton);
+            _root.SetFocus(_activePaneView.EmptyStateSettingsButton);
         }
+    }
+
+    private void ApplyActivePaneState(ViewerSessionState state, bool showToolbar)
+    {
+        bool hasImage = state.DisplayedImage is not null;
+        _toolbarPanel.IsVisible = hasImage;
+        if (showToolbar)
+        {
+            _toolbarPanel.Show();
+        }
+
+        _galleryPanel.IsVisible = state.FolderEntries.Length > 0;
+        _splitView.SecondPaneVisible = _galleryPanel.IsVisible;
+        _galleryPanel.ApplyState(state.FolderEntries, state.RequestedPath);
+    }
+
+    private ViewerPaneView? FindPaneView(ViewerPane pane)
+    {
+        return _paneViews.FirstOrDefault(candidate => ReferenceEquals(candidate.Pane, pane));
     }
 }
 

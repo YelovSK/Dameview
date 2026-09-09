@@ -1,3 +1,5 @@
+using Dameview.Viewing;
+
 namespace Dameview.Commands;
 
 internal interface IViewerCommands
@@ -14,7 +16,7 @@ internal interface IViewerCommands
 
     public void OpenImageInNewTab(string path);
 
-    public void SelectTab(int index);
+    public void SelectTab(ViewerPane pane, int index);
 
-    public void CloseTab(int index);
+    public void CloseTab(ViewerPane pane, int index);
 }

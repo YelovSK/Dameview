@@ -102,7 +102,7 @@ public sealed class ViewerWorkspaceTests
         workspace.OpenImageInNewTab(@"C:\second\image.png");
         workspace.SelectTab(1);
         int changes = 0;
-        workspace.ActiveSessionStateChanged += () => changes++;
+        workspace.PaneSessionStateChanged += _ => changes++;
 
         first.OpenImage(@"C:\first\other.png");
         Assert.AreEqual(0, changes);
@@ -164,19 +164,35 @@ public sealed class ViewerWorkspaceTests
     }
 
     [TestMethod]
-    public void OnlyTheActivePaneForwardsSessionStateChanges()
+    public void SessionStateChangesIdentifyTheirPane()
     {
         using var workspace = new ViewerWorkspace(CreateTab);
         ViewerPane first = workspace.ActivePane;
         ViewerPane second = workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
-        int changes = 0;
-        workspace.ActiveSessionStateChanged += () => changes++;
+        var changedPanes = new List<ViewerPane>();
+        workspace.PaneSessionStateChanged += changedPanes.Add;
 
         second.ActiveSession.OpenImage(@"C:\second\other.png");
-        Assert.AreEqual(0, changes);
-
         first.ActiveSession.OpenImage(@"C:\first\other.png");
-        Assert.AreEqual(1, changes);
+
+        CollectionAssert.AreEqual(new[] { second, first }, changedPanes);
+    }
+
+    [TestMethod]
+    public void TabChangesIdentifyTheirPane()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane second = workspace.SplitPane(workspace.ActivePane, WorkspaceSplitOrientation.Horizontal);
+        var activeTabChanges = new List<ViewerPane>();
+        var tabChanges = new List<ViewerPane>();
+        workspace.PaneActiveTabChanged += activeTabChanges.Add;
+        workspace.PaneTabsChanged += tabChanges.Add;
+
+        second.AddTab(CreateTab());
+        workspace.SelectTab(second, 1);
+
+        CollectionAssert.AreEqual(new[] { second }, activeTabChanges);
+        CollectionAssert.AreEqual(new[] { second, second }, tabChanges);
     }
 
     [TestMethod]
@@ -187,7 +203,7 @@ public sealed class ViewerWorkspaceTests
         ViewerPane second = workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
         workspace.SelectPane(second);
         int focusChanges = 0;
-        workspace.ActivePaneChanged += () => focusChanges++;
+        workspace.ActivePaneChanged += _ => focusChanges++;
 
         Assert.IsTrue(workspace.RemovePane(second));
 

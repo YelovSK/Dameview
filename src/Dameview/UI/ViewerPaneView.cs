@@ -18,7 +18,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     private readonly EmptyStatePanel _emptyStatePanel;
     private readonly Overlay _contentOverlay;
     private readonly StatusPanel _statusPanel;
-    private readonly Action<ViewerTabInfo?, RectangleF> _hoveredTabChanged;
+    private readonly Action<ViewerPane, ViewerTabInfo?, RectangleF> _hoveredTabChanged;
     private ViewerSessionState _state;
 
     internal ViewerPaneView(
@@ -28,10 +28,11 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         Action<int> selectTab,
         Action<int> closeTab,
         Action showSettings,
-        Action<ViewerTabInfo?, RectangleF> hoveredTabChanged,
+        Action<ViewerPane, ViewerTabInfo?, RectangleF> hoveredTabChanged,
         TimeProvider? timeProvider = null,
         UiPost? postToUi = null)
     {
+        Pane = pane;
         _hoveredTabChanged = hoveredTabChanged;
         ViewerTab tab = pane.ActiveTab;
         ViewerSession session = tab.Session;
@@ -71,6 +72,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         }
     }
 
+    internal ViewerPane Pane { get; }
     internal bool HasImage => _state.DisplayedImage is not null;
     internal bool HasStatus => SettingsError is not null
         || HasImage
@@ -111,13 +113,17 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         _imagePanel.Bind(session.Viewport, session.Animator);
     }
 
-    internal void ApplyState(ViewerSessionState state)
+    internal void ApplyState(ViewerSessionState state, bool clearPointer)
     {
         bool displayedImageChanged = !ReferenceEquals(_state.DisplayedImage, state.DisplayedImage);
         _state = state;
         if (displayedImageChanged && state.DisplayedImage is { } displayed)
         {
-            Root?.ClearPointer();
+            if (clearPointer)
+            {
+                Root?.ClearPointer();
+            }
+
             ApplyDisplayedImage(displayed);
         }
 
@@ -134,7 +140,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         _viewerTabs.IsVisible = tabs.Count > 1;
         if (!_viewerTabs.IsVisible)
         {
-            _hoveredTabChanged(null, RectangleF.Empty);
+            _hoveredTabChanged(Pane, null, RectangleF.Empty);
         }
     }
 
@@ -217,7 +223,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             tabBounds.Offset(stripBounds.Location);
         }
 
-        _hoveredTabChanged(tab, tabBounds);
+        _hoveredTabChanged(Pane, tab, tabBounds);
     }
 
     private void ApplyDisplayedImage(ImageLoaded displayed)
