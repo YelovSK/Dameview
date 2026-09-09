@@ -54,7 +54,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         _ui = new ViewerUi(
             _renderer.DeviceContext,
             _renderer.DirectWriteFactory,
-            _workspace.ActivePane,
+            _workspace,
             _window.Dpi,
             UiTheme.Default,
             this,
@@ -65,6 +65,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         _ui.Invalidated += _window.RequestRepaint;
         _ui.CursorChanged += _window.ApplyCursor;
         _workspace.ActivePaneChanged += HandleActivePaneChanged;
+        _workspace.LayoutChanged += HandleLayoutChanged;
         _workspace.PaneActiveTabChanged += HandleActiveTabChanged;
         _workspace.PaneSessionStateChanged += HandleSessionChanged;
         _workspace.PaneTabsChanged += HandleTabsChanged;
@@ -260,6 +261,12 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
     {
         _ui.BindActivePane(pane);
         HandleSessionChanged(pane);
+    }
+
+    private void HandleLayoutChanged()
+    {
+        _ui.ApplyLayout(_workspace.Root);
+        _window.RequestRepaint();
     }
 
     private void HandleTabsChanged(ViewerPane pane)

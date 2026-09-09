@@ -19,7 +19,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
 {
     private readonly ID2D1DeviceContext _deviceContext;
     private readonly ID2D1SolidColorBrush _brush;
-    private readonly List<ViewerPaneView> _paneViews;
+    private readonly WorkspaceView _workspaceView;
     private readonly TabPreview _tabPreview;
     private readonly Overlay _mainOverlay;
     private readonly SplitView _splitView;
@@ -36,7 +36,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     internal ViewerUi(
         ID2D1DeviceContext deviceContext,
         IDWriteFactory directWriteFactory,
-        ViewerPane pane,
+        ViewerWorkspace workspace,
         float dpi,
         UiTheme theme,
         IViewerCommands commands,
@@ -50,20 +50,22 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _brush = deviceContext.CreateSolidColorBrush(default(Color4));
         Palette = theme;
         _animationClock = new UiAnimationClock(timeProvider);
-        _activePane = pane;
+        _activePane = workspace.ActivePane;
         _tabPreview = new TabPreview(deviceContext, thumbnailLoader);
-        var paneView = new ViewerPaneView(
-            deviceContext,
-            directWriteFactory,
-            pane,
-            index => commands.SelectTab(pane, index),
-            index => commands.CloseTab(pane, index),
-            ShowSettings,
-            ShowTabPreview,
-            timeProvider,
-            postToUi);
-        _paneViews = [paneView];
-        _activePaneView = paneView;
+        _workspaceView = new WorkspaceView(
+            workspace.Root,
+            pane => new ViewerPaneView(
+                deviceContext,
+                directWriteFactory,
+                pane,
+                index => commands.SelectTab(pane, index),
+                index => commands.CloseTab(pane, index),
+                ShowSettings,
+                ShowTabPreview,
+                timeProvider,
+                postToUi));
+        _activePaneView = FindPaneView(_activePane)
+            ?? throw new InvalidOperationException("The active pane view was not created.");
         _toolbarPanel = new ToolbarPanel(directWriteFactory, commands, ShowSettings);
         _galleryPanel = new GalleryPanel(
             deviceContext,
@@ -71,8 +73,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
             thumbnailLoader,
             commands.OpenImage,
             commands.OpenImageInNewTab);
-        _galleryPanel.Bind(pane.ActiveTab.GalleryState);
-        _mainOverlay = new Overlay(paneView, _toolbarPanel);
+        _galleryPanel.Bind(_activePane.ActiveTab.GalleryState);
+        _mainOverlay = new Overlay(_workspaceView, _toolbarPanel);
         _splitView = new SplitView(
             _mainOverlay,
             _galleryPanel,
@@ -93,8 +95,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _root = new UiRoot(this, dpi);
         _root.CursorChanged += cursor => _cursorChanged?.Invoke(cursor);
 
-        ViewerSessionState state = pane.ActiveSession.State;
-        bool hasImage = paneView.HasImage;
+        ViewerSessionState state = _activePane.ActiveSession.State;
+        bool hasImage = _activePaneView.HasImage;
         _toolbarPanel.IsVisible = hasImage;
         _galleryPanel.IsVisible = state.FolderEntries.Length > 0;
         _splitView.SecondPaneVisible = _galleryPanel.IsVisible;
@@ -136,24 +138,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         }
     }
 
-    internal TimeSpan? NextAnimationFrameDelay
-    {
-        get
-        {
-            TimeSpan? nextDelay = null;
-            foreach (ViewerPaneView paneView in _paneViews)
-            {
-                if (!paneView.IsVisible || paneView.NextAnimationFrameDelay is not { } delay)
-                {
-                    continue;
-                }
-
-                nextDelay = nextDelay is null || delay < nextDelay ? delay : nextDelay;
-            }
-
-            return nextDelay;
-        }
-    }
+    internal TimeSpan? NextAnimationFrameDelay => _workspaceView.NextAnimationFrameDelay;
 
     internal PointF GetImageViewportPoint(PointF nativePoint)
     {
@@ -184,6 +169,16 @@ internal sealed class ViewerUi : UiElement, IDisposable
         ViewerSessionState state = pane.ActiveSession.State;
         _galleryPanel.Bind(pane.ActiveTab.GalleryState);
         ApplyActivePaneState(state, showToolbar: false);
+    }
+
+    internal void ApplyLayout(WorkspaceNode root)
+    {
+        _root.ClearPointer();
+        _tabPreview.Hide();
+        _workspaceView.ApplyLayout(root);
+        _activePaneView = FindPaneView(_activePane)
+            ?? throw new InvalidOperationException("The active pane view is not attached.");
+        _activePaneView.SettingsError = _settingsPanel.Error;
     }
 
     internal void BindTab(ViewerPane pane, ViewerTab tab)
@@ -263,13 +258,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     internal void DrawFrame(SizeF pixelSize)
     {
-        foreach (ViewerPaneView paneView in _paneViews)
-        {
-            if (paneView.IsVisible)
-            {
-                paneView.UpdateStatus();
-            }
-        }
+        _workspaceView.UpdateStatuses();
 
         var context = new UiDrawContext(_deviceContext, _brush, Palette, _root.Dpi);
         _root.Draw(context, pixelSize);
@@ -315,11 +304,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _settingsPanel.Dispose();
         _toolbarPanel.Dispose();
         _galleryPanel.Dispose();
-        foreach (ViewerPaneView paneView in _paneViews)
-        {
-            paneView.Dispose();
-        }
-
+        _workspaceView.Dispose();
         _brush.Dispose();
     }
 
@@ -385,7 +370,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     private ViewerPaneView? FindPaneView(ViewerPane pane)
     {
-        return _paneViews.FirstOrDefault(candidate => ReferenceEquals(candidate.Pane, pane));
+        return _workspaceView.FindPaneView(pane);
     }
 }
 
