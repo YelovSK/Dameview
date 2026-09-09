@@ -62,6 +62,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
                 pane,
                 index => commands.SelectTab(pane, index),
                 index => commands.CloseTab(pane, index),
+                () => commands.DuplicateActiveTab(pane),
                 ShowSettings,
                 ShowTabPreview,
                 timeProvider,
@@ -102,7 +103,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         ViewerSessionState state = _activePane.ActiveSession.State;
         bool hasImage = _activePaneView.HasImage;
         _toolbarPanel.IsVisible = hasImage;
-        _galleryPanel.IsVisible = state.FolderEntries.Length > 0;
+        _galleryPanel.IsVisible = ShouldShowGallery(state);
         _splitView.SecondPaneVisible = _galleryPanel.IsVisible;
         _galleryPanel.ApplyState(state.FolderEntries, state.RequestedPath);
         if (hasImage)
@@ -382,9 +383,16 @@ internal sealed class ViewerUi : UiElement, IDisposable
             _toolbarPanel.Show();
         }
 
-        _galleryPanel.IsVisible = state.FolderEntries.Length > 0;
+        _galleryPanel.IsVisible = ShouldShowGallery(state);
         _splitView.SecondPaneVisible = _galleryPanel.IsVisible;
         _galleryPanel.ApplyState(state.FolderEntries, state.RequestedPath);
+    }
+
+    private static bool ShouldShowGallery(ViewerSessionState state)
+    {
+        return state.RequestedPath is not null
+            && !state.IsError
+            && state.FolderError is null;
     }
 
     private ViewerPaneView? FindPaneView(ViewerPane pane)

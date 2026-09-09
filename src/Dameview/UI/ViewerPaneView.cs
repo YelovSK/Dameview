@@ -28,6 +28,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         ViewerPane pane,
         Action<int> selectTab,
         Action<int> closeTab,
+        Action addTab,
         Action showSettings,
         Action<ViewerPane, ViewerTabInfo?, RectangleF> hoveredTabChanged,
         TimeProvider? timeProvider = null,
@@ -50,8 +51,8 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             0,
             selectTab,
             closeTab,
+            addTab,
             HandleHoveredTabChanged);
-        _viewerTabs.IsVisible = false;
         _emptyStatePanel = new EmptyStatePanel(
             directWriteFactory,
             LoadApplicationIcon(deviceContext),
@@ -146,11 +147,6 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     internal void ApplyTabs(IReadOnlyList<ViewerTabInfo> tabs, int selectedIndex)
     {
         _viewerTabs.SetTabs(tabs, selectedIndex);
-        _viewerTabs.IsVisible = tabs.Count > 1;
-        if (!_viewerTabs.IsVisible)
-        {
-            _hoveredTabChanged(Pane, null, RectangleF.Empty);
-        }
     }
 
     internal void UpdateStatus()
@@ -180,9 +176,8 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
 
     protected override SizeF MeasureCore(SizeF availableSize)
     {
-        float tabHeight = _viewerTabs.IsVisible
-            ? _viewerTabs.Measure(new SizeF(availableSize.Width, ViewerTabStrip.HeightDips)).Height
-            : 0.0f;
+        float tabHeight = _viewerTabs.Measure(
+            new SizeF(availableSize.Width, ViewerTabStrip.HeightDips)).Height;
         var contentSize = new SizeF(
             availableSize.Width,
             MathF.Max(0.0f, availableSize.Height - tabHeight));
@@ -197,7 +192,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
 
     protected override void ArrangeCore(SizeF finalSize)
     {
-        float tabHeight = _viewerTabs.IsVisible ? ViewerTabStrip.HeightDips : 0.0f;
+        float tabHeight = ViewerTabStrip.HeightDips;
         _viewerTabs.Arrange(new RectangleF(0.0f, 0.0f, finalSize.Width, tabHeight));
         ContentBounds = new RectangleF(
             0.0f,

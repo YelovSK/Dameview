@@ -38,6 +38,19 @@ internal sealed class ViewerWorkspace : IDisposable
         ActivePane.Tabs[^1].Session.OpenImage(path);
     }
 
+    internal void DuplicateActiveTab(ViewerPane pane)
+    {
+        EnsureContains(pane);
+        string? path = GetCurrentImagePath(pane);
+        ViewerTab tab = CreateTab();
+        pane.AddTab(tab);
+        pane.SelectTab(pane.Count - 1);
+        if (path is not null)
+        {
+            tab.Session.OpenImage(path);
+        }
+    }
+
     internal void SelectRelativeTab(int offset) => ActivePane.SelectRelativeTab(offset);
 
     internal void SelectTab(int index) => ActivePane.SelectTab(index);
@@ -69,8 +82,7 @@ internal sealed class ViewerWorkspace : IDisposable
     internal ViewerPane SplitPane(ViewerPane pane, WorkspaceSplitOrientation orientation)
     {
         EnsureContains(pane);
-        ViewerSessionState state = pane.ActiveSession.State;
-        string? path = state.DisplayedImage?.Path ?? state.RequestedPath;
+        string? path = GetCurrentImagePath(pane);
         var newPane = new ViewerPane(CreateTab());
         AttachPane(newPane);
         ReplaceNode(pane, new WorkspaceSplit(orientation, pane, newPane));
@@ -138,6 +150,12 @@ internal sealed class ViewerWorkspace : IDisposable
         ViewerTab tab = _createTab();
         tab.Session.SetSort(_sort);
         return tab;
+    }
+
+    private static string? GetCurrentImagePath(ViewerPane pane)
+    {
+        ViewerSessionState state = pane.ActiveSession.State;
+        return state.DisplayedImage?.Path ?? state.RequestedPath;
     }
 
     private void AttachPane(ViewerPane pane)

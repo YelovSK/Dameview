@@ -171,6 +171,11 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         _workspace.SelectPane(pane);
     }
 
+    public void DuplicateActiveTab(ViewerPane pane)
+    {
+        _workspace.DuplicateActiveTab(pane);
+    }
+
     public void SelectTab(ViewerPane pane, int index)
     {
         _workspace.SelectTab(pane, index);

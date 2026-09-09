@@ -13,12 +13,14 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
 
     private const float TabWidthDips = 180.0f;
     private const float CloseWidthDips = 32.0f;
+    private const float AddButtonWidthDips = 36.0f;
     private const float LabelPaddingDips = 12.0f;
     private const float WheelStepDips = 120.0f;
 
     private readonly IDWriteTextFormat _labelFormat;
     private readonly IDWriteTextFormat _closeFormat;
     private readonly IDWriteInlineObject _ellipsisSign;
+    private readonly Button _addButton;
     private readonly Action<int> _selectionChanged;
     private readonly Action<int> _closeRequested;
     private readonly Action<ViewerTabInfo?, RectangleF>? _hoveredTabChanged;
@@ -35,6 +37,7 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
         int selectedIndex,
         Action<int> selectionChanged,
         Action<int> closeRequested,
+        Action addRequested,
         Action<ViewerTabInfo?, RectangleF>? hoveredTabChanged = null)
     {
         _selectionChanged = selectionChanged;
@@ -54,6 +57,13 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
         _closeFormat.TextAlignment = TextAlignment.Center;
         _closeFormat.ParagraphAlignment = ParagraphAlignment.Center;
         _closeFormat.WordWrapping = WordWrapping.NoWrap;
+        _addButton = new Button(
+            factory,
+            "+",
+            addRequested,
+            fontSize: 18.0f,
+            backgroundInsetY: UiDesign.SmallSpacing);
+        AddChild(_addButton);
         SetTabs(tabs, selectedIndex);
     }
 
@@ -145,8 +155,10 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
 
     protected override void ArrangeCore(SizeF finalSize)
     {
-        bool widthChanged = _viewportWidth != finalSize.Width;
-        _viewportWidth = finalSize.Width;
+        float viewportWidth = TabViewportWidth;
+        bool widthChanged = _viewportWidth != viewportWidth;
+        _viewportWidth = viewportWidth;
+        _addButton.Arrange(GetAddButtonBounds());
         UpdateScrollMetrics();
         if (widthChanged)
         {
@@ -156,11 +168,21 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
 
     protected override void DrawCore(in UiDrawContext context)
     {
+        context.RenderTarget.PushAxisAlignedClip(
+            new Rect(0.0f, 0.0f, TabViewportWidth, Bounds.Height),
+            AntialiasMode.Aliased);
         float x = -_scrollOffset.Offset;
-        for (int index = 0; index < _tabs.Length; index++)
+        try
         {
-            DrawTab(context, index, x);
-            x += TabWidthDips + UiDesign.SmallSpacing;
+            for (int index = 0; index < _tabs.Length; index++)
+            {
+                DrawTab(context, index, x);
+                x += TabWidthDips + UiDesign.SmallSpacing;
+            }
+        }
+        finally
+        {
+            context.RenderTarget.PopAxisAlignedClip();
         }
     }
 
@@ -180,6 +202,7 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
 
     public void Dispose()
     {
+        _addButton.Dispose();
         _ellipsisSign.Dispose();
         _closeFormat.Dispose();
         _labelFormat.Dispose();
@@ -187,6 +210,16 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
 
     private float ContentWidth => _tabs.Length * TabWidthDips
         + Math.Max(0, _tabs.Length - 1) * UiDesign.SmallSpacing;
+
+    private float TabViewportWidth
+    {
+        get
+        {
+            float addButtonWidth = MathF.Min(AddButtonWidthDips, Bounds.Width);
+            float remaining = MathF.Max(0.0f, Bounds.Width - addButtonWidth);
+            return MathF.Max(0.0f, remaining - MathF.Min(UiDesign.SmallSpacing, remaining));
+        }
+    }
 
     private void DrawTab(in UiDrawContext context, int index, float x)
     {
@@ -245,6 +278,11 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
 
     private (int Index, bool Close) HitTestTab(PointF position)
     {
+        if (position.X < 0.0f || position.X >= TabViewportWidth)
+        {
+            return (-1, false);
+        }
+
         float contentX = position.X + _scrollOffset.Offset;
         int index = (int)(contentX / (TabWidthDips + UiDesign.SmallSpacing));
         float xWithinTab = contentX - index * (TabWidthDips + UiDesign.SmallSpacing);
@@ -281,12 +319,13 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
 
     private void UpdateScrollMetrics()
     {
-        _scrollOffset.SetMaximum(MathF.Max(0.0f, ContentWidth - Bounds.Width));
+        _scrollOffset.SetMaximum(MathF.Max(0.0f, ContentWidth - TabViewportWidth));
     }
 
     private void RevealSelectedTab()
     {
-        if (Bounds.Width <= 0.0f)
+        float viewportWidth = TabViewportWidth;
+        if (viewportWidth <= 0.0f)
         {
             return;
         }
@@ -298,11 +337,21 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
         {
             target = left;
         }
-        else if (right > target + Bounds.Width)
+        else if (right > target + viewportWidth)
         {
-            target = right - Bounds.Width;
+            target = right - viewportWidth;
         }
 
         _scrollOffset.SetImmediate(target);
+    }
+
+    private RectangleF GetAddButtonBounds()
+    {
+        float width = MathF.Min(AddButtonWidthDips, Bounds.Width);
+        return new RectangleF(
+            MathF.Max(0.0f, Bounds.Width - width),
+            0.0f,
+            width,
+            Bounds.Height);
     }
 }

@@ -19,7 +19,8 @@ public sealed class ViewerTabStripTests
             Tabs("One", "Two", "Three", "Four"),
             0,
             _ => { },
-            _ => { });
+            _ => { },
+            () => { });
         var root = new UiRoot(tabs, UiDpi.Default);
         root.Arrange(new SizeF(300.0f, ViewerTabStrip.HeightDips));
 
@@ -38,7 +39,7 @@ public sealed class ViewerTabStripTests
     {
         using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         ViewerTabInfo[] tabItems = Tabs("One", "Two", "Three", "Four");
-        using var tabs = new ViewerTabStrip(factory, tabItems, 0, _ => { }, _ => { });
+        using var tabs = new ViewerTabStrip(factory, tabItems, 0, _ => { }, _ => { }, () => { });
         var root = new UiRoot(tabs, UiDpi.Default);
         root.Arrange(new SizeF(300.0f, ViewerTabStrip.HeightDips));
 
@@ -57,7 +58,8 @@ public sealed class ViewerTabStripTests
             Tabs("One", "Two"),
             0,
             _ => { },
-            index => closed = index);
+            index => closed = index,
+            () => { });
         var root = new UiRoot(tabs, UiDpi.Default);
         root.Arrange(new SizeF(400.0f, ViewerTabStrip.HeightDips));
         root.HandlePointer(new UiPointerEvent(
@@ -66,6 +68,52 @@ public sealed class ViewerTabStripTests
             PointerButton.Primary));
 
         Assert.AreEqual(1, closed);
+    }
+
+    [TestMethod]
+    public void SingleTabStillExposesItsCloseButton()
+    {
+        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
+        int closed = -1;
+        using var tabs = new ViewerTabStrip(
+            factory,
+            Tabs("One"),
+            0,
+            _ => { },
+            index => closed = index,
+            () => { });
+        var root = new UiRoot(tabs, UiDpi.Default);
+        root.Arrange(new SizeF(400.0f, ViewerTabStrip.HeightDips));
+
+        root.HandlePointer(new UiPointerEvent(
+            UiPointerEventKind.Pressed,
+            new PointF(164.0f, ViewerTabStrip.HeightDips / 2.0f),
+            PointerButton.Primary));
+
+        Assert.AreEqual(0, closed);
+    }
+
+    [TestMethod]
+    public void AddButtonRequestsANewTab()
+    {
+        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
+        int additions = 0;
+        using var tabs = new ViewerTabStrip(
+            factory,
+            Tabs("One"),
+            0,
+            _ => { },
+            _ => { },
+            () => additions++);
+        var root = new UiRoot(tabs, UiDpi.Default);
+        root.Arrange(new SizeF(400.0f, ViewerTabStrip.HeightDips));
+
+        root.HandlePointer(new UiPointerEvent(
+            UiPointerEventKind.Pressed,
+            new PointF(382.0f, ViewerTabStrip.HeightDips / 2.0f),
+            PointerButton.Primary));
+
+        Assert.AreEqual(1, additions);
     }
 
     [TestMethod]
@@ -78,7 +126,8 @@ public sealed class ViewerTabStripTests
             Tabs("One", "Two"),
             0,
             _ => { },
-            index => closed = index);
+            index => closed = index,
+            () => { });
         var root = new UiRoot(tabs, UiDpi.Default);
         root.Arrange(new SizeF(400.0f, ViewerTabStrip.HeightDips));
         root.HandlePointer(new UiPointerEvent(
@@ -100,6 +149,7 @@ public sealed class ViewerTabStripTests
             0,
             _ => { },
             _ => { },
+            () => { },
             (tab, _) => hovered.Add(tab?.Label));
         var root = new UiRoot(tabs, UiDpi.Default);
         root.Arrange(new SizeF(400.0f, ViewerTabStrip.HeightDips));
