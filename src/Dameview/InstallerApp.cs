@@ -1,3 +1,4 @@
+using Dameview.Imaging;
 using Dameview.Platform;
 using Dameview.Rendering;
 using Dameview.UI;
@@ -89,7 +90,8 @@ internal sealed class InstallerApp : IDisposable
                 return;
             }
 
-            AppInstallation.Install();
+            using var imageDecoder = new ImageDecoder();
+            AppInstallation.Install(imageDecoder.GetProbablySupportedExtensions());
             AppInstallation.LaunchInstalled();
             Close();
         }

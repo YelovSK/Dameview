@@ -71,7 +71,7 @@ internal static class AppInstallation
             GetDisplayVersion(InstalledExecutablePath));
     }
 
-    internal static void Install()
+    internal static void Install(IEnumerable<string> supportedExtensions)
     {
         string sourcePath = Environment.ProcessPath
             ?? throw new InvalidOperationException("Could not determine the executable path.");
@@ -82,6 +82,7 @@ internal static class AppInstallation
         File.Move(stagedPath, InstalledExecutablePath, overwrite: true);
         CreateStartMenuShortcut();
         WriteUninstallRegistration();
+        ImageViewerRegistration.Register(InstalledExecutablePath, supportedExtensions);
     }
 
     internal static void LaunchInstalled()
@@ -101,6 +102,7 @@ internal static class AppInstallation
             File.Delete(shortcutPath);
         }
 
+        ImageViewerRegistration.Unregister();
         Registry.CurrentUser.DeleteSubKeyTree(UninstallRegistryPath, throwOnMissingSubKey: false);
     }
 

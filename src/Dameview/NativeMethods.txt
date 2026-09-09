@@ -39,6 +39,7 @@ DragAcceptFiles
 DragQueryFile
 DragFinish
 SHGetKnownFolderPath
+SHChangeNotify
 
 // Ole32
 CoInitializeEx
@@ -99,3 +100,5 @@ IDC_SIZENS
 HTCLIENT
 MONITOR_FROM_FLAGS
 FOLDERID_Programs
+SHCNE_ID
+SHCNF_FLAGS
