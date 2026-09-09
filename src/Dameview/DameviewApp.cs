@@ -146,6 +146,16 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         ShowActualSize(_workspace.ActiveSession.Viewport.ViewportCenter);
     }
 
+    public void SplitRight()
+    {
+        _workspace.SplitPane(_workspace.ActivePane, WorkspaceSplitOrientation.Horizontal);
+    }
+
+    public void SplitDown()
+    {
+        _workspace.SplitPane(_workspace.ActivePane, WorkspaceSplitOrientation.Vertical);
+    }
+
     public void OpenImage(string path)
     {
         _workspace.SelectImage(path);

@@ -16,7 +16,7 @@ public sealed class ViewerLayoutTests
 
         Assert.AreEqual(new RectangleF(0.0f, 0.0f, 1000.0f, 800.0f), layout.Content);
         Assert.AreEqual(new RectangleF(12.0f, 746.0f, 976.0f, 42.0f), layout.Status);
-        Assert.AreEqual(new RectangleF(334.0f, 12.0f, 332.0f, 46.0f), layout.Toolbar);
+        Assert.AreEqual(new RectangleF(262.0f, 12.0f, 476.0f, 46.0f), layout.Toolbar);
         Assert.AreEqual(RectangleF.Empty, layout.Gallery);
     }
 
@@ -56,7 +56,7 @@ public sealed class ViewerLayoutTests
 
         Assert.AreEqual(new RectangleF(0.0f, 0.0f, 796.0f, 800.0f), layout.Content);
         Assert.AreEqual(new RectangleF(12.0f, 746.0f, 772.0f, 42.0f), layout.Status);
-        Assert.AreEqual(new RectangleF(232.0f, 12.0f, 332.0f, 46.0f), layout.Toolbar);
+        Assert.AreEqual(new RectangleF(160.0f, 12.0f, 476.0f, 46.0f), layout.Toolbar);
         Assert.AreEqual(new RectangleF(804.0f, 12.0f, 184.0f, 776.0f), layout.Gallery);
     }
 }

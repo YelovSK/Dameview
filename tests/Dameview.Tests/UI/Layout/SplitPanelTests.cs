@@ -1,4 +1,5 @@
 using System.Drawing;
+using Dameview.Platform;
 using Dameview.UI;
 using Dameview.UI.Layout;
 
@@ -62,6 +63,52 @@ public sealed class SplitPanelTests
         Assert.AreEqual(0.0f, first.Bounds.Width);
         Assert.AreEqual(0.0f, second.Bounds.Width);
         Assert.AreEqual(4.0f, second.Bounds.X);
+    }
+
+    [TestMethod]
+    public void DraggingTheDividerUpdatesTheRatioAndBothPaneBounds()
+    {
+        var first = new FixedContent();
+        var second = new FixedContent();
+        float changedRatio = 0.0f;
+        var panel = new SplitPanel(
+            first,
+            second,
+            UiOrientation.Horizontal,
+            0.6f,
+            ratio => changedRatio = ratio);
+        var root = new UiRoot(panel, UiDpi.Default);
+        root.Arrange(new SizeF(1008.0f, 600.0f));
+
+        root.HandlePointer(Pointer(UiPointerEventKind.Pressed, 604.0f, 300.0f));
+        root.HandlePointer(Pointer(UiPointerEventKind.Moved, 704.0f, 300.0f));
+        root.HandlePointer(Pointer(UiPointerEventKind.Released, 704.0f, 300.0f));
+
+        Assert.AreEqual(0.7f, changedRatio, 0.0001f);
+        Assert.AreEqual(700.0f, first.Bounds.Width);
+        Assert.AreEqual(300.0f, second.Bounds.Width);
+    }
+
+    [TestMethod]
+    public void DividerDraggingCannotShrinkEitherPaneBelowTheMinimum()
+    {
+        var first = new FixedContent();
+        var second = new FixedContent();
+        var panel = new SplitPanel(first, second, UiOrientation.Vertical, 0.5f);
+        var root = new UiRoot(panel, UiDpi.Default);
+        root.Arrange(new SizeF(400.0f, 408.0f));
+
+        root.HandlePointer(Pointer(UiPointerEventKind.Pressed, 200.0f, 204.0f));
+        root.HandlePointer(Pointer(UiPointerEventKind.Moved, 200.0f, 500.0f));
+        root.HandlePointer(Pointer(UiPointerEventKind.Released, 200.0f, 500.0f));
+
+        Assert.AreEqual(280.0f, first.Bounds.Height);
+        Assert.AreEqual(SplitPanel.MinimumPaneSizeDips, second.Bounds.Height);
+    }
+
+    private static UiPointerEvent Pointer(UiPointerEventKind kind, float x, float y)
+    {
+        return new UiPointerEvent(kind, new PointF(x, y), PointerButton.Primary);
     }
 
     private sealed class FixedContent : UiElement

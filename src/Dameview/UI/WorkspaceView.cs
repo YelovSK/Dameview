@@ -116,7 +116,8 @@ internal sealed class WorkspaceView : UiElement, IDisposable
                 split.Orientation == WorkspaceSplitOrientation.Horizontal
                     ? UiOrientation.Horizontal
                     : UiOrientation.Vertical,
-                split.Ratio),
+                split.Ratio,
+                split.SetRatio),
             _ => throw new InvalidOperationException($"Unsupported workspace node: {node.GetType().Name}."),
         };
     }

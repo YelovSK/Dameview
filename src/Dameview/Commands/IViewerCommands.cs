@@ -12,6 +12,10 @@ internal interface IViewerCommands
 
     public void ShowActualSize();
 
+    public void SplitRight();
+
+    public void SplitDown();
+
     public void OpenImage(string path);
 
     public void OpenImageInNewTab(string path);

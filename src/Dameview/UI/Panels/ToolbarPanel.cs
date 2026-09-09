@@ -11,7 +11,7 @@ namespace Dameview.UI.Panels;
 
 internal sealed class ToolbarPanel : UiElement, IDisposable
 {
-    internal const float WidthDips = 332.0f;
+    internal const float WidthDips = UiDesign.ToolbarWidth;
 
     private readonly Button[] _buttons;
     private readonly StackPanel _buttonRow;
@@ -28,6 +28,8 @@ internal sealed class ToolbarPanel : UiElement, IDisposable
             new Button(directWriteFactory, "→", commands.ShowNextImage),
             new Button(directWriteFactory, "Fit", commands.FitImage),
             new Button(directWriteFactory, "1:1", commands.ShowActualSize),
+            new Button(directWriteFactory, "Split →", commands.SplitRight),
+            new Button(directWriteFactory, "Split ↓", commands.SplitDown),
             new Button(
                 directWriteFactory,
                 UiTypography.SettingsIcon,

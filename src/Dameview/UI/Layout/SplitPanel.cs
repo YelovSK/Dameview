@@ -3,7 +3,7 @@ using System.Drawing;
 namespace Dameview.UI.Layout;
 
 // Symmetrically divides its bounds between two workspace children.
-internal sealed class SplitPanel : UiElement
+internal sealed class SplitPanel : UiElement, ISplitResizerTarget
 {
     internal const float MinimumPaneSizeDips = 120.0f;
     internal const float SplitterSizeDips = 8.0f;
@@ -11,13 +11,16 @@ internal sealed class SplitPanel : UiElement
     private readonly UiElement _firstPane;
     private readonly UiElement _secondPane;
     private readonly UiOrientation _orientation;
-    private readonly float _ratio;
+    private readonly Action<float>? _ratioChanged;
+    private readonly SplitResizer _resizer;
+    private float _ratio;
 
     internal SplitPanel(
         UiElement firstPane,
         UiElement secondPane,
         UiOrientation orientation,
-        float ratio)
+        float ratio,
+        Action<float>? ratioChanged = null)
     {
         ArgumentNullException.ThrowIfNull(firstPane);
         ArgumentNullException.ThrowIfNull(secondPane);
@@ -30,8 +33,11 @@ internal sealed class SplitPanel : UiElement
         _secondPane = secondPane;
         _orientation = orientation;
         _ratio = ratio;
+        _ratioChanged = ratioChanged;
+        _resizer = new SplitResizer(this);
         AddChild(firstPane);
         AddChild(secondPane);
+        AddChild(_resizer);
     }
 
     internal RectangleF FirstPaneBounds { get; private set; }
@@ -41,6 +47,7 @@ internal sealed class SplitPanel : UiElement
     {
         RemoveChild(_firstPane);
         RemoveChild(_secondPane);
+        RemoveChild(_resizer);
         return (_firstPane, _secondPane);
     }
 
@@ -82,6 +89,7 @@ internal sealed class SplitPanel : UiElement
 
         _firstPane.Arrange(FirstPaneBounds);
         _secondPane.Arrange(SecondPaneBounds);
+        _resizer.Arrange(GetResizerBounds(firstLength, splitterSize, finalSize));
     }
 
     protected override bool HitTestCore(PointF position) => false;
@@ -98,5 +106,59 @@ internal sealed class SplitPanel : UiElement
             requested,
             MinimumPaneSizeDips,
             usableLength - MinimumPaneSizeDips);
+    }
+
+    UiOrientation ISplitResizerTarget.Orientation => _orientation;
+
+    bool ISplitResizerTarget.CanResize
+    {
+        get
+        {
+            float mainLength = _orientation == UiOrientation.Horizontal
+                ? Bounds.Width
+                : Bounds.Height;
+            return mainLength - SplitterSizeDips >= 2.0f * MinimumPaneSizeDips;
+        }
+    }
+
+    float ISplitResizerTarget.DividerPosition
+    {
+        get => _orientation == UiOrientation.Horizontal
+            ? FirstPaneBounds.Width
+            : FirstPaneBounds.Height;
+        set => SetFirstPaneLength(value);
+    }
+
+    private RectangleF GetResizerBounds(float firstLength, float splitterSize, SizeF finalSize)
+    {
+        return _orientation == UiOrientation.Horizontal
+            ? new RectangleF(firstLength, 0.0f, splitterSize, finalSize.Height)
+            : new RectangleF(0.0f, firstLength, finalSize.Width, splitterSize);
+    }
+
+    private void SetFirstPaneLength(float length)
+    {
+        float mainLength = _orientation == UiOrientation.Horizontal
+            ? Bounds.Width
+            : Bounds.Height;
+        float usableLength = mainLength - SplitterSizeDips;
+        if (usableLength < 2.0f * MinimumPaneSizeDips)
+        {
+            return;
+        }
+
+        float firstLength = Math.Clamp(
+            length,
+            MinimumPaneSizeDips,
+            usableLength - MinimumPaneSizeDips);
+        float ratio = firstLength / usableLength;
+        if (ratio == _ratio)
+        {
+            return;
+        }
+
+        _ratioChanged?.Invoke(ratio);
+        _ratio = ratio;
+        InvalidateLayout();
     }
 }

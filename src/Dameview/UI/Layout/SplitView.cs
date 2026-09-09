@@ -1,6 +1,4 @@
 using System.Drawing;
-using Dameview.Platform;
-using Vortice.Direct2D1;
 
 namespace Dameview.UI.Layout;
 
@@ -12,14 +10,14 @@ internal enum SplitViewEdge
     Bottom,
 }
 
-internal sealed class SplitView : UiElement
+internal sealed class SplitView : UiElement, ISplitResizerTarget
 {
     internal const float MinimumPaneSizeDips = 120.0f;
     private const float SplitterSize = 8.0f;
 
     private readonly UiElement _firstPane;
     private readonly UiElement _secondPane;
-    private readonly Resizer _resizer;
+    private readonly SplitResizer _resizer;
     private RectangleF _firstPaneBounds;
     private RectangleF _secondPaneBounds;
 
@@ -33,7 +31,7 @@ internal sealed class SplitView : UiElement
         _secondPane = secondPane;
         DividerOffsetDips = initialDividerOffsetDips;
         Edge = edge;
-        _resizer = new Resizer(this);
+        _resizer = new SplitResizer(this);
         _secondPane.IsVisible = false;
         AddChild(firstPane);
         AddChild(secondPane);
@@ -206,91 +204,17 @@ internal sealed class SplitView : UiElement
         };
     }
 
-    private float GetPointerCoordinate(Resizer resizer, PointF localPosition)
+    UiOrientation ISplitResizerTarget.Orientation => IsHorizontal
+        ? UiOrientation.Horizontal
+        : UiOrientation.Vertical;
+
+    bool ISplitResizerTarget.CanResize => SecondPaneVisible && SecondPaneBounds != RectangleF.Empty;
+
+    float ISplitResizerTarget.DividerPosition
     {
-        return IsHorizontal
-            ? resizer.Bounds.X + localPosition.X
-            : resizer.Bounds.Y + localPosition.Y;
-    }
-
-    private void SetSplitSizeFromPointer(float pointer, float dragStartPointer, float dragStartSize)
-    {
-        float delta = pointer - dragStartPointer;
-        bool growsWithPointer = Edge is SplitViewEdge.Left or SplitViewEdge.Top;
-        SetDividerOffset(dragStartSize + (growsWithPointer ? delta : -delta));
-    }
-
-    private sealed class Resizer(SplitView owner) : UiElement
-    {
-        private bool _dragging;
-        private float _dragStartPointer;
-        private float _dragStartSize;
-
-        internal override bool IsHitTestVisible => owner.SecondPaneVisible && owner.SecondPaneBounds != RectangleF.Empty;
-        internal override bool PreservesFocusOnPointerPress => true;
-        internal override UiCursor Cursor => owner.IsHorizontal
-            ? UiCursor.ResizeHorizontal
-            : UiCursor.ResizeVertical;
-
-        protected override void DrawCore(in UiDrawContext context)
-        {
-            if (!IsHitTestVisible)
-            {
-                return;
-            }
-
-            bool highlighted = HasVisualState(UiVisualState.Hovered) || _dragging;
-            float thickness = highlighted ? 3.0f : 2.0f;
-            if (owner.IsHorizontal)
-            {
-                float center = Bounds.Width / 2.0f;
-                context.FillRoundedRectangle(
-                    new RoundedRectangle(
-                        new RectangleF(center - thickness / 2.0f, 12.0f, thickness, MathF.Max(0.0f, Bounds.Height - 24.0f)),
-                        1.0f,
-                        1.0f),
-                    _dragging ? context.Palette.Accent : highlighted ? context.Palette.PrimaryText : context.Palette.SurfaceBorder,
-                    _dragging ? 1.0f : highlighted ? 0.9f : 0.65f);
-            }
-            else
-            {
-                float center = Bounds.Height / 2.0f;
-                context.FillRoundedRectangle(
-                    new RoundedRectangle(
-                        new RectangleF(12.0f, center - thickness / 2.0f, MathF.Max(0.0f, Bounds.Width - 24.0f), thickness),
-                        1.0f,
-                        1.0f),
-                    _dragging ? context.Palette.Accent : highlighted ? context.Palette.PrimaryText : context.Palette.SurfaceBorder,
-                    _dragging ? 1.0f : highlighted ? 0.9f : 0.65f);
-            }
-        }
-
-        internal override UiPointerResult OnPointerEvent(in UiPointerEvent input)
-        {
-            switch (input.Kind)
-            {
-                case UiPointerEventKind.Pressed when input.Button == PointerButton.Primary:
-                    _dragging = true;
-                    _dragStartPointer = owner.GetPointerCoordinate(this, input.Position);
-                    _dragStartSize = owner.DividerOffsetDips;
-                    return new UiPointerResult(Consumed: true, CapturePointer: true, NeedsRepaint: true);
-
-                case UiPointerEventKind.Moved when _dragging:
-                    float pointer = owner.GetPointerCoordinate(this, input.Position);
-                    owner.SetSplitSizeFromPointer(pointer, _dragStartPointer, _dragStartSize);
-                    return new UiPointerResult(Consumed: true, NeedsRepaint: true);
-
-                case UiPointerEventKind.Released when _dragging:
-                    _dragging = false;
-                    return new UiPointerResult(Consumed: true, NeedsRepaint: true);
-
-                case UiPointerEventKind.Cancelled when _dragging:
-                    _dragging = false;
-                    return new UiPointerResult(Consumed: true, NeedsRepaint: true);
-
-                default:
-                    return default;
-            }
-        }
+        get => Edge is SplitViewEdge.Left or SplitViewEdge.Top
+            ? DividerOffsetDips
+            : -DividerOffsetDips;
+        set => SetDividerOffset(Edge is SplitViewEdge.Left or SplitViewEdge.Top ? value : -value);
     }
 }

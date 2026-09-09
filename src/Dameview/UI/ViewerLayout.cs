@@ -12,7 +12,7 @@ internal readonly record struct ViewerLayout(
         SizeF size,
         bool showStatus,
         bool showToolbar,
-        float toolbarWidthDips = 332.0f,
+        float toolbarWidthDips = UiDesign.ToolbarWidth,
         bool showGallery = false,
         float galleryWidthDips = 184.0f)
     {

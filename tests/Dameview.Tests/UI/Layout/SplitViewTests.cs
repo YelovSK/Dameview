@@ -94,6 +94,35 @@ public sealed class SplitViewTests
         }
     }
 
+    [TestMethod]
+    public void DraggingTowardTheContentGrowsThePanelOnEveryEdge()
+    {
+        AssertDrag(SplitViewEdge.Right, new PointF(800.0f, 400.0f), new PointF(760.0f, 400.0f));
+        AssertDrag(SplitViewEdge.Left, new PointF(200.0f, 400.0f), new PointF(240.0f, 400.0f));
+        AssertDrag(SplitViewEdge.Top, new PointF(500.0f, 200.0f), new PointF(500.0f, 240.0f));
+        AssertDrag(SplitViewEdge.Bottom, new PointF(500.0f, 600.0f), new PointF(500.0f, 560.0f));
+
+        static void AssertDrag(SplitViewEdge edge, PointF start, PointF end)
+        {
+            var splitView = new SplitView(
+                new FixedContent(),
+                new FixedContent(),
+                initialDividerOffsetDips: 184.0f,
+                edge: edge)
+            {
+                SecondPaneVisible = true,
+            };
+            var root = new UiRoot(splitView, UiDpi.Default);
+            root.Arrange(new SizeF(1000.0f, 800.0f));
+
+            root.HandlePointer(new UiPointerEvent(UiPointerEventKind.Pressed, start, PointerButton.Primary));
+            root.HandlePointer(new UiPointerEvent(UiPointerEventKind.Moved, end));
+            root.HandlePointer(new UiPointerEvent(UiPointerEventKind.Released, end, PointerButton.Primary));
+
+            Assert.AreEqual(224.0f, splitView.DividerOffsetDips);
+        }
+    }
+
     private sealed class FixedContent : UiElement
     {
         protected override SizeF MeasureCore(SizeF availableSize) => availableSize;
