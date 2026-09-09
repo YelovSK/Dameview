@@ -1,6 +1,7 @@
 using Dameview.Imaging;
 using Dameview.Navigation;
 using Dameview.UI;
+using Dameview.UI.Panels;
 
 namespace Dameview.Viewing;
 
@@ -26,6 +27,7 @@ internal sealed class ViewerTab : IDisposable
     internal ViewerTab(ViewerSession session) => Session = session;
 
     internal ViewerSession Session { get; }
+    internal GalleryPanelState GalleryState { get; } = new();
 
     public void Dispose()
     {

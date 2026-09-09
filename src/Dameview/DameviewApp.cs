@@ -54,7 +54,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         _ui = new ViewerUi(
             _renderer.DeviceContext,
             _renderer.DirectWriteFactory,
-            _workspace.ActiveSession,
+            _workspace.ActiveTab,
             _window.Dpi,
             UiTheme.Default,
             this,
@@ -247,7 +247,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
     private void HandleActiveTabChanged()
     {
-        _ui.BindSession(_workspace.ActiveSession);
+        _ui.BindTab(_workspace.ActiveTab);
         HandleSessionChanged();
     }
 

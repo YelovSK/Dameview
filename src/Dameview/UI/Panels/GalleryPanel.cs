@@ -29,11 +29,10 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private readonly Action<string> _openImage;
     private readonly Action<string> _openInNewTab;
     private readonly Scrollbar _scrollbar;
-    private readonly ScrollOffsetController _scrollOffset = new();
     private readonly Dictionary<string, GalleryItemSlot> _slots =
         new(StringComparer.OrdinalIgnoreCase);
-    private FolderEntry[] _entries = [];
-    private string? _selectedPath;
+    private GalleryPanelState _state = new();
+    private bool _scrollSelectionPending;
     private int _hoveredIndex = -1;
     private int _pressedIndex = -1;
 
@@ -68,11 +67,28 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     internal override bool PreservesFocusOnPointerPress => true;
     internal override UiCursor Cursor => _hoveredIndex >= 0 ? UiCursor.Pointer : UiCursor.Default;
 
+    internal void Bind(GalleryPanelState state)
+    {
+        if (ReferenceEquals(_state, state))
+        {
+            return;
+        }
+
+        _state = state;
+        _scrollSelectionPending = false;
+        ClearSlots();
+        _hoveredIndex = -1;
+        _pressedIndex = -1;
+        UpdateScrollMetrics();
+        RefreshVisibleThumbnails();
+        InvalidateVisual();
+    }
+
     internal void ApplyState(FolderEntry[] entries, string? selectedPath)
     {
-        bool entriesChanged = !ReferenceEquals(_entries, entries);
+        bool entriesChanged = !ReferenceEquals(_state.Entries, entries);
         bool selectionChanged = !string.Equals(
-            _selectedPath,
+            _state.SelectedPath,
             selectedPath,
             StringComparison.OrdinalIgnoreCase);
         if (!entriesChanged && !selectionChanged)
@@ -82,19 +98,16 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
         if (entriesChanged)
         {
-            _entries = entries;
+            _state.Entries = entries;
             ClearSlots();
             _hoveredIndex = -1;
             _pressedIndex = -1;
         }
 
-        _selectedPath = selectedPath;
-        if (selectionChanged || entriesChanged)
-        {
-            ScrollSelectionIntoView();
-        }
-
+        _state.SelectedPath = selectedPath;
+        _scrollSelectionPending = true;
         UpdateScrollMetrics();
+        RevealSelectionIfPending();
         RefreshVisibleThumbnails();
         InvalidateVisual();
     }
@@ -105,15 +118,15 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
     protected override void ArrangeCore(SizeF finalSize)
     {
-        ScrollSelectionIntoView();
         UpdateScrollMetrics();
+        RevealSelectionIfPending();
         RefreshVisibleThumbnails();
         _scrollbar.Arrange(new RectangleF(
             MathF.Max(0.0f, finalSize.Width - ScrollbarWidth),
             0.0f,
             ScrollbarWidth,
             finalSize.Height));
-        _scrollbar.SetMetrics(ContentHeight, finalSize.Height, _scrollOffset.Offset);
+        _scrollbar.SetMetrics(ContentHeight, finalSize.Height, _state.ScrollOffset.Offset);
     }
 
     protected override void DrawCore(in UiDrawContext context)
@@ -131,8 +144,8 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         context.DrawRoundedRectangle(panel, context.Palette.SurfaceBorder);
 
         (int first, int lastExclusive) = GetVisibleRange(
-            _entries.Length,
-            _scrollOffset.Offset,
+            _state.Entries.Length,
+            _state.ScrollOffset.Offset,
             Bounds.Height,
             ItemHeightDips,
             ColumnCount);
@@ -152,8 +165,8 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             ? HitTestIndex(
                 input.Position.X,
                 input.Position.Y,
-                _scrollOffset.Offset,
-                _entries.Length,
+                _state.ScrollOffset.Offset,
+                _state.Entries.Length,
                 ItemWidth,
                 ItemHeightDips,
                 ColumnCount)
@@ -172,7 +185,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             case UiPointerEventKind.Pressed when input.Button == PointerButton.Middle:
                 if (index >= 0)
                 {
-                    _openInNewTab(_entries[index].FullName);
+                    _openInNewTab(_state.Entries[index].FullName);
                 }
 
                 return new UiPointerResult(Consumed: true);
@@ -182,7 +195,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
                 _pressedIndex = -1;
                 if (pressed >= 0 && pressed == index)
                 {
-                    _openImage(_entries[pressed].FullName);
+                    _openImage(_state.Entries[pressed].FullName);
                 }
 
                 return new UiPointerResult(Consumed: true, NeedsRepaint: pressed >= 0);
@@ -193,7 +206,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
                 return new UiPointerResult(Consumed: true, NeedsRepaint: wasPressed);
 
             case UiPointerEventKind.Wheel:
-                bool scrollChanged = _scrollOffset.ScrollBy(-input.WheelDelta / 120.0f * WheelStep);
+                bool scrollChanged = _state.ScrollOffset.ScrollBy(-input.WheelDelta / 120.0f * WheelStep);
 
                 return new UiPointerResult(Consumed: true, NeedsRepaint: scrollChanged);
 
@@ -211,13 +224,13 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
     protected override bool UpdateCore(in UiUpdateContext context)
     {
-        if (!_scrollOffset.Update(context.ElapsedSeconds))
+        if (!_state.ScrollOffset.Update(context.ElapsedSeconds))
         {
             return false;
         }
 
         RefreshVisibleThumbnails();
-        _scrollbar.SetMetrics(ContentHeight, Bounds.Height, _scrollOffset.Offset);
+        _scrollbar.SetMetrics(ContentHeight, Bounds.Height, _state.ScrollOffset.Offset);
         InvalidateVisual();
         return true;
     }
@@ -294,18 +307,18 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
     private void DrawItem(in UiDrawContext context, int index)
     {
-        FolderEntry entry = _entries[index];
+        FolderEntry entry = _state.Entries[index];
         int columnCount = ColumnCount;
         int row = index / columnCount;
         int column = index % columnCount;
         float itemWidth = ItemWidth;
-        float y = PanelPadding + row * ItemHeightDips - _scrollOffset.Offset;
+        float y = PanelPadding + row * ItemHeightDips - _state.ScrollOffset.Offset;
         var itemBounds = new RectangleF(
             PanelPadding + column * (itemWidth + UiDesign.SmallSpacing),
             y,
             itemWidth,
             ItemHeightDips - UiDesign.SmallSpacing);
-        bool selected = string.Equals(entry.FullName, _selectedPath, StringComparison.OrdinalIgnoreCase);
+        bool selected = string.Equals(entry.FullName, _state.SelectedPath, StringComparison.OrdinalIgnoreCase);
         if (selected || index == _hoveredIndex || index == _pressedIndex)
         {
             Color4 color = selected
@@ -363,8 +376,8 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private void RefreshVisibleThumbnails()
     {
         (int first, int lastExclusive) = GetVisibleRange(
-            _entries.Length,
-            _scrollOffset.Offset,
+            _state.Entries.Length,
+            _state.ScrollOffset.Offset,
             Bounds.Height,
             ItemHeightDips,
             ColumnCount);
@@ -372,7 +385,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         float labelWidth = MathF.Max(0.0f, ItemWidth - 2.0f * ItemPadding);
         for (int index = first; index < lastExclusive; index++)
         {
-            FolderEntry entry = _entries[index];
+            FolderEntry entry = _state.Entries[index];
             string path = entry.FullName;
             visiblePaths.Add(path);
             if (_slots.TryGetValue(path, out GalleryItemSlot? existing))
@@ -416,8 +429,8 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private void ScrollSelectionIntoView()
     {
         int selectedIndex = Array.FindIndex(
-            _entries,
-            entry => string.Equals(entry.FullName, _selectedPath, StringComparison.OrdinalIgnoreCase));
+            _state.Entries,
+            entry => string.Equals(entry.FullName, _state.SelectedPath, StringComparison.OrdinalIgnoreCase));
         if (selectedIndex < 0 || Bounds.Height <= 0.0f)
         {
             return;
@@ -426,7 +439,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         int row = selectedIndex / ColumnCount;
         float top = PanelPadding + row * ItemHeightDips;
         float bottom = top + ItemHeightDips;
-        float target = _scrollOffset.TargetOffset;
+        float target = _state.ScrollOffset.TargetOffset;
         if (top < target)
         {
             target = top;
@@ -436,13 +449,24 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             target = bottom - Bounds.Height;
         }
 
-        _scrollOffset.SetImmediate(target);
+        _state.ScrollOffset.SetImmediate(target);
+    }
+
+    private void RevealSelectionIfPending()
+    {
+        if (!_scrollSelectionPending || Bounds.Height <= 0.0f)
+        {
+            return;
+        }
+
+        ScrollSelectionIntoView();
+        _scrollSelectionPending = false;
     }
 
     private void UpdateScrollMetrics()
     {
-        _scrollOffset.SetMaximum(MathF.Max(0.0f, ContentHeight - Bounds.Height));
-        _scrollbar.SetMetrics(ContentHeight, Bounds.Height, _scrollOffset.Offset);
+        _state.ScrollOffset.SetMaximum(MathF.Max(0.0f, ContentHeight - Bounds.Height));
+        _scrollbar.SetMetrics(ContentHeight, Bounds.Height, _state.ScrollOffset.Offset);
     }
 
     private const float ScrollbarWidth = 12.0f;
@@ -451,7 +475,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private int ColumnCount => GetColumnCount(ContentWidth);
     private float ItemWidth => GetItemWidth(ContentWidth, ColumnCount);
     private float ContentHeight => 2.0f * PanelPadding + RowCount * ItemHeightDips;
-    private int RowCount => (_entries.Length + ColumnCount - 1) / ColumnCount;
+    private int RowCount => (_state.Entries.Length + ColumnCount - 1) / ColumnCount;
 
     private static int GetColumnCount(float contentWidth)
     {
@@ -468,13 +492,13 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
     private void SetScrollOffset(float offset)
     {
-        if (!_scrollOffset.SetImmediate(offset))
+        if (!_state.ScrollOffset.SetImmediate(offset))
         {
             return;
         }
 
         RefreshVisibleThumbnails();
-        _scrollbar.SetMetrics(ContentHeight, Bounds.Height, _scrollOffset.Offset);
+        _scrollbar.SetMetrics(ContentHeight, Bounds.Height, _state.ScrollOffset.Offset);
         InvalidateVisual();
     }
 

@@ -38,7 +38,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     internal ViewerUi(
         ID2D1DeviceContext deviceContext,
         IDWriteFactory directWriteFactory,
-        ViewerSession session,
+        ViewerTab tab,
         float dpi,
         UiTheme theme,
         IViewerCommands commands,
@@ -52,6 +52,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _brush = deviceContext.CreateSolidColorBrush(default(Color4));
         Palette = theme;
         _animationClock = new UiAnimationClock(timeProvider);
+        ViewerSession session = tab.Session;
         _state = session.State;
         _imagePanel = new ImagePanel(
             deviceContext,
@@ -79,6 +80,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
             thumbnailLoader,
             commands.OpenImage,
             commands.OpenImageInNewTab);
+        _galleryPanel.Bind(tab.GalleryState);
         _mainOverlay = new Overlay(_contentOverlay, _statusPanel, _toolbarPanel);
         _splitView = new SplitView(
             _mainOverlay,
@@ -159,10 +161,12 @@ internal sealed class ViewerUi : UiElement, IDisposable
             UiDpi.DipsToPixels(point.Y - imageBounds.Y, _root.Dpi));
     }
 
-    internal void BindSession(ViewerSession session)
+    internal void BindTab(ViewerTab tab)
     {
         _root.ClearPointer();
+        ViewerSession session = tab.Session;
         _imagePanel.Bind(session.Viewport, session.Animator);
+        _galleryPanel.Bind(tab.GalleryState);
     }
 
     internal void ApplyState(ViewerSessionState state)
