@@ -11,6 +11,7 @@ internal enum ThumbnailPriority
 
 internal interface IThumbnailLoader
 {
+    /// <summary>Queues thread-safe thumbnail work whose completion is dispatched to the UI thread.</summary>
     public IDisposable Request(
         string path,
         ThumbnailPriority priority,

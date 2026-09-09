@@ -37,7 +37,11 @@ internal sealed class ImageDecoder : IImageDecoder
     {
         using IWICBitmapDecoder decoder = CreateDecoder(path, DecodeOptions.CacheOnDemand);
         using IWICBitmapFrameDecode frame = decoder.GetFrame(0);
-        return new ImageInfo(frame.Size.Width, frame.Size.Height);
+        ExifOrientation orientation = GetExifOrientation(frame);
+        bool swapsDimensions = SwapsDimensions(orientation);
+        return swapsDimensions
+            ? new ImageInfo(frame.Size.Height, frame.Size.Width)
+            : new ImageInfo(frame.Size.Width, frame.Size.Height);
     }
 
     internal DecodedImageUpload DecodeUpload(
@@ -152,6 +156,12 @@ internal sealed class ImageDecoder : IImageDecoder
             _ => BitmapTransformOptions.Rotate0,
         };
     }
+
+    private static bool SwapsDimensions(ExifOrientation orientation) =>
+        orientation is ExifOrientation.Transpose
+            or ExifOrientation.Rotate90Clockwise
+            or ExifOrientation.Transverse
+            or ExifOrientation.Rotate270Clockwise;
 
     internal static DecodedImage ApplyExifOrientation(
         ExifOrientation orientation,

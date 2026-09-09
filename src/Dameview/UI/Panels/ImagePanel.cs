@@ -210,21 +210,11 @@ internal sealed class ImagePanel : UiElement, IDisposable
         }
 
         RectangleF destination = _viewport.GetDestinationRectangle();
-        if (_isPreview)
-        {
-            float scale = MathF.Min(Bounds.Width / image.PixelSize.Width, Bounds.Height / image.PixelSize.Height);
-            float width = image.PixelSize.Width * scale;
-            float height = image.PixelSize.Height * scale;
-            destination = new RectangleF((Bounds.Width - width) / 2, (Bounds.Height - height) / 2, width, height);
-        }
-        else
-        {
-            destination = new RectangleF(
-                context.PixelsToDips(destination.X),
-                context.PixelsToDips(destination.Y),
-                context.PixelsToDips(destination.Width),
-                context.PixelsToDips(destination.Height));
-        }
+        destination = new RectangleF(
+            context.PixelsToDips(destination.X),
+            context.PixelsToDips(destination.Y),
+            context.PixelsToDips(destination.Width),
+            context.PixelsToDips(destination.Height));
 
         context.RenderTarget.DrawBitmap(
             image,

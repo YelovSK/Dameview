@@ -456,10 +456,12 @@ public sealed class ImageLoadServiceTests
     {
         using var release = new ManualResetEventSlim();
         using var posted = new BlockingCollection<Action>();
-        using var thumbnails = new ThumbnailCoordinator(posted.Add, _ => CreateImage());
+        using var thumbnails = new ThumbnailCoordinator(posted.Add, _ => CreateImage(512, 512));
         using var coordinator = new TestClient(posted.Add,
             new FakeImageLoadingBackend(
-                () => new FakeImageDecoder(_ => { release.Wait(); return CreateImage(); })),
+                () => new FakeImageDecoder(
+                    _ => { release.Wait(); return CreateImage(100, 100); },
+                    _ => new ImageInfo(100, 100))),
             TestPolicy,
             thumbnails);
         var results = new List<ImageLoaded>();
@@ -469,11 +471,18 @@ public sealed class ImageLoadServiceTests
             Assert.IsTrue(posted.TryTake(out Action? preview, TimeSpan.FromSeconds(5)));
             preview();
             Assert.IsTrue(results[0].IsPreview);
+            Assert.AreEqual(100, results[0].Representation.Width);
+            Assert.AreEqual(100, results[0].Representation.Height);
+            var previewImage = (DecodedImageRepresentation)results[0].Representation;
+            Assert.AreEqual(512, previewImage.Image.Width);
+            Assert.AreEqual(512, previewImage.Image.Height);
             release.Set();
             Assert.IsTrue(posted.TryTake(out Action? full, TimeSpan.FromSeconds(5)));
             full();
             Assert.HasCount(2, results);
             Assert.IsFalse(results[1].IsPreview);
+            Assert.AreEqual(results[0].Representation.Width, results[1].Representation.Width);
+            Assert.AreEqual(results[0].Representation.Height, results[1].Representation.Height);
         }
         finally
         {
@@ -537,9 +546,10 @@ public sealed class ImageLoadServiceTests
         Assert.IsFalse(((ImageLoaded)result).IsPreview);
     }
 
-    private static DecodedImage CreateImage()
+    private static DecodedImage CreateImage(int width = 1, int height = 1)
     {
-        return new DecodedImage(1, 1, 4, new byte[4]);
+        int stride = checked(width * 4);
+        return new DecodedImage(width, height, stride, new byte[checked(stride * height)]);
     }
 
     private static void DisposeResult(ImageLoadResult result)

@@ -88,7 +88,6 @@ internal sealed class ImageLoadService : IDisposable
 
     internal void Load(ImageLoadClient client, string path, Action<ImageLoadResult> completed)
     {
-        LoadRequest request;
         IDisposable? previousPreview;
         lock (_sync)
         {
@@ -97,41 +96,13 @@ internal sealed class ImageLoadService : IDisposable
             previousPreview = state.PreviewRequest;
             state.PreviewRequest = null;
             var cancellation = new CancellationTokenSource();
-            request = new LoadRequest(client, path, completed, cancellation);
+            var request = new LoadRequest(client, path, completed, cancellation);
             state.CurrentLoad = request;
+            state.PendingLoad = request;
+            QueueClient(client, state);
         }
 
         previousPreview?.Dispose();
-        bool supportsAnimation = _backend.SupportsAnimation(path);
-        IDisposable? previewRequest = supportsAnimation
-            ? null
-            : _thumbnailLoader.Request(
-                path,
-                ThumbnailPriority.Foreground,
-                image => Deliver(request, new ImageLoaded(
-                    request.Path,
-                    new DecodedImageRepresentation(image),
-                    IsPreview: true)));
-
-        bool accepted;
-        lock (_sync)
-        {
-            _clients.TryGetValue(client, out ClientState? state);
-            accepted = state is not null
-                && ReferenceEquals(state.CurrentLoad, request)
-                && !request.IsComplete;
-            if (accepted)
-            {
-                state!.PreviewRequest = previewRequest;
-                state.PendingLoad = request;
-                QueueClient(client, state);
-            }
-        }
-
-        if (!accepted)
-        {
-            previewRequest?.Dispose();
-        }
     }
 
     internal void Preload(
@@ -273,7 +244,7 @@ internal sealed class ImageLoadService : IDisposable
                     try
                     {
                         result = DecodeForeground(
-                            request.Path,
+                            request,
                             decoder!,
                             request.Cancellation.Token);
                     }
@@ -312,35 +283,37 @@ internal sealed class ImageLoadService : IDisposable
     }
 
     private ImageLoaded DecodeForeground(
-        string path,
+        LoadRequest request,
         IImageDecoder decoder,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (!_backend.SupportsAnimation(path))
+        if (!_backend.SupportsAnimation(request.Path))
         {
-            if (RequiresTiledRepresentation(path, decoder))
+            ImageInfo sourceInfo = decoder.GetInfo(request.Path);
+            RequestPreview(request, sourceInfo);
+            if (_representationPolicy.RequiresTiling(sourceInfo))
             {
-                IImageTileSource tiledImage = _backend.OpenTiledImage(path);
-                return new ImageLoaded(path, new TiledImageRepresentation(tiledImage));
+                IImageTileSource tiledImage = _backend.OpenTiledImage(request.Path);
+                return new ImageLoaded(request.Path, new TiledImageRepresentation(tiledImage));
             }
 
             return new ImageLoaded(
-                path,
-                new UploadImageRepresentation(DecodeShared(path, decoder, cancellationToken)));
+                request.Path,
+                new UploadImageRepresentation(DecodeShared(request.Path, decoder, cancellationToken)));
         }
 
-        IAnimationSession? animation = _backend.OpenAnimation(path);
+        IAnimationSession? animation = _backend.OpenAnimation(request.Path);
         try
         {
             if (!animation.IsAnimated)
             {
                 return new ImageLoaded(
-                    path,
+                    request.Path,
                     new DecodedImageRepresentation(animation.FirstFrame.Image));
             }
 
-            var result = new ImageLoaded(path, new AnimatedImageRepresentation(animation));
+            var result = new ImageLoaded(request.Path, new AnimatedImageRepresentation(animation));
             animation = null;
             return result;
         }
@@ -398,6 +371,36 @@ internal sealed class ImageLoadService : IDisposable
     private bool RequiresTiledRepresentation(string path, IImageDecoder decoder)
     {
         return _representationPolicy.RequiresTiling(decoder.GetInfo(path));
+    }
+
+    private void RequestPreview(LoadRequest request, ImageInfo sourceInfo)
+    {
+        if (!IsCurrent(request))
+        {
+            return;
+        }
+
+        IDisposable previewRequest = _thumbnailLoader.Request(
+            request.Path,
+            ThumbnailPriority.Foreground,
+            image => Deliver(request, new ImageLoaded(
+                request.Path,
+                new DecodedImageRepresentation(image, sourceInfo),
+                IsPreview: true)));
+        bool accepted;
+        lock (_sync)
+        {
+            accepted = IsCurrentUnsafe(request);
+            if (accepted)
+            {
+                _clients[request.Client].PreviewRequest = previewRequest;
+            }
+        }
+
+        if (!accepted)
+        {
+            previewRequest.Dispose();
+        }
     }
 
     private DecodedImageUpload DecodeShared(
@@ -542,12 +545,16 @@ internal sealed class ImageLoadService : IDisposable
     {
         lock (_sync)
         {
-            return !_stopping
-                && _clients.TryGetValue(request.Client, out ClientState? state)
-                && ReferenceEquals(state.CurrentLoad, request)
-                && !request.IsComplete;
+            return IsCurrentUnsafe(request);
         }
     }
+
+    // The caller must hold _sync.
+    private bool IsCurrentUnsafe(LoadRequest request) =>
+        !_stopping
+        && _clients.TryGetValue(request.Client, out ClientState? state)
+        && ReferenceEquals(state.CurrentLoad, request)
+        && !request.IsComplete;
 
     private void Deliver(LoadRequest request, ImageLoadResult result)
     {
@@ -555,15 +562,12 @@ internal sealed class ImageLoadService : IDisposable
         IDisposable? preview = null;
         lock (_sync)
         {
-            _clients.TryGetValue(request.Client, out ClientState? state);
-            accepted = !_stopping
-                && state is not null
-                && ReferenceEquals(state.CurrentLoad, request)
-                && !request.IsComplete;
+            accepted = IsCurrentUnsafe(request);
             if (accepted && result is not ImageLoaded { IsPreview: true })
             {
                 request.IsComplete = true;
-                preview = state!.PreviewRequest;
+                ClientState state = _clients[request.Client];
+                preview = state.PreviewRequest;
                 state.PreviewRequest = null;
             }
         }
