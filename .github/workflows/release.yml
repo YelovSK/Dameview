@@ -28,7 +28,10 @@ jobs:
         run: dotnet test Dameview.slnx --configuration Release --no-restore
 
       - name: Publish Native AOT executable
-        run: dotnet publish src/Dameview/Dameview.csproj --configuration Release --runtime win-x64 --self-contained true --no-restore --output publish
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          dotnet publish src/Dameview/Dameview.csproj --configuration Release --runtime win-x64 --self-contained true --no-restore --output publish -p:Version=$version
 
       - name: Create GitHub release
         shell: pwsh
