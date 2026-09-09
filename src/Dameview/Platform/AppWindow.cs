@@ -391,7 +391,7 @@ internal sealed unsafe class AppWindow : IDisposable
             case WM_ERASEBKGND:
                 return (LRESULT)1;
 
-            case WM_SETCURSOR:
+            case WM_SETCURSOR when GetLowWord(lParam) == HTCLIENT:
                 ApplyCursor(_cursor);
                 return (LRESULT)1;
 
@@ -539,6 +539,11 @@ internal sealed unsafe class AppWindow : IDisposable
     private static int GetY(nint value)
     {
         return unchecked((short)((long)value >> 16));
+    }
+
+    private static int GetLowWord(nint value)
+    {
+        return unchecked((short)(long)value);
     }
 
     private static int GetHighWord(nuint value)
