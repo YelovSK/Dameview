@@ -30,6 +30,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private readonly PopupHost _popupHost;
     private readonly UiAnimationClock _animationClock;
     private readonly UiRoot _root;
+    private readonly Action<ViewerPane> _selectPane;
     private ViewerPane _activePane;
     private ViewerPaneView _activePaneView;
 
@@ -48,6 +49,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     {
         _deviceContext = deviceContext;
         _brush = deviceContext.CreateSolidColorBrush(default(Color4));
+        _selectPane = commands.SelectPane;
         Palette = theme;
         _animationClock = new UiAnimationClock(timeProvider);
         _activePane = workspace.ActivePane;
@@ -66,6 +68,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
                 postToUi));
         _activePaneView = FindPaneView(_activePane)
             ?? throw new InvalidOperationException("The active pane view was not created.");
+        _workspaceView.SetActivePane(_activePane);
         _toolbarPanel = new ToolbarPanel(directWriteFactory, commands, ShowSettings);
         _galleryPanel = new GalleryPanel(
             deviceContext,
@@ -94,6 +97,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         AddChild(_popupHost);
         _root = new UiRoot(this, dpi);
         _root.CursorChanged += cursor => _cursorChanged?.Invoke(cursor);
+        _root.PointerPressed += HandlePointerPressed;
 
         ViewerSessionState state = _activePane.ActiveSession.State;
         bool hasImage = _activePaneView.HasImage;
@@ -166,6 +170,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
             paneView.SettingsError = _settingsPanel.Error;
         }
 
+        _workspaceView.SetActivePane(pane);
+
         ViewerSessionState state = pane.ActiveSession.State;
         _galleryPanel.Bind(pane.ActiveTab.GalleryState);
         ApplyActivePaneState(state, showToolbar: false);
@@ -179,6 +185,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _activePaneView = FindPaneView(_activePane)
             ?? throw new InvalidOperationException("The active pane view is not attached.");
         _activePaneView.SettingsError = _settingsPanel.Error;
+        _workspaceView.SetActivePane(_activePane);
     }
 
     internal void BindTab(ViewerPane pane, ViewerTab tab)
@@ -321,6 +328,18 @@ internal sealed class ViewerUi : UiElement, IDisposable
         RectangleF paneBounds = paneView.GetBoundsRelativeTo(this);
         tabBounds.Offset(paneBounds.Location);
         _tabPreview.Show(path, tabBounds);
+    }
+
+    private void HandlePointerPressed(UiElement? target)
+    {
+        for (UiElement? element = target; element is not null; element = element.Parent)
+        {
+            if (element is ViewerPaneView paneView)
+            {
+                _selectPane(paneView.Pane);
+                return;
+            }
+        }
     }
 
     private void ShowSettings()

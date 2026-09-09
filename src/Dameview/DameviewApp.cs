@@ -156,6 +156,11 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         _workspace.OpenImageInNewTab(path);
     }
 
+    public void SelectPane(ViewerPane pane)
+    {
+        _workspace.SelectPane(pane);
+    }
+
     public void SelectTab(ViewerPane pane, int index)
     {
         _workspace.SelectTab(pane, index);

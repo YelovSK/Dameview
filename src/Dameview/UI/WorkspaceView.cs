@@ -45,6 +45,15 @@ internal sealed class WorkspaceView : UiElement, IDisposable
         return _paneViews.GetValueOrDefault(pane);
     }
 
+    internal void SetActivePane(ViewerPane activePane)
+    {
+        bool showIndicator = _paneViews.Count > 1;
+        foreach ((ViewerPane pane, ViewerPaneView paneView) in _paneViews)
+        {
+            paneView.ShowActivePaneIndicator = showIndicator && ReferenceEquals(pane, activePane);
+        }
+    }
+
     internal void ApplyLayout(WorkspaceNode root)
     {
         ArgumentNullException.ThrowIfNull(root);

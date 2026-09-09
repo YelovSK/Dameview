@@ -18,6 +18,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     private readonly EmptyStatePanel _emptyStatePanel;
     private readonly Overlay _contentOverlay;
     private readonly StatusPanel _statusPanel;
+    private readonly ActivePaneIndicator _activePaneIndicator;
     private readonly Action<ViewerPane, ViewerTabInfo?, RectangleF> _hoveredTabChanged;
     private ViewerSessionState _state;
 
@@ -57,10 +58,12 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             showSettings);
         _contentOverlay = new Overlay(_imagePanel, _emptyStatePanel);
         _statusPanel = new StatusPanel(directWriteFactory);
+        _activePaneIndicator = new ActivePaneIndicator { IsVisible = false };
 
         AddChild(_viewerTabs);
         AddChild(_contentOverlay);
         AddChild(_statusPanel);
+        AddChild(_activePaneIndicator);
 
         bool hasImage = HasImage;
         _imagePanel.IsVisible = hasImage;
@@ -82,6 +85,12 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     internal UiElement EmptyStateFocusScope => _emptyStatePanel;
     internal UiElement EmptyStateSettingsButton => _emptyStatePanel.SettingsButton;
     internal TimeSpan? NextAnimationFrameDelay => _imagePanel.NextAnimationFrameDelay;
+
+    internal bool ShowActivePaneIndicator
+    {
+        get => _activePaneIndicator.IsVisible;
+        set => _activePaneIndicator.IsVisible = value;
+    }
 
     internal string? SettingsError
     {
@@ -203,6 +212,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             showToolbar: false).Status;
         status.Offset(ContentBounds.Location);
         _statusPanel.Arrange(status);
+        _activePaneIndicator.Arrange(new RectangleF(PointF.Empty, finalSize));
     }
 
     protected override bool HitTestCore(PointF position) => false;
@@ -238,5 +248,21 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             ?? throw new InvalidOperationException("The embedded application icon could not be found.");
         using var decoder = new ImageDecoder();
         return D2DBitmapFactory.Create(deviceContext, decoder.Decode(stream));
+    }
+
+    private sealed class ActivePaneIndicator : UiElement
+    {
+        internal override bool IsHitTestVisible => false;
+
+        protected override void DrawCore(in UiDrawContext context)
+        {
+            context.DrawRoundedRectangle(
+                new RoundedRectangle(
+                    new RectangleF(PointF.Empty, Bounds.Size),
+                    UiDesign.ControlCornerRadius,
+                    UiDesign.ControlCornerRadius),
+                context.Palette.Accent,
+                strokeWidth: 2.0f);
+        }
     }
 }

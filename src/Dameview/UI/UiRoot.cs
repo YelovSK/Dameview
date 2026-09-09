@@ -20,6 +20,7 @@ internal sealed class UiRoot
 
     internal event Action? Invalidated;
     internal event Action<UiCursor>? CursorChanged;
+    internal event Action<UiElement?>? PointerPressed;
 
     internal UiElement? CapturedElement { get; private set; }
     internal UiElement? FocusedElement { get; private set; }
@@ -80,6 +81,7 @@ internal sealed class UiRoot
         UiElement? target = CapturedElement ?? hit;
         if (input.Kind == UiPointerEventKind.Pressed)
         {
+            PointerPressed?.Invoke(target);
             UiElement? focusable = FindFocusable(target);
             if (focusable is not null || target?.PreservesFocusOnPointerPress != true)
             {

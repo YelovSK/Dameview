@@ -16,6 +16,8 @@ internal interface IViewerCommands
 
     public void OpenImageInNewTab(string path);
 
+    public void SelectPane(ViewerPane pane);
+
     public void SelectTab(ViewerPane pane, int index);
 
     public void CloseTab(ViewerPane pane, int index);

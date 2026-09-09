@@ -168,6 +168,32 @@ public sealed class UiRootTests
         Assert.IsFalse(child.HasVisualState(UiVisualState.Focused));
     }
 
+    [TestMethod]
+    public void PressNotificationReportsTheHitElementBeforeRouting()
+    {
+        int stage = 0;
+        var child = new TestElement(_ =>
+        {
+            Assert.AreEqual(1, stage);
+            stage = 2;
+            return new UiPointerResult(Consumed: true);
+        });
+        var content = new TestContainer(child, new RectangleF(100, 200, 80, 40));
+        var root = new UiRoot(content, UiDpi.Default);
+        UiElement? pressedTarget = null;
+        root.PointerPressed += target =>
+        {
+            pressedTarget = target;
+            stage = 1;
+        };
+        root.Arrange(new SizeF(800, 600));
+
+        root.HandlePointer(Pointer(UiPointerEventKind.Pressed, 110, 210));
+
+        Assert.AreSame(child, pressedTarget);
+        Assert.AreEqual(2, stage);
+    }
+
     private static UiPointerEvent Pointer(UiPointerEventKind kind, float x, float y)
     {
         return new UiPointerEvent(kind, new PointF(x, y), PointerButton.Primary);
