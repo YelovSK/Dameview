@@ -19,14 +19,10 @@ internal sealed class ViewerUi : UiElement, IDisposable
 {
     private readonly ID2D1DeviceContext _deviceContext;
     private readonly ID2D1SolidColorBrush _brush;
-    private readonly ImagePanel _imagePanel;
-    private readonly ViewerTabStrip _viewerTabs;
+    private readonly ViewerPaneView _paneView;
     private readonly TabPreview _tabPreview;
-    private readonly EmptyStatePanel _emptyStatePanel;
-    private readonly Overlay _contentOverlay;
     private readonly Overlay _mainOverlay;
     private readonly SplitView _splitView;
-    private readonly StatusPanel _statusPanel;
     private readonly ToolbarPanel _toolbarPanel;
     private readonly GalleryPanel _galleryPanel;
     private readonly SettingsPanel _settingsPanel;
@@ -34,12 +30,11 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private readonly PopupHost _popupHost;
     private readonly UiAnimationClock _animationClock;
     private readonly UiRoot _root;
-    private ViewerSessionState _state;
 
     internal ViewerUi(
         ID2D1DeviceContext deviceContext,
         IDWriteFactory directWriteFactory,
-        ViewerTab tab,
+        ViewerPane pane,
         float dpi,
         UiTheme theme,
         IViewerCommands commands,
@@ -53,29 +48,17 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _brush = deviceContext.CreateSolidColorBrush(default(Color4));
         Palette = theme;
         _animationClock = new UiAnimationClock(timeProvider);
-        ViewerSession session = tab.Session;
-        _state = session.State;
-        _imagePanel = new ImagePanel(
+        _tabPreview = new TabPreview(deviceContext, thumbnailLoader);
+        _paneView = new ViewerPaneView(
             deviceContext,
-            session.Viewport,
-            session.Animator,
-            timeProvider,
-            postToUi);
-        _viewerTabs = new ViewerTabStrip(
             directWriteFactory,
-            [new ViewerTabInfo("Dameview", null)],
-            0,
+            pane,
             commands.SelectTab,
             commands.CloseTab,
-            ShowTabPreview);
-        _viewerTabs.IsVisible = false;
-        _tabPreview = new TabPreview(deviceContext, thumbnailLoader);
-        _emptyStatePanel = new EmptyStatePanel(
-            directWriteFactory,
-            LoadApplicationIcon(deviceContext),
-            ShowSettings);
-        _contentOverlay = new Overlay(_imagePanel, _emptyStatePanel);
-        _statusPanel = new StatusPanel(directWriteFactory);
+            ShowSettings,
+            ShowTabPreview,
+            timeProvider,
+            postToUi);
         _toolbarPanel = new ToolbarPanel(directWriteFactory, commands, ShowSettings);
         _galleryPanel = new GalleryPanel(
             deviceContext,
@@ -83,8 +66,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
             thumbnailLoader,
             commands.OpenImage,
             commands.OpenImageInNewTab);
-        _galleryPanel.Bind(tab.GalleryState);
-        _mainOverlay = new Overlay(_contentOverlay, _statusPanel, _toolbarPanel);
+        _galleryPanel.Bind(pane.ActiveTab.GalleryState);
+        _mainOverlay = new Overlay(_paneView, _toolbarPanel);
         _splitView = new SplitView(
             _mainOverlay,
             _galleryPanel,
@@ -98,7 +81,6 @@ internal sealed class ViewerUi : UiElement, IDisposable
             setTheme,
             setSort);
 
-        AddChild(_viewerTabs);
         AddChild(_splitView);
         AddChild(_tabPreview);
         AddChild(_modalHost);
@@ -106,17 +88,14 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _root = new UiRoot(this, dpi);
         _root.CursorChanged += cursor => _cursorChanged?.Invoke(cursor);
 
-        bool hasImage = _state.DisplayedImage is not null;
-        _imagePanel.IsVisible = hasImage;
-        _emptyStatePanel.IsVisible = !hasImage;
+        ViewerSessionState state = pane.ActiveSession.State;
+        bool hasImage = _paneView.HasImage;
         _toolbarPanel.IsVisible = hasImage;
-        _statusPanel.IsVisible = HasStatus;
-        _galleryPanel.IsVisible = _state.FolderEntries.Length > 0;
+        _galleryPanel.IsVisible = state.FolderEntries.Length > 0;
         _splitView.SecondPaneVisible = _galleryPanel.IsVisible;
-        _galleryPanel.ApplyState(_state.FolderEntries, _state.RequestedPath);
-        if (_state.DisplayedImage is { } displayed)
+        _galleryPanel.ApplyState(state.FolderEntries, state.RequestedPath);
+        if (hasImage)
         {
-            ApplyDisplayedImage(displayed);
             _toolbarPanel.Show();
         }
     }
@@ -147,52 +126,42 @@ internal sealed class ViewerUi : UiElement, IDisposable
             }
 
             _settingsPanel.Error = value;
-            _statusPanel.IsVisible = HasStatus;
+            _paneView.SettingsError = value;
             _root.InvalidateVisual();
         }
     }
 
-    internal TimeSpan? NextAnimationFrameDelay => _imagePanel.NextAnimationFrameDelay;
+    internal TimeSpan? NextAnimationFrameDelay => _paneView.NextAnimationFrameDelay;
 
     internal PointF GetImageViewportPoint(PointF nativePoint)
     {
         PointF point = new(
             UiDpi.PixelsToDips(nativePoint.X, _root.Dpi),
             UiDpi.PixelsToDips(nativePoint.Y, _root.Dpi));
-        RectangleF imageBounds = _imagePanel.GetBoundsRelativeTo(this);
-        return new PointF(
-            UiDpi.DipsToPixels(point.X - imageBounds.X, _root.Dpi),
-            UiDpi.DipsToPixels(point.Y - imageBounds.Y, _root.Dpi));
+        RectangleF paneBounds = _paneView.GetBoundsRelativeTo(this);
+        return _paneView.GetImageViewportPoint(
+            new PointF(point.X - paneBounds.X, point.Y - paneBounds.Y),
+            _root.Dpi);
     }
 
     internal void BindTab(ViewerTab tab)
     {
         _root.ClearPointer();
-        ViewerSession session = tab.Session;
-        _imagePanel.Bind(session.Viewport, session.Animator);
+        _paneView.BindTab(tab);
         _galleryPanel.Bind(tab.GalleryState);
     }
 
     internal void ApplyState(ViewerSessionState state)
     {
-        bool hadDisplayedImage = _state.DisplayedImage is not null;
-        bool displayedImageChanged = !ReferenceEquals(_state.DisplayedImage, state.DisplayedImage);
-        _state = state;
-        if (displayedImageChanged && state.DisplayedImage is { } displayed)
+        bool hadDisplayedImage = _paneView.HasImage;
+        _paneView.ApplyState(state);
+        bool hasImage = _paneView.HasImage;
+        _toolbarPanel.IsVisible = hasImage;
+        if (hasImage && !hadDisplayedImage)
         {
-            _root.ClearPointer();
-            ApplyDisplayedImage(displayed);
-            if (!hadDisplayedImage)
-            {
-                _toolbarPanel.Show();
-            }
+            _toolbarPanel.Show();
         }
 
-        bool hasImage = state.DisplayedImage is not null;
-        _imagePanel.IsVisible = hasImage;
-        _emptyStatePanel.IsVisible = !hasImage;
-        _toolbarPanel.IsVisible = hasImage;
-        _statusPanel.IsVisible = HasStatus;
         _galleryPanel.IsVisible = state.FolderEntries.Length > 0;
         _splitView.SecondPaneVisible = _galleryPanel.IsVisible;
         _galleryPanel.ApplyState(state.FolderEntries, state.RequestedPath);
@@ -203,12 +172,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     internal void ApplyTabs(IReadOnlyList<ViewerTabInfo> tabs, int selectedIndex)
     {
-        _viewerTabs.SetTabs(tabs, selectedIndex);
-        _viewerTabs.IsVisible = tabs.Count > 1;
-        if (!_viewerTabs.IsVisible)
-        {
-            _tabPreview.Hide();
-        }
+        _paneView.ApplyTabs(tabs, selectedIndex);
     }
 
     internal bool HandleKey(UiKeyEvent input)
@@ -237,7 +201,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
             return true;
         }
 
-        UiElement focusScope = _toolbarPanel.IsVisible ? _toolbarPanel : _emptyStatePanel;
+        UiElement focusScope = _toolbarPanel.IsVisible ? _toolbarPanel : _paneView.EmptyStateFocusScope;
         return _root.HandleKey(input, focusScope, wrapFocus: false, directionalNavigation: false);
     }
 
@@ -257,7 +221,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     internal void DrawFrame(SizeF pixelSize)
     {
-        UpdateStatus();
+        _paneView.UpdateStatus();
         var context = new UiDrawContext(_deviceContext, _brush, Palette, _root.Dpi);
         _root.Draw(context, pixelSize);
     }
@@ -266,12 +230,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     protected override SizeF MeasureCore(SizeF availableSize)
     {
-        float tabHeight = _viewerTabs.IsVisible
-            ? _viewerTabs.Measure(new SizeF(availableSize.Width, ViewerTabStrip.HeightDips)).Height
-            : 0.0f;
-        _splitView.Measure(new SizeF(
-            availableSize.Width,
-            MathF.Max(0.0f, availableSize.Height - tabHeight)));
+        _splitView.Measure(availableSize);
         _tabPreview.Measure(availableSize);
         _modalHost.Measure(availableSize);
         _popupHost.Measure(availableSize);
@@ -280,20 +239,18 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     protected override void ArrangeCore(SizeF finalSize)
     {
-        float tabHeight = _viewerTabs.IsVisible ? ViewerTabStrip.HeightDips : 0.0f;
-        _viewerTabs.Arrange(new RectangleF(0.0f, 0.0f, finalSize.Width, tabHeight));
-        _splitView.Arrange(new RectangleF(
-            0.0f,
-            tabHeight,
-            finalSize.Width,
-            MathF.Max(0.0f, finalSize.Height - tabHeight)));
+        _splitView.Arrange(new RectangleF(PointF.Empty, finalSize));
+        RectangleF paneBounds = _paneView.GetBoundsRelativeTo(_mainOverlay);
+        RectangleF contentBounds = _paneView.ContentBounds;
+        contentBounds.Offset(paneBounds.Location);
         var layout = ViewerLayout.Calculate(
-            _splitView.FirstPaneBounds.Size,
-            HasStatus,
+            contentBounds.Size,
+            showStatus: false,
             showToolbar: _toolbarPanel.IsVisible,
             toolbarWidthDips: ToolbarPanel.WidthDips);
-        _statusPanel.Arrange(layout.Status);
-        _toolbarPanel.Arrange(layout.Toolbar);
+        RectangleF toolbarBounds = layout.Toolbar;
+        toolbarBounds.Offset(contentBounds.Location);
+        _toolbarPanel.Arrange(toolbarBounds);
         _tabPreview.Arrange(new RectangleF(PointF.Empty, finalSize));
         _modalHost.Arrange(new RectangleF(PointF.Empty, finalSize));
         _popupHost.Arrange(new RectangleF(PointF.Empty, finalSize));
@@ -307,19 +264,11 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _popupHost.Close();
         _tabPreview.Dispose();
         _settingsPanel.Dispose();
-        _viewerTabs.Dispose();
         _toolbarPanel.Dispose();
         _galleryPanel.Dispose();
-        _statusPanel.Dispose();
-        _emptyStatePanel.Dispose();
-        _imagePanel.Dispose();
+        _paneView.Dispose();
         _brush.Dispose();
     }
-
-    private bool HasStatus => SettingsError is not null
-        || _state.DisplayedImage is not null
-        || _state.Message is not null
-        || _state.FolderError is not null;
 
     private void ShowTabPreview(ViewerTabInfo? tab, RectangleF tabBounds)
     {
@@ -329,8 +278,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
             return;
         }
 
-        RectangleF stripBounds = _viewerTabs.GetBoundsRelativeTo(this);
-        tabBounds.Offset(stripBounds.Location);
+        RectangleF paneBounds = _paneView.GetBoundsRelativeTo(this);
+        tabBounds.Offset(paneBounds.Location);
         _tabPreview.Show(path, tabBounds);
     }
 
@@ -361,47 +310,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
         }
         else
         {
-            _root.SetFocus(_emptyStatePanel.SettingsButton);
+            _root.SetFocus(_paneView.EmptyStateSettingsButton);
         }
-    }
-
-    private void UpdateStatus()
-    {
-        if (!HasStatus)
-        {
-            return;
-        }
-
-        string? animationError = _imagePanel.AnimationError is { } exception
-            ? $"Animation stopped: {exception.Message}"
-            : null;
-        string? message = SettingsError ?? animationError ?? _state.Message;
-        if (message is null && _state.FolderError is { } folderError)
-        {
-            message = $"Image opened, but its folder could not be read: {folderError}";
-        }
-
-        _statusPanel.Status = new ViewerStatus(
-            Path.GetFileName(_state.RequestedPath) ?? string.Empty,
-            _state.DisplayedImage?.Representation.Width ?? 0,
-            _state.DisplayedImage?.Representation.Height ?? 0,
-            _imagePanel.ZoomPercentage,
-            message,
-            SettingsError is not null || animationError is not null || _state.IsError || _state.FolderError is not null);
-    }
-
-    private void ApplyDisplayedImage(ImageLoaded displayed)
-    {
-        _imagePanel.SetImage(displayed.Representation, displayed.IsPreview);
-    }
-
-    private static ID2D1Bitmap1 LoadApplicationIcon(ID2D1DeviceContext deviceContext)
-    {
-        using Stream stream = typeof(ViewerUi).Assembly.GetManifestResourceStream(
-            "Dameview.Assets.dameview.png")
-            ?? throw new InvalidOperationException("The embedded application icon could not be found.");
-        using var decoder = new ImageDecoder();
-        return D2DBitmapFactory.Create(deviceContext, decoder.Decode(stream));
     }
 }
 

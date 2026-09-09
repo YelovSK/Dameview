@@ -1,0 +1,236 @@
+using System.Drawing;
+using Dameview.Imaging;
+using Dameview.Platform;
+using Dameview.UI.Components;
+using Dameview.UI.Layout;
+using Dameview.UI.Panels;
+using Dameview.Viewing;
+using Vortice.Direct2D1;
+using Vortice.DirectWrite;
+
+namespace Dameview.UI;
+
+// Presents the active tab of one viewer pane. Shared application chrome remains in ViewerUi.
+internal sealed class ViewerPaneView : UiElement, IDisposable
+{
+    private readonly ImagePanel _imagePanel;
+    private readonly ViewerTabStrip _viewerTabs;
+    private readonly EmptyStatePanel _emptyStatePanel;
+    private readonly Overlay _contentOverlay;
+    private readonly StatusPanel _statusPanel;
+    private readonly Action<ViewerTabInfo?, RectangleF> _hoveredTabChanged;
+    private ViewerSessionState _state;
+
+    internal ViewerPaneView(
+        ID2D1DeviceContext deviceContext,
+        IDWriteFactory directWriteFactory,
+        ViewerPane pane,
+        Action<int> selectTab,
+        Action<int> closeTab,
+        Action showSettings,
+        Action<ViewerTabInfo?, RectangleF> hoveredTabChanged,
+        TimeProvider? timeProvider = null,
+        UiPost? postToUi = null)
+    {
+        _hoveredTabChanged = hoveredTabChanged;
+        ViewerTab tab = pane.ActiveTab;
+        ViewerSession session = tab.Session;
+        _state = session.State;
+        _imagePanel = new ImagePanel(
+            deviceContext,
+            session.Viewport,
+            session.Animator,
+            timeProvider,
+            postToUi);
+        _viewerTabs = new ViewerTabStrip(
+            directWriteFactory,
+            [new ViewerTabInfo("Dameview", null)],
+            0,
+            selectTab,
+            closeTab,
+            HandleHoveredTabChanged);
+        _viewerTabs.IsVisible = false;
+        _emptyStatePanel = new EmptyStatePanel(
+            directWriteFactory,
+            LoadApplicationIcon(deviceContext),
+            showSettings);
+        _contentOverlay = new Overlay(_imagePanel, _emptyStatePanel);
+        _statusPanel = new StatusPanel(directWriteFactory);
+
+        AddChild(_viewerTabs);
+        AddChild(_contentOverlay);
+        AddChild(_statusPanel);
+
+        bool hasImage = HasImage;
+        _imagePanel.IsVisible = hasImage;
+        _emptyStatePanel.IsVisible = !hasImage;
+        _statusPanel.IsVisible = HasStatus;
+        if (_state.DisplayedImage is { } displayed)
+        {
+            ApplyDisplayedImage(displayed);
+        }
+    }
+
+    internal bool HasImage => _state.DisplayedImage is not null;
+    internal bool HasStatus => SettingsError is not null
+        || HasImage
+        || _state.Message is not null
+        || _state.FolderError is not null;
+    internal RectangleF ContentBounds { get; private set; }
+    internal UiElement EmptyStateFocusScope => _emptyStatePanel;
+    internal UiElement EmptyStateSettingsButton => _emptyStatePanel.SettingsButton;
+    internal TimeSpan? NextAnimationFrameDelay => _imagePanel.NextAnimationFrameDelay;
+
+    internal string? SettingsError
+    {
+        get;
+        set
+        {
+            if (field == value)
+            {
+                return;
+            }
+
+            field = value;
+            _statusPanel.IsVisible = HasStatus;
+            InvalidateVisual();
+        }
+    }
+
+    internal PointF GetImageViewportPoint(PointF panePoint, float dpi)
+    {
+        RectangleF imageBounds = _imagePanel.GetBoundsRelativeTo(this);
+        return new PointF(
+            UiDpi.DipsToPixels(panePoint.X - imageBounds.X, dpi),
+            UiDpi.DipsToPixels(panePoint.Y - imageBounds.Y, dpi));
+    }
+
+    internal void BindTab(ViewerTab tab)
+    {
+        ViewerSession session = tab.Session;
+        _imagePanel.Bind(session.Viewport, session.Animator);
+    }
+
+    internal void ApplyState(ViewerSessionState state)
+    {
+        bool displayedImageChanged = !ReferenceEquals(_state.DisplayedImage, state.DisplayedImage);
+        _state = state;
+        if (displayedImageChanged && state.DisplayedImage is { } displayed)
+        {
+            Root?.ClearPointer();
+            ApplyDisplayedImage(displayed);
+        }
+
+        bool hasImage = HasImage;
+        _imagePanel.IsVisible = hasImage;
+        _emptyStatePanel.IsVisible = !hasImage;
+        _statusPanel.IsVisible = HasStatus;
+        InvalidateVisual();
+    }
+
+    internal void ApplyTabs(IReadOnlyList<ViewerTabInfo> tabs, int selectedIndex)
+    {
+        _viewerTabs.SetTabs(tabs, selectedIndex);
+        _viewerTabs.IsVisible = tabs.Count > 1;
+        if (!_viewerTabs.IsVisible)
+        {
+            _hoveredTabChanged(null, RectangleF.Empty);
+        }
+    }
+
+    internal void UpdateStatus()
+    {
+        if (!HasStatus)
+        {
+            return;
+        }
+
+        string? animationError = _imagePanel.AnimationError is { } exception
+            ? $"Animation stopped: {exception.Message}"
+            : null;
+        string? message = SettingsError ?? animationError ?? _state.Message;
+        if (message is null && _state.FolderError is { } folderError)
+        {
+            message = $"Image opened, but its folder could not be read: {folderError}";
+        }
+
+        _statusPanel.Status = new ViewerStatus(
+            Path.GetFileName(_state.RequestedPath) ?? string.Empty,
+            _state.DisplayedImage?.Representation.Width ?? 0,
+            _state.DisplayedImage?.Representation.Height ?? 0,
+            _imagePanel.ZoomPercentage,
+            message,
+            SettingsError is not null || animationError is not null || _state.IsError || _state.FolderError is not null);
+    }
+
+    protected override SizeF MeasureCore(SizeF availableSize)
+    {
+        float tabHeight = _viewerTabs.IsVisible
+            ? _viewerTabs.Measure(new SizeF(availableSize.Width, ViewerTabStrip.HeightDips)).Height
+            : 0.0f;
+        var contentSize = new SizeF(
+            availableSize.Width,
+            MathF.Max(0.0f, availableSize.Height - tabHeight));
+        _contentOverlay.Measure(contentSize);
+        if (_statusPanel.IsVisible)
+        {
+            _statusPanel.Measure(contentSize);
+        }
+
+        return availableSize;
+    }
+
+    protected override void ArrangeCore(SizeF finalSize)
+    {
+        float tabHeight = _viewerTabs.IsVisible ? ViewerTabStrip.HeightDips : 0.0f;
+        _viewerTabs.Arrange(new RectangleF(0.0f, 0.0f, finalSize.Width, tabHeight));
+        ContentBounds = new RectangleF(
+            0.0f,
+            tabHeight,
+            finalSize.Width,
+            MathF.Max(0.0f, finalSize.Height - tabHeight));
+        _contentOverlay.Arrange(ContentBounds);
+
+        RectangleF status = ViewerLayout.Calculate(
+            ContentBounds.Size,
+            showStatus: HasStatus,
+            showToolbar: false).Status;
+        status.Offset(ContentBounds.Location);
+        _statusPanel.Arrange(status);
+    }
+
+    protected override bool HitTestCore(PointF position) => false;
+
+    public void Dispose()
+    {
+        _viewerTabs.Dispose();
+        _statusPanel.Dispose();
+        _emptyStatePanel.Dispose();
+        _imagePanel.Dispose();
+    }
+
+    private void HandleHoveredTabChanged(ViewerTabInfo? tab, RectangleF tabBounds)
+    {
+        if (tab is not null)
+        {
+            RectangleF stripBounds = _viewerTabs.GetBoundsRelativeTo(this);
+            tabBounds.Offset(stripBounds.Location);
+        }
+
+        _hoveredTabChanged(tab, tabBounds);
+    }
+
+    private void ApplyDisplayedImage(ImageLoaded displayed)
+    {
+        _imagePanel.SetImage(displayed.Representation, displayed.IsPreview);
+    }
+
+    private static ID2D1Bitmap1 LoadApplicationIcon(ID2D1DeviceContext deviceContext)
+    {
+        using Stream stream = typeof(ViewerPaneView).Assembly.GetManifestResourceStream(
+            "Dameview.Assets.dameview.png")
+            ?? throw new InvalidOperationException("The embedded application icon could not be found.");
+        using var decoder = new ImageDecoder();
+        return D2DBitmapFactory.Create(deviceContext, decoder.Decode(stream));
+    }
+}

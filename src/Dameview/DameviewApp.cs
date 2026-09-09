@@ -54,7 +54,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         _ui = new ViewerUi(
             _renderer.DeviceContext,
             _renderer.DirectWriteFactory,
-            _workspace.ActiveTab,
+            _workspace.ActivePane,
             _window.Dpi,
             UiTheme.Default,
             this,
