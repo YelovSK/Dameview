@@ -111,6 +111,124 @@ public sealed class ViewerWorkspaceTests
         Assert.AreEqual(1, changes);
     }
 
+    [TestMethod]
+    public void SplittingAPaneBuildsTheTreeAndCopiesTheCurrentImage()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane first = workspace.ActivePane;
+        first.ActiveSession.OpenImage(@"C:\first\image.png");
+
+        ViewerPane second = workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
+
+        WorkspaceSplit split = Assert.IsInstanceOfType<WorkspaceSplit>(workspace.Root);
+        Assert.AreEqual(WorkspaceSplitOrientation.Horizontal, split.Orientation);
+        Assert.AreEqual(0.5f, split.Ratio);
+        Assert.AreSame(first, split.First);
+        Assert.AreSame(second, split.Second);
+        Assert.AreSame(first, workspace.ActivePane);
+        Assert.AreNotSame(first.ActiveSession, second.ActiveSession);
+        Assert.AreEqual(first.ActiveSession.State.RequestedPath, second.ActiveSession.State.RequestedPath);
+    }
+
+    [TestMethod]
+    public void SplittingANestedPaneCreatesARecursiveLayout()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane first = workspace.ActivePane;
+        ViewerPane second = workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
+
+        ViewerPane third = workspace.SplitPane(second, WorkspaceSplitOrientation.Vertical);
+
+        WorkspaceSplit root = Assert.IsInstanceOfType<WorkspaceSplit>(workspace.Root);
+        WorkspaceSplit nested = Assert.IsInstanceOfType<WorkspaceSplit>(root.Second);
+        Assert.AreSame(first, root.First);
+        Assert.AreSame(second, nested.First);
+        Assert.AreSame(third, nested.Second);
+        Assert.AreEqual(WorkspaceSplitOrientation.Vertical, nested.Orientation);
+    }
+
+    [TestMethod]
+    public void RemovingAnInactivePaneCollapsesItsParentAndPreservesFocus()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane first = workspace.ActivePane;
+        ViewerPane second = workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
+        ViewerSession secondSession = second.ActiveSession;
+
+        Assert.IsTrue(workspace.RemovePane(second));
+
+        Assert.AreSame(first, workspace.Root);
+        Assert.AreSame(first, workspace.ActivePane);
+        Assert.ThrowsExactly<ObjectDisposedException>(() => secondSession.OpenImage(@"C:\second\other.png"));
+        Assert.IsFalse(workspace.RemovePane(first));
+    }
+
+    [TestMethod]
+    public void OnlyTheActivePaneForwardsSessionStateChanges()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane first = workspace.ActivePane;
+        ViewerPane second = workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
+        int changes = 0;
+        workspace.ActiveSessionStateChanged += () => changes++;
+
+        second.ActiveSession.OpenImage(@"C:\second\other.png");
+        Assert.AreEqual(0, changes);
+
+        first.ActiveSession.OpenImage(@"C:\first\other.png");
+        Assert.AreEqual(1, changes);
+    }
+
+    [TestMethod]
+    public void RemovingTheActivePaneFocusesItsSibling()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane first = workspace.ActivePane;
+        ViewerPane second = workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
+        workspace.SelectPane(second);
+        int focusChanges = 0;
+        workspace.ActivePaneChanged += () => focusChanges++;
+
+        Assert.IsTrue(workspace.RemovePane(second));
+
+        Assert.AreSame(first, workspace.Root);
+        Assert.AreSame(first, workspace.ActivePane);
+        Assert.AreEqual(1, focusChanges);
+    }
+
+    [TestMethod]
+    public void ClosingTheOnlyTabInTheActivePaneCollapsesThatPane()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane first = workspace.ActivePane;
+        ViewerPane second = workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
+        workspace.SelectPane(second);
+
+        Assert.IsTrue(workspace.CloseActiveTab());
+
+        Assert.AreSame(first, workspace.Root);
+        Assert.AreSame(first, workspace.ActivePane);
+        Assert.IsFalse(workspace.CloseActiveTab());
+    }
+
+    [TestMethod]
+    public void DisposingTheWorkspaceDisposesEveryPaneRecursively()
+    {
+        var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane first = workspace.ActivePane;
+        ViewerPane second = workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
+        ViewerPane third = workspace.SplitPane(second, WorkspaceSplitOrientation.Vertical);
+        ViewerSession firstSession = first.ActiveSession;
+        ViewerSession secondSession = second.ActiveSession;
+        ViewerSession thirdSession = third.ActiveSession;
+
+        workspace.Dispose();
+
+        Assert.ThrowsExactly<ObjectDisposedException>(() => firstSession.OpenImage(@"C:\first\other.png"));
+        Assert.ThrowsExactly<ObjectDisposedException>(() => secondSession.OpenImage(@"C:\second\other.png"));
+        Assert.ThrowsExactly<ObjectDisposedException>(() => thirdSession.OpenImage(@"C:\third\other.png"));
+    }
+
     private static ViewerTab CreateTab()
     {
         var monitor = new SilentFolderMonitor();

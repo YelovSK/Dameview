@@ -1,7 +1,7 @@
 namespace Dameview.Viewing;
 
 // Owns a non-empty tab group and its active-tab state.
-internal sealed class ViewerPane : IDisposable
+internal sealed class ViewerPane : WorkspaceNode, IDisposable
 {
     private readonly List<ViewerTab> _tabs = [];
 
