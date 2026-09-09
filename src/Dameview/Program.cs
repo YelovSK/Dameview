@@ -12,6 +12,22 @@ internal static class Program
 
         try
         {
+            if (AppInstallation.GetRequest(args) is { } installationRequest)
+            {
+                bool runPortable;
+                using (var installer = new InstallerApp(installationRequest))
+                {
+                    runPortable = installer.Run();
+                }
+
+                if (!runPortable)
+                {
+                    return 0;
+                }
+
+                args = [];
+            }
+
             using var app = new DameviewApp();
             return app.Run(args);
         }

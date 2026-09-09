@@ -18,6 +18,7 @@ namespace Dameview.Platform;
 internal sealed unsafe class AppWindow : IDisposable
 {
     private const string WindowClassName = "Dameview.MainWindow";
+    private static bool _windowClassRegistered;
 
     private readonly ConcurrentQueue<Action> _postedActions = new();
     private Timer? _repaintTimer;
@@ -36,7 +37,11 @@ internal sealed unsafe class AppWindow : IDisposable
             throw NativeMethods.CreateLastErrorException("Could not get the application module handle.");
         }
 
-        RegisterWindowClass(instance);
+        if (!_windowClassRegistered)
+        {
+            RegisterWindowClass(instance);
+            _windowClassRegistered = true;
+        }
 
         _selfHandle = GCHandle.Alloc(this);
         Handle = CreateWindow(instance, title, width, height);
@@ -100,6 +105,32 @@ internal sealed unsafe class AppWindow : IDisposable
         {
             _ = SetWindowText((HWND)Handle, title);
         }
+    }
+
+    internal void CenterOnPrimaryMonitor()
+    {
+        HMONITOR monitor = MonitorFromPoint(default, MONITOR_FROM_FLAGS.MONITOR_DEFAULTTOPRIMARY);
+        MONITORINFO monitorInfo = new() { cbSize = (uint)sizeof(MONITORINFO) };
+        if (monitor.IsNull
+            || !GetMonitorInfo(monitor, ref monitorInfo)
+            || !GetWindowRect((HWND)Handle, out RECT windowBounds))
+        {
+            return;
+        }
+
+        RECT workArea = monitorInfo.rcWork;
+        int x = workArea.left + (workArea.Width - windowBounds.Width) / 2;
+        int y = workArea.top + (workArea.Height - windowBounds.Height) / 2;
+        SetWindowPos(
+            (HWND)Handle,
+            default,
+            x,
+            y,
+            0,
+            0,
+            SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE
+                | SET_WINDOW_POS_FLAGS.SWP_NOZORDER
+                | SET_WINDOW_POS_FLAGS.SWP_NOSIZE);
     }
 
     internal void Close()

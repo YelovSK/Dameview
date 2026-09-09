@@ -35,6 +35,20 @@ internal static unsafe partial class NativeMethods
         CoUninitialize();
     }
 
+    internal static string GetProgramsPath()
+    {
+        HRESULT result = SHGetKnownFolderPath(FOLDERID_Programs, default, null, out PWSTR path);
+        try
+        {
+            result.ThrowOnFailure();
+            return path.ToString();
+        }
+        finally
+        {
+            CoTaskMemFree(path);
+        }
+    }
+
     internal static Win32Exception CreateLastErrorException(string operation)
     {
         return new Win32Exception(Marshal.GetLastPInvokeError(), operation);

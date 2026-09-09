@@ -15,6 +15,7 @@ PostQuitMessage
 BeginPaint
 EndPaint
 GetClientRect
+GetWindowRect
 GetDpiForWindow
 ScreenToClient
 SetCapture
@@ -24,6 +25,8 @@ SetWindowLongPtr
 GetWindowLongPtr
 LoadCursor
 SetCursor
+MonitorFromPoint
+GetMonitorInfo
 LoadIcon
 SetWindowText
 GetKeyState
@@ -35,10 +38,13 @@ SetProcessDpiAwarenessContext
 DragAcceptFiles
 DragQueryFile
 DragFinish
+SHGetKnownFolderPath
 
 // Ole32
 CoInitializeEx
 CoUninitialize
+CoCreateInstance
+CoTaskMemFree
 
 // Dwmapi
 DwmSetWindowAttribute
@@ -53,6 +59,9 @@ RECT
 PAINTSTRUCT
 CREATESTRUCTW
 WINDOWPLACEMENT
+MONITORINFO
+IShellLinkW
+IPersistFile
 
 // Enums / constants
 WNDCLASS_STYLES
@@ -88,3 +97,5 @@ IDC_HAND
 IDC_SIZEWE
 IDC_SIZENS
 HTCLIENT
+MONITOR_FROM_FLAGS
+FOLDERID_Programs
