@@ -5,118 +5,60 @@ namespace Dameview.Viewing;
 internal sealed class ViewerWorkspace : IDisposable
 {
     private readonly Func<ViewerTab> _createTab;
-    private readonly List<ViewerTab> _tabs = [];
+    private readonly ViewerPane _pane;
     private FolderSort _sort = FolderSort.NameAscending;
 
     internal ViewerWorkspace(Func<ViewerTab> createTab)
     {
         _createTab = createTab;
-        AddTab();
+        _pane = new ViewerPane(CreateTab());
+        _pane.ActiveTabChanged += () => ActiveTabChanged?.Invoke();
+        _pane.ActiveSessionStateChanged += () => ActiveSessionStateChanged?.Invoke();
+        _pane.TabsChanged += () => TabsChanged?.Invoke();
     }
 
     internal event Action? ActiveTabChanged;
     internal event Action? ActiveSessionStateChanged;
     internal event Action? TabsChanged;
 
-    internal int Count => _tabs.Count;
-    internal int ActiveIndex { get; private set; }
-    internal IReadOnlyList<ViewerTab> Tabs => _tabs;
-    internal ViewerTab ActiveTab => _tabs[ActiveIndex];
-    internal ViewerSession ActiveSession => ActiveTab.Session;
+    internal int Count => _pane.Count;
+    internal int ActiveIndex => _pane.ActiveIndex;
+    internal IReadOnlyList<ViewerTab> Tabs => _pane.Tabs;
+    internal ViewerTab ActiveTab => _pane.ActiveTab;
+    internal ViewerSession ActiveSession => _pane.ActiveSession;
 
     internal void OpenImage(string path) => ActiveSession.OpenImage(path);
     internal void SelectImage(string path) => ActiveSession.SelectImage(path);
 
     internal void OpenImageInNewTab(string path)
     {
-        AddTab();
-        TabsChanged?.Invoke();
-        _tabs[^1].Session.OpenImage(path);
+        _pane.AddTab(CreateTab());
+        _pane.Tabs[^1].Session.OpenImage(path);
     }
 
-    internal void SelectRelativeTab(int offset)
-    {
-        if (_tabs.Count < 2)
-        {
-            return;
-        }
+    internal void SelectRelativeTab(int offset) => _pane.SelectRelativeTab(offset);
 
-        SelectTab((ActiveIndex + offset + _tabs.Count) % _tabs.Count);
-    }
+    internal void SelectTab(int index) => _pane.SelectTab(index);
 
-    internal void SelectTab(int index)
-    {
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)index, (uint)_tabs.Count);
-        if (ActiveIndex == index)
-        {
-            return;
-        }
+    internal bool CloseActiveTab() => _pane.CloseActiveTab();
 
-        ActiveIndex = index;
-        ActiveTabChanged?.Invoke();
-        TabsChanged?.Invoke();
-    }
-
-    internal bool CloseActiveTab() => CloseTab(ActiveIndex);
-
-    internal bool CloseTab(int index)
-    {
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)index, (uint)_tabs.Count);
-        if (_tabs.Count == 1)
-        {
-            return false;
-        }
-
-        ViewerTab closing = _tabs[index];
-        bool activeTabChanged = index == ActiveIndex;
-        _tabs.RemoveAt(index);
-        if (index < ActiveIndex || ActiveIndex == _tabs.Count)
-        {
-            ActiveIndex--;
-        }
-
-        if (activeTabChanged)
-        {
-            ActiveTabChanged?.Invoke();
-        }
-
-        TabsChanged?.Invoke();
-        closing.Dispose();
-        return true;
-    }
+    internal bool CloseTab(int index) => _pane.CloseTab(index);
 
     internal void SetSort(FolderSort sort)
     {
         _sort = sort;
-        foreach (ViewerTab tab in _tabs)
+        foreach (ViewerTab tab in _pane.Tabs)
         {
             tab.Session.SetSort(sort);
         }
     }
 
-    public void Dispose()
-    {
-        foreach (ViewerTab tab in _tabs)
-        {
-            tab.Dispose();
-        }
+    public void Dispose() => _pane.Dispose();
 
-        _tabs.Clear();
-    }
-
-    private void AddTab()
+    private ViewerTab CreateTab()
     {
         ViewerTab tab = _createTab();
         tab.Session.SetSort(_sort);
-        tab.Session.StateChanged += () =>
-        {
-            if (ReferenceEquals(tab, ActiveTab))
-            {
-                ActiveSessionStateChanged?.Invoke();
-            }
-
-            TabsChanged?.Invoke();
-        };
-        _tabs.Add(tab);
+        return tab;
     }
 }
