@@ -21,6 +21,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private readonly ID2D1SolidColorBrush _brush;
     private readonly ImagePanel _imagePanel;
     private readonly ViewerTabStrip _viewerTabs;
+    private readonly TabPreview _tabPreview;
     private readonly EmptyStatePanel _emptyStatePanel;
     private readonly Overlay _contentOverlay;
     private readonly Overlay _mainOverlay;
@@ -62,11 +63,13 @@ internal sealed class ViewerUi : UiElement, IDisposable
             postToUi);
         _viewerTabs = new ViewerTabStrip(
             directWriteFactory,
-            ["Dameview"],
+            [new ViewerTabInfo("Dameview", null)],
             0,
             commands.SelectTab,
-            commands.CloseTab);
+            commands.CloseTab,
+            ShowTabPreview);
         _viewerTabs.IsVisible = false;
+        _tabPreview = new TabPreview(deviceContext, thumbnailLoader);
         _emptyStatePanel = new EmptyStatePanel(
             directWriteFactory,
             LoadApplicationIcon(deviceContext),
@@ -97,6 +100,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
         AddChild(_viewerTabs);
         AddChild(_splitView);
+        AddChild(_tabPreview);
         AddChild(_modalHost);
         AddChild(_popupHost);
         _root = new UiRoot(this, dpi);
@@ -197,10 +201,14 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     internal void ApplySettings(AppSettings settings) => _settingsPanel.ApplySettings(settings);
 
-    internal void ApplyTabs(IReadOnlyList<string> labels, int selectedIndex)
+    internal void ApplyTabs(IReadOnlyList<ViewerTabInfo> tabs, int selectedIndex)
     {
-        _viewerTabs.SetTabs(labels, selectedIndex);
-        _viewerTabs.IsVisible = labels.Count > 1;
+        _viewerTabs.SetTabs(tabs, selectedIndex);
+        _viewerTabs.IsVisible = tabs.Count > 1;
+        if (!_viewerTabs.IsVisible)
+        {
+            _tabPreview.Hide();
+        }
     }
 
     internal bool HandleKey(UiKeyEvent input)
@@ -264,6 +272,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _splitView.Measure(new SizeF(
             availableSize.Width,
             MathF.Max(0.0f, availableSize.Height - tabHeight)));
+        _tabPreview.Measure(availableSize);
         _modalHost.Measure(availableSize);
         _popupHost.Measure(availableSize);
         return availableSize;
@@ -285,6 +294,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
             toolbarWidthDips: ToolbarPanel.WidthDips);
         _statusPanel.Arrange(layout.Status);
         _toolbarPanel.Arrange(layout.Toolbar);
+        _tabPreview.Arrange(new RectangleF(PointF.Empty, finalSize));
         _modalHost.Arrange(new RectangleF(PointF.Empty, finalSize));
         _popupHost.Arrange(new RectangleF(PointF.Empty, finalSize));
     }
@@ -295,6 +305,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _root.SetFocus(null);
         _modalHost.Close();
         _popupHost.Close();
+        _tabPreview.Dispose();
         _settingsPanel.Dispose();
         _viewerTabs.Dispose();
         _toolbarPanel.Dispose();
@@ -309,6 +320,19 @@ internal sealed class ViewerUi : UiElement, IDisposable
         || _state.DisplayedImage is not null
         || _state.Message is not null
         || _state.FolderError is not null;
+
+    private void ShowTabPreview(ViewerTabInfo? tab, RectangleF tabBounds)
+    {
+        if (tab is not { ImagePath: string path })
+        {
+            _tabPreview.Hide();
+            return;
+        }
+
+        RectangleF stripBounds = _viewerTabs.GetBoundsRelativeTo(this);
+        tabBounds.Offset(stripBounds.Location);
+        _tabPreview.Show(path, tabBounds);
+    }
 
     private void ShowSettings()
     {
@@ -380,3 +404,5 @@ internal sealed class ViewerUi : UiElement, IDisposable
         return D2DBitmapFactory.Create(deviceContext, decoder.Decode(stream));
     }
 }
+
+internal readonly record struct ViewerTabInfo(string Label, string? ImagePath);

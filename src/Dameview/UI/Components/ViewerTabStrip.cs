@@ -21,8 +21,9 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
     private readonly IDWriteInlineObject _ellipsisSign;
     private readonly Action<int> _selectionChanged;
     private readonly Action<int> _closeRequested;
+    private readonly Action<ViewerTabInfo?, RectangleF>? _hoveredTabChanged;
     private readonly ScrollOffsetController _scrollOffset = new();
-    private string[] _labels = [];
+    private ViewerTabInfo[] _tabs = [];
     private int _selectedIndex;
     private int _hoveredIndex = -1;
     private bool _hoveringClose;
@@ -30,13 +31,15 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
 
     internal ViewerTabStrip(
         IDWriteFactory factory,
-        IReadOnlyList<string> labels,
+        IReadOnlyList<ViewerTabInfo> tabs,
         int selectedIndex,
         Action<int> selectionChanged,
-        Action<int> closeRequested)
+        Action<int> closeRequested,
+        Action<ViewerTabInfo?, RectangleF>? hoveredTabChanged = null)
     {
         _selectionChanged = selectionChanged;
         _closeRequested = closeRequested;
+        _hoveredTabChanged = hoveredTabChanged;
         _labelFormat = factory.CreateTextFormat(
             UiTypography.FontFamily, FontWeight.SemiBold, FontStyle.Normal, UiDesign.BodyFontSize);
         _labelFormat.TextAlignment = TextAlignment.Leading;
@@ -51,31 +54,31 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
         _closeFormat.TextAlignment = TextAlignment.Center;
         _closeFormat.ParagraphAlignment = ParagraphAlignment.Center;
         _closeFormat.WordWrapping = WordWrapping.NoWrap;
-        SetTabs(labels, selectedIndex);
+        SetTabs(tabs, selectedIndex);
     }
 
     internal float ScrollOffset => _scrollOffset.Offset;
     internal override UiCursor Cursor => _hoveredIndex >= 0 ? UiCursor.Pointer : UiCursor.Default;
 
-    internal void SetTabs(IReadOnlyList<string> labels, int selectedIndex)
+    internal void SetTabs(IReadOnlyList<ViewerTabInfo> tabs, int selectedIndex)
     {
-        if (labels.Count == 0)
+        if (tabs.Count == 0)
         {
-            throw new ArgumentException("A viewer tab strip requires at least one tab.", nameof(labels));
+            throw new ArgumentException("A viewer tab strip requires at least one tab.", nameof(tabs));
         }
 
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)selectedIndex, (uint)labels.Count);
-        bool labelsChanged = !_labels.SequenceEqual(labels);
-        if (!labelsChanged && _selectedIndex == selectedIndex)
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)selectedIndex, (uint)tabs.Count);
+        bool tabsChanged = !_tabs.SequenceEqual(tabs);
+        if (!tabsChanged && _selectedIndex == selectedIndex)
         {
             return;
         }
 
-        _labels = [.. labels];
+        _tabs = [.. tabs];
         _selectedIndex = selectedIndex;
-        if (labelsChanged)
+        if (tabsChanged)
         {
-            _hoveredIndex = -1;
+            SetHoveredTab(-1);
             _hoveringClose = false;
         }
 
@@ -91,11 +94,12 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
         {
             case UiPointerEventKind.Moved:
                 bool changed = index != _hoveredIndex || close != _hoveringClose;
-                _hoveredIndex = index;
+                SetHoveredTab(index);
                 _hoveringClose = close;
                 return new UiPointerResult(Consumed: true, NeedsRepaint: changed);
 
             case UiPointerEventKind.Pressed when input.Button == PointerButton.Primary:
+                _hoveredTabChanged?.Invoke(null, RectangleF.Empty);
                 if (index >= 0)
                 {
                     if (close)
@@ -111,6 +115,7 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
                 return new UiPointerResult(Consumed: true, NeedsRepaint: index >= 0);
 
             case UiPointerEventKind.Pressed when input.Button == PointerButton.Middle:
+                _hoveredTabChanged?.Invoke(null, RectangleF.Empty);
                 if (index >= 0)
                 {
                     _closeRequested(index);
@@ -119,6 +124,8 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
                 return new UiPointerResult(Consumed: true, NeedsRepaint: index >= 0);
 
             case UiPointerEventKind.Wheel:
+                SetHoveredTab(-1);
+                _hoveringClose = false;
                 bool scrollChanged = _scrollOffset.ScrollBy(
                     -input.WheelDelta / 120.0f * WheelStepDips);
                 return new UiPointerResult(Consumed: true, NeedsRepaint: scrollChanged);
@@ -150,7 +157,7 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
     protected override void DrawCore(in UiDrawContext context)
     {
         float x = -_scrollOffset.Offset;
-        for (int index = 0; index < _labels.Length; index++)
+        for (int index = 0; index < _tabs.Length; index++)
         {
             DrawTab(context, index, x);
             x += TabWidthDips + UiDesign.SmallSpacing;
@@ -166,7 +173,7 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
     {
         if (!HasVisualState(UiVisualState.Hovered))
         {
-            _hoveredIndex = -1;
+            SetHoveredTab(-1);
             _hoveringClose = false;
         }
     }
@@ -178,8 +185,8 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
         _labelFormat.Dispose();
     }
 
-    private float ContentWidth => _labels.Length * TabWidthDips
-        + Math.Max(0, _labels.Length - 1) * UiDesign.SmallSpacing;
+    private float ContentWidth => _tabs.Length * TabWidthDips
+        + Math.Max(0, _tabs.Length - 1) * UiDesign.SmallSpacing;
 
     private void DrawTab(in UiDrawContext context, int index, float x)
     {
@@ -198,7 +205,7 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
         }
 
         context.DrawText(
-            _labels[index],
+            _tabs[index].Label,
             _labelFormat,
             new Rect(
                 x + LabelPaddingDips,
@@ -241,12 +248,35 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
         float contentX = position.X + _scrollOffset.Offset;
         int index = (int)(contentX / (TabWidthDips + UiDesign.SmallSpacing));
         float xWithinTab = contentX - index * (TabWidthDips + UiDesign.SmallSpacing);
-        if (index < 0 || index >= _labels.Length || xWithinTab >= TabWidthDips)
+        if (index < 0 || index >= _tabs.Length || xWithinTab >= TabWidthDips)
         {
             return (-1, false);
         }
 
         return (index, xWithinTab >= TabWidthDips - CloseWidthDips);
+    }
+
+    private RectangleF GetTabBounds(int index)
+    {
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)index, (uint)_tabs.Length);
+        return new RectangleF(
+            index * (TabWidthDips + UiDesign.SmallSpacing) - _scrollOffset.Offset,
+            0.0f,
+            TabWidthDips,
+            Bounds.Height);
+    }
+
+    private void SetHoveredTab(int index)
+    {
+        if (_hoveredIndex == index)
+        {
+            return;
+        }
+
+        _hoveredIndex = index;
+        _hoveredTabChanged?.Invoke(
+            index >= 0 ? _tabs[index] : null,
+            index >= 0 ? GetTabBounds(index) : RectangleF.Empty);
     }
 
     private void UpdateScrollMetrics()

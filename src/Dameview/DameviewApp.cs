@@ -255,7 +255,9 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
     {
         _ui.ApplyTabs(
             _workspace.Tabs
-                .Select(tab => Path.GetFileName(tab.Session.State.RequestedPath) ?? "New tab")
+                .Select(tab => new ViewerTabInfo(
+                    Path.GetFileName(tab.Session.State.RequestedPath) ?? "New tab",
+                    tab.Session.State.RequestedPath))
                 .ToArray(),
             _workspace.ActiveIndex);
     }
