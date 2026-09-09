@@ -11,6 +11,7 @@ internal sealed class InstallerApp : IDisposable
     private readonly D2DRenderer _renderer;
     private readonly InstallerUi _ui;
     private bool _runPortable;
+    private bool _confirmingUninstall;
     private bool _uninstallComplete;
 
     internal InstallerApp(AppInstallationRequest request)
@@ -19,7 +20,7 @@ internal sealed class InstallerApp : IDisposable
         string title = request.Action == AppInstallationAction.Uninstall
             ? "Uninstall Dameview"
             : "Install Dameview";
-        _window = new AppWindow(title, 580, 390);
+        _window = new AppWindow(title, 580, 435);
         _window.CenterOnPrimaryMonitor();
         _window.SetTitleBarTheme(dark: true, UiTheme.Default.Background, UiTheme.Default.PrimaryText);
         _renderer = new D2DRenderer(
@@ -33,8 +34,9 @@ internal sealed class InstallerApp : IDisposable
             request,
             _window.Dpi,
             HandlePrimaryAction,
-            request.Action == AppInstallationAction.Uninstall ? Close : RunPortable,
-            Close);
+            HandleSecondaryAction,
+            Close,
+            BeginUninstall);
         _ui.Invalidated += _window.RequestRepaint;
         _ui.CursorChanged += _window.ApplyCursor;
         _window.RenderFrame += HandleRenderFrame;
@@ -79,7 +81,7 @@ internal sealed class InstallerApp : IDisposable
 
         try
         {
-            if (_request.Action == AppInstallationAction.Uninstall)
+            if (_request.Action == AppInstallationAction.Uninstall || _confirmingUninstall)
             {
                 AppInstallation.Uninstall();
                 _uninstallComplete = true;
@@ -97,6 +99,30 @@ internal sealed class InstallerApp : IDisposable
         }
     }
 
+    private void HandleSecondaryAction()
+    {
+        if (_confirmingUninstall)
+        {
+            _confirmingUninstall = false;
+            _ui.ShowInstallationActions();
+            return;
+        }
+
+        if (_request.Action == AppInstallationAction.Uninstall)
+        {
+            Close();
+            return;
+        }
+
+        RunPortable();
+    }
+
+    private void BeginUninstall()
+    {
+        _confirmingUninstall = true;
+        _ui.ShowUninstallConfirmation();
+    }
+
     private void RunPortable()
     {
         _runPortable = true;
@@ -109,7 +135,20 @@ internal sealed class InstallerApp : IDisposable
     {
         if (input.Key == UiKey.Escape)
         {
-            Close();
+            if (_uninstallComplete)
+            {
+                Close();
+            }
+            else if (_confirmingUninstall)
+            {
+                _confirmingUninstall = false;
+                _ui.ShowInstallationActions();
+            }
+            else
+            {
+                Close();
+            }
+
             return;
         }
 

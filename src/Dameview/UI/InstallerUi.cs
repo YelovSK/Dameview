@@ -12,11 +12,12 @@ namespace Dameview.UI;
 internal sealed class InstallerUi : UiElement, IDisposable
 {
     private const float PanelWidth = 500.0f;
-    private const float PanelHeight = 276.0f;
+    private const float PanelHeight = 320.0f;
     private const float PanelPadding = 24.0f;
 
     private readonly ID2D1DeviceContext _deviceContext;
     private readonly ID2D1SolidColorBrush _brush;
+    private readonly AppInstallationRequest _request;
     private readonly TextBlock _title;
     private readonly TextBlock _description;
     private readonly TextBlock _location;
@@ -24,6 +25,7 @@ internal sealed class InstallerUi : UiElement, IDisposable
     private readonly Button _primaryButton;
     private readonly Button _secondaryButton;
     private readonly Button _closeButton;
+    private readonly Button _uninstallButton;
     private readonly StackPanel _buttons;
     private readonly UiAnimationClock _animationClock = new();
     private readonly UiRoot _root;
@@ -36,11 +38,25 @@ internal sealed class InstallerUi : UiElement, IDisposable
         float dpi,
         Action primaryAction,
         Action secondaryAction,
-        Action close)
+        Action close,
+        Action uninstall)
     {
         _deviceContext = deviceContext;
         _brush = deviceContext.CreateSolidColorBrush(default(Color4));
-        (_title, _description) = CreateCopy(directWriteFactory, request);
+        _request = request;
+        (string title, string description) = GetCopy(request);
+        _title = new TextBlock(
+            directWriteFactory,
+            title,
+            UiTextStyle.Heading,
+            UiTextTone.Primary,
+            UiTextWrapping.NoWrap);
+        _description = new TextBlock(
+            directWriteFactory,
+            description,
+            UiTextStyle.Body,
+            UiTextTone.Secondary,
+            UiTextWrapping.Wrap);
         _location = new TextBlock(
             directWriteFactory,
             request.Action == AppInstallationAction.Uninstall
@@ -70,6 +86,10 @@ internal sealed class InstallerUi : UiElement, IDisposable
         {
             IsVisible = request.Action != AppInstallationAction.Uninstall,
         };
+        _uninstallButton = new Button(directWriteFactory, "Uninstall", uninstall)
+        {
+            IsVisible = request.Action is AppInstallationAction.Update or AppInstallationAction.Reinstall,
+        };
         _buttons = new StackPanel(
             UiOrientation.Horizontal,
             UiDesign.Spacing,
@@ -83,6 +103,7 @@ internal sealed class InstallerUi : UiElement, IDisposable
         AddChild(_location);
         AddChild(_status);
         AddChild(_buttons);
+        AddChild(_uninstallButton);
         _root = new UiRoot(this, dpi);
         _root.SetFocus(_primaryButton);
     }
@@ -109,6 +130,39 @@ internal sealed class InstallerUi : UiElement, IDisposable
         _root.InvalidateVisual();
     }
 
+    internal void ShowUninstallConfirmation()
+    {
+        _title.Text = "Uninstall Dameview";
+        _description.Text = "Remove Dameview from this account. Your settings will be kept.";
+        _location.Text = $"Installed in {AppInstallation.InstallDirectory}";
+        _location.IsVisible = true;
+        _status.IsVisible = false;
+        _primaryButton.Label = "Uninstall";
+        _secondaryButton.Label = "Back";
+        _secondaryButton.IsVisible = true;
+        _closeButton.IsVisible = false;
+        _uninstallButton.IsVisible = false;
+        _root.SetFocus(_primaryButton);
+        _root.InvalidateLayout();
+    }
+
+    internal void ShowInstallationActions()
+    {
+        (string title, string description) = GetCopy(_request);
+        _title.Text = title;
+        _description.Text = description;
+        _location.Text = $"Install to {AppInstallation.InstallDirectory}";
+        _location.IsVisible = true;
+        _status.IsVisible = false;
+        _primaryButton.Label = GetPrimaryLabel(_request.Action);
+        _secondaryButton.Label = "Run Portable";
+        _secondaryButton.IsVisible = true;
+        _closeButton.IsVisible = true;
+        _uninstallButton.IsVisible = true;
+        _root.SetFocus(_primaryButton);
+        _root.InvalidateLayout();
+    }
+
     internal void ShowUninstallComplete()
     {
         _description.Text = "Dameview was uninstalled. Your settings were kept.";
@@ -117,6 +171,7 @@ internal sealed class InstallerUi : UiElement, IDisposable
         _primaryButton.Label = "Close";
         _secondaryButton.IsVisible = false;
         _closeButton.IsVisible = false;
+        _uninstallButton.IsVisible = false;
         _root.SetFocus(_primaryButton);
         _root.InvalidateLayout();
     }
@@ -154,6 +209,7 @@ internal sealed class InstallerUi : UiElement, IDisposable
         _location.Measure(new SizeF(contentWidth, 24.0f));
         _status.Measure(new SizeF(contentWidth, 48.0f));
         _buttons.Measure(new SizeF(contentWidth, 36.0f));
+        _uninstallButton.Measure(new SizeF(140.0f, 36.0f));
         return availableSize;
     }
 
@@ -177,10 +233,17 @@ internal sealed class InstallerUi : UiElement, IDisposable
         _location.Arrange(new RectangleF(x, y, contentWidth, 24.0f));
         y += 32.0f;
         _status.Arrange(new RectangleF(x, y, contentWidth, 48.0f));
+        float footerY = _panelBounds.Bottom - PanelPadding - 36.0f;
+        float buttonsY = _uninstallButton.IsVisible ? footerY - 44.0f : footerY;
         _buttons.Arrange(new RectangleF(
             x,
-            _panelBounds.Bottom - PanelPadding - 36.0f,
+            buttonsY,
             contentWidth,
+            36.0f));
+        _uninstallButton.Arrange(new RectangleF(
+            _panelBounds.X + (_panelBounds.Width - 140.0f) / 2.0f,
+            footerY,
+            140.0f,
             36.0f));
     }
 
@@ -207,12 +270,11 @@ internal sealed class InstallerUi : UiElement, IDisposable
         _primaryButton.Dispose();
         _secondaryButton.Dispose();
         _closeButton.Dispose();
+        _uninstallButton.Dispose();
         _brush.Dispose();
     }
 
-    private static (TextBlock Title, TextBlock Description) CreateCopy(
-        IDWriteFactory directWriteFactory,
-        AppInstallationRequest request)
+    private static (string Title, string Description) GetCopy(AppInstallationRequest request)
     {
         string title;
         string description;
@@ -242,9 +304,7 @@ internal sealed class InstallerUi : UiElement, IDisposable
                 throw new InvalidOperationException("Unknown installation action.");
         }
 
-        return (
-            new TextBlock(directWriteFactory, title, UiTextStyle.Heading, UiTextTone.Primary, UiTextWrapping.NoWrap),
-            new TextBlock(directWriteFactory, description, UiTextStyle.Body, UiTextTone.Secondary, UiTextWrapping.Wrap));
+        return (title, description);
     }
 
     private static string GetPrimaryLabel(AppInstallationAction action) => action switch
