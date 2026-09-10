@@ -21,6 +21,7 @@ public sealed class SettingsServiceTests
             Theme = Themes.Light,
             AnimationsEnabled = false,
             Sort = FolderSort.SizeLargest,
+            GalleryThumbnailSize = GalleryThumbnailSize.Large,
             GalleryWidthDips = 240.0f,
         });
         Assert.IsNull(settings.Error);
@@ -41,6 +42,7 @@ public sealed class SettingsServiceTests
         Assert.AreEqual(Themes.Light, settings.Current.Theme);
         Assert.IsTrue(settings.Current.AnimationsEnabled);
         Assert.AreEqual(FolderSort.NameAscending, settings.Current.Sort);
+        Assert.AreEqual(GalleryThumbnailSize.Medium, settings.Current.GalleryThumbnailSize);
         Assert.AreEqual(UiDesign.DefaultGalleryWidth, settings.Current.GalleryWidthDips);
     }
 
@@ -131,6 +133,7 @@ public sealed class SettingsServiceTests
     [DataRow("theme=42")]
     [DataRow("animations=maybe")]
     [DataRow("sort=random")]
+    [DataRow("galleryThumbnailSize=huge")]
     [DataRow("galleryWidth=small")]
     [DataRow("galleryWidth=119")]
     [DataRow("galleryWidth=NaN")]

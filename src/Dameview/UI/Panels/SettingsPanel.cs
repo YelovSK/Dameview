@@ -42,10 +42,12 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
 
     private readonly Button _closeButton;
     private readonly Dropdown<Theme> _themeDropdown;
+    private readonly Dropdown<GalleryThumbnailSize> _galleryThumbnailSizeDropdown;
     private readonly Toggle _animationsToggle;
     private readonly Dropdown<SortField> _sortField;
     private readonly Dropdown<SortDirection> _sortDirection;
     private readonly SettingsRow _themeRow;
+    private readonly SettingsRow _galleryThumbnailSizeRow;
     private readonly SettingsRow _sortFieldRow;
     private readonly SettingsRow _sortDirectionRow;
     private readonly TabStrip _tabs;
@@ -96,6 +98,20 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
             Themes.Dark,
             _commands.SetTheme);
         _themeRow = new SettingsRow(factory, "Theme", _themeDropdown);
+        _galleryThumbnailSizeDropdown = new Dropdown<GalleryThumbnailSize>(
+            factory,
+            popupHost,
+            [
+                new("Small", GalleryThumbnailSize.Small),
+                new("Medium", GalleryThumbnailSize.Medium),
+                new("Large", GalleryThumbnailSize.Large),
+            ],
+            GalleryThumbnailSize.Medium,
+            _commands.SetGalleryThumbnailSize);
+        _galleryThumbnailSizeRow = new SettingsRow(
+            factory,
+            "Gallery thumbnails",
+            _galleryThumbnailSizeDropdown);
         _animationsToggle = new Toggle(
             factory,
             "Animations",
@@ -138,6 +154,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
             UiDesign.LargeSpacing,
             StackPanelDistribution.Natural,
             _themeRow,
+            _galleryThumbnailSizeRow,
             _animationsToggle);
         var sortingContent = new StackPanel(
             UiOrientation.Vertical,
@@ -188,6 +205,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
     internal void ApplySettings(AppSettings settings)
     {
         _themeDropdown.SelectedValue = settings.Theme;
+        _galleryThumbnailSizeDropdown.SelectedValue = settings.GalleryThumbnailSize;
         _animationsToggle.Value = settings.AnimationsEnabled;
 
         SortDefinition sort = Array.Find(
@@ -259,10 +277,12 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
     {
         _closeButton.Dispose();
         _themeDropdown.Dispose();
+        _galleryThumbnailSizeDropdown.Dispose();
         _animationsToggle.Dispose();
         _sortField.Dispose();
         _sortDirection.Dispose();
         _themeRow.Dispose();
+        _galleryThumbnailSizeRow.Dispose();
         _sortFieldRow.Dispose();
         _sortDirectionRow.Dispose();
         _updateStatus.Dispose();

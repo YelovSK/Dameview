@@ -2,6 +2,7 @@ using System.Drawing;
 using Dameview.Commands;
 using Dameview.Navigation;
 using Dameview.Platform;
+using Dameview.Settings;
 using Dameview.UI;
 using Dameview.UI.Panels;
 using Dameview.Updates;
@@ -34,9 +35,36 @@ public sealed class SettingsPanelTests
         root.HandleKey(new UiKeyEvent(UiKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new UiKeyEvent(UiKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new UiKeyEvent(UiKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new UiKeyEvent(UiKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new UiKeyEvent(UiKey.Space), settings, wrapFocus: true, directionalNavigation: true);
 
         Assert.AreEqual(false, animationsEnabled);
+    }
+
+    [TestMethod]
+    public void AppearanceTabCanChangeGalleryThumbnailSize()
+    {
+        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
+        var popupHost = new PopupHost();
+        GalleryThumbnailSize? selectedSize = null;
+        var commands = new TestSettingsCommands { GalleryThumbnailSize = value => selectedSize = value };
+        using var settings = new SettingsPanel(
+            factory,
+            popupHost,
+            () => { },
+            commands);
+        var scene = new TestScene(settings, popupHost);
+        var root = new UiRoot(scene, UiDpi.Default);
+        root.Arrange(new SizeF(440.0f, 460.0f));
+        root.SetFocus(settings.InitialFocus);
+
+        root.HandleKey(new UiKeyEvent(UiKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new UiKeyEvent(UiKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new UiKeyEvent(UiKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new UiKeyEvent(UiKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new UiKeyEvent(UiKey.Down), settings, wrapFocus: true, directionalNavigation: true);
+
+        Assert.AreEqual(GalleryThumbnailSize.Large, selectedSize);
     }
 
     [TestMethod]
@@ -138,11 +166,13 @@ public sealed class SettingsPanelTests
     {
         internal Action<Theme>? Theme { get; init; }
         internal Action<bool>? Animations { get; init; }
+        internal Action<GalleryThumbnailSize>? GalleryThumbnailSize { get; init; }
         internal Action<FolderSort>? Sort { get; init; }
         internal Action? Activate { get; init; }
 
         public void SetTheme(Theme theme) => Theme?.Invoke(theme);
         public void SetAnimationsEnabled(bool enabled) => Animations?.Invoke(enabled);
+        public void SetGalleryThumbnailSize(GalleryThumbnailSize size) => GalleryThumbnailSize?.Invoke(size);
         public void SetSort(FolderSort sort) => Sort?.Invoke(sort);
         public void ActivateUpdate() => Activate?.Invoke();
     }

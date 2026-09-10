@@ -306,6 +306,9 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     public void SetAnimationsEnabled(bool enabled) =>
         _settings.Update(_settings.Current with { AnimationsEnabled = enabled });
 
+    public void SetGalleryThumbnailSize(GalleryThumbnailSize size) =>
+        _settings.Update(_settings.Current with { GalleryThumbnailSize = size });
+
     public void SetSort(FolderSort sort) => _settings.Update(_settings.Current with { Sort = sort });
 
     private void ApplySettings(AppSettings previous, AppSettings current)

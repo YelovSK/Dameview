@@ -3,6 +3,7 @@ using System.Numerics;
 using Dameview.Imaging;
 using Dameview.Navigation;
 using Dameview.Platform;
+using Dameview.Settings;
 using Dameview.UI.Layout;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
@@ -19,7 +20,6 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private const float ItemPadding = 6.0f;
     private const float LabelHeight = 24.0f;
     private const float MinimumItemWidthDips = 132.0f;
-    private const float WheelStep = 72.0f;
 
     private readonly ID2D1DeviceContext _deviceContext;
     private readonly IDWriteFactory _directWriteFactory;
@@ -32,6 +32,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private readonly Dictionary<string, GalleryItemSlot> _slots =
         new(StringComparer.OrdinalIgnoreCase);
     private GalleryPanelState _state = new();
+    private GalleryThumbnailSize _thumbnailSize = GalleryThumbnailSize.Medium;
     private SelectionScrollAlignment? _pendingSelectionScroll;
     private int _hoveredIndex = -1;
     private int _pressedIndex = -1;
@@ -122,6 +123,18 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         RevealSelectionIfPending();
     }
 
+    internal void SetThumbnailSize(GalleryThumbnailSize size)
+    {
+        if (_thumbnailSize == size)
+        {
+            return;
+        }
+
+        _thumbnailSize = size;
+        _pendingSelectionScroll = SelectionScrollAlignment.EnsureVisible;
+        InvalidateLayout();
+    }
+
     protected override SizeF MeasureCore(SizeF availableSize) => new(
         MathF.Min(DefaultWidthDips, MathF.Max(0.0f, availableSize.Width)),
         MathF.Max(0.0f, availableSize.Height));
@@ -157,7 +170,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             _state.Entries.Length,
             _state.ScrollOffset.Offset,
             Bounds.Height,
-            ItemHeightDips,
+            ItemHeight,
             ColumnCount);
         for (int index = first; index < lastExclusive; index++)
         {
@@ -178,7 +191,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
                 _state.ScrollOffset.Offset,
                 _state.Entries.Length,
                 ItemWidth,
-                ItemHeightDips,
+                ItemHeight,
                 ColumnCount)
             : -1;
         switch (input.Kind)
@@ -216,7 +229,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
                 return new UiPointerResult(Consumed: true, NeedsRepaint: wasPressed);
 
             case UiPointerEventKind.Wheel:
-                bool scrollChanged = _state.ScrollOffset.ScrollBy(-input.WheelDelta / 120.0f * WheelStep);
+                bool scrollChanged = _state.ScrollOffset.ScrollBy(-input.WheelDelta / 120.0f * ItemHeight / 2.0f);
 
                 return new UiPointerResult(Consumed: true, NeedsRepaint: scrollChanged);
 
@@ -319,12 +332,13 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         int selectedIndex,
         int itemCount,
         int columnCount,
-        float viewportHeight)
+        float viewportHeight,
+        float itemHeight = ItemHeightDips)
     {
         int row = selectedIndex / columnCount;
         int rowCount = (itemCount + columnCount - 1) / columnCount;
-        float contentHeight = 2.0f * PanelPadding + rowCount * ItemHeightDips;
-        float itemCenter = PanelPadding + (row + 0.5f) * ItemHeightDips;
+        float contentHeight = 2.0f * PanelPadding + rowCount * itemHeight;
+        float itemCenter = PanelPadding + (row + 0.5f) * itemHeight;
         return Math.Clamp(
             itemCenter - viewportHeight / 2.0f,
             0.0f,
@@ -338,12 +352,12 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         int row = index / columnCount;
         int column = index % columnCount;
         float itemWidth = ItemWidth;
-        float y = PanelPadding + row * ItemHeightDips - _state.ScrollOffset.Offset;
+        float y = PanelPadding + row * ItemHeight - _state.ScrollOffset.Offset;
         var itemBounds = new RectangleF(
             PanelPadding + column * (itemWidth + UiDesign.SmallSpacing),
             y,
             itemWidth,
-            ItemHeightDips - UiDesign.SmallSpacing);
+            ItemHeight - UiDesign.SmallSpacing);
         bool selected = string.Equals(entry.FullName, _state.SelectedPath, StringComparison.OrdinalIgnoreCase);
         if (selected || index == _hoveredIndex || index == _pressedIndex)
         {
@@ -405,7 +419,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             _state.Entries.Length,
             _state.ScrollOffset.Offset,
             Bounds.Height,
-            ItemHeightDips,
+            ItemHeight,
             ColumnCount);
         var visiblePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         float labelWidth = MathF.Max(0.0f, ItemWidth - 2.0f * ItemPadding);
@@ -468,7 +482,8 @@ internal sealed class GalleryPanel : UiElement, IDisposable
                 selectedIndex,
                 _state.Entries.Length,
                 ColumnCount,
-                Bounds.Height)))
+                Bounds.Height,
+                ItemHeight)))
             {
                 InvalidateVisual();
             }
@@ -477,8 +492,8 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         }
 
         int row = selectedIndex / ColumnCount;
-        float top = PanelPadding + row * ItemHeightDips;
-        float bottom = top + ItemHeightDips;
+        float top = PanelPadding + row * ItemHeight;
+        float bottom = top + ItemHeight;
         float target = _state.ScrollOffset.TargetOffset;
         if (top < target)
         {
@@ -514,12 +529,26 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private float ContentWidth => MathF.Max(0.0f, Bounds.Width - ScrollbarWidth - ScrollbarGap);
     private int ColumnCount => GetColumnCount(ContentWidth);
     private float ItemWidth => GetItemWidth(ContentWidth, ColumnCount);
-    private float ContentHeight => 2.0f * PanelPadding + RowCount * ItemHeightDips;
+    private float ItemHeight => _thumbnailSize switch
+    {
+        GalleryThumbnailSize.Small => 110.0f,
+        GalleryThumbnailSize.Medium => ItemHeightDips,
+        GalleryThumbnailSize.Large => 190.0f,
+        _ => throw new InvalidOperationException("Unknown gallery thumbnail size."),
+    };
+    private float MinimumItemWidth => _thumbnailSize switch
+    {
+        GalleryThumbnailSize.Small => 96.0f,
+        GalleryThumbnailSize.Medium => MinimumItemWidthDips,
+        GalleryThumbnailSize.Large => 176.0f,
+        _ => throw new InvalidOperationException("Unknown gallery thumbnail size."),
+    };
+    private float ContentHeight => 2.0f * PanelPadding + RowCount * ItemHeight;
     private int RowCount => (_state.Entries.Length + ColumnCount - 1) / ColumnCount;
 
-    private static int GetColumnCount(float contentWidth)
+    private int GetColumnCount(float contentWidth)
     {
-        float pitch = MinimumItemWidthDips + UiDesign.SmallSpacing;
+        float pitch = MinimumItemWidth + UiDesign.SmallSpacing;
         return Math.Max(1, (int)MathF.Floor((contentWidth + UiDesign.SmallSpacing) / pitch));
     }
 

@@ -233,6 +233,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     internal void ApplySettings(AppSettings settings)
     {
         _splitView.SetDividerOffset(settings.GalleryWidthDips);
+        _galleryPanel.SetThumbnailSize(settings.GalleryThumbnailSize);
         _settingsPanel.ApplySettings(settings);
         if (_animationsEnabled == settings.AnimationsEnabled)
         {

@@ -16,6 +16,8 @@ internal static class SettingsIniSerializer
             document.Get(string.Empty, "animations"),
             defaultValue: true);
         FolderSort sort = ReadSort(document.Get(string.Empty, "sort"));
+        GalleryThumbnailSize galleryThumbnailSize = ReadGalleryThumbnailSize(
+            document.Get(string.Empty, "galleryThumbnailSize"));
         float galleryWidth = ReadOptionalFloat(
             document.Get(string.Empty, "galleryWidth"),
             UiDesign.DefaultGalleryWidth);
@@ -33,6 +35,7 @@ internal static class SettingsIniSerializer
             Theme = theme,
             AnimationsEnabled = animationsEnabled,
             Sort = sort,
+            GalleryThumbnailSize = galleryThumbnailSize,
             GalleryWidthDips = galleryWidth,
             Window = window,
         };
@@ -44,6 +47,7 @@ internal static class SettingsIniSerializer
         document.Set(string.Empty, "theme", WriteTheme(settings.Theme));
         document.Set(string.Empty, "animations", settings.AnimationsEnabled ? "true" : "false");
         document.Set(string.Empty, "sort", WriteSort(settings.Sort));
+        document.Set(string.Empty, "galleryThumbnailSize", WriteGalleryThumbnailSize(settings.GalleryThumbnailSize));
         document.Set(string.Empty, "galleryWidth", settings.GalleryWidthDips.ToString(CultureInfo.InvariantCulture));
         if (settings.Window is { } window)
         {
@@ -79,6 +83,15 @@ internal static class SettingsIniSerializer
         "sizeLargest" => FolderSort.SizeLargest,
         "sizeSmallest" => FolderSort.SizeSmallest,
         _ => throw new IniFormatException("Unknown sort value."),
+    };
+
+    private static GalleryThumbnailSize ReadGalleryThumbnailSize(string? value) => value switch
+    {
+        null => GalleryThumbnailSize.Medium,
+        "small" => GalleryThumbnailSize.Small,
+        "medium" => GalleryThumbnailSize.Medium,
+        "large" => GalleryThumbnailSize.Large,
+        _ => throw new IniFormatException("Unknown gallery thumbnail size."),
     };
 
     private static int ReadRequiredInt(string? value)
@@ -117,6 +130,14 @@ internal static class SettingsIniSerializer
     }
 
     private static string WriteTheme(Theme value) => value.Id;
+
+    private static string WriteGalleryThumbnailSize(GalleryThumbnailSize value) => value switch
+    {
+        GalleryThumbnailSize.Small => "small",
+        GalleryThumbnailSize.Medium => "medium",
+        GalleryThumbnailSize.Large => "large",
+        _ => throw new ArgumentOutOfRangeException(nameof(value)),
+    };
 
     private static string WriteSort(FolderSort value) => value switch
     {
