@@ -34,6 +34,11 @@ internal static class AppInstallation
 
     internal static string InstalledExecutablePath => Path.Combine(InstallDirectory, "Dameview.exe");
 
+    internal static Version? GetInstalledRunningVersion()
+    {
+        return IsInstalledExecutable() ? ReadVersion(Environment.ProcessPath) : null;
+    }
+
     internal static AppInstallationRequest? GetRequest(string[] args)
     {
         if (args.Length == 1 && args[0].Equals(UninstallArgument, StringComparison.OrdinalIgnoreCase))
@@ -71,11 +76,8 @@ internal static class AppInstallation
             GetDisplayVersion(InstalledExecutablePath));
     }
 
-    internal static void Install(IEnumerable<string> supportedExtensions)
+    internal static void Install(string sourcePath, IEnumerable<string> supportedExtensions)
     {
-        string sourcePath = Environment.ProcessPath
-            ?? throw new InvalidOperationException("Could not determine the executable path.");
-
         Directory.CreateDirectory(InstallDirectory);
         string stagedPath = Path.Combine(InstallDirectory, "Dameview.new.exe");
         File.Copy(sourcePath, stagedPath, overwrite: true);
@@ -120,7 +122,29 @@ internal static class AppInstallation
             return;
         }
 
-        string command = $"choice /C Y /N /D Y /T 1 > nul & del /F /Q \"{InstalledExecutablePath}\" & rmdir \"{InstallDirectory}\"";
+        DeleteAfterExit([InstalledExecutablePath], InstallDirectory);
+    }
+
+    internal static void DeleteCurrentExecutableAfterExit(string additionalPath)
+    {
+        string path = Environment.ProcessPath
+            ?? throw new InvalidOperationException("Could not determine the executable path.");
+        DeleteAfterExit([path, additionalPath], directory: null);
+    }
+
+    private static void DeleteAfterExit(IReadOnlyList<string> paths, string? directory)
+    {
+        string command = "choice /C Y /N /D Y /T 1 > nul";
+        foreach (string path in paths)
+        {
+            command += $" & del /F /Q \"{path}\"";
+        }
+
+        if (directory is not null)
+        {
+            command += $" & rmdir \"{directory}\"";
+        }
+
         var startInfo = new ProcessStartInfo
         {
             FileName = Environment.GetEnvironmentVariable("ComSpec") ?? "cmd.exe",
@@ -172,7 +196,7 @@ internal static class AppInstallation
         key.SetValue("NoRepair", 1, RegistryValueKind.DWord);
     }
 
-    private static Version? ReadVersion(string? path)
+    internal static Version? ReadVersion(string? path)
     {
         if (path is null || !File.Exists(path))
         {

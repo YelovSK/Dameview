@@ -6,6 +6,7 @@ using Dameview.Platform;
 using Dameview.Rendering;
 using Dameview.Settings;
 using Dameview.UI;
+using Dameview.Updates;
 using Dameview.Viewing;
 
 namespace Dameview;
@@ -24,6 +25,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
     private readonly IFolderScanner _folderScanner;
     private readonly ViewerWorkspace _workspace;
     private readonly SettingsService _settings;
+    private readonly UpdateService _updates;
     private int _pointerX;
     private int _pointerY;
 
@@ -51,6 +53,10 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         _folderScanner = new FolderScanner(path => extensions.Contains(Path.GetExtension(path)));
         _workspace = new ViewerWorkspace(CreateTab);
         _settings = new SettingsService(SettingsService.DefaultPath, _window.Post);
+        _updates = new UpdateService(
+            new GitHubUpdateClient(),
+            _window.Post,
+            AppInstallation.GetInstalledRunningVersion());
         _ui = new ViewerUi(
             _renderer.DeviceContext,
             _renderer.DirectWriteFactory,
@@ -61,6 +67,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
             _thumbnailCoordinator,
             theme => _settings!.Update(_settings.Current with { Theme = theme }),
             sort => _settings!.Update(_settings.Current with { Sort = sort }),
+            _updates.Activate,
             postToUi: _window.Post);
         _ui.Invalidated += _window.RequestRepaint;
         _ui.CursorChanged += _window.ApplyCursor;
@@ -84,6 +91,9 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
             _ui.SettingsError = _settings.Error;
             _window.RequestRepaint();
         };
+        _updates.Changed += HandleUpdateChanged;
+        _updates.UpdateDownloaded += HandleUpdateDownloaded;
+        _ui.ApplyUpdateState(_updates.State);
     }
 
     public int Run(string[] args)
@@ -103,6 +113,8 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         // WINDOWPLACEMENT keeps rcNormalPosition up to date while maximized,
         // so this also remembers the size that will be restored after unmaximizing.
         _settings.Update(_settings.Current with { Window = _window.CapturePlacement() });
+        _updates.Changed -= HandleUpdateChanged;
+        _updates.UpdateDownloaded -= HandleUpdateDownloaded;
         _settings.Dispose();
         _ui.Invalidated -= _window.RequestRepaint;
         _ui.Dispose();
@@ -254,6 +266,18 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         }
 
         _window.RequestRepaint();
+    }
+
+    private void HandleUpdateChanged(UpdateState state)
+    {
+        _ui.ApplyUpdateState(state);
+        _window.RequestRepaint();
+    }
+
+    private void HandleUpdateDownloaded(string path)
+    {
+        AppUpdateApplier.Launch(path);
+        _window.Close();
     }
 
     private void HandleSessionChanged(ViewerPane pane)

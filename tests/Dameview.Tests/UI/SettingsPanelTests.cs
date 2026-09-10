@@ -3,6 +3,7 @@ using Dameview.Navigation;
 using Dameview.Platform;
 using Dameview.UI;
 using Dameview.UI.Panels;
+using Dameview.Updates;
 using Vortice.DirectWrite;
 using static Vortice.DirectWrite.DWrite;
 
@@ -22,7 +23,8 @@ public sealed class SettingsPanelTests
             popupHost,
             () => { },
             _ => { },
-            selectedSorts.Add);
+            selectedSorts.Add,
+            () => { });
         var scene = new TestScene(settings, popupHost);
         var root = new UiRoot(scene, UiDpi.Default);
         root.Arrange(new SizeF(440.0f, 220.0f));
@@ -33,6 +35,7 @@ public sealed class SettingsPanelTests
         Assert.IsFalse(pages.Children[0].IsVisible);
         Assert.IsTrue(pages.Children[1].IsVisible);
 
+        root.HandleKey(new UiKeyEvent(UiKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new UiKeyEvent(UiKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new UiKeyEvent(UiKey.Down), settings, wrapFocus: true, directionalNavigation: true);
         Assert.AreEqual(FolderSort.DateModifiedNewest, selectedSorts[^1]);
@@ -52,13 +55,15 @@ public sealed class SettingsPanelTests
             popupHost,
             () => { },
             _ => { },
-            _ => { });
+            _ => { },
+            () => { });
         var scene = new TestScene(settings, popupHost);
         var root = new UiRoot(scene, UiDpi.Default);
         var size = new SizeF(440.0f, 220.0f);
         root.Arrange(size);
         root.SetFocus(settings.InitialFocus);
         root.HandleKey(new UiKeyEvent(UiKey.Right), settings, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new UiKeyEvent(UiKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new UiKeyEvent(UiKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new UiKeyEvent(UiKey.Enter), settings, wrapFocus: true, directionalNavigation: true);
         root.Arrange(size);
@@ -75,6 +80,35 @@ public sealed class SettingsPanelTests
         Assert.IsTrue(popupHost.IsOpen);
         Assert.IsGreaterThan(scrollBounds.Top, popupBounds.Bottom);
         Assert.IsLessThan(scrollBounds.Top, popupBounds.Top);
+    }
+
+    [TestMethod]
+    public void AvailableUpdateCanBeActivatedFromUpdatesTab()
+    {
+        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
+        var popupHost = new PopupHost();
+        int activations = 0;
+        using var settings = new SettingsPanel(
+            factory,
+            popupHost,
+            () => { },
+            _ => { },
+            _ => { },
+            () => activations++);
+        var scene = new TestScene(settings, popupHost);
+        var root = new UiRoot(scene, UiDpi.Default);
+        root.Arrange(new SizeF(440.0f, 460.0f));
+        root.SetFocus(settings.InitialFocus);
+        settings.ApplyUpdateState(new UpdateState(
+            UpdateStatus.Available,
+            new AppRelease("v2.0.0", new Version(2, 0, 0, 0))));
+
+        root.HandleKey(new UiKeyEvent(UiKey.Right), settings, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new UiKeyEvent(UiKey.Right), settings, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new UiKeyEvent(UiKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new UiKeyEvent(UiKey.Enter), settings, wrapFocus: true, directionalNavigation: true);
+
+        Assert.AreEqual(1, activations);
     }
 
     private sealed class TestScene : UiElement

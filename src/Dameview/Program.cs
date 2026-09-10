@@ -1,4 +1,5 @@
 using Dameview.Platform;
+using Dameview.Updates;
 
 namespace Dameview;
 
@@ -12,6 +13,11 @@ internal static class Program
 
         try
         {
+            if (AppUpdateApplier.TryApply(args))
+            {
+                return 0;
+            }
+
             if (AppInstallation.GetRequest(args) is { } installationRequest)
             {
                 bool runPortable;

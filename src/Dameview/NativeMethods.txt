@@ -53,6 +53,22 @@ DwmSetWindowAttribute
 // Kernel32
 GetModuleHandle
 
+// WinHTTP
+WinHttpOpen
+WinHttpConnect
+WinHttpOpenRequest
+WinHttpSendRequest
+WinHttpReceiveResponse
+WinHttpQueryHeaders
+WinHttpQueryOption
+WinHttpReadData
+WinHttpSetTimeouts
+WinHttpCloseHandle
+WINHTTP_OPTION_URL
+WINHTTP_QUERY_STATUS_CODE
+WINHTTP_QUERY_FLAG_NUMBER
+INTERNET_DEFAULT_HTTPS_PORT
+
 // Structs
 WNDCLASSEXW
 MSG
