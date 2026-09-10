@@ -69,4 +69,28 @@ public sealed class GalleryPanelTests
             columnCount: 2,
             itemGap: 8.0f));
     }
+
+    [TestMethod]
+    public void CenteredSelectionOffsetCentersWhenPossibleAndClampsAtTheEnds()
+    {
+        float viewportHeight = 3 * GalleryPanel.ItemHeightDips;
+
+        Assert.AreEqual(0.0f, GalleryPanel.GetCenteredSelectionOffset(
+            selectedIndex: 0,
+            itemCount: 10,
+            columnCount: 1,
+            viewportHeight));
+        Assert.AreEqual(4.5f * GalleryPanel.ItemHeightDips + 8.0f - viewportHeight / 2.0f,
+            GalleryPanel.GetCenteredSelectionOffset(
+                selectedIndex: 4,
+                itemCount: 10,
+                columnCount: 1,
+                viewportHeight));
+        Assert.AreEqual(10 * GalleryPanel.ItemHeightDips + 16.0f - viewportHeight,
+            GalleryPanel.GetCenteredSelectionOffset(
+                selectedIndex: 9,
+                itemCount: 10,
+                columnCount: 1,
+                viewportHeight));
+    }
 }

@@ -233,6 +233,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
         FindPaneView(pane)?.ApplyTabs(tabs, selectedIndex);
     }
 
+    internal void CenterGallerySelection() => _galleryPanel.CenterSelection();
+
     internal bool HandleKey(UiKeyEvent input)
     {
         if (_popupHost.IsOpen)

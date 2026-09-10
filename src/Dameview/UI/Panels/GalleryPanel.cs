@@ -32,7 +32,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private readonly Dictionary<string, GalleryItemSlot> _slots =
         new(StringComparer.OrdinalIgnoreCase);
     private GalleryPanelState _state = new();
-    private bool _scrollSelectionPending;
+    private SelectionScrollAlignment? _pendingSelectionScroll;
     private int _hoveredIndex = -1;
     private int _pressedIndex = -1;
 
@@ -75,7 +75,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         }
 
         _state = state;
-        _scrollSelectionPending = false;
+        _pendingSelectionScroll = null;
         ClearSlots();
         _hoveredIndex = -1;
         _pressedIndex = -1;
@@ -105,11 +105,21 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         }
 
         _state.SelectedPath = selectedPath;
-        _scrollSelectionPending = true;
+        if (entriesChanged)
+        {
+            _pendingSelectionScroll = SelectionScrollAlignment.EnsureVisible;
+        }
+
         UpdateScrollMetrics();
         RevealSelectionIfPending();
         RefreshVisibleThumbnails();
         InvalidateVisual();
+    }
+
+    internal void CenterSelection()
+    {
+        _pendingSelectionScroll = SelectionScrollAlignment.Center;
+        RevealSelectionIfPending();
     }
 
     protected override SizeF MeasureCore(SizeF availableSize) => new(
@@ -305,6 +315,22 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         return index < count ? index : -1;
     }
 
+    internal static float GetCenteredSelectionOffset(
+        int selectedIndex,
+        int itemCount,
+        int columnCount,
+        float viewportHeight)
+    {
+        int row = selectedIndex / columnCount;
+        int rowCount = (itemCount + columnCount - 1) / columnCount;
+        float contentHeight = 2.0f * PanelPadding + rowCount * ItemHeightDips;
+        float itemCenter = PanelPadding + (row + 0.5f) * ItemHeightDips;
+        return Math.Clamp(
+            itemCenter - viewportHeight / 2.0f,
+            0.0f,
+            MathF.Max(0.0f, contentHeight - viewportHeight));
+    }
+
     private void DrawItem(in UiDrawContext context, int index)
     {
         FolderEntry entry = _state.Entries[index];
@@ -426,13 +452,27 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         InvalidateVisual();
     }
 
-    private void ScrollSelectionIntoView()
+    private void ScrollSelection(SelectionScrollAlignment alignment)
     {
         int selectedIndex = Array.FindIndex(
             _state.Entries,
             entry => string.Equals(entry.FullName, _state.SelectedPath, StringComparison.OrdinalIgnoreCase));
         if (selectedIndex < 0 || Bounds.Height <= 0.0f)
         {
+            return;
+        }
+
+        if (alignment == SelectionScrollAlignment.Center)
+        {
+            if (_state.ScrollOffset.SetTarget(GetCenteredSelectionOffset(
+                selectedIndex,
+                _state.Entries.Length,
+                ColumnCount,
+                Bounds.Height)))
+            {
+                InvalidateVisual();
+            }
+
             return;
         }
 
@@ -454,13 +494,13 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
     private void RevealSelectionIfPending()
     {
-        if (!_scrollSelectionPending || Bounds.Height <= 0.0f)
+        if (_pendingSelectionScroll is not { } alignment || Bounds.Height <= 0.0f)
         {
             return;
         }
 
-        ScrollSelectionIntoView();
-        _scrollSelectionPending = false;
+        ScrollSelection(alignment);
+        _pendingSelectionScroll = null;
     }
 
     private void UpdateScrollMetrics()
@@ -510,6 +550,12 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         }
 
         _slots.Clear();
+    }
+
+    private enum SelectionScrollAlignment
+    {
+        EnsureVisible,
+        Center,
     }
 
     private sealed class GalleryItemSlot : IDisposable

@@ -228,10 +228,12 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         {
             case UiKey.Left:
                 ShowPreviousImage();
+                _ui.CenterGallerySelection();
                 break;
 
             case UiKey.Right:
                 ShowNextImage();
+                _ui.CenterGallerySelection();
                 break;
 
             case UiKey.F:
