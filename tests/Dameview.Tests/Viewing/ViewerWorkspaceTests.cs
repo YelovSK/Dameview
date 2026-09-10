@@ -1,4 +1,5 @@
 using Dameview.Imaging;
+using System.Drawing;
 using Dameview.Navigation;
 using Dameview.Viewing;
 
@@ -219,6 +220,86 @@ public sealed class ViewerWorkspaceTests
     }
 
     [TestMethod]
+    public void OptimizingPaneLayoutCanChangeTheSplitOrientation()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        workspace.SplitPane(workspace.ActivePane, WorkspaceSplitOrientation.Vertical);
+        var changes = new List<WorkspaceSplit?>();
+        workspace.LayoutChanged += changes.Add;
+
+        workspace.OptimizePaneLayout(LayoutArea(2000.0f, 1000.0f));
+
+        WorkspaceSplit root = Assert.IsInstanceOfType<WorkspaceSplit>(workspace.Root);
+        Assert.AreEqual(WorkspaceSplitOrientation.Horizontal, root.Orientation);
+        Assert.AreEqual(0.5f, root.Ratio);
+        CollectionAssert.AreEqual(new WorkspaceSplit?[] { null }, changes);
+    }
+
+    [TestMethod]
+    public void OptimizedHorizontalLayoutGivesTheWiderImageMoreWidth()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane tall = workspace.ActivePane;
+        ViewerPane wide = workspace.SplitPane(tall, WorkspaceSplitOrientation.Vertical);
+
+        WorkspaceNode optimized = PaneLayoutOptimizer.Optimize(
+            workspace.Root,
+            LayoutArea(2500.0f, 1000.0f),
+            pane => ReferenceEquals(pane, tall)
+                ? new SizeF(500.0f, 1000.0f)
+                : new SizeF(2000.0f, 1000.0f));
+
+        WorkspaceSplit root = Assert.IsInstanceOfType<WorkspaceSplit>(optimized);
+        Assert.AreEqual(WorkspaceSplitOrientation.Horizontal, root.Orientation);
+        Assert.AreSame(tall, root.First);
+        Assert.AreSame(wide, root.Second);
+        Assert.AreEqual(0.2f, root.Ratio, 0.0001f);
+    }
+
+    [TestMethod]
+    public void OptimizerDoesNotSacrificeOneImageForBetterSpaceUtilization()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane tall = workspace.ActivePane;
+        ViewerPane wide = workspace.SplitPane(tall, WorkspaceSplitOrientation.Horizontal);
+
+        WorkspaceNode optimized = PaneLayoutOptimizer.Optimize(
+            workspace.Root,
+            LayoutArea(1000.0f, 1000.0f),
+            pane => ReferenceEquals(pane, tall)
+                ? new SizeF(5000.0f, 10000.0f)
+                : new SizeF(10000.0f, 5000.0f));
+
+        WorkspaceSplit root = Assert.IsInstanceOfType<WorkspaceSplit>(optimized);
+        Assert.AreEqual(WorkspaceSplitOrientation.Horizontal, root.Orientation);
+        Assert.AreEqual(0.5f, root.Ratio, 0.01f);
+    }
+
+    [TestMethod]
+    [DataRow(10)]
+    [DataRow(11)]
+    public void OptimizingManyPanesPreservesEveryPaneExactlyOnce(int paneCount)
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        var panes = new List<ViewerPane> { workspace.ActivePane };
+        for (int index = 1; index < paneCount; index++)
+        {
+            panes.Add(workspace.SplitPane(
+                panes[^1],
+                index % 2 == 0
+                    ? WorkspaceSplitOrientation.Horizontal
+                    : WorkspaceSplitOrientation.Vertical));
+        }
+
+        WorkspaceNode optimized = PaneLayoutOptimizer.Optimize(
+            workspace.Root,
+            LayoutArea(1600.0f, 900.0f),
+            pane => new SizeF(400.0f + panes.IndexOf(pane) * 350.0f, 1000.0f));
+
+        CollectionAssert.AreEquivalent(panes, EnumeratePanes(optimized).ToArray());
+    }
+
+    [TestMethod]
     public void RemovingAnInactivePaneCollapsesItsParentAndPreservesFocus()
     {
         using var workspace = new ViewerWorkspace(CreateTab);
@@ -321,6 +402,29 @@ public sealed class ViewerWorkspaceTests
         var monitor = new SilentFolderMonitor();
         var session = new ViewerSession(new FolderNavigator(), monitor, new SilentImageLoader());
         return new ViewerTab(session);
+    }
+
+    private static PaneLayoutArea LayoutArea(float width, float height) =>
+        new(width, height, SplitterSize: 0.0f, PaneHeaderHeight: 0.0f, MinimumPaneSize: 0.0f);
+
+    private static IEnumerable<ViewerPane> EnumeratePanes(WorkspaceNode node)
+    {
+        if (node is ViewerPane pane)
+        {
+            yield return pane;
+            yield break;
+        }
+
+        WorkspaceSplit split = Assert.IsInstanceOfType<WorkspaceSplit>(node);
+        foreach (ViewerPane child in EnumeratePanes(split.First))
+        {
+            yield return child;
+        }
+
+        foreach (ViewerPane child in EnumeratePanes(split.Second))
+        {
+            yield return child;
+        }
     }
 
     private sealed class SilentImageLoader : IImageLoader

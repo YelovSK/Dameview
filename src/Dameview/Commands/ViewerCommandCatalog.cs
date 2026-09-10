@@ -15,6 +15,7 @@ internal enum ViewerCommandId
     SplitRight,
     SplitDown,
     EqualizePanes,
+    OptimizePaneLayout,
     ShowSettings,
     ShowCommandPalette,
 }
@@ -61,6 +62,7 @@ internal static class ViewerCommandCatalog
         new(ViewerCommandId.SplitRight, "Split right"),
         new(ViewerCommandId.SplitDown, "Split down"),
         new(ViewerCommandId.EqualizePanes, "Equalize panes"),
+        new(ViewerCommandId.OptimizePaneLayout, "Optimize pane layout"),
         new(ViewerCommandId.ShowSettings, "Open settings"),
         new(ViewerCommandId.ShowCommandPalette, "Show command palette"),
     ];

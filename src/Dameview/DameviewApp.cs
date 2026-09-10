@@ -291,6 +291,14 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
                 _workspace.EqualizePanes();
                 break;
 
+            case ViewerCommandId.OptimizePaneLayout:
+                if (!_ui.IsClosingPane)
+                {
+                    _workspace.OptimizePaneLayout(_ui.PaneLayoutArea);
+                }
+
+                break;
+
             case ViewerCommandId.ShowSettings:
                 _ui.ShowSettings();
                 break;

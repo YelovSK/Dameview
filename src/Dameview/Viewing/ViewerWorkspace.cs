@@ -1,3 +1,4 @@
+using System.Drawing;
 using Dameview.Navigation;
 
 namespace Dameview.Viewing;
@@ -106,6 +107,29 @@ internal sealed class ViewerWorkspace : IDisposable
         }
     }
 
+    internal void OptimizePaneLayout(PaneLayoutArea area)
+    {
+        WorkspaceNode optimized = PaneLayoutOptimizer.Optimize(
+            Root,
+            area,
+            static pane => pane.ActiveSession.State.DisplayedImage is { } image
+                ? new SizeF(image.Representation.Width, image.Representation.Height)
+                : SizeF.Empty);
+
+        if (HasSameTopology(Root, optimized))
+        {
+            if (ApplyRatios(Root, optimized))
+            {
+                PaneRatiosChanged?.Invoke();
+            }
+
+            return;
+        }
+
+        Root = optimized;
+        LayoutChanged?.Invoke(null);
+    }
+
     internal void SelectPane(ViewerPane pane)
     {
         EnsureContains(pane);
@@ -136,6 +160,39 @@ internal sealed class ViewerWorkspace : IDisposable
         }
 
         return (paneCount, changed || firstChanged || secondChanged);
+    }
+
+    private static bool HasSameTopology(WorkspaceNode current, WorkspaceNode replacement)
+    {
+        if (current is ViewerPane currentPane && replacement is ViewerPane replacementPane)
+        {
+            return ReferenceEquals(currentPane, replacementPane);
+        }
+
+        return current is WorkspaceSplit currentSplit
+            && replacement is WorkspaceSplit replacementSplit
+            && currentSplit.Orientation == replacementSplit.Orientation
+            && HasSameTopology(currentSplit.First, replacementSplit.First)
+            && HasSameTopology(currentSplit.Second, replacementSplit.Second);
+    }
+
+    private static bool ApplyRatios(WorkspaceNode current, WorkspaceNode replacement)
+    {
+        if (current is not WorkspaceSplit currentSplit
+            || replacement is not WorkspaceSplit replacementSplit)
+        {
+            return false;
+        }
+
+        bool changed = currentSplit.Ratio != replacementSplit.Ratio;
+        if (changed)
+        {
+            currentSplit.SetRatio(replacementSplit.Ratio);
+        }
+
+        return ApplyRatios(currentSplit.First, replacementSplit.First)
+            | ApplyRatios(currentSplit.Second, replacementSplit.Second)
+            | changed;
     }
 
     internal bool RemovePane(ViewerPane pane)

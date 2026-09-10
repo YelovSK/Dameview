@@ -154,6 +154,12 @@ internal sealed class ViewerUi : UiElement, IDisposable
     internal TimeSpan? NextAnimationFrameDelay => _workspaceView.NextAnimationFrameDelay;
     internal bool IsClosingPane => _workspaceView.IsClosingPane;
     internal float GalleryWidthDips => _splitView.DividerOffsetDips;
+    internal PaneLayoutArea PaneLayoutArea => new(
+        MathF.Max(1.0f, _root.DipsToPixels(_workspaceView.Bounds.Width)),
+        MathF.Max(1.0f, _root.DipsToPixels(_workspaceView.Bounds.Height)),
+        _root.DipsToPixels(SplitPanel.SplitterSizeDips),
+        _root.DipsToPixels(ViewerTabStrip.HeightDips),
+        _root.DipsToPixels(SplitPanel.MinimumPaneSizeDips));
 
     internal PointF GetImageViewportPoint(PointF nativePoint)
     {
