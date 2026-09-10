@@ -169,6 +169,25 @@ public sealed class SplitPanelTests
     }
 
     [TestMethod]
+    public void DisabledAnimationsCollapseImmediatelyAndRunCompletion()
+    {
+        var first = new FixedContent();
+        var second = new FixedContent();
+        var panel = new SplitPanel(first, second, UiOrientation.Horizontal, 0.6f);
+        var root = new UiRoot(panel, UiDpi.Default);
+        int completions = 0;
+        root.Arrange(new SizeF(1008.0f, 600.0f));
+
+        panel.Collapse(second, () => completions++);
+        Assert.IsFalse(root.Update(new UiUpdateContext(0.0, AnimationsEnabled: false)));
+        root.Arrange(new SizeF(1008.0f, 600.0f));
+
+        Assert.AreEqual(1, completions);
+        Assert.AreEqual(1008.0f, first.Bounds.Width);
+        Assert.AreEqual(0.0f, second.Bounds.Width);
+    }
+
+    [TestMethod]
     public void CollapsingTheFirstPaneExpandsTheSecondPaneToTheOuterEdge()
     {
         var first = new FixedContent();

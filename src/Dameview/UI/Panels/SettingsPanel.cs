@@ -41,6 +41,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
 
     private readonly Button _closeButton;
     private readonly Dropdown<Theme> _themeDropdown;
+    private readonly Toggle _animationsToggle;
     private readonly Dropdown<SortField> _sortField;
     private readonly Dropdown<SortDirection> _sortDirection;
     private readonly SettingsRow _themeRow;
@@ -63,6 +64,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
         PopupHost popupHost,
         Action close,
         Action<Theme> setTheme,
+        Action<bool> setAnimationsEnabled,
         Action<FolderSort> setSort,
         Action activateUpdate)
     {
@@ -96,6 +98,11 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
             Themes.Dark,
             setTheme);
         _themeRow = new SettingsRow(factory, "Theme", _themeDropdown);
+        _animationsToggle = new Toggle(
+            factory,
+            "Animations",
+            value: true,
+            setAnimationsEnabled);
 
         _sortField = new Dropdown<SortField>(
             factory,
@@ -132,7 +139,8 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
             UiOrientation.Vertical,
             UiDesign.LargeSpacing,
             StackPanelDistribution.Natural,
-            _themeRow);
+            _themeRow,
+            _animationsToggle);
         var sortingContent = new StackPanel(
             UiOrientation.Vertical,
             UiDesign.LargeSpacing,
@@ -182,6 +190,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
     internal void ApplySettings(AppSettings settings)
     {
         _themeDropdown.SelectedValue = settings.Theme;
+        _animationsToggle.Value = settings.AnimationsEnabled;
 
         SortDefinition sort = Array.Find(
             Sorts,
@@ -252,6 +261,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
     {
         _closeButton.Dispose();
         _themeDropdown.Dispose();
+        _animationsToggle.Dispose();
         _sortField.Dispose();
         _sortDirection.Dispose();
         _themeRow.Dispose();

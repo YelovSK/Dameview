@@ -35,6 +35,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private readonly Action<ViewerPane> _selectPane;
     private ViewerPane _activePane;
     private ViewerPaneView _activePaneView;
+    private bool _animationsEnabled = true;
 
     internal ViewerUi(
         ID2D1DeviceContext deviceContext,
@@ -46,6 +47,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         Action<ViewerCommandId> executeCommand,
         IThumbnailLoader thumbnailLoader,
         Action<Theme> setTheme,
+        Action<bool> setAnimationsEnabled,
         Action<FolderSort> setSort,
         Action activateUpdate,
         TimeProvider? timeProvider = null,
@@ -94,6 +96,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
             _popupHost,
             CloseSettings,
             setTheme,
+            setAnimationsEnabled,
             setSort,
             activateUpdate);
         _commandPalettePanel = new CommandPalettePanel(
@@ -234,7 +237,18 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _root.InvalidateVisual();
     }
 
-    internal void ApplySettings(AppSettings settings) => _settingsPanel.ApplySettings(settings);
+    internal void ApplySettings(AppSettings settings)
+    {
+        _settingsPanel.ApplySettings(settings);
+        if (_animationsEnabled == settings.AnimationsEnabled)
+        {
+            return;
+        }
+
+        _animationsEnabled = settings.AnimationsEnabled;
+        _animationClock.Reset();
+        _root.InvalidateVisual();
+    }
 
     internal void ApplyUpdateState(UpdateState state) => _settingsPanel.ApplyUpdateState(state);
 
@@ -285,7 +299,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     internal bool Update()
     {
-        UiUpdateContext context = _animationClock.GetNextFrame();
+        UiUpdateContext context = _animationClock.GetNextFrame(_animationsEnabled);
         bool continues = _root.Update(context);
         _workspaceView.CompletePendingClose();
         if (!continues && NextAnimationFrameDelay is null)

@@ -30,16 +30,22 @@ internal sealed class AnimatedFloat
         return true;
     }
 
-    internal bool Update(double elapsedSeconds)
+    internal bool Update(in UiUpdateContext context)
     {
         if (Current == Target)
         {
             return false;
         }
 
-        if (elapsedSeconds > 0.0)
+        if (!context.AnimationsEnabled)
         {
-            double blend = 1.0 - Math.Exp(-_response * elapsedSeconds);
+            Current = Target;
+            return false;
+        }
+
+        if (context.ElapsedSeconds > 0.0)
+        {
+            double blend = 1.0 - Math.Exp(-_response * context.ElapsedSeconds);
             Current += (Target - Current) * (float)blend;
 
             if (MathF.Abs(Target - Current) <= _completionDistance)

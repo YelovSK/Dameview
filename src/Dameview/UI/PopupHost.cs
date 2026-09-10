@@ -115,7 +115,7 @@ internal sealed class PopupHost : UiElement
     protected override bool UpdateCore(in UiUpdateContext context)
     {
         bool wasAnimating = _visibility.Current != _visibility.Target;
-        bool continues = _visibility.Update(context.ElapsedSeconds);
+        bool continues = _visibility.Update(context);
         if (wasAnimating)
         {
             InvalidateLayout();

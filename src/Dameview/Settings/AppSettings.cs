@@ -8,6 +8,7 @@ namespace Dameview.Settings;
 internal sealed record AppSettings
 {
     public Theme Theme { get; init; } = Themes.Dark;
+    public bool AnimationsEnabled { get; init; } = true;
     public FolderSort Sort { get; init; } = FolderSort.NameAscending;
     public WindowPlacementState? Window { get; init; }
 

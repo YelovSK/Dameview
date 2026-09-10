@@ -67,6 +67,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
             ExecuteCommand,
             _thumbnailCoordinator,
             theme => _settings!.Update(_settings.Current with { Theme = theme }),
+            enabled => _settings!.Update(_settings.Current with { AnimationsEnabled = enabled }),
             sort => _settings!.Update(_settings.Current with { Sort = sort }),
             _updates.Activate,
             postToUi: _window.Post);

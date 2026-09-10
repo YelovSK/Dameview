@@ -16,6 +16,8 @@ public sealed class UiAnimationClockTests
         timeProvider.Advance(TimeSpan.FromMilliseconds(16));
         Assert.AreEqual(0.016, clock.GetNextFrame().ElapsedSeconds, 0.0001);
 
+        Assert.IsFalse(clock.GetNextFrame(animationsEnabled: false).AnimationsEnabled);
+
         timeProvider.Advance(TimeSpan.FromSeconds(1));
         Assert.AreEqual(0.05, clock.GetNextFrame().ElapsedSeconds);
 

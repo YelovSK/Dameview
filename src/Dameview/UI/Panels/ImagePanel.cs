@@ -166,7 +166,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
 
     protected override bool UpdateCore(in UiUpdateContext context)
     {
-        bool continues = _animator.Update(context.ElapsedSeconds);
+        bool continues = _animator.Update(context);
         if (_imageAnimation is { } animation)
         {
             animation.Update();

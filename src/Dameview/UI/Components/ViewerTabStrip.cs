@@ -188,7 +188,7 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
 
     protected override bool UpdateCore(in UiUpdateContext context)
     {
-        return _scrollOffset.Update(context.ElapsedSeconds);
+        return _scrollOffset.Update(context);
     }
 
     protected override void OnVisualStateChanged()

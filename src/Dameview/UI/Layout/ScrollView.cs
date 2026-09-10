@@ -101,7 +101,7 @@ internal sealed class ScrollView : UiElement
 
     protected override bool UpdateCore(in UiUpdateContext context)
     {
-        if (!_scrollOffset.Update(context.ElapsedSeconds))
+        if (!_scrollOffset.Update(context))
         {
             return false;
         }

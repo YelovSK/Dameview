@@ -13,7 +13,7 @@ internal sealed class UiAnimationClock
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
-    internal UiUpdateContext GetNextFrame()
+    internal UiUpdateContext GetNextFrame(bool animationsEnabled = true)
     {
         long timestamp = _timeProvider.GetTimestamp();
         double elapsedSeconds = _hasTimestamp
@@ -24,7 +24,7 @@ internal sealed class UiAnimationClock
 
         _timestamp = timestamp;
         _hasTimestamp = true;
-        return new UiUpdateContext(elapsedSeconds);
+        return new UiUpdateContext(elapsedSeconds, animationsEnabled);
     }
 
     internal void Reset()

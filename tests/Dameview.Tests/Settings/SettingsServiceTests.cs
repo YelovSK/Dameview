@@ -16,7 +16,12 @@ public sealed class SettingsServiceTests
         using SettingsService settings = files.CreateService();
         settings.Start();
         Assert.Contains("theme=dark", File.ReadAllText(files.Path));
-        settings.Update(new AppSettings { Theme = Themes.Light, Sort = FolderSort.SizeLargest });
+        settings.Update(new AppSettings
+        {
+            Theme = Themes.Light,
+            AnimationsEnabled = false,
+            Sort = FolderSort.SizeLargest,
+        });
         Assert.IsNull(settings.Error);
 
         using SettingsService reopened = files.CreateService();
@@ -33,6 +38,7 @@ public sealed class SettingsServiceTests
         using SettingsService settings = files.CreateService();
         settings.Start();
         Assert.AreEqual(Themes.Light, settings.Current.Theme);
+        Assert.IsTrue(settings.Current.AnimationsEnabled);
         Assert.AreEqual(FolderSort.NameAscending, settings.Current.Sort);
     }
 
@@ -121,6 +127,7 @@ public sealed class SettingsServiceTests
     [TestMethod]
     [DataRow("theme=")]
     [DataRow("theme=42")]
+    [DataRow("animations=maybe")]
     [DataRow("sort=random")]
     public void InvalidValuesDoNotReplaceCurrentSettings(string json)
     {

@@ -1,4 +1,5 @@
 using System.Drawing;
+using Dameview.UI;
 
 namespace Dameview.Viewing;
 
@@ -170,16 +171,44 @@ internal sealed class ViewportAnimator
         return Fit();
     }
 
-    internal bool Update(double elapsedSeconds)
+    internal bool Update(in UiUpdateContext context)
     {
-        if (IsAnimating && elapsedSeconds > 0.0)
+        if (!context.AnimationsEnabled)
         {
-            UpdateZoom(elapsedSeconds);
-            UpdateTransform(elapsedSeconds);
-            UpdateMomentum(elapsedSeconds);
+            CompleteAnimations();
+            return false;
+        }
+
+        if (IsAnimating && context.ElapsedSeconds > 0.0)
+        {
+            UpdateZoom(context.ElapsedSeconds);
+            UpdateTransform(context.ElapsedSeconds);
+            UpdateMomentum(context.ElapsedSeconds);
         }
 
         return IsAnimating;
+    }
+
+    private void CompleteAnimations()
+    {
+        if (_zooming)
+        {
+            _zooming = false;
+            _viewport.SetScaleAt(
+                _targetScale,
+                _zoomViewportX,
+                _zoomViewportY,
+                _zoomImagePosition);
+        }
+
+        if (_transforming)
+        {
+            CompleteTransform();
+        }
+
+        _hasPointerVelocity = false;
+        _velocityX = 0.0;
+        _velocityY = 0.0;
     }
 
     private bool HasMomentum => Math.Sqrt((_velocityX * _velocityX) + (_velocityY * _velocityY))

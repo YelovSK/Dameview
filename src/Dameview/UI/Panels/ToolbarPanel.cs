@@ -83,7 +83,7 @@ internal sealed class ToolbarPanel : UiElement, IDisposable
 
     protected override bool UpdateCore(in UiUpdateContext context)
     {
-        return _visibility.Update(context.ElapsedSeconds);
+        return _visibility.Update(context);
     }
 
     protected override void DrawCore(in UiDrawContext context)

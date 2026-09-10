@@ -1,3 +1,4 @@
+using Dameview.UI;
 using Dameview.UI.Animation;
 
 namespace Dameview.Tests.UI.Animation;
@@ -11,15 +12,15 @@ public sealed class AnimatedFloatTests
         var value = new AnimatedFloat(0.0f, 10.0);
 
         Assert.IsTrue(value.SetTarget(1.0f));
-        Assert.IsTrue(value.Update(0.1));
+        Assert.IsTrue(value.Update(new UiUpdateContext(0.1)));
         Assert.AreEqual(0.6321f, value.Current, 0.0001f);
 
-        for (int frame = 0; frame < 100 && value.Update(1.0 / 60.0); frame++)
+        for (int frame = 0; frame < 100 && value.Update(new UiUpdateContext(1.0 / 60.0)); frame++)
         {
         }
 
         Assert.AreEqual(1.0f, value.Current);
-        Assert.IsFalse(value.Update(1.0 / 60.0));
+        Assert.IsFalse(value.Update(new UiUpdateContext(1.0 / 60.0)));
     }
 
     [TestMethod]
@@ -28,6 +29,16 @@ public sealed class AnimatedFloatTests
         var value = new AnimatedFloat(1.0f, 10.0);
 
         Assert.IsFalse(value.SetTarget(1.0f));
-        Assert.IsFalse(value.Update(0.1));
+        Assert.IsFalse(value.Update(new UiUpdateContext(0.1)));
+    }
+
+    [TestMethod]
+    public void DisabledAnimationsSnapToTheTarget()
+    {
+        var value = new AnimatedFloat(0.0f, 10.0);
+        value.SetTarget(1.0f);
+
+        Assert.IsFalse(value.Update(new UiUpdateContext(0.0, AnimationsEnabled: false)));
+        Assert.AreEqual(1.0f, value.Current);
     }
 }

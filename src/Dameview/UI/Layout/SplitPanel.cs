@@ -151,7 +151,7 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
     protected override bool UpdateCore(in UiUpdateContext context)
     {
         float previous = _transition.Current;
-        bool continues = _transition.Update(context.ElapsedSeconds);
+        bool continues = _transition.Update(context);
         if (_collapseFirstAfterOpening && _transition.Current == 1.0f)
         {
             _collapseFirstAfterOpening = false;

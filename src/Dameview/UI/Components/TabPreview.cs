@@ -65,7 +65,7 @@ internal sealed class TabPreview : UiElement, IDisposable
 
     protected override bool UpdateCore(in UiUpdateContext context)
     {
-        bool continues = _visibility.Update(context.ElapsedSeconds);
+        bool continues = _visibility.Update(context);
         if (_bitmap is not null && _path is null && _visibility.Current == 0.0f)
         {
             _bitmap.Dispose();

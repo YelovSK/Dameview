@@ -49,16 +49,22 @@ internal sealed class ScrollOffsetController
 
     /// <summary>Advances the current offset toward its target.</summary>
     /// <returns><see langword="true"/> while the current offset is not yet at its target.</returns>
-    internal bool Update(double elapsedSeconds)
+    internal bool Update(in UiUpdateContext context)
     {
         if (Offset == TargetOffset)
         {
             return false;
         }
 
-        if (elapsedSeconds > 0.0)
+        if (!context.AnimationsEnabled)
         {
-            double blend = 1.0 - Math.Exp(-Response * elapsedSeconds);
+            Offset = TargetOffset;
+            return true;
+        }
+
+        if (context.ElapsedSeconds > 0.0)
+        {
+            double blend = 1.0 - Math.Exp(-Response * context.ElapsedSeconds);
             Offset += (TargetOffset - Offset) * (float)blend;
             if (MathF.Abs(TargetOffset - Offset) <= CompletionDistance)
             {

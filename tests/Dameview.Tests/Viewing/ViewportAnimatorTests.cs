@@ -1,4 +1,5 @@
 using System.Drawing;
+using Dameview.UI;
 using Dameview.Viewing;
 
 namespace Dameview.Tests.Viewing;
@@ -16,7 +17,7 @@ public sealed class ViewportAnimatorTests
         PointF imagePosition = viewport.ViewportToImage(600.0f, 400.0f);
 
         Assert.IsTrue(animator.ZoomAt(600.0f, 400.0f, 120));
-        Assert.IsTrue(animator.Update(0.016));
+        Assert.IsTrue(animator.Update(new UiUpdateContext(0.016)));
 
         Assert.IsGreaterThan(0.5f, viewport.Scale);
         Assert.IsLessThan(0.6f, viewport.Scale);
@@ -24,7 +25,7 @@ public sealed class ViewportAnimatorTests
 
         for (int frame = 0; frame < 100 && animator.IsAnimating; frame++)
         {
-            animator.Update(0.016);
+            animator.Update(new UiUpdateContext(0.016));
         }
 
         Assert.IsFalse(animator.IsAnimating);
@@ -48,7 +49,7 @@ public sealed class ViewportAnimatorTests
         float positionAtRelease = viewport.GetDestinationRectangle().X;
 
         Assert.IsTrue(animator.EndPan());
-        Assert.IsTrue(animator.Update(0.016));
+        Assert.IsTrue(animator.Update(new UiUpdateContext(0.016)));
 
         Assert.IsTrue(viewport.GetDestinationRectangle().X > positionAtRelease);
     }
@@ -83,7 +84,7 @@ public sealed class ViewportAnimatorTests
         float centerBeforeZoom = viewport.ViewportToImage(250.0f, 250.0f).X;
 
         Assert.IsTrue(animator.ZoomAt(250.0f, 250.0f, 120));
-        animator.Update(0.016);
+        animator.Update(new UiUpdateContext(0.016));
 
         Assert.AreEqual(centerBeforeZoom, viewport.ViewportToImage(250.0f, 250.0f).X, 0.001f);
     }
@@ -101,7 +102,7 @@ public sealed class ViewportAnimatorTests
         timeProvider.Advance(TimeSpan.FromMilliseconds(10));
         animator.PanTo(100.0f, 0.0f);
         Assert.IsTrue(animator.EndPan());
-        animator.Update(0.016);
+        animator.Update(new UiUpdateContext(0.016));
 
         animator.BeginPan(100.0f, 0.0f);
         timeProvider.Advance(TimeSpan.FromMilliseconds(1));
@@ -109,7 +110,7 @@ public sealed class ViewportAnimatorTests
         float positionAtRelease = viewport.GetDestinationRectangle().X;
 
         Assert.IsTrue(animator.EndPan());
-        animator.Update(0.016);
+        animator.Update(new UiUpdateContext(0.016));
         Assert.AreEqual(positionAtRelease, viewport.GetDestinationRectangle().X, 1.0f);
     }
 
@@ -123,7 +124,7 @@ public sealed class ViewportAnimatorTests
         PointF imagePosition = viewport.ViewportToImage(600.0f, 400.0f);
 
         Assert.IsTrue(animator.ShowActualSizeAt(600.0f, 400.0f));
-        Assert.IsTrue(animator.Update(0.016));
+        Assert.IsTrue(animator.Update(new UiUpdateContext(0.016)));
 
         Assert.IsGreaterThan(0.5f, viewport.Scale);
         Assert.IsLessThan(1.0f, viewport.Scale);
@@ -147,7 +148,7 @@ public sealed class ViewportAnimatorTests
         RectangleF start = viewport.GetDestinationRectangle();
 
         Assert.IsTrue(animator.ShowActualSizeAt(750.0f, 600.0f));
-        Assert.IsTrue(animator.Update(0.016));
+        Assert.IsTrue(animator.Update(new UiUpdateContext(0.016)));
 
         RectangleF current = viewport.GetDestinationRectangle();
         var target = new RectangleF(-750.0f, -200.0f, 2000.0f, 1000.0f);
@@ -187,7 +188,7 @@ public sealed class ViewportAnimatorTests
         RectangleF start = viewport.GetDestinationRectangle();
 
         Assert.IsTrue(animator.Fit());
-        Assert.IsTrue(animator.Update(0.016));
+        Assert.IsTrue(animator.Update(new UiUpdateContext(0.016)));
 
         RectangleF current = viewport.GetDestinationRectangle();
         var target = new RectangleF(0.0f, 150.0f, 1000.0f, 500.0f);
@@ -198,11 +199,45 @@ public sealed class ViewportAnimatorTests
         Assert.AreEqual(widthProgress, GetProgress(start.Height, current.Height, target.Height), 0.001f);
     }
 
+    [TestMethod]
+    public void DisabledAnimationsCompleteZoomImmediately()
+    {
+        var viewport = new ImageViewport(1000, 800);
+        viewport.SetImageSize(2000, 1600);
+        var animator = new ViewportAnimator(viewport, new ManualTimeProvider());
+
+        Assert.IsTrue(animator.ZoomAt(600.0f, 400.0f, 120));
+        Assert.IsFalse(animator.Update(new UiUpdateContext(0.0, AnimationsEnabled: false)));
+
+        Assert.IsFalse(animator.IsAnimating);
+        Assert.AreEqual(0.6f, viewport.Scale, 0.001f);
+    }
+
+    [TestMethod]
+    public void DisabledAnimationsCancelPanMomentum()
+    {
+        var timeProvider = new ManualTimeProvider();
+        var viewport = new ImageViewport(500, 500);
+        viewport.SetImageSize(2000, 2000);
+        viewport.SetActualSizeAt(viewport.ViewportCenter.X, viewport.ViewportCenter.Y, viewport.ImageCenter);
+        var animator = new ViewportAnimator(viewport, timeProvider);
+
+        animator.BeginPan(0.0f, 0.0f);
+        timeProvider.Advance(TimeSpan.FromMilliseconds(10));
+        animator.PanTo(100.0f, 0.0f);
+        Assert.IsTrue(animator.EndPan());
+        RectangleF positionAtRelease = viewport.GetDestinationRectangle();
+
+        Assert.IsFalse(animator.Update(new UiUpdateContext(0.0, AnimationsEnabled: false)));
+        Assert.IsFalse(animator.IsAnimating);
+        Assert.AreEqual(positionAtRelease, viewport.GetDestinationRectangle());
+    }
+
     private static void AdvanceUntilComplete(ViewportAnimator animator)
     {
         for (int frame = 0; frame < 100 && animator.IsAnimating; frame++)
         {
-            animator.Update(0.016);
+            animator.Update(new UiUpdateContext(0.016));
         }
 
         Assert.IsFalse(animator.IsAnimating);

@@ -234,7 +234,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
     protected override bool UpdateCore(in UiUpdateContext context)
     {
-        if (!_state.ScrollOffset.Update(context.ElapsedSeconds))
+        if (!_state.ScrollOffset.Update(context))
         {
             return false;
         }

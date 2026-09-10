@@ -321,7 +321,9 @@ internal abstract class UiElement
 }
 
 /// <summary>Frame timing supplied to UI elements during an update.</summary>
-internal readonly record struct UiUpdateContext(double ElapsedSeconds);
+internal readonly record struct UiUpdateContext(
+    double ElapsedSeconds,
+    bool AnimationsEnabled = true);
 
 /// <summary>Describes how a pointer handler consumed an event and affected routing.</summary>
 internal readonly record struct UiPointerResult(

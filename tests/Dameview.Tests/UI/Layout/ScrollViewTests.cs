@@ -33,6 +33,24 @@ public sealed class ScrollViewTests
         Assert.AreEqual(0.0f, scrollView.ScrollOffset);
     }
 
+    [TestMethod]
+    public void DisabledAnimationsScrollImmediately()
+    {
+        var content = new FixedContent(new SizeF(200.0f, 500.0f));
+        var scrollView = new ScrollView(content);
+        scrollView.Measure(new SizeF(200.0f, 120.0f));
+        scrollView.Arrange(new RectangleF(0.0f, 0.0f, 200.0f, 120.0f));
+
+        scrollView.OnPointerEvent(new UiPointerEvent(
+            UiPointerEventKind.Wheel,
+            PointF.Empty,
+            WheelDelta: -1200));
+        scrollView.UpdateTree(new UiUpdateContext(0.0, AnimationsEnabled: false));
+
+        Assert.AreEqual(380.0f, scrollView.ScrollOffset);
+        Assert.AreEqual(-380.0f, content.Bounds.Y);
+    }
+
     private static void AdvanceScroll(ScrollView scrollView)
     {
         for (int frame = 0; frame < 120; frame++)

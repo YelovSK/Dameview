@@ -12,6 +12,9 @@ internal static class SettingsIniSerializer
     {
         var document = IniDocument.Parse(text);
         Theme theme = ReadTheme(document.Get(string.Empty, "theme"));
+        bool animationsEnabled = ReadOptionalBoolean(
+            document.Get(string.Empty, "animations"),
+            defaultValue: true);
         FolderSort sort = ReadSort(document.Get(string.Empty, "sort"));
         WindowPlacementState? window = !document.HasSection("window") ? null : new WindowPlacementState
         {
@@ -22,13 +25,20 @@ internal static class SettingsIniSerializer
             Maximized = ReadRequiredBoolean(document.Get("window", "maximized")),
         };
 
-        return new AppSettings { Theme = theme, Sort = sort, Window = window };
+        return new AppSettings
+        {
+            Theme = theme,
+            AnimationsEnabled = animationsEnabled,
+            Sort = sort,
+            Window = window,
+        };
     }
 
     internal static string Write(AppSettings settings)
     {
         var document = new IniDocument();
         document.Set(string.Empty, "theme", WriteTheme(settings.Theme));
+        document.Set(string.Empty, "animations", settings.AnimationsEnabled ? "true" : "false");
         document.Set(string.Empty, "sort", WriteSort(settings.Sort));
         if (settings.Window is { } window)
         {
@@ -82,6 +92,9 @@ internal static class SettingsIniSerializer
         "false" => false,
         _ => throw new IniFormatException("Expected true or false."),
     };
+
+    private static bool ReadOptionalBoolean(string? value, bool defaultValue) =>
+        value is null ? defaultValue : ReadRequiredBoolean(value);
 
     private static string WriteTheme(Theme value) => value.Id;
 

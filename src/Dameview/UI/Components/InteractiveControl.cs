@@ -88,8 +88,8 @@ internal abstract class InteractiveControl : UiElement
 
     protected override bool UpdateCore(in UiUpdateContext context)
     {
-        bool continues = _hoverAmount.Update(context.ElapsedSeconds);
-        return _pressedAmount.Update(context.ElapsedSeconds) || continues;
+        bool continues = _hoverAmount.Update(context);
+        return _pressedAmount.Update(context) || continues;
     }
 
     protected override void OnVisualStateChanged()
