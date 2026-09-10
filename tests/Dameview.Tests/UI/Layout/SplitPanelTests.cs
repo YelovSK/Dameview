@@ -126,8 +126,8 @@ public sealed class SplitPanelTests
 
         Assert.IsTrue(root.Update(new UiUpdateContext(0.05)));
         root.Arrange(new SizeF(1008.0f, 600.0f));
-        Assert.IsLessThan(600.0f, first.Bounds.Width);
-        Assert.IsGreaterThan(1008.0f, first.Bounds.Width);
+        Assert.IsGreaterThan(600.0f, first.Bounds.Width);
+        Assert.IsLessThan(1008.0f, first.Bounds.Width);
         Assert.IsGreaterThan(0.0f, second.Bounds.Width);
         Assert.IsLessThan(400.0f, second.Bounds.Width);
 
