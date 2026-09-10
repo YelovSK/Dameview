@@ -93,6 +93,33 @@ public sealed class UiDrawContextTests
         Assert.IsGreaterThan(0, AlphaAt(pixels, 10, 9, 5));
     }
 
+    [TestMethod]
+    public void RoundedRectangleBorderIsOnePhysicalPixelAtScaledDpi()
+    {
+        const float dpi = 120.0f;
+        using var wic = new IWICImagingFactory2();
+        using IWICBitmap bitmap = wic.CreateBitmap(10, 10,
+            Vortice.WIC.PixelFormat.Format32bppPBGRA, BitmapCreateCacheOption.CacheOnLoad);
+        using ID2D1Factory factory = D2D1CreateFactory<ID2D1Factory>();
+        using ID2D1RenderTarget target = factory.CreateWicBitmapRenderTarget(bitmap, new RenderTargetProperties());
+        target.SetDpi(dpi, dpi);
+        using ID2D1SolidColorBrush brush = target.CreateSolidColorBrush(default(Color4));
+        var context = new UiDrawContext(target, brush, UiTheme.Default, dpi);
+        var border = new RoundedRectangle(new RectangleF(0, 0, 8, 8), 0, 0);
+
+        target.BeginDraw();
+        target.Clear(default(Color4));
+        context.DrawRoundedRectangle(border, new Color4(1, 1, 1, 1));
+        target.EndDraw().CheckError();
+
+        byte[] pixels = new byte[10 * 10 * 4];
+        bitmap.CopyPixels(10 * 4, pixels);
+        Assert.AreEqual(255, AlphaAt(pixels, 10, 5, 0));
+        Assert.AreEqual(0, AlphaAt(pixels, 10, 5, 1));
+        Assert.AreEqual(255, AlphaAt(pixels, 10, 0, 5));
+        Assert.AreEqual(0, AlphaAt(pixels, 10, 1, 5));
+    }
+
     private static RoundedRectangle Block(int x)
     {
         return new RoundedRectangle(new RectangleF(x, 0, 10, 10), 0, 0);

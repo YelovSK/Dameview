@@ -282,7 +282,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
                     UiDesign.ControlCornerRadius,
                     UiDesign.ControlCornerRadius),
                 context.Palette.Accent,
-                strokeWidth: 2.0f);
+                strokeWidthPixels: 2.0f);
         }
     }
 }

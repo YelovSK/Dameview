@@ -94,11 +94,16 @@ internal sealed class ModalHost : UiElement
         SizeF desired = Content.PreferredSize;
         float width = MathF.Min(desired.Width, MathF.Max(0.0f, finalSize.Width - (2.0f * margin)));
         float height = MathF.Min(desired.Height, MathF.Max(0.0f, finalSize.Height - (2.0f * margin)));
+        float dpi = Root?.Dpi ?? UiDpi.Default;
+        float left = UiDpi.SnapToPixel((finalSize.Width - width) / 2.0f, dpi);
+        float top = UiDpi.SnapToPixel((finalSize.Height - height) / 2.0f, dpi);
+        float right = UiDpi.SnapToPixel((finalSize.Width + width) / 2.0f, dpi);
+        float bottom = UiDpi.SnapToPixel((finalSize.Height + height) / 2.0f, dpi);
         _surface.Arrange(new RectangleF(
-            (finalSize.Width - width) / 2.0f,
-            (finalSize.Height - height) / 2.0f,
-            width,
-            height));
+            left,
+            top,
+            right - left,
+            bottom - top));
     }
 
     protected override void DrawCore(in UiDrawContext context)

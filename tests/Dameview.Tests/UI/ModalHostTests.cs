@@ -143,6 +143,24 @@ public sealed class ModalHostTests
     }
 
     [TestMethod]
+    public void SurfaceEdgesAreAlignedToPhysicalPixels()
+    {
+        const float dpi = 120.0f;
+        var host = new ModalHost();
+        var content = new Content();
+        UiRoot root = CreateRoot(host, dpi);
+        host.Show(content, () => { });
+
+        root.Arrange(WindowSize);
+
+        RectangleF bounds = content.GetBoundsRelativeTo(host);
+        AssertPixelAligned(bounds.Left, dpi);
+        AssertPixelAligned(bounds.Top, dpi);
+        AssertPixelAligned(bounds.Right, dpi);
+        AssertPixelAligned(bounds.Bottom, dpi);
+    }
+
+    [TestMethod]
     public void ClickingEmptyModalContentPreservesItsFocusedChild()
     {
         var host = new ModalHost();
@@ -187,6 +205,12 @@ public sealed class ModalHostTests
     {
         Assert.AreEqual(expected.X, actual.X, 0.001f);
         Assert.AreEqual(expected.Y, actual.Y, 0.001f);
+    }
+
+    private static void AssertPixelAligned(float value, float dpi)
+    {
+        float pixels = UiDpi.DipsToPixels(value, dpi);
+        Assert.AreEqual(MathF.Round(pixels), pixels, 0.001f);
     }
 
     private sealed class RootElement : UiElement

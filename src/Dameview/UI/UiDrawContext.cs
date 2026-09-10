@@ -31,8 +31,9 @@ internal readonly record struct UiDrawContext
         RenderTarget.FillRoundedRectangle(rectangle, PrepareBrush(color, opacity));
     }
 
-    internal void DrawRoundedRectangle(RoundedRectangle rectangle, Color4 color, float strokeWidth = 1.0f, float opacity = 1.0f)
+    internal void DrawRoundedRectangle(RoundedRectangle rectangle, Color4 color, float strokeWidthPixels = 1.0f, float opacity = 1.0f)
     {
+        float strokeWidth = PixelsToDips(strokeWidthPixels);
         float inset = strokeWidth / 2.0f;
         RectangleF bounds = rectangle.Rect;
         var innerRectangle = new RoundedRectangle(

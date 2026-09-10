@@ -18,4 +18,9 @@ internal static class UiDpi
     {
         return pixels / GetScale(dpi);
     }
+
+    internal static float SnapToPixel(float dips, float dpi)
+    {
+        return PixelsToDips(MathF.Round(DipsToPixels(dips, dpi)), dpi);
+    }
 }

@@ -146,7 +146,7 @@ internal sealed class WorkspaceDragOverlay : UiElement, IDisposable
                     UiDesign.PanelCornerRadius,
                     UiDesign.PanelCornerRadius),
                 context.Palette.Accent,
-                strokeWidth: 2.0f,
+                strokeWidthPixels: 2.0f,
                 opacity: 0.75f);
             DrawDockTarget(context, _dockTargets.Left, "←", WorkspaceDragTargetKind.SplitLeft);
             DrawDockTarget(context, _dockTargets.Up, "↑", WorkspaceDragTargetKind.SplitUp);
@@ -160,7 +160,7 @@ internal sealed class WorkspaceDragOverlay : UiElement, IDisposable
             UiDesign.ControlCornerRadius,
             UiDesign.ControlCornerRadius);
         context.FillRoundedRectangle(panel, context.Palette.OverlaySurface);
-        context.DrawRoundedRectangle(panel, context.Palette.Accent, strokeWidth: 2.0f);
+        context.DrawRoundedRectangle(panel, context.Palette.Accent, strokeWidthPixels: 2.0f);
         context.DrawText(
             _label,
             _labelFormat,
@@ -190,7 +190,7 @@ internal sealed class WorkspaceDragOverlay : UiElement, IDisposable
             target,
             selected ? context.Palette.Accent : context.Palette.OverlaySurface,
             selected ? 0.85f : 1.0f);
-        context.DrawRoundedRectangle(target, context.Palette.Accent, strokeWidth: selected ? 2.0f : 1.0f);
+        context.DrawRoundedRectangle(target, context.Palette.Accent, strokeWidthPixels: selected ? 2.0f : 1.0f);
         context.DrawText(
             label,
             _arrowFormat,
