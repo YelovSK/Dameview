@@ -3,6 +3,7 @@ using Dameview.Navigation;
 using Dameview.Settings;
 using Dameview.UI.Components;
 using Dameview.UI.Layout;
+using Dameview.Updates;
 using Vortice.DirectWrite;
 
 namespace Dameview.UI.Panels;
@@ -13,6 +14,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
     {
         Appearance,
         Sorting,
+        Updates,
     }
 
     private enum SortField
@@ -47,9 +49,12 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
     private readonly TabStrip _tabs;
     private readonly ScrollView _appearancePage;
     private readonly ScrollView _sortingPage;
+    private readonly ScrollView _updatesPage;
     private readonly Overlay _pages;
     private readonly TextBlock _title;
     private readonly TextBlock _message;
+    private readonly TextBlock _updateStatus;
+    private readonly Button _updateButton;
     private readonly PopupHost _popupHost;
     private readonly Action<FolderSort> _setSort;
 
@@ -58,7 +63,8 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
         PopupHost popupHost,
         Action close,
         Action<Theme> setTheme,
-        Action<FolderSort> setSort)
+        Action<FolderSort> setSort,
+        Action activateUpdate)
     {
         _popupHost = popupHost;
         _setSort = setSort;
@@ -114,6 +120,14 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
         _sortFieldRow = new SettingsRow(factory, "Sort by", _sortField);
         _sortDirectionRow = new SettingsRow(factory, "Direction", _sortDirection);
 
+        _updateStatus = new TextBlock(
+            factory,
+            string.Empty,
+            UiTextStyle.Body,
+            UiTextTone.Secondary,
+            UiTextWrapping.Wrap);
+        _updateButton = new Button(factory, "Check for updates", activateUpdate);
+
         var appearanceContent = new StackPanel(
             UiOrientation.Vertical,
             UiDesign.LargeSpacing,
@@ -125,12 +139,19 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
             StackPanelDistribution.Natural,
             _sortFieldRow,
             _sortDirectionRow);
+        var updatesContent = new StackPanel(
+            UiOrientation.Vertical,
+            UiDesign.LargeSpacing,
+            StackPanelDistribution.Natural,
+            _updateStatus,
+            _updateButton);
         _appearancePage = new ScrollView(appearanceContent);
         _sortingPage = new ScrollView(sortingContent);
-        _pages = new Overlay(_appearancePage, _sortingPage);
+        _updatesPage = new ScrollView(updatesContent);
+        _pages = new Overlay(_appearancePage, _sortingPage, _updatesPage);
         _tabs = new TabStrip(
             factory,
-            ["Appearance", "Sorting"],
+            ["Appearance", "Sorting", "Updates"],
             (int)SettingsTab.Appearance,
             SelectTab);
 
@@ -142,6 +163,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
 
         SelectTab((int)SettingsTab.Appearance);
         ApplySettings(new AppSettings());
+        ApplyUpdateState(new UpdateState(UpdateStatus.Unavailable));
     }
 
     internal override SizeF PreferredSize => new(440.0f, 460.0f);
@@ -169,6 +191,34 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
         _sortDirection.SelectedValue = settings.Sort == sort.First
             ? SortDirection.First
             : SortDirection.Second;
+    }
+
+    internal void ApplyUpdateState(UpdateState state)
+    {
+        _updateStatus.Tone = state.Status == UpdateStatus.Failed
+            ? UiTextTone.Error
+            : UiTextTone.Secondary;
+        _updateButton.IsVisible = state.Status != UpdateStatus.Unavailable;
+        _updateButton.IsEnabled = state.Status is UpdateStatus.Idle
+            or UpdateStatus.Current
+            or UpdateStatus.Available
+            or UpdateStatus.Failed;
+
+        (_updateStatus.Text, _updateButton.Label) = state.Status switch
+        {
+            UpdateStatus.Unavailable => (
+                "Updates are only available when running the installed copy of Dameview.",
+                "Check for updates"),
+            UpdateStatus.Idle => ("Check whether a newer Dameview release is available.", "Check for updates"),
+            UpdateStatus.Checking => ("Checking for updates…", "Checking…"),
+            UpdateStatus.Current => ($"Dameview {state.Release?.Tag} is up to date.", "Check again"),
+            UpdateStatus.Available => ($"Dameview {state.Release?.Tag} is available.", $"Update to {state.Release?.Tag}"),
+            UpdateStatus.Downloading => ($"Downloading Dameview {state.Release?.Tag}…", "Downloading…"),
+            UpdateStatus.Applying => ("Restarting Dameview to apply the update…", "Restarting…"),
+            UpdateStatus.Failed => (state.Error ?? "The update failed.", "Try again"),
+            _ => throw new InvalidOperationException("Unknown update status."),
+        };
+        InvalidateLayout();
     }
 
     protected override SizeF MeasureCore(SizeF availableSize)
@@ -207,6 +257,8 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
         _themeRow.Dispose();
         _sortFieldRow.Dispose();
         _sortDirectionRow.Dispose();
+        _updateStatus.Dispose();
+        _updateButton.Dispose();
         _tabs.Dispose();
         _title.Dispose();
         _message.Dispose();
@@ -223,6 +275,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
         _popupHost.Close();
         _appearancePage.IsVisible = index == (int)SettingsTab.Appearance;
         _sortingPage.IsVisible = index == (int)SettingsTab.Sorting;
+        _updatesPage.IsVisible = index == (int)SettingsTab.Updates;
     }
 
     private void SetSortField(SortField field)

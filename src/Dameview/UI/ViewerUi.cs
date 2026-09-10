@@ -8,6 +8,7 @@ using Dameview.UI.Animation;
 using Dameview.UI.Components;
 using Dameview.UI.Layout;
 using Dameview.UI.Panels;
+using Dameview.Updates;
 using Dameview.Viewing;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
@@ -44,6 +45,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         IThumbnailLoader thumbnailLoader,
         Action<Theme> setTheme,
         Action<FolderSort> setSort,
+        Action activateUpdate,
         TimeProvider? timeProvider = null,
         UiPost? postToUi = null)
     {
@@ -90,7 +92,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
             _popupHost,
             CloseSettings,
             setTheme,
-            setSort);
+            setSort,
+            activateUpdate);
 
         AddChild(_splitView);
         AddChild(_tabPreview);
@@ -214,6 +217,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
     }
 
     internal void ApplySettings(AppSettings settings) => _settingsPanel.ApplySettings(settings);
+
+    internal void ApplyUpdateState(UpdateState state) => _settingsPanel.ApplyUpdateState(state);
 
     internal void ApplyTabs(ViewerPane pane, IReadOnlyList<ViewerTabInfo> tabs, int selectedIndex)
     {

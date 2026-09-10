@@ -91,7 +91,9 @@ internal sealed class InstallerApp : IDisposable
             }
 
             using var imageDecoder = new ImageDecoder();
-            AppInstallation.Install(imageDecoder.GetProbablySupportedExtensions());
+            string sourcePath = Environment.ProcessPath
+                ?? throw new InvalidOperationException("Could not determine the executable path.");
+            AppInstallation.Install(sourcePath, imageDecoder.GetProbablySupportedExtensions());
             AppInstallation.LaunchInstalled();
             Close();
         }
