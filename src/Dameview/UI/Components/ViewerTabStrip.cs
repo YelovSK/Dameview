@@ -16,6 +16,7 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
     private const float AddButtonWidthDips = 36.0f;
     private const float LabelPaddingDips = 12.0f;
     private const float WheelStepDips = 120.0f;
+    private const float DragThresholdDips = 4.0f;
 
     private readonly IDWriteTextFormat _labelFormat;
     private readonly IDWriteTextFormat _closeFormat;
@@ -24,11 +25,15 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
     private readonly Action<int> _selectionChanged;
     private readonly Action<int> _closeRequested;
     private readonly Action<ViewerTabInfo?, RectangleF>? _hoveredTabChanged;
+    private readonly Action<int, WorkspaceDragEvent>? _dragPointer;
     private readonly ScrollOffsetController _scrollOffset = new();
     private ViewerTabInfo[] _tabs = [];
     private int _selectedIndex;
     private int _hoveredIndex = -1;
     private bool _hoveringClose;
+    private int _pressedIndex = -1;
+    private PointF _pressPosition;
+    private bool _dragging;
     private float _viewportWidth = -1.0f;
 
     internal ViewerTabStrip(
@@ -38,11 +43,13 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
         Action<int> selectionChanged,
         Action<int> closeRequested,
         Action addRequested,
-        Action<ViewerTabInfo?, RectangleF>? hoveredTabChanged = null)
+        Action<ViewerTabInfo?, RectangleF>? hoveredTabChanged = null,
+        Action<int, WorkspaceDragEvent>? dragPointer = null)
     {
         _selectionChanged = selectionChanged;
         _closeRequested = closeRequested;
         _hoveredTabChanged = hoveredTabChanged;
+        _dragPointer = dragPointer;
         _labelFormat = factory.CreateTextFormat(
             UiTypography.FontFamily, FontWeight.SemiBold, FontStyle.Normal, UiDesign.BodyFontSize);
         _labelFormat.TextAlignment = TextAlignment.Leading;
@@ -69,6 +76,29 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
 
     internal float ScrollOffset => _scrollOffset.Offset;
     internal override UiCursor Cursor => _hoveredIndex >= 0 ? UiCursor.Pointer : UiCursor.Default;
+
+    internal int GetInsertionIndex(PointF position)
+    {
+        if (position.X < 0.0f
+            || position.X >= TabViewportWidth
+            || position.Y < 0.0f
+            || position.Y >= Bounds.Height)
+        {
+            return -1;
+        }
+
+        float pitch = TabWidthDips + UiDesign.SmallSpacing;
+        float contentX = position.X + _scrollOffset.Offset;
+        return Math.Clamp((int)MathF.Floor((contentX + TabWidthDips / 2.0f) / pitch), 0, _tabs.Length);
+    }
+
+    internal RectangleF GetInsertionMarkerBounds(int insertionIndex)
+    {
+        ArgumentOutOfRangeException.ThrowIfGreaterThan((uint)insertionIndex, (uint)_tabs.Length);
+        const float markerWidth = 3.0f;
+        float x = insertionIndex * (TabWidthDips + UiDesign.SmallSpacing) - _scrollOffset.Offset;
+        return new RectangleF(x - markerWidth / 2.0f, 3.0f, markerWidth, Bounds.Height - 6.0f);
+    }
 
     internal void SetTabs(IReadOnlyList<ViewerTabInfo> tabs, int selectedIndex)
     {
@@ -103,6 +133,28 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
         switch (input.Kind)
         {
             case UiPointerEventKind.Moved:
+                if (_pressedIndex >= 0)
+                {
+                    if (!_dragging && HasCrossedDragThreshold(input.Position))
+                    {
+                        _dragging = true;
+                        SetHoveredTab(-1);
+                        _hoveringClose = false;
+                        _dragPointer?.Invoke(
+                            _pressedIndex,
+                            new WorkspaceDragEvent(WorkspaceDragEventKind.Started, input.Position));
+                    }
+
+                    if (_dragging)
+                    {
+                        _dragPointer?.Invoke(
+                            _pressedIndex,
+                            new WorkspaceDragEvent(WorkspaceDragEventKind.Moved, input.Position));
+                    }
+
+                    return new UiPointerResult(Consumed: true, NeedsRepaint: _dragging);
+                }
+
                 bool changed = index != _hoveredIndex || close != _hoveringClose;
                 SetHoveredTab(index);
                 _hoveringClose = close;
@@ -120,9 +172,19 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
                     {
                         _selectionChanged(index);
                     }
+
+                    if (!close)
+                    {
+                        _pressedIndex = index;
+                        _pressPosition = input.Position;
+                        _dragging = false;
+                    }
                 }
 
-                return new UiPointerResult(Consumed: true, NeedsRepaint: index >= 0);
+                return new UiPointerResult(
+                    Consumed: true,
+                    NeedsRepaint: index >= 0,
+                    CapturePointer: index >= 0 && !close);
 
             case UiPointerEventKind.Pressed when input.Button == PointerButton.Middle:
                 _hoveredTabChanged?.Invoke(null, RectangleF.Empty);
@@ -132,6 +194,32 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
                 }
 
                 return new UiPointerResult(Consumed: true, NeedsRepaint: index >= 0);
+
+            case UiPointerEventKind.Released:
+                if (_dragging)
+                {
+                    _dragPointer?.Invoke(
+                        _pressedIndex,
+                        new WorkspaceDragEvent(WorkspaceDragEventKind.Completed, input.Position));
+                }
+
+                bool wasDragging = _dragging;
+                _pressedIndex = -1;
+                _dragging = false;
+                return new UiPointerResult(Consumed: true, NeedsRepaint: wasDragging);
+
+            case UiPointerEventKind.Cancelled:
+                if (_dragging)
+                {
+                    _dragPointer?.Invoke(
+                        _pressedIndex,
+                        new WorkspaceDragEvent(WorkspaceDragEventKind.Cancelled, input.Position));
+                }
+
+                bool cancelledDrag = _dragging;
+                _pressedIndex = -1;
+                _dragging = false;
+                return new UiPointerResult(Consumed: true, NeedsRepaint: cancelledDrag);
 
             case UiPointerEventKind.Wheel:
                 SetHoveredTab(-1);
@@ -353,5 +441,11 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
             0.0f,
             width,
             Bounds.Height);
+    }
+
+    private bool HasCrossedDragThreshold(PointF position)
+    {
+        return MathF.Abs(position.X - _pressPosition.X) >= DragThresholdDips
+            || MathF.Abs(position.Y - _pressPosition.Y) >= DragThresholdDips;
     }
 }

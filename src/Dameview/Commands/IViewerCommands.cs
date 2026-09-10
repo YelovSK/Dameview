@@ -20,6 +20,10 @@ internal interface IViewerCommands
 
     public void OpenImageInNewTab(string path);
 
+    public void OpenImageInNewTab(string path, WorkspaceDropTarget target);
+
+    public bool MoveTab(ViewerPane sourcePane, ViewerTab tab, WorkspaceDropTarget target);
+
     public void SelectPane(ViewerPane pane);
 
     public void DuplicateActiveTab(ViewerPane pane);

@@ -20,6 +20,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private const float ItemPadding = 6.0f;
     private const float LabelHeight = 24.0f;
     private const float MinimumItemWidthDips = 132.0f;
+    private const float DragThresholdDips = 4.0f;
 
     private readonly ID2D1DeviceContext _deviceContext;
     private readonly IDWriteFactory _directWriteFactory;
@@ -28,6 +29,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private readonly IThumbnailLoader _thumbnailLoader;
     private readonly Action<string> _openImage;
     private readonly Action<string> _openInNewTab;
+    private readonly Action<string, WorkspaceDragEvent>? _dragPointer;
     private readonly Scrollbar _scrollbar;
     private readonly Dictionary<string, GalleryItemSlot> _slots =
         new(StringComparer.OrdinalIgnoreCase);
@@ -36,19 +38,24 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private SelectionScrollAlignment? _pendingSelectionScroll;
     private int _hoveredIndex = -1;
     private int _pressedIndex = -1;
+    private string? _pressedPath;
+    private PointF _pressPosition;
+    private bool _dragging;
 
     internal GalleryPanel(
         ID2D1DeviceContext deviceContext,
         IDWriteFactory directWriteFactory,
         IThumbnailLoader thumbnailLoader,
         Action<string> openImage,
-        Action<string> openInNewTab)
+        Action<string> openInNewTab,
+        Action<string, WorkspaceDragEvent>? dragPointer = null)
     {
         _deviceContext = deviceContext;
         _directWriteFactory = directWriteFactory;
         _thumbnailLoader = thumbnailLoader;
         _openImage = openImage;
         _openInNewTab = openInNewTab;
+        _dragPointer = dragPointer;
         _scrollbar = new Scrollbar(SetScrollOffset);
         AddChild(_scrollbar);
         _labelFormat = directWriteFactory.CreateTextFormat(
@@ -197,12 +204,35 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         switch (input.Kind)
         {
             case UiPointerEventKind.Moved:
+                if (_pressedPath is not null)
+                {
+                    if (!_dragging && HasCrossedDragThreshold(input.Position))
+                    {
+                        _dragging = true;
+                        _dragPointer?.Invoke(
+                            _pressedPath,
+                            new WorkspaceDragEvent(WorkspaceDragEventKind.Started, input.Position));
+                    }
+
+                    if (_dragging)
+                    {
+                        _dragPointer?.Invoke(
+                            _pressedPath,
+                            new WorkspaceDragEvent(WorkspaceDragEventKind.Moved, input.Position));
+                    }
+
+                    return new UiPointerResult(Consumed: true, NeedsRepaint: _dragging);
+                }
+
                 bool changed = _hoveredIndex != index;
                 _hoveredIndex = index;
                 return new UiPointerResult(Consumed: true, NeedsRepaint: changed);
 
             case UiPointerEventKind.Pressed when input.Button == PointerButton.Primary:
                 _pressedIndex = index;
+                _pressedPath = index >= 0 ? _state.Entries[index].FullName : null;
+                _pressPosition = input.Position;
+                _dragging = false;
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true, CapturePointer: index >= 0);
 
             case UiPointerEventKind.Pressed when input.Button == PointerButton.Middle:
@@ -215,8 +245,18 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
             case UiPointerEventKind.Released:
                 int pressed = _pressedIndex;
+                string? pressedPath = _pressedPath;
+                bool wasDragging = _dragging;
                 _pressedIndex = -1;
-                if (pressed >= 0 && pressed == index)
+                _pressedPath = null;
+                _dragging = false;
+                if (wasDragging && pressedPath is not null)
+                {
+                    _dragPointer?.Invoke(
+                        pressedPath,
+                        new WorkspaceDragEvent(WorkspaceDragEventKind.Completed, input.Position));
+                }
+                else if (pressed >= 0 && pressed == index)
                 {
                     _openImage(_state.Entries[pressed].FullName);
                 }
@@ -225,7 +265,16 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
             case UiPointerEventKind.Cancelled:
                 bool wasPressed = _pressedIndex >= 0;
+                if (_dragging && _pressedPath is { } cancelledPath)
+                {
+                    _dragPointer?.Invoke(
+                        cancelledPath,
+                        new WorkspaceDragEvent(WorkspaceDragEventKind.Cancelled, input.Position));
+                }
+
                 _pressedIndex = -1;
+                _pressedPath = null;
+                _dragging = false;
                 return new UiPointerResult(Consumed: true, NeedsRepaint: wasPressed);
 
             case UiPointerEventKind.Wheel:
@@ -569,6 +618,12 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         RefreshVisibleThumbnails();
         _scrollbar.SetMetrics(ContentHeight, Bounds.Height, _state.ScrollOffset.Offset);
         InvalidateVisual();
+    }
+
+    private bool HasCrossedDragThreshold(PointF position)
+    {
+        return MathF.Abs(position.X - _pressPosition.X) >= DragThresholdDips
+            || MathF.Abs(position.Y - _pressPosition.Y) >= DragThresholdDips;
     }
 
     private void ClearSlots()

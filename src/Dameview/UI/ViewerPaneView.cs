@@ -31,6 +31,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         Action addTab,
         Action showSettings,
         Action<ViewerPane, ViewerTabInfo?, RectangleF> hoveredTabChanged,
+        Action<ViewerPane, int, WorkspaceDragEvent> tabDragPointer,
         TimeProvider? timeProvider = null,
         UiPost? postToUi = null)
     {
@@ -52,7 +53,8 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             selectTab,
             closeTab,
             addTab,
-            HandleHoveredTabChanged);
+            HandleHoveredTabChanged,
+            (index, input) => tabDragPointer(Pane, index, TranslateTabStripEvent(input)));
         _emptyStatePanel = new EmptyStatePanel(
             directWriteFactory,
             LoadApplicationIcon(deviceContext),
@@ -86,6 +88,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     internal UiElement EmptyStateFocusScope => _emptyStatePanel;
     internal UiElement EmptyStateSettingsButton => _emptyStatePanel.SettingsButton;
     internal TimeSpan? NextAnimationFrameDelay => _imagePanel.NextAnimationFrameDelay;
+    internal RectangleF TabStripBounds => _viewerTabs.GetBoundsRelativeTo(this);
 
     internal bool ShowActivePaneIndicator
     {
@@ -147,6 +150,19 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     internal void ApplyTabs(IReadOnlyList<ViewerTabInfo> tabs, int selectedIndex)
     {
         _viewerTabs.SetTabs(tabs, selectedIndex);
+    }
+
+    internal int GetTabInsertionIndex(PointF panePoint)
+    {
+        RectangleF bounds = TabStripBounds;
+        return _viewerTabs.GetInsertionIndex(new PointF(panePoint.X - bounds.X, panePoint.Y - bounds.Y));
+    }
+
+    internal RectangleF GetTabInsertionMarkerBounds(int insertionIndex)
+    {
+        RectangleF bounds = _viewerTabs.GetInsertionMarkerBounds(insertionIndex);
+        bounds.Offset(TabStripBounds.Location);
+        return bounds;
     }
 
     internal void UpdateStatus()
@@ -229,6 +245,15 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         }
 
         _hoveredTabChanged(Pane, tab, tabBounds);
+    }
+
+    private WorkspaceDragEvent TranslateTabStripEvent(WorkspaceDragEvent input)
+    {
+        RectangleF stripBounds = TabStripBounds;
+        return input with
+        {
+            Position = new PointF(input.Position.X + stripBounds.X, input.Position.Y + stripBounds.Y),
+        };
     }
 
     private void ApplyDisplayedImage(ImageLoaded displayed)

@@ -40,6 +40,66 @@ internal sealed class ViewerWorkspace : IDisposable
         ActivePane.Tabs[^1].Session.OpenImage(path);
     }
 
+    internal void OpenImageInNewTab(string path, WorkspaceDropTarget target)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        EnsureContains(target.Pane);
+        ViewerTab tab = CreateTab();
+        switch (target)
+        {
+            case WorkspaceTabDropTarget tabTarget:
+                tabTarget.Pane.InsertTab(tab, tabTarget.InsertionIndex, select: true);
+                SelectPane(tabTarget.Pane);
+                tab.Session.OpenImage(path);
+                break;
+
+            case WorkspacePaneDropTarget paneTarget:
+                ViewerPane newPane = SplitPane(paneTarget.Pane, paneTarget.Side, tab);
+                tab.Session.OpenImage(path);
+                SelectPane(newPane);
+                break;
+
+            default:
+                tab.Dispose();
+                throw new ArgumentException("Unsupported workspace drop target.", nameof(target));
+        }
+    }
+
+    internal bool MoveTab(ViewerPane sourcePane, ViewerTab tab, WorkspaceDropTarget target)
+    {
+        EnsureContains(sourcePane);
+        EnsureContains(target.Pane);
+        if (!sourcePane.Tabs.Contains(tab))
+        {
+            throw new ArgumentException("The tab does not belong to the source pane.", nameof(tab));
+        }
+
+        switch (target)
+        {
+            case WorkspaceTabDropTarget tabTarget:
+                if (ReferenceEquals(sourcePane, tabTarget.Pane))
+                {
+                    sourcePane.MoveTab(tab, tabTarget.InsertionIndex);
+                    return true;
+                }
+
+                MoveTabBetweenPanes(sourcePane, tab, tabTarget.Pane, tabTarget.InsertionIndex);
+                return true;
+
+            case WorkspacePaneDropTarget paneTarget:
+                if (ReferenceEquals(sourcePane, paneTarget.Pane) && sourcePane.Count == 1)
+                {
+                    return false;
+                }
+
+                MoveTabToNewPane(sourcePane, tab, paneTarget.Pane, paneTarget.Side);
+                return true;
+
+            default:
+                throw new ArgumentException("Unsupported workspace drop target.", nameof(target));
+        }
+    }
+
     internal void DuplicateActiveTab(ViewerPane pane)
     {
         EnsureContains(pane);
@@ -85,14 +145,11 @@ internal sealed class ViewerWorkspace : IDisposable
     {
         EnsureContains(pane);
         string? path = GetCurrentImagePath(pane);
-        var newPane = new ViewerPane(CreateTab());
-        AttachPane(newPane);
-        var split = new WorkspaceSplit(orientation, pane, newPane);
-        ReplaceNode(pane, split);
-        LayoutChanged?.Invoke(split);
+        ViewerTab tab = CreateTab();
+        ViewerPane newPane = SplitPane(pane, orientation, tab);
         if (path is not null)
         {
-            newPane.ActiveSession.OpenImage(path);
+            tab.Session.OpenImage(path);
         }
 
         return newPane;
@@ -203,10 +260,7 @@ internal sealed class ViewerWorkspace : IDisposable
             return false;
         }
 
-        WorkspaceSplit parent = FindParent(Root, pane)
-            ?? throw new InvalidOperationException("The pane has no parent split.");
-        WorkspaceNode sibling = parent.GetSibling(pane);
-        ReplaceNode(parent, sibling);
+        WorkspaceNode sibling = RemovePaneNode(pane);
 
         if (ReferenceEquals(ActivePane, pane))
         {
@@ -215,7 +269,6 @@ internal sealed class ViewerWorkspace : IDisposable
         }
 
         LayoutChanged?.Invoke(null);
-        pane.Dispose();
         return true;
     }
 
@@ -238,6 +291,122 @@ internal sealed class ViewerWorkspace : IDisposable
         ViewerTab tab = _createTab();
         tab.Session.SetSort(_sort);
         return tab;
+    }
+
+    private ViewerPane SplitPane(
+        ViewerPane pane,
+        WorkspaceSplitOrientation orientation,
+        ViewerTab initialTab)
+    {
+        (ViewerPane newPane, WorkspaceSplit split) = InsertSplit(
+            pane,
+            orientation,
+            initialTab,
+            newPaneFirst: false);
+        LayoutChanged?.Invoke(split);
+        PaneTabsChanged?.Invoke(newPane);
+        return newPane;
+    }
+
+    private ViewerPane SplitPane(
+        ViewerPane pane,
+        WorkspacePaneDropSide side,
+        ViewerTab initialTab)
+    {
+        (WorkspaceSplitOrientation orientation, bool newPaneFirst) = GetSplitPlacement(side);
+        (ViewerPane newPane, WorkspaceSplit split) = InsertSplit(
+            pane,
+            orientation,
+            initialTab,
+            newPaneFirst);
+        LayoutChanged?.Invoke(split);
+        PaneTabsChanged?.Invoke(newPane);
+        return newPane;
+    }
+
+    private (ViewerPane Pane, WorkspaceSplit Split) InsertSplit(
+        ViewerPane pane,
+        WorkspaceSplitOrientation orientation,
+        ViewerTab initialTab,
+        bool newPaneFirst)
+    {
+        var newPane = new ViewerPane(initialTab);
+        AttachPane(newPane);
+        var split = new WorkspaceSplit(
+            orientation,
+            newPaneFirst ? newPane : pane,
+            newPaneFirst ? pane : newPane);
+        ReplaceNode(pane, split);
+        return (newPane, split);
+    }
+
+    private void MoveTabBetweenPanes(
+        ViewerPane sourcePane,
+        ViewerTab tab,
+        ViewerPane targetPane,
+        int insertionIndex)
+    {
+        bool removeSourcePane = sourcePane.Count == 1;
+        sourcePane.DetachTab(tab, notify: !removeSourcePane);
+        targetPane.InsertTab(tab, insertionIndex, select: true);
+        SelectPane(targetPane);
+        if (removeSourcePane)
+        {
+            RemovePane(sourcePane);
+        }
+    }
+
+    private void MoveTabToNewPane(
+        ViewerPane sourcePane,
+        ViewerTab tab,
+        ViewerPane targetPane,
+        WorkspacePaneDropSide side)
+    {
+        bool removeSourcePane = sourcePane.Count == 1;
+        sourcePane.DetachTab(tab, notify: !removeSourcePane);
+        (WorkspaceSplitOrientation orientation, bool newPaneFirst) = GetSplitPlacement(side);
+        (ViewerPane newPane, WorkspaceSplit split) = InsertSplit(
+            targetPane,
+            orientation,
+            tab,
+            newPaneFirst);
+        if (removeSourcePane)
+        {
+            RemovePaneNode(sourcePane);
+        }
+
+        bool activePaneChanged = !ReferenceEquals(ActivePane, newPane);
+        ActivePane = newPane;
+        if (activePaneChanged)
+        {
+            ActivePaneChanged?.Invoke(newPane);
+        }
+
+        LayoutChanged?.Invoke(split);
+        PaneTabsChanged?.Invoke(newPane);
+    }
+
+    private WorkspaceNode RemovePaneNode(ViewerPane pane)
+    {
+        WorkspaceSplit parent = FindParent(Root, pane)
+            ?? throw new InvalidOperationException("The pane has no parent split.");
+        WorkspaceNode sibling = parent.GetSibling(pane);
+        ReplaceNode(parent, sibling);
+        pane.Dispose();
+        return sibling;
+    }
+
+    private static (WorkspaceSplitOrientation Orientation, bool NewPaneFirst) GetSplitPlacement(
+        WorkspacePaneDropSide side)
+    {
+        return side switch
+        {
+            WorkspacePaneDropSide.Left => (WorkspaceSplitOrientation.Horizontal, true),
+            WorkspacePaneDropSide.Top => (WorkspaceSplitOrientation.Vertical, true),
+            WorkspacePaneDropSide.Right => (WorkspaceSplitOrientation.Horizontal, false),
+            WorkspacePaneDropSide.Bottom => (WorkspaceSplitOrientation.Vertical, false),
+            _ => throw new ArgumentOutOfRangeException(nameof(side)),
+        };
     }
 
     private static string? GetCurrentImagePath(ViewerPane pane)

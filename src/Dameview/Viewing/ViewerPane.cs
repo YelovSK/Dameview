@@ -4,6 +4,7 @@ namespace Dameview.Viewing;
 internal sealed class ViewerPane : WorkspaceNode, IDisposable
 {
     private readonly List<ViewerTab> _tabs = [];
+    private readonly Dictionary<ViewerTab, Action> _sessionChangedHandlers = [];
 
     internal ViewerPane(ViewerTab initialTab)
     {
@@ -21,6 +22,85 @@ internal sealed class ViewerPane : WorkspaceNode, IDisposable
     internal ViewerSession ActiveSession => ActiveTab.Session;
 
     internal void AddTab(ViewerTab tab) => AddTab(tab, notify: true);
+
+    internal void InsertTab(ViewerTab tab, int index, bool select)
+    {
+        ArgumentNullException.ThrowIfNull(tab);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan((uint)index, (uint)_tabs.Count);
+        if (_sessionChangedHandlers.ContainsKey(tab))
+        {
+            throw new ArgumentException("The tab already belongs to this pane.", nameof(tab));
+        }
+
+        ViewerTab activeTab = ActiveTab;
+        AttachTab(tab);
+        _tabs.Insert(index, tab);
+        ActiveIndex = select ? index : _tabs.IndexOf(activeTab);
+        if (select)
+        {
+            ActiveTabChanged?.Invoke();
+        }
+
+        TabsChanged?.Invoke();
+    }
+
+    internal ViewerTab DetachTab(ViewerTab tab, bool notify)
+    {
+        ArgumentNullException.ThrowIfNull(tab);
+        int index = _tabs.IndexOf(tab);
+        if (index < 0)
+        {
+            throw new ArgumentException("The tab does not belong to this pane.", nameof(tab));
+        }
+
+        ViewerTab activeTab = ActiveTab;
+        UnsubscribeTab(tab);
+        _tabs.RemoveAt(index);
+        if (_tabs.Count > 0)
+        {
+            int activeIndex = _tabs.IndexOf(activeTab);
+            ActiveIndex = activeIndex >= 0 ? activeIndex : Math.Min(index, _tabs.Count - 1);
+        }
+
+        if (notify)
+        {
+            if (!ReferenceEquals(activeTab, ActiveTab))
+            {
+                ActiveTabChanged?.Invoke();
+            }
+
+            TabsChanged?.Invoke();
+        }
+
+        return tab;
+    }
+
+    internal void MoveTab(ViewerTab tab, int insertionIndex)
+    {
+        ArgumentNullException.ThrowIfNull(tab);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan((uint)insertionIndex, (uint)_tabs.Count);
+        int sourceIndex = _tabs.IndexOf(tab);
+        if (sourceIndex < 0)
+        {
+            throw new ArgumentException("The tab does not belong to this pane.", nameof(tab));
+        }
+
+        if (sourceIndex < insertionIndex)
+        {
+            insertionIndex--;
+        }
+
+        if (sourceIndex == insertionIndex)
+        {
+            return;
+        }
+
+        ViewerTab activeTab = ActiveTab;
+        _tabs.RemoveAt(sourceIndex);
+        _tabs.Insert(insertionIndex, tab);
+        ActiveIndex = _tabs.IndexOf(activeTab);
+        TabsChanged?.Invoke();
+    }
 
     internal void SelectRelativeTab(int offset)
     {
@@ -55,20 +135,7 @@ internal sealed class ViewerPane : WorkspaceNode, IDisposable
             return false;
         }
 
-        ViewerTab closing = _tabs[index];
-        bool activeTabChanged = index == ActiveIndex;
-        _tabs.RemoveAt(index);
-        if (index < ActiveIndex || ActiveIndex == _tabs.Count)
-        {
-            ActiveIndex--;
-        }
-
-        if (activeTabChanged)
-        {
-            ActiveTabChanged?.Invoke();
-        }
-
-        TabsChanged?.Invoke();
+        ViewerTab closing = DetachTab(_tabs[index], notify: true);
         closing.Dispose();
         return true;
     }
@@ -77,6 +144,7 @@ internal sealed class ViewerPane : WorkspaceNode, IDisposable
     {
         foreach (ViewerTab tab in _tabs)
         {
+            UnsubscribeTab(tab);
             tab.Dispose();
         }
 
@@ -86,7 +154,17 @@ internal sealed class ViewerPane : WorkspaceNode, IDisposable
     private void AddTab(ViewerTab tab, bool notify)
     {
         ArgumentNullException.ThrowIfNull(tab);
-        tab.Session.StateChanged += () =>
+        AttachTab(tab);
+        _tabs.Add(tab);
+        if (notify)
+        {
+            TabsChanged?.Invoke();
+        }
+    }
+
+    private void AttachTab(ViewerTab tab)
+    {
+        Action handler = () =>
         {
             if (ReferenceEquals(tab, ActiveTab))
             {
@@ -95,10 +173,14 @@ internal sealed class ViewerPane : WorkspaceNode, IDisposable
 
             TabsChanged?.Invoke();
         };
-        _tabs.Add(tab);
-        if (notify)
-        {
-            TabsChanged?.Invoke();
-        }
+        _sessionChangedHandlers.Add(tab, handler);
+        tab.Session.StateChanged += handler;
+    }
+
+    private void UnsubscribeTab(ViewerTab tab)
+    {
+        Action handler = _sessionChangedHandlers[tab];
+        tab.Session.StateChanged -= handler;
+        _sessionChangedHandlers.Remove(tab);
     }
 }

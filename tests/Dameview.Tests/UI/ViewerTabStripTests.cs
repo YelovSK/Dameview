@@ -167,6 +167,66 @@ public sealed class ViewerTabStripTests
         CollectionAssert.AreEqual(new string?[] { "One", "Two", null }, hovered);
     }
 
+    [TestMethod]
+    public void DraggingATabReportsTheGestureAfterTheThreshold()
+    {
+        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
+        var events = new List<WorkspaceDragEventKind>();
+        using var tabs = new ViewerTabStrip(
+            factory,
+            Tabs("One", "Two"),
+            0,
+            _ => { },
+            _ => { },
+            () => { },
+            dragPointer: (_, input) => events.Add(input.Kind));
+        var root = new UiRoot(tabs, UiDpi.Default);
+        root.Arrange(new SizeF(400.0f, ViewerTabStrip.HeightDips));
+
+        root.HandlePointer(new UiPointerEvent(
+            UiPointerEventKind.Pressed,
+            new PointF(40.0f, 18.0f),
+            PointerButton.Primary));
+        root.HandlePointer(new UiPointerEvent(
+            UiPointerEventKind.Moved,
+            new PointF(42.0f, 18.0f)));
+        root.HandlePointer(new UiPointerEvent(
+            UiPointerEventKind.Moved,
+            new PointF(48.0f, 18.0f)));
+        root.HandlePointer(new UiPointerEvent(
+            UiPointerEventKind.Released,
+            new PointF(220.0f, 18.0f),
+            PointerButton.Primary));
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                WorkspaceDragEventKind.Started,
+                WorkspaceDragEventKind.Moved,
+                WorkspaceDragEventKind.Completed,
+            },
+            events);
+    }
+
+    [TestMethod]
+    public void TabInsertionUsesTheNearestGap()
+    {
+        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
+        using var tabs = new ViewerTabStrip(
+            factory,
+            Tabs("One", "Two"),
+            0,
+            _ => { },
+            _ => { },
+            () => { });
+        var root = new UiRoot(tabs, UiDpi.Default);
+        root.Arrange(new SizeF(500.0f, ViewerTabStrip.HeightDips));
+
+        Assert.AreEqual(0, tabs.GetInsertionIndex(new PointF(20.0f, 18.0f)));
+        Assert.AreEqual(1, tabs.GetInsertionIndex(new PointF(150.0f, 18.0f)));
+        Assert.AreEqual(2, tabs.GetInsertionIndex(new PointF(340.0f, 18.0f)));
+    }
+
     private static ViewerTabInfo[] Tabs(params string[] labels) =>
         [.. labels.Select(label => new ViewerTabInfo(label, $"C:\\{label}.png"))];
 }

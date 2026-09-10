@@ -397,6 +397,187 @@ public sealed class ViewerWorkspaceTests
         Assert.ThrowsExactly<ObjectDisposedException>(() => thirdSession.OpenImage(@"C:\third\other.png"));
     }
 
+    [TestMethod]
+    public void ReorderingMovesTheExistingTabAndPreservesTheActiveSession()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane pane = workspace.ActivePane;
+        ViewerTab first = pane.ActiveTab;
+        workspace.OpenImageInNewTab(@"C:\second\image.png");
+        ViewerTab second = pane.Tabs[1];
+        workspace.SelectTab(pane, 1);
+
+        Assert.IsTrue(workspace.MoveTab(
+            pane,
+            second,
+            new WorkspaceTabDropTarget(pane, 0)));
+
+        Assert.AreSame(second, pane.Tabs[0]);
+        Assert.AreSame(first, pane.Tabs[1]);
+        Assert.AreSame(second.Session, pane.ActiveSession);
+    }
+
+    [TestMethod]
+    public void MovingATabBetweenPanesTransfersItsSessionWithoutDisposingIt()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane source = workspace.ActivePane;
+        workspace.OpenImageInNewTab(@"C:\moved\image.png");
+        ViewerTab moved = source.Tabs[1];
+        ViewerPane target = workspace.SplitPane(source, WorkspaceSplitOrientation.Horizontal);
+
+        Assert.IsTrue(workspace.MoveTab(
+            source,
+            moved,
+            new WorkspaceTabDropTarget(target, 1)));
+
+        Assert.AreEqual(1, source.Count);
+        Assert.AreEqual(2, target.Count);
+        Assert.AreSame(moved, target.ActiveTab);
+        Assert.AreEqual(@"C:\moved\image.png", moved.Session.State.RequestedPath);
+        int sourceChanges = 0;
+        int targetChanges = 0;
+        workspace.PaneTabsChanged += pane =>
+        {
+            sourceChanges += ReferenceEquals(pane, source) ? 1 : 0;
+            targetChanges += ReferenceEquals(pane, target) ? 1 : 0;
+        };
+        moved.Session.OpenImage(@"C:\moved\other.png");
+        Assert.AreEqual(@"C:\moved\other.png", target.ActiveSession.State.RequestedPath);
+        Assert.AreEqual(0, sourceChanges);
+        Assert.AreEqual(1, targetChanges);
+    }
+
+    [TestMethod]
+    public void MovingTheLastTabToAnotherPaneCollapsesItsSourcePane()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane source = workspace.ActivePane;
+        ViewerTab moved = source.ActiveTab;
+        ViewerPane target = workspace.SplitPane(source, WorkspaceSplitOrientation.Horizontal);
+
+        Assert.IsTrue(workspace.MoveTab(
+            source,
+            moved,
+            new WorkspaceTabDropTarget(target, 1)));
+
+        Assert.AreSame(target, workspace.Root);
+        Assert.AreSame(target, workspace.ActivePane);
+        Assert.AreSame(moved, target.ActiveTab);
+    }
+
+    [TestMethod]
+    public void MovingATabOntoAPaneCreatesASplitWithThatSameTab()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane source = workspace.ActivePane;
+        workspace.OpenImageInNewTab(@"C:\moved\image.png");
+        ViewerTab moved = source.Tabs[1];
+
+        Assert.IsTrue(workspace.MoveTab(
+            source,
+            moved,
+            new WorkspacePaneDropTarget(source, WorkspacePaneDropSide.Bottom)));
+
+        WorkspaceSplit split = Assert.IsInstanceOfType<WorkspaceSplit>(workspace.Root);
+        ViewerPane target = Assert.IsInstanceOfType<ViewerPane>(split.Second);
+        Assert.AreEqual(1, source.Count);
+        Assert.AreSame(moved, target.ActiveTab);
+        Assert.AreSame(target, workspace.ActivePane);
+    }
+
+    [TestMethod]
+    public void SplittingAnotherPaneWithTheLastSourceTabClosesTheSourceInOneLayoutChange()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane source = workspace.ActivePane;
+        ViewerTab moved = source.ActiveTab;
+        ViewerPane target = workspace.SplitPane(source, WorkspaceSplitOrientation.Horizontal);
+        int layoutChanges = 0;
+        workspace.LayoutChanged += _ => layoutChanges++;
+
+        Assert.IsTrue(workspace.MoveTab(
+            source,
+            moved,
+            new WorkspacePaneDropTarget(target, WorkspacePaneDropSide.Bottom)));
+
+        WorkspaceSplit split = Assert.IsInstanceOfType<WorkspaceSplit>(workspace.Root);
+        ViewerPane newPane = Assert.IsInstanceOfType<ViewerPane>(split.Second);
+        Assert.AreSame(target, split.First);
+        Assert.AreSame(moved, newPane.ActiveTab);
+        Assert.AreSame(newPane, workspace.ActivePane);
+        Assert.AreEqual(1, layoutChanges);
+    }
+
+    [TestMethod]
+    public void SoleTabCannotSplitItsOwnPaneByMovingItself()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane pane = workspace.ActivePane;
+
+        Assert.IsFalse(workspace.MoveTab(
+            pane,
+            pane.ActiveTab,
+            new WorkspacePaneDropTarget(pane, WorkspacePaneDropSide.Right)));
+
+        Assert.AreSame(pane, workspace.Root);
+        Assert.AreEqual(1, pane.Count);
+    }
+
+    [TestMethod]
+    public void GalleryDropCreatesANewTabInTheRequestedPane()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane first = workspace.ActivePane;
+        ViewerPane second = workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
+
+        workspace.OpenImageInNewTab(
+            @"C:\gallery\image.png",
+            new WorkspaceTabDropTarget(second, 0));
+
+        Assert.AreEqual(2, second.Count);
+        Assert.AreEqual(0, second.ActiveIndex);
+        Assert.AreEqual(@"C:\gallery\image.png", second.ActiveSession.State.RequestedPath);
+        Assert.AreSame(second, workspace.ActivePane);
+    }
+
+    [TestMethod]
+    public void MovingATabToTheLeftPlacesTheNewPaneFirst()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane source = workspace.ActivePane;
+        workspace.OpenImageInNewTab(@"C:\moved\image.png");
+        ViewerTab moved = source.Tabs[1];
+
+        Assert.IsTrue(workspace.MoveTab(
+            source,
+            moved,
+            new WorkspacePaneDropTarget(source, WorkspacePaneDropSide.Left)));
+
+        WorkspaceSplit split = Assert.IsInstanceOfType<WorkspaceSplit>(workspace.Root);
+        ViewerPane newPane = Assert.IsInstanceOfType<ViewerPane>(split.First);
+        Assert.AreEqual(WorkspaceSplitOrientation.Horizontal, split.Orientation);
+        Assert.AreSame(moved, newPane.ActiveTab);
+        Assert.AreSame(source, split.Second);
+    }
+
+    [TestMethod]
+    public void GalleryDropAboveAPanePlacesTheNewPaneFirst()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane target = workspace.ActivePane;
+
+        workspace.OpenImageInNewTab(
+            @"C:\gallery\image.png",
+            new WorkspacePaneDropTarget(target, WorkspacePaneDropSide.Top));
+
+        WorkspaceSplit split = Assert.IsInstanceOfType<WorkspaceSplit>(workspace.Root);
+        ViewerPane newPane = Assert.IsInstanceOfType<ViewerPane>(split.First);
+        Assert.AreEqual(WorkspaceSplitOrientation.Vertical, split.Orientation);
+        Assert.AreEqual(@"C:\gallery\image.png", newPane.ActiveSession.State.RequestedPath);
+        Assert.AreSame(target, split.Second);
+    }
+
     private static ViewerTab CreateTab()
     {
         var monitor = new SilentFolderMonitor();

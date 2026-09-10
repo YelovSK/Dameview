@@ -48,6 +48,7 @@ internal sealed class WorkspaceView : UiElement, IDisposable
     }
 
     internal bool IsClosingPane => _closingPane is not null;
+    internal IEnumerable<ViewerPaneView> PaneViews => _paneViews.Values;
 
     internal bool BeginClosePane(ViewerPane pane, Action completed)
     {

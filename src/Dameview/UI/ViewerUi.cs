@@ -1,7 +1,6 @@
 using System.Drawing;
 using Dameview.Commands;
 using Dameview.Imaging;
-using Dameview.Navigation;
 using Dameview.Platform;
 using Dameview.Settings;
 using Dameview.UI.Animation;
@@ -22,6 +21,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private readonly ID2D1SolidColorBrush _brush;
     private readonly WorkspaceView _workspaceView;
     private readonly TabPreview _tabPreview;
+    private readonly WorkspaceDragOverlay _dragOverlay;
+    private readonly WorkspaceDragController _dragController;
     private readonly Overlay _mainOverlay;
     private readonly SplitView _splitView;
     private readonly ToolbarPanel _toolbarPanel;
@@ -66,18 +67,22 @@ internal sealed class ViewerUi : UiElement, IDisposable
                 () => commands.DuplicateActiveTab(pane),
                 ShowSettings,
                 ShowTabPreview,
+                HandleTabDragPointer,
                 timeProvider,
                 postToUi));
         _activePaneView = FindPaneView(_activePane)
             ?? throw new InvalidOperationException("The active pane view was not created.");
         _workspaceView.SetActivePane(_activePane);
         _toolbarPanel = new ToolbarPanel(directWriteFactory, commands, ShowSettings);
+        _dragOverlay = new WorkspaceDragOverlay(directWriteFactory);
+        _dragController = new WorkspaceDragController(this, _workspaceView, _dragOverlay, commands);
         _galleryPanel = new GalleryPanel(
             deviceContext,
             directWriteFactory,
             thumbnailLoader,
             commands.OpenImage,
-            commands.OpenImageInNewTab);
+            commands.OpenImageInNewTab,
+            HandleGalleryDragPointer);
         _galleryPanel.Bind(_activePane.ActiveTab.GalleryState);
         _mainOverlay = new Overlay(_workspaceView, _toolbarPanel);
         _splitView = new SplitView(
@@ -102,6 +107,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
         AddChild(_splitView);
         AddChild(_tabPreview);
+        AddChild(_dragOverlay);
         AddChild(_modalHost);
         AddChild(_popupHost);
         _root = new UiRoot(this, dpi);
@@ -269,6 +275,12 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     internal bool HandleKey(UiKeyEvent input)
     {
+        if (input.Key == UiKey.Escape && _dragController.IsActive)
+        {
+            _root.CancelPointer();
+            return true;
+        }
+
         if (_popupHost.IsOpen)
         {
             if (input.Key == UiKey.Escape)
@@ -332,6 +344,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     {
         _splitView.Measure(availableSize);
         _tabPreview.Measure(availableSize);
+        _dragOverlay.Measure(availableSize);
         _modalHost.Measure(availableSize);
         _popupHost.Measure(availableSize);
         return availableSize;
@@ -352,6 +365,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         toolbarBounds.Offset(contentBounds.Location);
         _toolbarPanel.Arrange(toolbarBounds);
         _tabPreview.Arrange(new RectangleF(PointF.Empty, finalSize));
+        _dragOverlay.Arrange(new RectangleF(PointF.Empty, finalSize));
         _modalHost.Arrange(new RectangleF(PointF.Empty, finalSize));
         _popupHost.Arrange(new RectangleF(PointF.Empty, finalSize));
     }
@@ -362,6 +376,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _root.SetFocus(null);
         _modalHost.Close();
         _popupHost.Close();
+        _dragController.Cancel();
+        _dragOverlay.Dispose();
         _tabPreview.Dispose();
         _commandPalettePanel.Dispose();
         _settingsPanel.Dispose();
@@ -384,6 +400,29 @@ internal sealed class ViewerUi : UiElement, IDisposable
         RectangleF paneBounds = paneView.GetBoundsRelativeTo(this);
         tabBounds.Offset(paneBounds.Location);
         _tabPreview.Show(path, tabBounds);
+    }
+
+    private void HandleTabDragPointer(
+        ViewerPane pane,
+        int tabIndex,
+        WorkspaceDragEvent input)
+    {
+        if (input.Kind == WorkspaceDragEventKind.Started)
+        {
+            _tabPreview.Hide();
+        }
+
+        _dragController.HandleTabPointer(pane, tabIndex, input);
+    }
+
+    private void HandleGalleryDragPointer(string path, WorkspaceDragEvent input)
+    {
+        if (input.Kind == WorkspaceDragEventKind.Started)
+        {
+            _tabPreview.Hide();
+        }
+
+        _dragController.HandleGalleryPointer(_galleryPanel, path, input);
     }
 
     private void HandlePointerPressed(UiElement? target)
