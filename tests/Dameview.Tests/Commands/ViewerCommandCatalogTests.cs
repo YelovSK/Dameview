@@ -27,6 +27,18 @@ public sealed class ViewerCommandCatalogTests
         Assert.AreEqual(ViewerCommandId.PreviousTab, previous);
 
         Assert.IsTrue(ViewerKeyBindings.TryGetCommand(
+            ViewerKeyBindings.Window,
+            new UiKeyEvent(UiKey.S, Control: true),
+            out ViewerCommandId splitDown));
+        Assert.AreEqual(ViewerCommandId.SplitDown, splitDown);
+
+        Assert.IsTrue(ViewerKeyBindings.TryGetCommand(
+            ViewerKeyBindings.Window,
+            new UiKeyEvent(UiKey.S, Shift: true, Control: true),
+            out ViewerCommandId splitRight));
+        Assert.AreEqual(ViewerCommandId.SplitRight, splitRight);
+
+        Assert.IsTrue(ViewerKeyBindings.TryGetCommand(
             ViewerKeyBindings.Viewer,
             new UiKeyEvent(UiKey.Left),
             out ViewerCommandId previousImage));
@@ -66,5 +78,11 @@ public sealed class ViewerCommandCatalogTests
         Assert.AreEqual(
             "1",
             ViewerKeyBindings.GetPrimaryShortcut(ViewerCommandId.ShowActualSize)?.DisplayText);
+        Assert.AreEqual(
+            "Ctrl+S",
+            ViewerKeyBindings.GetPrimaryShortcut(ViewerCommandId.SplitDown)?.DisplayText);
+        Assert.AreEqual(
+            "Ctrl+Shift+S",
+            ViewerKeyBindings.GetPrimaryShortcut(ViewerCommandId.SplitRight)?.DisplayText);
     }
 }

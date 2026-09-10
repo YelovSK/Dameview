@@ -19,6 +19,7 @@ internal enum UiKey : uint
     Number1 = 0x31,
     F = 0x46,
     P = 0x50,
+    S = 0x53,
     T = 0x54,
     W = 0x57,
     Numpad1 = 0x61,

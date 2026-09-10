@@ -72,6 +72,8 @@ internal static class ViewerKeyBindings
         new(ViewerCommandId.CloseTab, new(UiKey.W, Control: true)),
         new(ViewerCommandId.PreviousTab, new(UiKey.Tab, Control: true, Shift: true)),
         new(ViewerCommandId.NextTab, new(UiKey.Tab, Control: true)),
+        new(ViewerCommandId.SplitDown, new(UiKey.S, Control: true)),
+        new(ViewerCommandId.SplitRight, new(UiKey.S, Control: true, Shift: true)),
         new(ViewerCommandId.ShowSettings, new(UiKey.Comma, Control: true)),
         new(ViewerCommandId.ShowCommandPalette, new(UiKey.P, Control: true, Shift: true)),
     ];
