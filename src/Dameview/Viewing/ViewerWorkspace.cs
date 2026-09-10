@@ -96,6 +96,15 @@ internal sealed class ViewerWorkspace : IDisposable
         return newPane;
     }
 
+    internal void EqualizePanes()
+    {
+        (_, bool changed) = EqualizeSubtree(Root);
+        if (changed)
+        {
+            LayoutChanged?.Invoke(null);
+        }
+    }
+
     internal void SelectPane(ViewerPane pane)
     {
         EnsureContains(pane);
@@ -106,6 +115,26 @@ internal sealed class ViewerWorkspace : IDisposable
 
         ActivePane = pane;
         ActivePaneChanged?.Invoke(pane);
+    }
+
+    private static (int PaneCount, bool Changed) EqualizeSubtree(WorkspaceNode node)
+    {
+        if (node is not WorkspaceSplit split)
+        {
+            return (1, false);
+        }
+
+        (int firstPaneCount, bool firstChanged) = EqualizeSubtree(split.First);
+        (int secondPaneCount, bool secondChanged) = EqualizeSubtree(split.Second);
+        int paneCount = firstPaneCount + secondPaneCount;
+        float ratio = (float)firstPaneCount / paneCount;
+        bool changed = split.Ratio != ratio;
+        if (changed)
+        {
+            split.SetRatio(ratio);
+        }
+
+        return (paneCount, changed || firstChanged || secondChanged);
     }
 
     internal bool RemovePane(ViewerPane pane)

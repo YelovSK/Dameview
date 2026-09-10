@@ -14,6 +14,7 @@ internal enum ViewerCommandId
     ShowActualSize,
     SplitRight,
     SplitDown,
+    EqualizePanes,
     ShowSettings,
     ShowCommandPalette,
 }
@@ -59,6 +60,7 @@ internal static class ViewerCommandCatalog
         new(ViewerCommandId.ShowActualSize, "Show actual size"),
         new(ViewerCommandId.SplitRight, "Split right"),
         new(ViewerCommandId.SplitDown, "Split down"),
+        new(ViewerCommandId.EqualizePanes, "Equalize panes"),
         new(ViewerCommandId.ShowSettings, "Open settings"),
         new(ViewerCommandId.ShowCommandPalette, "Show command palette"),
     ];

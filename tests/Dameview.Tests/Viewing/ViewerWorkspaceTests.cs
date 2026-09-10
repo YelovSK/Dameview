@@ -183,6 +183,42 @@ public sealed class ViewerWorkspaceTests
     }
 
     [TestMethod]
+    public void EqualizingPanesWeightsEverySplitByItsDescendantPaneCount()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane first = workspace.ActivePane;
+        ViewerPane second = workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
+        ViewerPane third = workspace.SplitPane(first, WorkspaceSplitOrientation.Vertical);
+        workspace.SplitPane(first, WorkspaceSplitOrientation.Vertical);
+        var changes = new List<WorkspaceSplit?>();
+        workspace.LayoutChanged += changes.Add;
+
+        workspace.EqualizePanes();
+
+        WorkspaceSplit root = Assert.IsInstanceOfType<WorkspaceSplit>(workspace.Root);
+        WorkspaceSplit left = Assert.IsInstanceOfType<WorkspaceSplit>(root.First);
+        WorkspaceSplit nestedLeft = Assert.IsInstanceOfType<WorkspaceSplit>(left.First);
+        Assert.AreSame(second, root.Second);
+        Assert.AreSame(third, left.Second);
+        Assert.AreEqual(0.75f, root.Ratio);
+        Assert.AreEqual(2.0f / 3.0f, left.Ratio);
+        Assert.AreEqual(0.5f, nestedLeft.Ratio);
+        CollectionAssert.AreEqual(new WorkspaceSplit?[] { null }, changes);
+    }
+
+    [TestMethod]
+    public void EqualizingOnePaneDoesNotRaiseALayoutChange()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        int changes = 0;
+        workspace.LayoutChanged += _ => changes++;
+
+        workspace.EqualizePanes();
+
+        Assert.AreEqual(0, changes);
+    }
+
+    [TestMethod]
     public void RemovingAnInactivePaneCollapsesItsParentAndPreservesFocus()
     {
         using var workspace = new ViewerWorkspace(CreateTab);

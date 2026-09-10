@@ -286,6 +286,10 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
                 SplitDown();
                 break;
 
+            case ViewerCommandId.EqualizePanes:
+                _workspace.EqualizePanes();
+                break;
+
             case ViewerCommandId.ShowSettings:
                 _ui.ShowSettings();
                 break;
