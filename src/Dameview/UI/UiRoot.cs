@@ -160,9 +160,18 @@ internal sealed class UiRoot
             return true;
         }
 
-        if (FocusedElement?.OnKeyEvent(input) == true)
+        bool bubbleWithinScope = IsWithin(FocusedElement, scope);
+        for (UiElement? element = FocusedElement; element is not null; element = element.Parent)
         {
-            return true;
+            if (element.OnKeyEvent(input))
+            {
+                return true;
+            }
+
+            if (!bubbleWithinScope || ReferenceEquals(element, scope))
+            {
+                break;
+            }
         }
 
         if (directionalNavigation && input.Key is UiKey.Left or UiKey.Up or UiKey.Right or UiKey.Down)
@@ -170,6 +179,21 @@ internal sealed class UiRoot
             int direction = input.Key is UiKey.Left or UiKey.Up ? -1 : 1;
             MoveFocus(scope, direction, wrap: true);
             return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>Routes committed text input from the focused element through its ancestors.</summary>
+    internal bool HandleTextInput(string text)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(text);
+        for (UiElement? element = FocusedElement; element is not null; element = element.Parent)
+        {
+            if (element.OnTextInput(text))
+            {
+                return true;
+            }
         }
 
         return false;

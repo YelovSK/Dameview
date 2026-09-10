@@ -7,6 +7,7 @@ internal enum UiCursor
 {
     Default,
     Pointer,
+    Text,
     ResizeHorizontal,
     ResizeVertical,
 }
@@ -189,6 +190,9 @@ internal abstract class UiElement
     /// <summary>Handles a key event.</summary>
     /// <returns><see langword="true"/> when the event was handled and should not be routed further.</returns>
     internal virtual bool OnKeyEvent(UiKeyEvent input) => false;
+    /// <summary>Handles committed text input.</summary>
+    /// <returns><see langword="true"/> when the text was handled.</returns>
+    internal virtual bool OnTextInput(string text) => false;
     /// <summary>Requests that a descendant's bounds be brought into this element's visible region.</summary>
     internal virtual void BringIntoView(RectangleF descendantBounds) { }
 

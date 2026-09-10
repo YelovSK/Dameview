@@ -64,6 +64,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
             _window.Dpi,
             UiTheme.Default,
             this,
+            ExecuteCommand,
             _thumbnailCoordinator,
             theme => _settings!.Update(_settings.Current with { Theme = theme }),
             sort => _settings!.Update(_settings.Current with { Sort = sort }),
@@ -83,6 +84,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         _window.DpiChanged += HandleDpiChanged;
         _window.FileDropped += _workspace.OpenImage;
         _window.KeyPressed += HandleKeyPress;
+        _window.TextInput += HandleTextInput;
         _window.PointerInput += HandlePointerInput;
 
         _settings.Changed += ApplySettings;
@@ -206,28 +208,9 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
     private void HandleKeyPress(UiKeyEvent input)
     {
-        if (input.Control && input.Key == UiKey.Comma)
+        if (ViewerKeyBindings.TryGetCommand(ViewerKeyBindings.Window, input, out ViewerCommandId command))
         {
-            _ui.ShowSettings();
-            _window.RequestRepaint();
-            return;
-        }
-
-        if (input.Control && input.Key == UiKey.T)
-        {
-            _workspace.DuplicateActiveTab(_workspace.ActivePane);
-            return;
-        }
-
-        if (input.Control && input.Key == UiKey.W)
-        {
-            CloseTabOrPane(_workspace.ActivePane, _workspace.ActiveIndex);
-            return;
-        }
-
-        if (input.Control && input.Key == UiKey.Tab)
-        {
-            _workspace.SelectRelativeTab(input.Shift ? -1 : 1);
+            ExecuteCommand(command);
             return;
         }
 
@@ -237,26 +220,82 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
             return;
         }
 
-        switch (input.Key)
+        if (ViewerKeyBindings.TryGetCommand(ViewerKeyBindings.Viewer, input, out command))
         {
-            case UiKey.Left:
+            if (command == ViewerCommandId.ShowActualSize)
+            {
+                ShowActualSize(_ui.GetImageViewportPoint(new PointF(_pointerX, _pointerY)));
+                return;
+            }
+
+            ExecuteCommand(command);
+        }
+    }
+
+    private void HandleTextInput(string text)
+    {
+        if (_ui.HandleTextInput(text))
+        {
+            _window.RequestRepaint();
+        }
+    }
+
+    private void ExecuteCommand(ViewerCommandId command)
+    {
+        switch (command)
+        {
+            case ViewerCommandId.NewTab:
+                _workspace.DuplicateActiveTab(_workspace.ActivePane);
+                break;
+
+            case ViewerCommandId.CloseTab:
+                CloseTabOrPane(_workspace.ActivePane, _workspace.ActiveIndex);
+                break;
+
+            case ViewerCommandId.PreviousTab:
+                _workspace.SelectRelativeTab(-1);
+                break;
+
+            case ViewerCommandId.NextTab:
+                _workspace.SelectRelativeTab(1);
+                break;
+
+            case ViewerCommandId.PreviousImage:
                 ShowPreviousImage();
                 _ui.CenterGallerySelection();
                 break;
 
-            case UiKey.Right:
+            case ViewerCommandId.NextImage:
                 ShowNextImage();
                 _ui.CenterGallerySelection();
                 break;
 
-            case UiKey.F:
+            case ViewerCommandId.FitImage:
                 FitImage();
                 break;
 
-            case UiKey.Number1:
-            case UiKey.Numpad1:
-                ShowActualSize(_ui.GetImageViewportPoint(new PointF(_pointerX, _pointerY)));
+            case ViewerCommandId.ShowActualSize:
+                ShowActualSize();
                 break;
+
+            case ViewerCommandId.SplitRight:
+                SplitRight();
+                break;
+
+            case ViewerCommandId.SplitDown:
+                SplitDown();
+                break;
+
+            case ViewerCommandId.ShowSettings:
+                _ui.ShowSettings();
+                break;
+
+            case ViewerCommandId.ShowCommandPalette:
+                _ui.ShowCommandPalette();
+                break;
+
+            default:
+                throw new ArgumentOutOfRangeException(nameof(command), command, null);
         }
     }
 

@@ -21,6 +21,7 @@ internal sealed unsafe class AppWindow : IDisposable
     private static bool _windowClassRegistered;
 
     private readonly ConcurrentQueue<Action> _postedActions = new();
+    private readonly Utf16TextInputDecoder _textInputDecoder = new();
     private Timer? _repaintTimer;
     private GCHandle _selfHandle;
     private Exception? _unhandledException;
@@ -62,6 +63,7 @@ internal sealed unsafe class AppWindow : IDisposable
     internal event Action<float>? DpiChanged;
     internal event Action<string>? FileDropped;
     internal event Action<UiKeyEvent>? KeyPressed;
+    internal event Action<string>? TextInput;
     internal event Action<UiPointerEvent>? PointerInput;
 
     internal nint Handle { get; private set; }
@@ -75,6 +77,7 @@ internal sealed unsafe class AppWindow : IDisposable
         PCWSTR cursorName = cursor switch
         {
             UiCursor.Pointer => IDC_HAND,
+            UiCursor.Text => IDC_IBEAM,
             UiCursor.ResizeHorizontal => IDC_SIZEWE,
             UiCursor.ResizeVertical => IDC_SIZENS,
             _ => IDC_ARROW,
@@ -431,6 +434,14 @@ internal sealed unsafe class AppWindow : IDisposable
                     (UiKey)(nuint)wParam,
                     GetKeyState((int)VIRTUAL_KEY.VK_SHIFT) < 0,
                     GetKeyState((int)VIRTUAL_KEY.VK_CONTROL) < 0));
+                return default;
+
+            case WM_CHAR:
+                if (_textInputDecoder.Push((char)(nuint)wParam) is { } text)
+                {
+                    TextInput?.Invoke(text);
+                }
+
                 return default;
 
             case WM_LBUTTONDOWN:

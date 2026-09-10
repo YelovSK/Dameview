@@ -27,6 +27,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private readonly ToolbarPanel _toolbarPanel;
     private readonly GalleryPanel _galleryPanel;
     private readonly SettingsPanel _settingsPanel;
+    private readonly CommandPalettePanel _commandPalettePanel;
     private readonly ModalHost _modalHost;
     private readonly PopupHost _popupHost;
     private readonly UiAnimationClock _animationClock;
@@ -42,6 +43,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         float dpi,
         UiTheme theme,
         IViewerCommands commands,
+        Action<ViewerCommandId> executeCommand,
         IThumbnailLoader thumbnailLoader,
         Action<Theme> setTheme,
         Action<FolderSort> setSort,
@@ -85,7 +87,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
             _mainOverlay,
             _galleryPanel,
             initialDividerOffsetDips: GalleryPanel.DefaultWidthDips);
-        _modalHost = new ModalHost(CloseSettings);
+        _modalHost = new ModalHost();
         _popupHost = new PopupHost();
         _settingsPanel = new SettingsPanel(
             directWriteFactory,
@@ -94,6 +96,14 @@ internal sealed class ViewerUi : UiElement, IDisposable
             setTheme,
             setSort,
             activateUpdate);
+        _commandPalettePanel = new CommandPalettePanel(
+            directWriteFactory,
+            ViewerCommandCatalog.Commands,
+            command =>
+            {
+                CloseCommandPalette();
+                executeCommand(command);
+            });
 
         AddChild(_splitView);
         AddChild(_tabPreview);
@@ -257,13 +267,19 @@ internal sealed class ViewerUi : UiElement, IDisposable
                 return _modalHost.HandleEscape();
             }
 
-            _root.HandleKey(input, _settingsPanel, wrapFocus: true, directionalNavigation: true);
+            _root.HandleKey(
+                input,
+                _modalHost.Content!,
+                wrapFocus: true,
+                directionalNavigation: true);
             return true;
         }
 
         UiElement focusScope = _toolbarPanel.IsVisible ? _toolbarPanel : _activePaneView.EmptyStateFocusScope;
         return _root.HandleKey(input, focusScope, wrapFocus: false, directionalNavigation: false);
     }
+
+    internal bool HandleTextInput(string text) => _root.HandleTextInput(text);
 
     internal void SetDpi(float dpi) => _root.SetDpi(dpi);
 
@@ -325,6 +341,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _modalHost.Close();
         _popupHost.Close();
         _tabPreview.Dispose();
+        _commandPalettePanel.Dispose();
         _settingsPanel.Dispose();
         _toolbarPanel.Dispose();
         _galleryPanel.Dispose();
@@ -361,24 +378,22 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     internal void ShowSettings()
     {
-        _root.ClearPointer();
-        _root.SetFocus(null);
-        _popupHost.Close();
-        _modalHost.Show(_settingsPanel);
-        _root.SetFocus(_settingsPanel.InitialFocus);
+        ShowModal(_settingsPanel, CloseSettings);
+    }
+
+    internal void ShowCommandPalette()
+    {
+        _commandPalettePanel.Reset();
+        ShowModal(_commandPalettePanel, CloseCommandPalette);
     }
 
     private void CloseSettings()
     {
-        if (!_modalHost.IsOpen)
+        if (!CloseModal())
         {
             return;
         }
 
-        _root.ClearPointer();
-        _root.SetFocus(null);
-        _popupHost.Close();
-        _modalHost.Close();
         if (_toolbarPanel.IsVisible)
         {
             _root.SetFocus(_toolbarPanel.SettingsButton);
@@ -388,6 +403,34 @@ internal sealed class ViewerUi : UiElement, IDisposable
         {
             _root.SetFocus(_activePaneView.EmptyStateSettingsButton);
         }
+    }
+
+    private void CloseCommandPalette()
+    {
+        CloseModal();
+    }
+
+    private void ShowModal(ModalContent content, Action dismiss)
+    {
+        _root.ClearPointer();
+        _root.SetFocus(null);
+        _popupHost.Close();
+        _modalHost.Show(content, dismiss);
+        _root.SetFocus(content.InitialFocus);
+    }
+
+    private bool CloseModal()
+    {
+        if (!_modalHost.IsOpen)
+        {
+            return false;
+        }
+
+        _root.ClearPointer();
+        _root.SetFocus(null);
+        _popupHost.Close();
+        _modalHost.Close();
+        return true;
     }
 
     private void ApplyActivePaneState(ViewerSessionState state, bool showToolbar)

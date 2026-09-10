@@ -17,27 +17,29 @@ internal abstract class ModalContent : UiElement
 // Owns modal interaction and placement, not the lifetime of its content.
 internal sealed class ModalHost : UiElement
 {
-    private readonly Action _dismiss;
     private readonly ModalSurface _surface;
-    private ModalContent? _content;
+    private Action? _dismiss;
     private bool _backdropPressed;
 
-    internal ModalHost(Action dismiss)
+    internal ModalHost()
     {
-        _dismiss = dismiss;
         _surface = new ModalSurface();
         AddChild(_surface);
         IsVisible = false;
     }
 
-    internal bool IsOpen => _content is not null;
+    internal bool IsOpen => Content is not null;
+    internal ModalContent? Content { get; private set; }
     internal override bool PreservesFocusOnPointerPress => true;
 
-    internal void Show(ModalContent content)
+    internal void Show(ModalContent content, Action dismiss)
     {
+        ArgumentNullException.ThrowIfNull(content);
+        ArgumentNullException.ThrowIfNull(dismiss);
         Root?.ClearPointer();
         _surface.SetContent(content);
-        _content = content;
+        Content = content;
+        _dismiss = dismiss;
         _backdropPressed = false;
         IsVisible = true;
     }
@@ -46,25 +48,26 @@ internal sealed class ModalHost : UiElement
     {
         Root?.ClearPointer();
         _surface.SetContent(null);
-        _content = null;
+        Content = null;
+        _dismiss = null;
         _backdropPressed = false;
         IsVisible = false;
     }
 
     internal bool HandleEscape()
     {
-        if (_content is null)
+        if (Content is null)
         {
             return false;
         }
 
-        if (_content.DismissOnEscape)
+        if (Content.DismissOnEscape)
         {
-            _dismiss();
+            _dismiss!();
         }
         else
         {
-            _content.OnKeyEvent(new UiKeyEvent(UiKey.Escape));
+            Content.OnKeyEvent(new UiKeyEvent(UiKey.Escape));
         }
 
         return true;
@@ -72,7 +75,7 @@ internal sealed class ModalHost : UiElement
 
     protected override SizeF MeasureCore(SizeF availableSize)
     {
-        if (_content is not null)
+        if (Content is not null)
         {
             _surface.Measure(availableSize);
         }
@@ -82,13 +85,13 @@ internal sealed class ModalHost : UiElement
 
     protected override void ArrangeCore(SizeF finalSize)
     {
-        if (_content is null)
+        if (Content is null)
         {
             return;
         }
 
         const float margin = 12.0f;
-        SizeF desired = _content.PreferredSize;
+        SizeF desired = Content.PreferredSize;
         float width = MathF.Min(desired.Width, MathF.Max(0.0f, finalSize.Width - (2.0f * margin)));
         float height = MathF.Min(desired.Height, MathF.Max(0.0f, finalSize.Height - (2.0f * margin)));
         _surface.Arrange(new RectangleF(
@@ -115,9 +118,9 @@ internal sealed class ModalHost : UiElement
 
             case UiPointerEventKind.Released when _backdropPressed:
                 _backdropPressed = false;
-                if (!_surface.Bounds.Contains(input.Position) && _content?.DismissOnBackdrop == true)
+                if (!_surface.Bounds.Contains(input.Position) && Content?.DismissOnBackdrop == true)
                 {
-                    _dismiss();
+                    _dismiss!();
                 }
 
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);

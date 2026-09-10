@@ -14,15 +14,14 @@ public sealed class ModalHostTests
     public void EscapeClosesAndFocusCanBeRestoredExactlyOnce()
     {
         int dismissed = 0;
-        ModalHost? host = null;
-        host = new ModalHost(() =>
-        {
-            dismissed++;
-            host!.Close();
-        });
+        var host = new ModalHost();
         var content = new Content();
         UiRoot root = CreateRoot(host);
-        host.Show(content);
+        host.Show(content, () =>
+        {
+            dismissed++;
+            host.Close();
+        });
         root.SetFocus(content.InitialFocus);
 
         Assert.IsTrue(host.HandleEscape());
@@ -36,11 +35,10 @@ public sealed class ModalHostTests
     [TestMethod]
     public void BackdropDismissalConsumesBothPressAndRelease()
     {
-        ModalHost? host = null;
-        host = new ModalHost(() => host!.Close());
+        var host = new ModalHost();
         var content = new Content();
         UiRoot root = CreateRoot(host);
-        host.Show(content);
+        host.Show(content, host.Close);
         root.Arrange(WindowSize);
 
         Assert.IsTrue(root.HandlePointer(Pointer(UiPointerEventKind.Pressed, 5, 5)));
@@ -53,11 +51,10 @@ public sealed class ModalHostTests
     [TestMethod]
     public void CapturedReleaseOutsideContentDoesNotDismissModal()
     {
-        ModalHost? host = null;
-        host = new ModalHost(() => host!.Close());
+        var host = new ModalHost();
         var content = new Content();
         UiRoot root = CreateRoot(host);
-        host.Show(content);
+        host.Show(content, host.Close);
         root.Arrange(WindowSize);
 
         root.HandlePointer(Pointer(UiPointerEventKind.Pressed, 400, 300));
@@ -70,15 +67,15 @@ public sealed class ModalHostTests
     [TestMethod]
     public void ReplacementCancelsOldInteractionBeforeInstallingNewContent()
     {
-        var host = new ModalHost(() => { });
+        var host = new ModalHost();
         var previous = new Content();
         var next = new Content();
         UiRoot root = CreateRoot(host);
-        host.Show(previous);
+        host.Show(previous, () => { });
         root.Arrange(WindowSize);
         root.HandlePointer(Pointer(UiPointerEventKind.Pressed, 400, 300));
 
-        host.Show(next);
+        host.Show(next, () => { });
         root.Arrange(WindowSize);
         root.HandlePointer(Pointer(UiPointerEventKind.Released, 5, 5));
 
@@ -88,16 +85,34 @@ public sealed class ModalHostTests
     }
 
     [TestMethod]
+    public void ReplacementUsesTheActiveContentsDismissCallback()
+    {
+        var host = new ModalHost();
+        var previous = new Content();
+        var next = new Content();
+        int previousDismissals = 0;
+        int nextDismissals = 0;
+
+        host.Show(previous, () => previousDismissals++);
+        host.Show(next, () => nextDismissals++);
+        host.HandleEscape();
+
+        Assert.AreSame(next, host.Content);
+        Assert.AreEqual(0, previousDismissals);
+        Assert.AreEqual(1, nextDismissals);
+    }
+
+    [TestMethod]
     public void ContentCanDisableEscapeAndBackdropDismissal()
     {
-        var host = new ModalHost(() => Assert.Fail("Modal should not be dismissed."));
+        var host = new ModalHost();
         var content = new Content
         {
             CanDismissOnBackdrop = false,
             CanDismissOnEscape = false,
         };
         UiRoot root = CreateRoot(host);
-        host.Show(content);
+        host.Show(content, () => Assert.Fail("Modal should not be dismissed."));
         root.Arrange(WindowSize);
 
         Assert.IsTrue(host.HandleEscape());
@@ -111,10 +126,10 @@ public sealed class ModalHostTests
     [TestMethod]
     public void HitTestingUsesRootDpiBeforeDrawingAndAfterDpiChanges()
     {
-        var host = new ModalHost(() => { });
+        var host = new ModalHost();
         var content = new Content();
         UiRoot root = CreateRoot(host, 144);
-        host.Show(content);
+        host.Show(content, () => { });
         root.Arrange(WindowSize);
 
         root.HandlePointer(Pointer(UiPointerEventKind.Pressed, 120, 100));
@@ -130,10 +145,10 @@ public sealed class ModalHostTests
     [TestMethod]
     public void ClickingEmptyModalContentPreservesItsFocusedChild()
     {
-        var host = new ModalHost(() => { });
+        var host = new ModalHost();
         var content = new ContentWithChild(40);
         UiRoot root = CreateRoot(host);
-        host.Show(content);
+        host.Show(content, () => { });
         root.Arrange(WindowSize);
         root.SetFocus(content.InitialFocus);
 
@@ -145,10 +160,10 @@ public sealed class ModalHostTests
     [TestMethod]
     public void FocusingOffscreenModalContentScrollsItIntoView()
     {
-        var host = new ModalHost(() => { });
+        var host = new ModalHost();
         var content = new ContentWithChild(650, preferredHeight: 700);
         UiRoot root = CreateRoot(host);
-        host.Show(content);
+        host.Show(content, () => { });
         root.Arrange(WindowSize);
 
         root.SetFocus(content.InitialFocus);
