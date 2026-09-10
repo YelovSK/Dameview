@@ -17,6 +17,7 @@ internal enum UiKey : uint
     T = 0x54,
     W = 0x57,
     Numpad1 = 0x61,
+    Comma = 0xBC,
 }
 
 internal readonly record struct UiKeyEvent(

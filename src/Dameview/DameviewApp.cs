@@ -206,6 +206,13 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
     private void HandleKeyPress(UiKeyEvent input)
     {
+        if (input.Control && input.Key == UiKey.Comma)
+        {
+            _ui.ShowSettings();
+            _window.RequestRepaint();
+            return;
+        }
+
         if (input.Control && input.Key == UiKey.T)
         {
             _workspace.DuplicateActiveTab(_workspace.ActivePane);

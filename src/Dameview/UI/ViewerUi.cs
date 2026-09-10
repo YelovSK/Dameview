@@ -359,7 +359,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         }
     }
 
-    private void ShowSettings()
+    internal void ShowSettings()
     {
         _root.ClearPointer();
         _root.SetFocus(null);
