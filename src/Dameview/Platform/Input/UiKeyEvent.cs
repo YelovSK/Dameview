@@ -14,6 +14,7 @@ internal enum UiKey : uint
     Down = 0x28,
     Number1 = 0x31,
     F = 0x46,
+    T = 0x54,
     W = 0x57,
     Numpad1 = 0x61,
 }

@@ -206,6 +206,12 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
     private void HandleKeyPress(UiKeyEvent input)
     {
+        if (input.Control && input.Key == UiKey.T)
+        {
+            _workspace.DuplicateActiveTab(_workspace.ActivePane);
+            return;
+        }
+
         if (input.Control && input.Key == UiKey.W)
         {
             CloseTabOrPane(_workspace.ActivePane, _workspace.ActiveIndex);
