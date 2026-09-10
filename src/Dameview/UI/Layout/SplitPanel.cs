@@ -8,14 +8,17 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
 {
     internal const float MinimumPaneSizeDips = 120.0f;
     internal const float SplitterSizeDips = 8.0f;
-    private const double OpeningResponse = 28.0;
+    private const double TransitionResponse = 28.0;
 
     private readonly UiElement _firstPane;
     private readonly UiElement _secondPane;
     private readonly UiOrientation _orientation;
     private readonly Action<float>? _ratioChanged;
     private readonly SplitResizer _resizer;
-    private readonly AnimatedFloat _opening;
+    private readonly AnimatedFloat _transition;
+    private Action? _collapseCompleted;
+    private bool _collapsingFirstPane;
+    private bool _collapseFirstAfterOpening;
     private float _ratio;
 
     internal SplitPanel(
@@ -38,11 +41,11 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
         _orientation = orientation;
         _ratio = ratio;
         _ratioChanged = ratioChanged;
-        _opening = new AnimatedFloat(
+        _transition = new AnimatedFloat(
             animateOpening ? 0.0f : 1.0f,
-            OpeningResponse,
+            TransitionResponse,
             completionDistance: 0.002f);
-        _opening.SetTarget(1.0f);
+        _transition.SetTarget(1.0f);
         _resizer = new SplitResizer(this);
         AddChild(firstPane);
         AddChild(secondPane);
@@ -51,6 +54,35 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
 
     internal RectangleF FirstPaneBounds { get; private set; }
     internal RectangleF SecondPaneBounds { get; private set; }
+
+    internal void Collapse(UiElement pane, Action completed)
+    {
+        ArgumentNullException.ThrowIfNull(pane);
+        ArgumentNullException.ThrowIfNull(completed);
+        if (_collapseCompleted is not null)
+        {
+            throw new InvalidOperationException("A pane is already collapsing.");
+        }
+
+        bool collapseFirstPane = ReferenceEquals(pane, _firstPane);
+        if (!collapseFirstPane && !ReferenceEquals(pane, _secondPane))
+        {
+            throw new ArgumentException("The pane is not a child of this split.", nameof(pane));
+        }
+
+        _collapseCompleted = completed;
+        if (collapseFirstPane && _transition.Current != 1.0f)
+        {
+            _collapseFirstAfterOpening = true;
+        }
+        else
+        {
+            _collapsingFirstPane = collapseFirstPane;
+            _transition.SetTarget(0.0f);
+        }
+
+        InvalidateLayout();
+    }
 
     internal (UiElement First, UiElement Second) DetachChildren()
     {
@@ -76,9 +108,19 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
         float usableLength = MathF.Max(0.0f, mainLength - finalSplitterSize);
         float finalFirstLength = CalculateFirstLength(usableLength);
         float finalSecondLength = MathF.Max(0.0f, usableLength - finalFirstLength);
-        float splitterSize = finalSplitterSize * _opening.Current;
-        float secondLength = finalSecondLength * _opening.Current;
-        float firstLength = MathF.Max(0.0f, mainLength - splitterSize - secondLength);
+        float splitterSize = finalSplitterSize * _transition.Current;
+        float firstLength;
+        float secondLength;
+        if (_collapsingFirstPane)
+        {
+            firstLength = finalFirstLength * _transition.Current;
+            secondLength = MathF.Max(0.0f, mainLength - splitterSize - firstLength);
+        }
+        else
+        {
+            secondLength = finalSecondLength * _transition.Current;
+            firstLength = MathF.Max(0.0f, mainLength - splitterSize - secondLength);
+        }
 
         if (_orientation == UiOrientation.Horizontal)
         {
@@ -108,11 +150,27 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
 
     protected override bool UpdateCore(in UiUpdateContext context)
     {
-        float previous = _opening.Current;
-        bool continues = _opening.Update(context.ElapsedSeconds);
-        if (_opening.Current != previous)
+        float previous = _transition.Current;
+        bool continues = _transition.Update(context.ElapsedSeconds);
+        if (_collapseFirstAfterOpening && _transition.Current == 1.0f)
+        {
+            _collapseFirstAfterOpening = false;
+            _collapsingFirstPane = true;
+            continues = _transition.SetTarget(0.0f);
+        }
+
+        if (_transition.Current != previous)
         {
             InvalidateLayout();
+        }
+
+        if (_collapseCompleted is not null
+            && !_collapseFirstAfterOpening
+            && _transition.Current == 0.0f)
+        {
+            Action completed = _collapseCompleted;
+            _collapseCompleted = null;
+            completed();
         }
 
         return continues;
@@ -141,7 +199,8 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
             float mainLength = _orientation == UiOrientation.Horizontal
                 ? Bounds.Width
                 : Bounds.Height;
-            return _opening.Current == 1.0f
+            return _transition.Current == 1.0f
+                && _collapseCompleted is null
                 && mainLength - SplitterSizeDips >= 2.0f * MinimumPaneSizeDips;
         }
     }

@@ -160,12 +160,18 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
     public void SplitRight()
     {
-        _workspace.SplitPane(_workspace.ActivePane, WorkspaceSplitOrientation.Horizontal);
+        if (!_ui.IsClosingPane)
+        {
+            _workspace.SplitPane(_workspace.ActivePane, WorkspaceSplitOrientation.Horizontal);
+        }
     }
 
     public void SplitDown()
     {
-        _workspace.SplitPane(_workspace.ActivePane, WorkspaceSplitOrientation.Vertical);
+        if (!_ui.IsClosingPane)
+        {
+            _workspace.SplitPane(_workspace.ActivePane, WorkspaceSplitOrientation.Vertical);
+        }
     }
 
     public void OpenImage(string path)
@@ -195,21 +201,14 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
 
     public void CloseTab(ViewerPane pane, int index)
     {
-        if (!_workspace.CloseTab(pane, index))
-        {
-            _window.Close();
-        }
+        CloseTabOrPane(pane, index);
     }
 
     private void HandleKeyPress(UiKeyEvent input)
     {
         if (input.Control && input.Key == UiKey.W)
         {
-            if (!_workspace.CloseActiveTab())
-            {
-                _window.Close();
-            }
-
+            CloseTabOrPane(_workspace.ActivePane, _workspace.ActiveIndex);
             return;
         }
 
@@ -311,6 +310,23 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
     {
         _ui.ApplyLayout(_workspace.Root, openingSplit);
         _window.RequestRepaint();
+    }
+
+    private void CloseTabOrPane(ViewerPane pane, int index)
+    {
+        if (pane.Count > 1)
+        {
+            _workspace.CloseTab(pane, index);
+            return;
+        }
+
+        if (_ui.BeginClosePane(pane, () => _workspace.RemovePane(pane)))
+        {
+            _window.RequestRepaint();
+            return;
+        }
+
+        _window.Close();
     }
 
     private void HandleTabsChanged(ViewerPane pane)

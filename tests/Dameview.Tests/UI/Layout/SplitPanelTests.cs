@@ -142,6 +142,87 @@ public sealed class SplitPanelTests
         Assert.AreEqual(400.0f, second.Bounds.Width);
     }
 
+    [TestMethod]
+    public void CollapsingTheSecondPaneExpandsTheFirstPaneToTheOuterEdge()
+    {
+        var first = new FixedContent();
+        var second = new FixedContent();
+        var panel = new SplitPanel(first, second, UiOrientation.Horizontal, 0.6f);
+        var root = new UiRoot(panel, UiDpi.Default);
+        int completions = 0;
+        root.Arrange(new SizeF(1008.0f, 600.0f));
+
+        panel.Collapse(second, () => completions++);
+        Assert.IsTrue(root.Update(new UiUpdateContext(0.05)));
+        root.Arrange(new SizeF(1008.0f, 600.0f));
+        Assert.IsGreaterThan(600.0f, first.Bounds.Width);
+        Assert.IsLessThan(1008.0f, first.Bounds.Width);
+        Assert.IsGreaterThan(0.0f, second.Bounds.Width);
+        Assert.IsLessThan(400.0f, second.Bounds.Width);
+
+        CompleteAnimations(root);
+        root.Arrange(new SizeF(1008.0f, 600.0f));
+        Assert.AreEqual(1, completions);
+        Assert.AreEqual(1008.0f, first.Bounds.Width);
+        Assert.AreEqual(1008.0f, second.Bounds.X);
+        Assert.AreEqual(0.0f, second.Bounds.Width);
+    }
+
+    [TestMethod]
+    public void CollapsingTheFirstPaneExpandsTheSecondPaneToTheOuterEdge()
+    {
+        var first = new FixedContent();
+        var second = new FixedContent();
+        var panel = new SplitPanel(first, second, UiOrientation.Vertical, 0.25f);
+        var root = new UiRoot(panel, UiDpi.Default);
+        int completions = 0;
+        root.Arrange(new SizeF(500.0f, 408.0f));
+
+        panel.Collapse(first, () => completions++);
+        CompleteAnimations(root);
+        root.Arrange(new SizeF(500.0f, 408.0f));
+
+        Assert.AreEqual(1, completions);
+        Assert.AreEqual(0.0f, first.Bounds.Height);
+        Assert.AreEqual(0.0f, second.Bounds.Y);
+        Assert.AreEqual(408.0f, second.Bounds.Height);
+    }
+
+    [TestMethod]
+    public void CollapsingTheFirstPaneDuringOpeningDoesNotJumpToTheFinalLayout()
+    {
+        var first = new FixedContent();
+        var second = new FixedContent();
+        var panel = new SplitPanel(
+            first,
+            second,
+            UiOrientation.Horizontal,
+            0.5f,
+            animateOpening: true);
+        var root = new UiRoot(panel, UiDpi.Default);
+        int completions = 0;
+        root.Arrange(new SizeF(1008.0f, 600.0f));
+
+        panel.Collapse(first, () => completions++);
+        root.Arrange(new SizeF(1008.0f, 600.0f));
+        Assert.AreEqual(1008.0f, first.Bounds.Width);
+        Assert.AreEqual(0.0f, second.Bounds.Width);
+
+        CompleteAnimations(root, frameCount: 20);
+        root.Arrange(new SizeF(1008.0f, 600.0f));
+        Assert.AreEqual(1, completions);
+        Assert.AreEqual(0.0f, first.Bounds.Width);
+        Assert.AreEqual(1008.0f, second.Bounds.Width);
+    }
+
+    private static void CompleteAnimations(UiRoot root, int frameCount = 10)
+    {
+        for (int frame = 0; frame < frameCount; frame++)
+        {
+            root.Update(new UiUpdateContext(0.05));
+        }
+    }
+
     private static UiPointerEvent Pointer(UiPointerEventKind kind, float x, float y)
     {
         return new UiPointerEvent(kind, new PointF(x, y), PointerButton.Primary);

@@ -147,6 +147,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     }
 
     internal TimeSpan? NextAnimationFrameDelay => _workspaceView.NextAnimationFrameDelay;
+    internal bool IsClosingPane => _workspaceView.IsClosingPane;
 
     internal PointF GetImageViewportPoint(PointF nativePoint)
     {
@@ -190,6 +191,13 @@ internal sealed class ViewerUi : UiElement, IDisposable
             ?? throw new InvalidOperationException("The active pane view is not attached.");
         _activePaneView.SettingsError = _settingsPanel.Error;
         _workspaceView.SetActivePane(_activePane);
+    }
+
+    internal bool BeginClosePane(ViewerPane pane, Action completed)
+    {
+        _root.ClearPointer();
+        _tabPreview.Hide();
+        return _workspaceView.BeginClosePane(pane, completed);
     }
 
     internal void BindTab(ViewerPane pane, ViewerTab tab)
@@ -261,6 +269,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     {
         UiUpdateContext context = _animationClock.GetNextFrame();
         bool continues = _root.Update(context);
+        _workspaceView.CompletePendingClose();
         if (!continues && NextAnimationFrameDelay is null)
         {
             _animationClock.Reset();

@@ -10,6 +10,8 @@ internal sealed class WorkspaceView : UiElement, IDisposable
     private readonly Func<ViewerPane, ViewerPaneView> _createPaneView;
     private readonly Dictionary<ViewerPane, ViewerPaneView> _paneViews = [];
     private UiElement? _content;
+    private ViewerPane? _closingPane;
+    private Action? _pendingCloseCompletion;
 
     internal WorkspaceView(
         WorkspaceNode root,
@@ -43,6 +45,41 @@ internal sealed class WorkspaceView : UiElement, IDisposable
     internal ViewerPaneView? FindPaneView(ViewerPane pane)
     {
         return _paneViews.GetValueOrDefault(pane);
+    }
+
+    internal bool IsClosingPane => _closingPane is not null;
+
+    internal bool BeginClosePane(ViewerPane pane, Action completed)
+    {
+        ArgumentNullException.ThrowIfNull(pane);
+        ArgumentNullException.ThrowIfNull(completed);
+        if (_closingPane is not null)
+        {
+            return true;
+        }
+
+        ViewerPaneView paneView = FindPaneView(pane)
+            ?? throw new ArgumentException("The pane is not attached to this workspace view.", nameof(pane));
+        if (paneView.Parent is not SplitPanel parent)
+        {
+            return false;
+        }
+
+        _closingPane = pane;
+        parent.Collapse(paneView, () => _pendingCloseCompletion = completed);
+        return true;
+    }
+
+    internal void CompletePendingClose()
+    {
+        if (_pendingCloseCompletion is not { } completed)
+        {
+            return;
+        }
+
+        _pendingCloseCompletion = null;
+        _closingPane = null;
+        completed();
     }
 
     internal void SetActivePane(ViewerPane activePane)
@@ -96,6 +133,8 @@ internal sealed class WorkspaceView : UiElement, IDisposable
 
     public void Dispose()
     {
+        _closingPane = null;
+        _pendingCloseCompletion = null;
         DetachLayout();
         foreach (ViewerPaneView paneView in _paneViews.Values)
         {
