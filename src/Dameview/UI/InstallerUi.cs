@@ -24,7 +24,6 @@ internal sealed class InstallerUi : UiElement, IDisposable
     private readonly TextBlock _status;
     private readonly Button _primaryButton;
     private readonly Button _secondaryButton;
-    private readonly Button _closeButton;
     private readonly Button _uninstallButton;
     private readonly StackPanel _buttons;
     private readonly UiAnimationClock _animationClock = new();
@@ -38,7 +37,6 @@ internal sealed class InstallerUi : UiElement, IDisposable
         float dpi,
         Action primaryAction,
         Action secondaryAction,
-        Action close,
         Action uninstall)
     {
         _deviceContext = deviceContext;
@@ -82,11 +80,11 @@ internal sealed class InstallerUi : UiElement, IDisposable
             directWriteFactory,
             request.Action == AppInstallationAction.Uninstall ? "Cancel" : "Run Portable",
             secondaryAction);
-        _closeButton = new Button(directWriteFactory, "Close", close)
-        {
-            IsVisible = request.Action != AppInstallationAction.Uninstall,
-        };
-        _uninstallButton = new Button(directWriteFactory, "Uninstall", uninstall)
+        _uninstallButton = new Button(
+            directWriteFactory,
+            "Uninstall",
+            uninstall,
+            tone: UiButtonTone.Danger)
         {
             IsVisible = request.Action is AppInstallationAction.Update or AppInstallationAction.Reinstall,
         };
@@ -95,8 +93,7 @@ internal sealed class InstallerUi : UiElement, IDisposable
             UiDesign.Spacing,
             StackPanelDistribution.Equal,
             _primaryButton,
-            _secondaryButton,
-            _closeButton);
+            _secondaryButton);
 
         AddChild(_title);
         AddChild(_description);
@@ -140,7 +137,6 @@ internal sealed class InstallerUi : UiElement, IDisposable
         _primaryButton.Label = "Uninstall";
         _secondaryButton.Label = "Back";
         _secondaryButton.IsVisible = true;
-        _closeButton.IsVisible = false;
         _uninstallButton.IsVisible = false;
         _root.SetFocus(_primaryButton);
         _root.InvalidateLayout();
@@ -157,7 +153,6 @@ internal sealed class InstallerUi : UiElement, IDisposable
         _primaryButton.Label = GetPrimaryLabel(_request.Action);
         _secondaryButton.Label = "Run Portable";
         _secondaryButton.IsVisible = true;
-        _closeButton.IsVisible = true;
         _uninstallButton.IsVisible = true;
         _root.SetFocus(_primaryButton);
         _root.InvalidateLayout();
@@ -170,7 +165,6 @@ internal sealed class InstallerUi : UiElement, IDisposable
         _status.IsVisible = false;
         _primaryButton.Label = "Close";
         _secondaryButton.IsVisible = false;
-        _closeButton.IsVisible = false;
         _uninstallButton.IsVisible = false;
         _root.SetFocus(_primaryButton);
         _root.InvalidateLayout();
@@ -269,7 +263,6 @@ internal sealed class InstallerUi : UiElement, IDisposable
         _status.Dispose();
         _primaryButton.Dispose();
         _secondaryButton.Dispose();
-        _closeButton.Dispose();
         _uninstallButton.Dispose();
         _brush.Dispose();
     }
@@ -282,7 +275,7 @@ internal sealed class InstallerUi : UiElement, IDisposable
         {
             case AppInstallationAction.Install:
                 title = $"Install Dameview {request.CurrentVersion}";
-                description = "Install Dameview for this account. Administrator access is not required.";
+                description = "Install Dameview for this account.";
                 break;
 
             case AppInstallationAction.Update:

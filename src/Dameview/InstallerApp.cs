@@ -36,7 +36,6 @@ internal sealed class InstallerApp : IDisposable
             _window.Dpi,
             HandlePrimaryAction,
             HandleSecondaryAction,
-            Close,
             BeginUninstall);
         _ui.Invalidated += _window.RequestRepaint;
         _ui.CursorChanged += _window.ApplyCursor;

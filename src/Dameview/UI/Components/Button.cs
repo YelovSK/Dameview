@@ -5,11 +5,18 @@ using Vortice.Mathematics;
 
 namespace Dameview.UI.Components;
 
+internal enum UiButtonTone
+{
+    Default,
+    Danger,
+}
+
 internal sealed class Button : InteractiveControl, IDisposable
 {
     private readonly Action _clicked;
     private readonly float _backgroundInsetY;
     private readonly IDWriteTextFormat _textFormat;
+    private readonly UiButtonTone _tone;
     private string _label;
 
     internal Button(
@@ -18,12 +25,14 @@ internal sealed class Button : InteractiveControl, IDisposable
         Action clicked,
         string fontFamily = UiTypography.FontFamily,
         float fontSize = UiDesign.BodyFontSize,
-        float backgroundInsetY = 0.0f)
+        float backgroundInsetY = 0.0f,
+        UiButtonTone tone = UiButtonTone.Default)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(backgroundInsetY);
         _label = label;
         _clicked = clicked;
         _backgroundInsetY = backgroundInsetY;
+        _tone = tone;
         _textFormat = directWriteFactory.CreateTextFormat(
             fontFamily,
             FontWeight.SemiBold,
@@ -73,10 +82,19 @@ internal sealed class Button : InteractiveControl, IDisposable
             bounds,
             UiDesign.ControlCornerRadius,
             UiDesign.ControlCornerRadius);
+        Color4 textColor = _tone switch
+        {
+            UiButtonTone.Default => context.Palette.PrimaryText,
+            UiButtonTone.Danger => context.Palette.ErrorText,
+            _ => throw new InvalidOperationException("Unknown button tone."),
+        };
 
         if (IsSelected)
         {
-            context.FillRoundedRectangle(background, context.Palette.Accent, 0.22f);
+            Color4 selectionColor = _tone == UiButtonTone.Danger
+                ? context.Palette.ErrorText
+                : context.Palette.Accent;
+            context.FillRoundedRectangle(background, selectionColor, 0.22f);
         }
 
         if (HoverAmount > 0.0f)
@@ -93,7 +111,7 @@ internal sealed class Button : InteractiveControl, IDisposable
             Label,
             _textFormat,
             new Rect(0.0f, 0.0f, width, height),
-            IsEnabled ? context.Palette.PrimaryText : context.Palette.SecondaryText,
+            IsEnabled ? textColor : context.Palette.SecondaryText,
             DrawTextOptions.Clip);
     }
 
