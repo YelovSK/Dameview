@@ -103,6 +103,7 @@ internal sealed class Dropdown<T> : InteractiveControl, IDisposable
             new RectangleF(0.0f, 0.0f, width, height),
             UiDesign.ControlCornerRadius,
             UiDesign.ControlCornerRadius);
+        context.FillRoundedRectangle(bounds, context.Palette.ControlSurface);
         if (IsOpen)
         {
             context.FillRoundedRectangle(bounds, context.Palette.Accent, 0.14f);

@@ -92,13 +92,6 @@ internal sealed class EmptyStatePanel : UiElement, IDisposable
             _captionFormat,
             new Rect(layout.Caption.X, layout.Caption.Y, layout.Caption.Width, layout.Caption.Height),
             context.Palette.SecondaryText);
-
-        context.DrawRoundedRectangle(
-            new RoundedRectangle(
-                layout.SettingsButton,
-                UiDesign.ControlCornerRadius,
-                UiDesign.ControlCornerRadius),
-            context.Palette.SurfaceBorder);
     }
 
     protected override bool HitTestCore(PointF position) => false;

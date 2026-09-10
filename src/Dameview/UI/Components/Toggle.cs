@@ -57,6 +57,7 @@ internal sealed class Toggle : InteractiveControl, IDisposable
             new RectangleF(0.0f, 0.0f, width, height),
             UiDesign.ControlCornerRadius,
             UiDesign.ControlCornerRadius);
+        context.FillRoundedRectangle(controlBounds, context.Palette.ControlSurface);
         if (HoverAmount > 0.0f)
         {
             context.FillRoundedRectangle(controlBounds, context.Palette.ControlHover, HoverAmount);

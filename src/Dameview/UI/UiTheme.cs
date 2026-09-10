@@ -7,6 +7,7 @@ internal sealed record UiTheme(
     Color4 Surface,
     Color4 OverlaySurface,
     Color4 SurfaceBorder,
+    Color4 ControlSurface,
     Color4 Accent,
     Color4 ControlHover,
     Color4 ControlPressed,
@@ -19,6 +20,7 @@ internal sealed record UiTheme(
         Surface: FromHex("#FCFCFF"),
         OverlaySurface: FromHex("#FAFAFF", alpha: 0.94f),
         SurfaceBorder: FromHex("#B8BFCC"),
+        ControlSurface: FromHex("#EBEDF2"),
         Accent: FromHex("#1F5CBF"),
         ControlHover: FromHex("#D6DEEB"),
         ControlPressed: FromHex("#BAC9E0"),
@@ -31,6 +33,7 @@ internal sealed record UiTheme(
         Surface: FromHex("#121418"),
         OverlaySurface: FromHex("#0E1013", alpha: 0.94f),
         SurfaceBorder: FromHex("#292E38"),
+        ControlSurface: FromHex("#1C2027"),
         Accent: FromHex("#599EFF"),
         ControlHover: FromHex("#292E38"),
         ControlPressed: FromHex("#3D4759"),
@@ -38,89 +41,101 @@ internal sealed record UiTheme(
         SecondaryText: FromHex("#919CAD"),
         ErrorText: FromHex("#FF6E73"));
 
+    // Source: https://github.com/catppuccin/palette/blob/main/palette.json
     internal static UiTheme CatppuccinFrappe { get; } = new(
-        Background: FromHex("#232634"),
-        Surface: FromHex("#303446"),
-        OverlaySurface: FromHex("#292C3C", alpha: 0.94f),
-        SurfaceBorder: FromHex("#414559"),
-        Accent: FromHex("#CA9EE6"),
-        ControlHover: FromHex("#51576D"),
-        ControlPressed: FromHex("#626880"),
-        PrimaryText: FromHex("#C6D0F5"),
-        SecondaryText: FromHex("#A5ADCE"),
-        ErrorText: FromHex("#E78284"));
+        Background: FromHex("#232634"), // Crust
+        Surface: FromHex("#303446"), // Base
+        OverlaySurface: FromHex("#292C3C", alpha: 0.94f), // Mantle
+        SurfaceBorder: FromHex("#414559"), // Surface0
+        ControlSurface: FromHex("#414559"), // Surface0
+        Accent: FromHex("#CA9EE6"), // Mauve
+        ControlHover: FromHex("#51576D"), // Surface1
+        ControlPressed: FromHex("#626880"), // Surface2
+        PrimaryText: FromHex("#C6D0F5"), // Text
+        SecondaryText: FromHex("#A5ADCE"), // Subtext0
+        ErrorText: FromHex("#E78284")); // Red
 
     internal static UiTheme CatppuccinMacchiato { get; } = new(
-        Background: FromHex("#181926"),
-        Surface: FromHex("#24273A"),
-        OverlaySurface: FromHex("#1E2030", alpha: 0.94f),
-        SurfaceBorder: FromHex("#363A4F"),
-        Accent: FromHex("#C6A0F6"),
-        ControlHover: FromHex("#494D64"),
-        ControlPressed: FromHex("#5B6078"),
-        PrimaryText: FromHex("#CAD3F5"),
-        SecondaryText: FromHex("#A5ADCB"),
-        ErrorText: FromHex("#ED8796"));
+        Background: FromHex("#181926"), // Crust
+        Surface: FromHex("#24273A"), // Base
+        OverlaySurface: FromHex("#1E2030", alpha: 0.94f), // Mantle
+        SurfaceBorder: FromHex("#363A4F"), // Surface0
+        ControlSurface: FromHex("#363A4F"), // Surface0
+        Accent: FromHex("#C6A0F6"), // Mauve
+        ControlHover: FromHex("#494D64"), // Surface1
+        ControlPressed: FromHex("#5B6078"), // Surface2
+        PrimaryText: FromHex("#CAD3F5"), // Text
+        SecondaryText: FromHex("#A5ADCB"), // Subtext0
+        ErrorText: FromHex("#ED8796")); // Red
 
     internal static UiTheme CatppuccinMocha { get; } = new(
-        Background: FromHex("#11111B"),
-        Surface: FromHex("#1E1E2E"),
-        OverlaySurface: FromHex("#181825", alpha: 0.94f),
-        SurfaceBorder: FromHex("#313244"),
-        Accent: FromHex("#CBA6F7"),
-        ControlHover: FromHex("#45475A"),
-        ControlPressed: FromHex("#585B70"),
-        PrimaryText: FromHex("#CDD6F4"),
-        SecondaryText: FromHex("#A6ADC8"),
-        ErrorText: FromHex("#F38BA8"));
+        Background: FromHex("#11111B"), // Crust
+        Surface: FromHex("#1E1E2E"), // Base
+        OverlaySurface: FromHex("#181825", alpha: 0.94f), // Mantle
+        SurfaceBorder: FromHex("#313244"), // Surface0
+        ControlSurface: FromHex("#313244"), // Surface0
+        Accent: FromHex("#CBA6F7"), // Mauve
+        ControlHover: FromHex("#45475A"), // Surface1
+        ControlPressed: FromHex("#585B70"), // Surface2
+        PrimaryText: FromHex("#CDD6F4"), // Text
+        SecondaryText: FromHex("#A6ADC8"), // Subtext0
+        ErrorText: FromHex("#F38BA8")); // Red
 
+    // Source: https://github.com/morhetz/gruvbox/blob/master/colors/gruvbox.vim
     internal static UiTheme GruvboxDark { get; } = new(
-        Background: FromHex("#282828"),
-        Surface: FromHex("#3C3836"),
-        OverlaySurface: FromHex("#3C3836", alpha: 0.94f),
-        SurfaceBorder: FromHex("#504945"),
-        Accent: FromHex("#83A598"),
-        ControlHover: FromHex("#504945"),
-        ControlPressed: FromHex("#665C54"),
-        PrimaryText: FromHex("#EBDBB2"),
-        SecondaryText: FromHex("#BDAE93"),
-        ErrorText: FromHex("#FB4934"));
+        Background: FromHex("#282828"), // dark0
+        Surface: FromHex("#3C3836"), // dark1
+        OverlaySurface: FromHex("#3C3836", alpha: 0.94f), // dark1
+        SurfaceBorder: FromHex("#504945"), // dark2
+        ControlSurface: FromHex("#504945"), // dark2
+        Accent: FromHex("#83A598"), // bright_blue
+        ControlHover: FromHex("#665C54"), // dark3
+        ControlPressed: FromHex("#7C6F64"), // dark4
+        PrimaryText: FromHex("#EBDBB2"), // light1
+        SecondaryText: FromHex("#BDAE93"), // light3
+        ErrorText: FromHex("#FB4934")); // bright_red
 
+    // Source: https://www.nordtheme.com/docs/colors-and-palettes
     internal static UiTheme Nord { get; } = new(
-        Background: FromHex("#2E3440"),
-        Surface: FromHex("#3B4252"),
-        OverlaySurface: FromHex("#3B4252", alpha: 0.94f),
-        SurfaceBorder: FromHex("#4C566A"),
-        Accent: FromHex("#88C0D0"),
-        ControlHover: FromHex("#434C5E"),
-        ControlPressed: FromHex("#4C566A"),
-        PrimaryText: FromHex("#ECEFF4"),
-        SecondaryText: FromHex("#D8DEE9"),
-        ErrorText: FromHex("#BF616A"));
+        Background: FromHex("#2E3440"), // nord0
+        Surface: FromHex("#3B4252"), // nord1
+        OverlaySurface: FromHex("#3B4252", alpha: 0.94f), // nord1
+        SurfaceBorder: FromHex("#4C566A"), // nord3
+        ControlSurface: FromHex("#434C5E"), // nord2
+        Accent: FromHex("#88C0D0"), // nord8
+        ControlHover: FromHex("#4C566A"), // nord3
+        ControlPressed: FromHex("#596579"), // Dameview interaction shade beyond Polar Night
+        PrimaryText: FromHex("#ECEFF4"), // nord6
+        SecondaryText: FromHex("#D8DEE9"), // nord4
+        ErrorText: FromHex("#BF616A")); // nord11
 
+    // Source: https://github.com/dracula/draculatheme.com/blob/main/content/spec.mdx
     internal static UiTheme Dracula { get; } = new(
-        Background: FromHex("#282A36"),
-        Surface: FromHex("#44475A"),
-        OverlaySurface: FromHex("#44475A", alpha: 0.94f),
-        SurfaceBorder: FromHex("#6272A4"),
-        Accent: FromHex("#BD93F9"),
-        ControlHover: FromHex("#44475A"),
-        ControlPressed: FromHex("#6272A4"),
-        PrimaryText: FromHex("#F8F8F2"),
-        SecondaryText: FromHex("#6272A4"),
-        ErrorText: FromHex("#FF5555"));
+        Background: FromHex("#282A36"), // Background
+        Surface: FromHex("#44475A"), // Selection
+        OverlaySurface: FromHex("#44475A", alpha: 0.94f), // Selection
+        SurfaceBorder: FromHex("#6272A4"), // Current Line / Comment
+        ControlSurface: FromHex("#353747"), // Official opaque Current Line fallback
+        Accent: FromHex("#BD93F9"), // Purple
+        ControlHover: FromHex("#44475A"), // Selection
+        ControlPressed: FromHex("#6272A4"), // Current Line / Comment
+        PrimaryText: FromHex("#F8F8F2"), // Foreground
+        SecondaryText: FromHex("#6272A4"), // Comment
+        ErrorText: FromHex("#FF5555")); // Red
 
+    // Source: https://github.com/rose-pine/rose-pine-palette/blob/main/palette.json
     internal static UiTheme RosePine { get; } = new(
-        Background: FromHex("#191724"),
-        Surface: FromHex("#1F1D2E"),
-        OverlaySurface: FromHex("#26233A", alpha: 0.94f),
-        SurfaceBorder: FromHex("#403D52"),
-        Accent: FromHex("#C4A7E7"),
-        ControlHover: FromHex("#26233A"),
-        ControlPressed: FromHex("#403D52"),
-        PrimaryText: FromHex("#E0DEF4"),
-        SecondaryText: FromHex("#6E6A86"),
-        ErrorText: FromHex("#EB6F92"));
+        Background: FromHex("#191724"), // Base
+        Surface: FromHex("#1F1D2E"), // Surface
+        OverlaySurface: FromHex("#26233A", alpha: 0.94f), // Overlay
+        SurfaceBorder: FromHex("#403D52"), // Highlight Medium
+        ControlSurface: FromHex("#26233A"), // Overlay
+        Accent: FromHex("#C4A7E7"), // Iris
+        ControlHover: FromHex("#403D52"), // Highlight Medium
+        ControlPressed: FromHex("#524F67"), // Highlight High
+        PrimaryText: FromHex("#E0DEF4"), // Text
+        SecondaryText: FromHex("#6E6A86"), // Muted
+        ErrorText: FromHex("#EB6F92")); // Love
 
     private static Color4 FromHex(string hex, float alpha = 1.0f)
     {

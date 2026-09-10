@@ -82,6 +82,7 @@ internal sealed class Button : InteractiveControl, IDisposable
             bounds,
             UiDesign.ControlCornerRadius,
             UiDesign.ControlCornerRadius);
+        context.FillRoundedRectangle(background, context.Palette.ControlSurface);
         Color4 textColor = _tone switch
         {
             UiButtonTone.Default => context.Palette.PrimaryText,

@@ -136,7 +136,7 @@ internal sealed class TextInput : UiElement, IDisposable
             new RectangleF(0.0f, 0.0f, Bounds.Width, Bounds.Height),
             UiDesign.ControlCornerRadius,
             UiDesign.ControlCornerRadius);
-        context.FillRoundedRectangle(background, context.Palette.Background, 0.72f);
+        context.FillRoundedRectangle(background, context.Palette.ControlSurface);
         context.DrawRoundedRectangle(
             background,
             HasVisualState(UiVisualState.Focused)
