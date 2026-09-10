@@ -12,7 +12,7 @@ namespace Dameview.UI.Panels;
 
 internal sealed class GalleryPanel : UiElement, IDisposable
 {
-    internal const float DefaultWidthDips = 184.0f;
+    internal const float DefaultWidthDips = UiDesign.DefaultGalleryWidth;
     internal const float ItemHeightDips = 142.0f;
 
     private const float PanelPadding = 8.0f;

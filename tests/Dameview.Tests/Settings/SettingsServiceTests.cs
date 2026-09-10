@@ -21,6 +21,7 @@ public sealed class SettingsServiceTests
             Theme = Themes.Light,
             AnimationsEnabled = false,
             Sort = FolderSort.SizeLargest,
+            GalleryWidthDips = 240.0f,
         });
         Assert.IsNull(settings.Error);
 
@@ -40,6 +41,7 @@ public sealed class SettingsServiceTests
         Assert.AreEqual(Themes.Light, settings.Current.Theme);
         Assert.IsTrue(settings.Current.AnimationsEnabled);
         Assert.AreEqual(FolderSort.NameAscending, settings.Current.Sort);
+        Assert.AreEqual(UiDesign.DefaultGalleryWidth, settings.Current.GalleryWidthDips);
     }
 
     [TestMethod]
@@ -129,6 +131,9 @@ public sealed class SettingsServiceTests
     [DataRow("theme=42")]
     [DataRow("animations=maybe")]
     [DataRow("sort=random")]
+    [DataRow("galleryWidth=small")]
+    [DataRow("galleryWidth=119")]
+    [DataRow("galleryWidth=NaN")]
     public void InvalidValuesDoNotReplaceCurrentSettings(string json)
     {
         using var files = new SettingsFiles();

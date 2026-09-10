@@ -7,6 +7,8 @@ internal static class UiDesign
     internal const float StatusHeight = 42.0f;
     internal const float ToolbarHeight = 46.0f;
     internal const float ToolbarWidth = 476.0f;
+    internal const float DefaultGalleryWidth = 184.0f;
+    internal const float MinimumPaneSize = 120.0f;
     internal const float ControlCornerRadius = 8.0f;
     internal const float PanelCornerRadius = 12.0f;
     internal const float SmallSpacing = 4.0f;

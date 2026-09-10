@@ -110,7 +110,11 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     {
         // WINDOWPLACEMENT keeps rcNormalPosition up to date while maximized,
         // so this also remembers the size that will be restored after unmaximizing.
-        _settings.Update(_settings.Current with { Window = _window.CapturePlacement() });
+        _settings.Update(_settings.Current with
+        {
+            GalleryWidthDips = _ui.GalleryWidthDips,
+            Window = _window.CapturePlacement(),
+        });
         _updates.Changed -= HandleUpdateChanged;
         _updates.UpdateDownloaded -= HandleUpdateDownloaded;
         _settings.Dispose();

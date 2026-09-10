@@ -16,6 +16,9 @@ internal static class SettingsIniSerializer
             document.Get(string.Empty, "animations"),
             defaultValue: true);
         FolderSort sort = ReadSort(document.Get(string.Empty, "sort"));
+        float galleryWidth = ReadOptionalFloat(
+            document.Get(string.Empty, "galleryWidth"),
+            UiDesign.DefaultGalleryWidth);
         WindowPlacementState? window = !document.HasSection("window") ? null : new WindowPlacementState
         {
             X = ReadRequiredInt(document.Get("window", "x")),
@@ -30,6 +33,7 @@ internal static class SettingsIniSerializer
             Theme = theme,
             AnimationsEnabled = animationsEnabled,
             Sort = sort,
+            GalleryWidthDips = galleryWidth,
             Window = window,
         };
     }
@@ -40,6 +44,7 @@ internal static class SettingsIniSerializer
         document.Set(string.Empty, "theme", WriteTheme(settings.Theme));
         document.Set(string.Empty, "animations", settings.AnimationsEnabled ? "true" : "false");
         document.Set(string.Empty, "sort", WriteSort(settings.Sort));
+        document.Set(string.Empty, "galleryWidth", settings.GalleryWidthDips.ToString(CultureInfo.InvariantCulture));
         if (settings.Window is { } window)
         {
             document.Set("window", "x", window.X.ToString(CultureInfo.InvariantCulture));
@@ -95,6 +100,21 @@ internal static class SettingsIniSerializer
 
     private static bool ReadOptionalBoolean(string? value, bool defaultValue) =>
         value is null ? defaultValue : ReadRequiredBoolean(value);
+
+    private static float ReadOptionalFloat(string? value, float defaultValue)
+    {
+        if (value is null)
+        {
+            return defaultValue;
+        }
+
+        if (float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out float result))
+        {
+            return result;
+        }
+
+        throw new IniFormatException("Expected a number.");
+    }
 
     private static string WriteTheme(Theme value) => value.Id;
 

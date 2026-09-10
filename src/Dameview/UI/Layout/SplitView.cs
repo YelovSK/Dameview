@@ -12,7 +12,7 @@ internal enum SplitViewEdge
 
 internal sealed class SplitView : UiElement, ISplitResizerTarget
 {
-    internal const float MinimumPaneSizeDips = 120.0f;
+    internal const float MinimumPaneSizeDips = UiDesign.MinimumPaneSize;
     private const float SplitterSize = 8.0f;
 
     private readonly UiElement _firstPane;
