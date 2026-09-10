@@ -10,16 +10,14 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
     internal const float SplitterSizeDips = 8.0f;
     private const double TransitionResponse = 28.0;
 
-    private readonly UiElement _firstPane;
-    private readonly UiElement _secondPane;
     private readonly UiOrientation _orientation;
     private readonly Action<float>? _ratioChanged;
     private readonly SplitResizer _resizer;
+    private readonly AnimatedFloat _ratio;
     private readonly AnimatedFloat _transition;
     private Action? _collapseCompleted;
     private bool _collapsingFirstPane;
     private bool _collapseFirstAfterOpening;
-    private float _ratio;
 
     internal SplitPanel(
         UiElement firstPane,
@@ -36,10 +34,10 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
             throw new ArgumentOutOfRangeException(nameof(ratio));
         }
 
-        _firstPane = firstPane;
-        _secondPane = secondPane;
+        FirstPane = firstPane;
+        SecondPane = secondPane;
         _orientation = orientation;
-        _ratio = ratio;
+        _ratio = new AnimatedFloat(ratio, TransitionResponse);
         _ratioChanged = ratioChanged;
         _transition = new AnimatedFloat(
             animateOpening ? 0.0f : 1.0f,
@@ -47,13 +45,28 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
             completionDistance: 0.002f);
         _transition.SetTarget(1.0f);
         _resizer = new SplitResizer(this);
-        AddChild(firstPane);
-        AddChild(secondPane);
+        AddChild(FirstPane);
+        AddChild(SecondPane);
         AddChild(_resizer);
     }
 
     internal RectangleF FirstPaneBounds { get; private set; }
     internal RectangleF SecondPaneBounds { get; private set; }
+    internal UiElement FirstPane { get; }
+    internal UiElement SecondPane { get; }
+
+    internal void SetRatio(float ratio)
+    {
+        if (!(ratio > 0.0f && ratio < 1.0f))
+        {
+            throw new ArgumentOutOfRangeException(nameof(ratio));
+        }
+
+        if (_ratio.SetTarget(ratio))
+        {
+            InvalidateLayout();
+        }
+    }
 
     internal void Collapse(UiElement pane, Action completed)
     {
@@ -64,8 +77,8 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
             throw new InvalidOperationException("A pane is already collapsing.");
         }
 
-        bool collapseFirstPane = ReferenceEquals(pane, _firstPane);
-        if (!collapseFirstPane && !ReferenceEquals(pane, _secondPane))
+        bool collapseFirstPane = ReferenceEquals(pane, FirstPane);
+        if (!collapseFirstPane && !ReferenceEquals(pane, SecondPane))
         {
             throw new ArgumentException("The pane is not a child of this split.", nameof(pane));
         }
@@ -86,16 +99,16 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
 
     internal (UiElement First, UiElement Second) DetachChildren()
     {
-        RemoveChild(_firstPane);
-        RemoveChild(_secondPane);
+        RemoveChild(FirstPane);
+        RemoveChild(SecondPane);
         RemoveChild(_resizer);
-        return (_firstPane, _secondPane);
+        return (FirstPane, SecondPane);
     }
 
     protected override SizeF MeasureCore(SizeF availableSize)
     {
-        _firstPane.Measure(availableSize);
-        _secondPane.Measure(availableSize);
+        FirstPane.Measure(availableSize);
+        SecondPane.Measure(availableSize);
         return availableSize;
     }
 
@@ -141,8 +154,8 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
                 secondLength);
         }
 
-        _firstPane.Arrange(FirstPaneBounds);
-        _secondPane.Arrange(SecondPaneBounds);
+        FirstPane.Arrange(FirstPaneBounds);
+        SecondPane.Arrange(SecondPaneBounds);
         _resizer.Arrange(GetResizerBounds(firstLength, splitterSize, finalSize));
     }
 
@@ -152,6 +165,8 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
     {
         float previous = _transition.Current;
         bool continues = _transition.Update(context);
+        float previousRatio = _ratio.Current;
+        continues |= _ratio.Update(context);
         if (_collapseFirstAfterOpening && _transition.Current == 1.0f)
         {
             _collapseFirstAfterOpening = false;
@@ -159,7 +174,7 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
             continues = _transition.SetTarget(0.0f);
         }
 
-        if (_transition.Current != previous)
+        if (_transition.Current != previous || _ratio.Current != previousRatio)
         {
             InvalidateLayout();
         }
@@ -178,7 +193,7 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
 
     private float CalculateFirstLength(float usableLength)
     {
-        float requested = usableLength * _ratio;
+        float requested = usableLength * _ratio.Current;
         if (usableLength < 2.0f * MinimumPaneSizeDips)
         {
             return Math.Clamp(requested, 0.0f, usableLength);
@@ -236,13 +251,12 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
             MinimumPaneSizeDips,
             usableLength - MinimumPaneSizeDips);
         float ratio = firstLength / usableLength;
-        if (ratio == _ratio)
+        if (!_ratio.SetValue(ratio))
         {
             return;
         }
 
         _ratioChanged?.Invoke(ratio);
-        _ratio = ratio;
         InvalidateLayout();
     }
 }

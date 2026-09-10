@@ -30,6 +30,18 @@ internal sealed class AnimatedFloat
         return true;
     }
 
+    internal bool SetValue(float value)
+    {
+        if (Current == value && Target == value)
+        {
+            return false;
+        }
+
+        Current = value;
+        Target = value;
+        return true;
+    }
+
     internal bool Update(in UiUpdateContext context)
     {
         if (Current == Target)

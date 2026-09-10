@@ -17,6 +17,7 @@ internal sealed class ViewerWorkspace : IDisposable
 
     internal event Action<ViewerPane>? ActivePaneChanged;
     internal event Action<WorkspaceSplit?>? LayoutChanged;
+    internal event Action? PaneRatiosChanged;
     internal event Action<ViewerPane>? PaneActiveTabChanged;
     internal event Action<ViewerPane>? PaneSessionStateChanged;
     internal event Action<ViewerPane>? PaneTabsChanged;
@@ -101,7 +102,7 @@ internal sealed class ViewerWorkspace : IDisposable
         (_, bool changed) = EqualizeSubtree(Root);
         if (changed)
         {
-            LayoutChanged?.Invoke(null);
+            PaneRatiosChanged?.Invoke();
         }
     }
 

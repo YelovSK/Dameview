@@ -107,6 +107,16 @@ internal sealed class WorkspaceView : UiElement, IDisposable
         AddChild(_content);
     }
 
+    internal void ApplyPaneRatios(WorkspaceNode root)
+    {
+        if (_content is null)
+        {
+            throw new InvalidOperationException("The workspace view has no layout.");
+        }
+
+        ApplyPaneRatios(_content, root);
+    }
+
     internal void UpdateStatuses()
     {
         foreach (ViewerPaneView paneView in _paneViews.Values)
@@ -176,6 +186,28 @@ internal sealed class WorkspaceView : UiElement, IDisposable
         paneView = _createPaneView(pane);
         _paneViews.Add(pane, paneView);
         return paneView;
+    }
+
+    private static void ApplyPaneRatios(UiElement view, WorkspaceNode node)
+    {
+        if (view is ViewerPaneView paneView && node is ViewerPane pane)
+        {
+            if (!ReferenceEquals(paneView.Pane, pane))
+            {
+                throw new InvalidOperationException("The workspace view does not match its model.");
+            }
+
+            return;
+        }
+
+        if (view is not SplitPanel panel || node is not WorkspaceSplit split)
+        {
+            throw new InvalidOperationException("The workspace view does not match its model.");
+        }
+
+        panel.SetRatio(split.Ratio);
+        ApplyPaneRatios(panel.FirstPane, split.First);
+        ApplyPaneRatios(panel.SecondPane, split.Second);
     }
 
     private void DetachLayout()

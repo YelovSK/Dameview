@@ -70,6 +70,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _ui.CursorChanged += _window.ApplyCursor;
         _workspace.ActivePaneChanged += HandleActivePaneChanged;
         _workspace.LayoutChanged += HandleLayoutChanged;
+        _workspace.PaneRatiosChanged += HandlePaneRatiosChanged;
         _workspace.PaneActiveTabChanged += HandleActiveTabChanged;
         _workspace.PaneSessionStateChanged += HandleSessionChanged;
         _workspace.PaneTabsChanged += HandleTabsChanged;
@@ -379,6 +380,12 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     private void HandleLayoutChanged(WorkspaceSplit? openingSplit)
     {
         _ui.ApplyLayout(_workspace.Root, openingSplit);
+        _window.RequestRepaint();
+    }
+
+    private void HandlePaneRatiosChanged()
+    {
+        _ui.ApplyPaneRatios(_workspace.Root);
         _window.RequestRepaint();
     }
 

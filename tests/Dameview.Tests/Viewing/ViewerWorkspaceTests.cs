@@ -190,8 +190,8 @@ public sealed class ViewerWorkspaceTests
         ViewerPane second = workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
         ViewerPane third = workspace.SplitPane(first, WorkspaceSplitOrientation.Vertical);
         workspace.SplitPane(first, WorkspaceSplitOrientation.Vertical);
-        var changes = new List<WorkspaceSplit?>();
-        workspace.LayoutChanged += changes.Add;
+        int ratioChanges = 0;
+        workspace.PaneRatiosChanged += () => ratioChanges++;
 
         workspace.EqualizePanes();
 
@@ -203,7 +203,7 @@ public sealed class ViewerWorkspaceTests
         Assert.AreEqual(0.75f, root.Ratio);
         Assert.AreEqual(2.0f / 3.0f, left.Ratio);
         Assert.AreEqual(0.5f, nestedLeft.Ratio);
-        CollectionAssert.AreEqual(new WorkspaceSplit?[] { null }, changes);
+        Assert.AreEqual(1, ratioChanges);
     }
 
     [TestMethod]
@@ -211,7 +211,7 @@ public sealed class ViewerWorkspaceTests
     {
         using var workspace = new ViewerWorkspace(CreateTab);
         int changes = 0;
-        workspace.LayoutChanged += _ => changes++;
+        workspace.PaneRatiosChanged += () => changes++;
 
         workspace.EqualizePanes();
 

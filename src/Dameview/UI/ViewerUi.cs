@@ -199,6 +199,13 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _workspaceView.SetActivePane(_activePane);
     }
 
+    internal void ApplyPaneRatios(WorkspaceNode root)
+    {
+        _root.ClearPointer();
+        _tabPreview.Hide();
+        _workspaceView.ApplyPaneRatios(root);
+    }
+
     internal bool BeginClosePane(ViewerPane pane, Action completed)
     {
         _root.ClearPointer();
