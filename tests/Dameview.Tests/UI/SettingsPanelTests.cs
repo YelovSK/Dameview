@@ -1,4 +1,5 @@
 using System.Drawing;
+using Dameview.Commands;
 using Dameview.Navigation;
 using Dameview.Platform;
 using Dameview.UI;
@@ -18,14 +19,12 @@ public sealed class SettingsPanelTests
         using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         var popupHost = new PopupHost();
         bool? animationsEnabled = null;
+        var commands = new TestSettingsCommands { Animations = value => animationsEnabled = value };
         using var settings = new SettingsPanel(
             factory,
             popupHost,
             () => { },
-            _ => { },
-            value => animationsEnabled = value,
-            _ => { },
-            () => { });
+            commands);
         var scene = new TestScene(settings, popupHost);
         var root = new UiRoot(scene, UiDpi.Default);
         root.Arrange(new SizeF(440.0f, 460.0f));
@@ -46,14 +45,12 @@ public sealed class SettingsPanelTests
         using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         var popupHost = new PopupHost();
         var selectedSorts = new List<FolderSort>();
+        var commands = new TestSettingsCommands { Sort = selectedSorts.Add };
         using var settings = new SettingsPanel(
             factory,
             popupHost,
             () => { },
-            _ => { },
-            _ => { },
-            selectedSorts.Add,
-            () => { });
+            commands);
         var scene = new TestScene(settings, popupHost);
         var root = new UiRoot(scene, UiDpi.Default);
         root.Arrange(new SizeF(440.0f, 220.0f));
@@ -83,10 +80,7 @@ public sealed class SettingsPanelTests
             factory,
             popupHost,
             () => { },
-            _ => { },
-            _ => { },
-            _ => { },
-            () => { });
+            new TestSettingsCommands());
         var scene = new TestScene(settings, popupHost);
         var root = new UiRoot(scene, UiDpi.Default);
         var size = new SizeF(440.0f, 220.0f);
@@ -118,14 +112,12 @@ public sealed class SettingsPanelTests
         using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         var popupHost = new PopupHost();
         int activations = 0;
+        var commands = new TestSettingsCommands { Activate = () => activations++ };
         using var settings = new SettingsPanel(
             factory,
             popupHost,
             () => { },
-            _ => { },
-            _ => { },
-            _ => { },
-            () => activations++);
+            commands);
         var scene = new TestScene(settings, popupHost);
         var root = new UiRoot(scene, UiDpi.Default);
         root.Arrange(new SizeF(440.0f, 460.0f));
@@ -140,6 +132,19 @@ public sealed class SettingsPanelTests
         root.HandleKey(new UiKeyEvent(UiKey.Enter), settings, wrapFocus: true, directionalNavigation: true);
 
         Assert.AreEqual(1, activations);
+    }
+
+    private sealed class TestSettingsCommands : ISettingsCommands
+    {
+        internal Action<Theme>? Theme { get; init; }
+        internal Action<bool>? Animations { get; init; }
+        internal Action<FolderSort>? Sort { get; init; }
+        internal Action? Activate { get; init; }
+
+        public void SetTheme(Theme theme) => Theme?.Invoke(theme);
+        public void SetAnimationsEnabled(bool enabled) => Animations?.Invoke(enabled);
+        public void SetSort(FolderSort sort) => Sort?.Invoke(sort);
+        public void ActivateUpdate() => Activate?.Invoke();
     }
 
     private sealed class TestScene : UiElement

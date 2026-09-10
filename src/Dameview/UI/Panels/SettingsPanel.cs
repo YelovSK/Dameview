@@ -1,4 +1,5 @@
 using System.Drawing;
+using Dameview.Commands;
 using Dameview.Navigation;
 using Dameview.Settings;
 using Dameview.UI.Components;
@@ -57,19 +58,16 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
     private readonly TextBlock _updateStatus;
     private readonly Button _updateButton;
     private readonly PopupHost _popupHost;
-    private readonly Action<FolderSort> _setSort;
+    private readonly ISettingsCommands _commands;
 
     internal SettingsPanel(
         IDWriteFactory factory,
         PopupHost popupHost,
         Action close,
-        Action<Theme> setTheme,
-        Action<bool> setAnimationsEnabled,
-        Action<FolderSort> setSort,
-        Action activateUpdate)
+        ISettingsCommands commands)
     {
         _popupHost = popupHost;
-        _setSort = setSort;
+        _commands = commands;
         _title = new TextBlock(
             factory,
             "Settings",
@@ -96,13 +94,13 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
                 .Select(theme => new DropdownOption<Theme>(theme.DisplayName, theme))
                 .ToArray(),
             Themes.Dark,
-            setTheme);
+            _commands.SetTheme);
         _themeRow = new SettingsRow(factory, "Theme", _themeDropdown);
         _animationsToggle = new Toggle(
             factory,
             "Animations",
             value: true,
-            setAnimationsEnabled);
+            _commands.SetAnimationsEnabled);
 
         _sortField = new Dropdown<SortField>(
             factory,
@@ -133,7 +131,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
             UiTextStyle.Body,
             UiTextTone.Secondary,
             UiTextWrapping.Wrap);
-        _updateButton = new Button(factory, "Check for updates", activateUpdate);
+        _updateButton = new Button(factory, "Check for updates", _commands.ActivateUpdate);
 
         var appearanceContent = new StackPanel(
             UiOrientation.Vertical,
@@ -292,13 +290,13 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
     {
         SortDefinition sort = Sorts[(int)field];
         UpdateDirectionLabels(sort);
-        _setSort(_sortDirection.SelectedValue == SortDirection.First ? sort.First : sort.Second);
+        _commands.SetSort(_sortDirection.SelectedValue == SortDirection.First ? sort.First : sort.Second);
     }
 
     private void SetSortDirection(SortDirection direction)
     {
         SortDefinition sort = Sorts[(int)_sortField.SelectedValue];
-        _setSort(direction == SortDirection.First ? sort.First : sort.Second);
+        _commands.SetSort(direction == SortDirection.First ? sort.First : sort.Second);
     }
 
     private void UpdateDirectionLabels(SortDefinition sort)

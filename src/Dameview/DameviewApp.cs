@@ -11,7 +11,7 @@ using Dameview.Viewing;
 
 namespace Dameview;
 
-internal sealed class DameviewApp : IViewerCommands, IDisposable
+internal sealed class DameviewApp : IAppCommands, IDisposable
 {
     private const long RenderBitmapCacheCapacityBytes = 256L * 1024L * 1024L;
 
@@ -64,12 +64,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
             _window.Dpi,
             UiTheme.Default,
             this,
-            ExecuteCommand,
             _thumbnailCoordinator,
-            theme => _settings!.Update(_settings.Current with { Theme = theme }),
-            enabled => _settings!.Update(_settings.Current with { AnimationsEnabled = enabled }),
-            sort => _settings!.Update(_settings.Current with { Sort = sort }),
-            _updates.Activate,
             postToUi: _window.Post);
         _ui.Invalidated += _window.RequestRepaint;
         _ui.CursorChanged += _window.ApplyCursor;
@@ -241,7 +236,7 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         }
     }
 
-    private void ExecuteCommand(ViewerCommandId command)
+    public void ExecuteCommand(ViewerCommandId command)
     {
         switch (command)
         {
@@ -299,6 +294,15 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
                 throw new ArgumentOutOfRangeException(nameof(command), command, null);
         }
     }
+
+    public void ActivateUpdate() => _updates.Activate();
+
+    public void SetTheme(Theme theme) => _settings.Update(_settings.Current with { Theme = theme });
+
+    public void SetAnimationsEnabled(bool enabled) =>
+        _settings.Update(_settings.Current with { AnimationsEnabled = enabled });
+
+    public void SetSort(FolderSort sort) => _settings.Update(_settings.Current with { Sort = sort });
 
     private void ApplySettings(AppSettings previous, AppSettings current)
     {

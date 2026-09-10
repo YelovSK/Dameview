@@ -43,13 +43,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
         ViewerWorkspace workspace,
         float dpi,
         UiTheme theme,
-        IViewerCommands commands,
-        Action<ViewerCommandId> executeCommand,
+        IAppCommands commands,
         IThumbnailLoader thumbnailLoader,
-        Action<Theme> setTheme,
-        Action<bool> setAnimationsEnabled,
-        Action<FolderSort> setSort,
-        Action activateUpdate,
         TimeProvider? timeProvider = null,
         UiPost? postToUi = null)
     {
@@ -95,17 +90,14 @@ internal sealed class ViewerUi : UiElement, IDisposable
             directWriteFactory,
             _popupHost,
             CloseSettings,
-            setTheme,
-            setAnimationsEnabled,
-            setSort,
-            activateUpdate);
+            commands);
         _commandPalettePanel = new CommandPalettePanel(
             directWriteFactory,
             ViewerCommandCatalog.Commands,
             command =>
             {
                 CloseCommandPalette();
-                executeCommand(command);
+                commands.ExecuteCommand(command);
             });
 
         AddChild(_splitView);
