@@ -283,9 +283,9 @@ internal sealed class DameviewApp : IViewerCommands, IDisposable
         HandleSessionChanged(pane);
     }
 
-    private void HandleLayoutChanged()
+    private void HandleLayoutChanged(WorkspaceSplit? openingSplit)
     {
-        _ui.ApplyLayout(_workspace.Root);
+        _ui.ApplyLayout(_workspace.Root, openingSplit);
         _window.RequestRepaint();
     }
 

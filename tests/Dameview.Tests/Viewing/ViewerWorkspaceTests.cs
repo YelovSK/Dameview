@@ -164,6 +164,25 @@ public sealed class ViewerWorkspaceTests
     }
 
     [TestMethod]
+    public void LayoutChangesIdentifyOnlyANewlyOpeningSplit()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        var changes = new List<WorkspaceSplit?>();
+        workspace.LayoutChanged += changes.Add;
+
+        ViewerPane second = workspace.SplitPane(
+            workspace.ActivePane,
+            WorkspaceSplitOrientation.Horizontal);
+
+        Assert.HasCount(1, changes);
+        Assert.AreSame(workspace.Root, changes[0]);
+
+        Assert.IsTrue(workspace.RemovePane(second));
+        Assert.HasCount(2, changes);
+        Assert.IsNull(changes[1]);
+    }
+
+    [TestMethod]
     public void RemovingAnInactivePaneCollapsesItsParentAndPreservesFocus()
     {
         using var workspace = new ViewerWorkspace(CreateTab);

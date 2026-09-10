@@ -178,11 +178,11 @@ internal sealed class ViewerUi : UiElement, IDisposable
         ApplyActivePaneState(state, showToolbar: false);
     }
 
-    internal void ApplyLayout(WorkspaceNode root)
+    internal void ApplyLayout(WorkspaceNode root, WorkspaceSplit? openingSplit)
     {
         _root.ClearPointer();
         _tabPreview.Hide();
-        _workspaceView.ApplyLayout(root);
+        _workspaceView.ApplyLayout(root, openingSplit);
         _activePaneView = FindPaneView(_activePane)
             ?? throw new InvalidOperationException("The active pane view is not attached.");
         _activePaneView.SettingsError = _settingsPanel.Error;

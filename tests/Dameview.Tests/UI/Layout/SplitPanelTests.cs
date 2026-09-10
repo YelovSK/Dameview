@@ -106,6 +106,42 @@ public sealed class SplitPanelTests
         Assert.AreEqual(SplitPanel.MinimumPaneSizeDips, second.Bounds.Height);
     }
 
+    [TestMethod]
+    public void OpeningAnimationExpandsTheSecondPaneFromTheOuterEdge()
+    {
+        var first = new FixedContent();
+        var second = new FixedContent();
+        var panel = new SplitPanel(
+            first,
+            second,
+            UiOrientation.Horizontal,
+            0.6f,
+            animateOpening: true);
+        var root = new UiRoot(panel, UiDpi.Default);
+
+        root.Arrange(new SizeF(1008.0f, 600.0f));
+        Assert.AreEqual(1008.0f, first.Bounds.Width);
+        Assert.AreEqual(1008.0f, second.Bounds.X);
+        Assert.AreEqual(0.0f, second.Bounds.Width);
+
+        Assert.IsTrue(root.Update(new UiUpdateContext(0.05)));
+        root.Arrange(new SizeF(1008.0f, 600.0f));
+        Assert.IsLessThan(600.0f, first.Bounds.Width);
+        Assert.IsGreaterThan(1008.0f, first.Bounds.Width);
+        Assert.IsGreaterThan(0.0f, second.Bounds.Width);
+        Assert.IsLessThan(400.0f, second.Bounds.Width);
+
+        for (int frame = 0; frame < 10; frame++)
+        {
+            root.Update(new UiUpdateContext(0.05));
+        }
+
+        root.Arrange(new SizeF(1008.0f, 600.0f));
+        Assert.AreEqual(600.0f, first.Bounds.Width);
+        Assert.AreEqual(608.0f, second.Bounds.X);
+        Assert.AreEqual(400.0f, second.Bounds.Width);
+    }
+
     private static UiPointerEvent Pointer(UiPointerEventKind kind, float x, float y)
     {
         return new UiPointerEvent(kind, new PointF(x, y), PointerButton.Primary);

@@ -16,7 +16,7 @@ internal sealed class ViewerWorkspace : IDisposable
     }
 
     internal event Action<ViewerPane>? ActivePaneChanged;
-    internal event Action? LayoutChanged;
+    internal event Action<WorkspaceSplit?>? LayoutChanged;
     internal event Action<ViewerPane>? PaneActiveTabChanged;
     internal event Action<ViewerPane>? PaneSessionStateChanged;
     internal event Action<ViewerPane>? PaneTabsChanged;
@@ -85,8 +85,9 @@ internal sealed class ViewerWorkspace : IDisposable
         string? path = GetCurrentImagePath(pane);
         var newPane = new ViewerPane(CreateTab());
         AttachPane(newPane);
-        ReplaceNode(pane, new WorkspaceSplit(orientation, pane, newPane));
-        LayoutChanged?.Invoke();
+        var split = new WorkspaceSplit(orientation, pane, newPane);
+        ReplaceNode(pane, split);
+        LayoutChanged?.Invoke(split);
         if (path is not null)
         {
             newPane.ActiveSession.OpenImage(path);
@@ -126,7 +127,7 @@ internal sealed class ViewerWorkspace : IDisposable
             ActivePaneChanged?.Invoke(ActivePane);
         }
 
-        LayoutChanged?.Invoke();
+        LayoutChanged?.Invoke(null);
         pane.Dispose();
         return true;
     }

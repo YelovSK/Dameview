@@ -1,4 +1,5 @@
 using System.Drawing;
+using Dameview.UI.Animation;
 
 namespace Dameview.UI.Layout;
 
@@ -7,12 +8,14 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
 {
     internal const float MinimumPaneSizeDips = 120.0f;
     internal const float SplitterSizeDips = 8.0f;
+    private const double OpeningResponse = 28.0;
 
     private readonly UiElement _firstPane;
     private readonly UiElement _secondPane;
     private readonly UiOrientation _orientation;
     private readonly Action<float>? _ratioChanged;
     private readonly SplitResizer _resizer;
+    private readonly AnimatedFloat _opening;
     private float _ratio;
 
     internal SplitPanel(
@@ -20,7 +23,8 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
         UiElement secondPane,
         UiOrientation orientation,
         float ratio,
-        Action<float>? ratioChanged = null)
+        Action<float>? ratioChanged = null,
+        bool animateOpening = false)
     {
         ArgumentNullException.ThrowIfNull(firstPane);
         ArgumentNullException.ThrowIfNull(secondPane);
@@ -34,6 +38,11 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
         _orientation = orientation;
         _ratio = ratio;
         _ratioChanged = ratioChanged;
+        _opening = new AnimatedFloat(
+            animateOpening ? 0.0f : 1.0f,
+            OpeningResponse,
+            completionDistance: 0.002f);
+        _opening.SetTarget(1.0f);
         _resizer = new SplitResizer(this);
         AddChild(firstPane);
         AddChild(secondPane);
@@ -63,10 +72,13 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
         float mainLength = _orientation == UiOrientation.Horizontal
             ? finalSize.Width
             : finalSize.Height;
-        float splitterSize = MathF.Min(SplitterSizeDips, MathF.Max(0.0f, mainLength));
-        float usableLength = MathF.Max(0.0f, mainLength - splitterSize);
-        float firstLength = CalculateFirstLength(usableLength);
-        float secondLength = MathF.Max(0.0f, usableLength - firstLength);
+        float finalSplitterSize = MathF.Min(SplitterSizeDips, MathF.Max(0.0f, mainLength));
+        float usableLength = MathF.Max(0.0f, mainLength - finalSplitterSize);
+        float finalFirstLength = CalculateFirstLength(usableLength);
+        float finalSecondLength = MathF.Max(0.0f, usableLength - finalFirstLength);
+        float splitterSize = finalSplitterSize * _opening.Current;
+        float secondLength = finalSecondLength * _opening.Current;
+        float firstLength = MathF.Max(0.0f, mainLength - splitterSize - secondLength);
 
         if (_orientation == UiOrientation.Horizontal)
         {
@@ -94,6 +106,18 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
 
     protected override bool HitTestCore(PointF position) => false;
 
+    protected override bool UpdateCore(in UiUpdateContext context)
+    {
+        float previous = _opening.Current;
+        bool continues = _opening.Update(context.ElapsedSeconds);
+        if (_opening.Current != previous)
+        {
+            InvalidateLayout();
+        }
+
+        return continues;
+    }
+
     private float CalculateFirstLength(float usableLength)
     {
         float requested = usableLength * _ratio;
@@ -117,7 +141,8 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
             float mainLength = _orientation == UiOrientation.Horizontal
                 ? Bounds.Width
                 : Bounds.Height;
-            return mainLength - SplitterSizeDips >= 2.0f * MinimumPaneSizeDips;
+            return _opening.Current == 1.0f
+                && mainLength - SplitterSizeDips >= 2.0f * MinimumPaneSizeDips;
         }
     }
 

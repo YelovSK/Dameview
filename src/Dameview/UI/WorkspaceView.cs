@@ -54,13 +54,13 @@ internal sealed class WorkspaceView : UiElement, IDisposable
         }
     }
 
-    internal void ApplyLayout(WorkspaceNode root)
+    internal void ApplyLayout(WorkspaceNode root, WorkspaceSplit? openingSplit = null)
     {
         ArgumentNullException.ThrowIfNull(root);
         DetachLayout();
 
         HashSet<ViewerPane> retainedPanes = [];
-        _content = Build(root, retainedPanes);
+        _content = Build(root, retainedPanes, openingSplit);
         foreach (ViewerPane removedPane in _paneViews.Keys.Where(pane => !retainedPanes.Contains(pane)).ToArray())
         {
             _paneViews.Remove(removedPane, out ViewerPaneView? removedView);
@@ -105,19 +105,23 @@ internal sealed class WorkspaceView : UiElement, IDisposable
         _paneViews.Clear();
     }
 
-    private UiElement Build(WorkspaceNode node, HashSet<ViewerPane> retainedPanes)
+    private UiElement Build(
+        WorkspaceNode node,
+        HashSet<ViewerPane> retainedPanes,
+        WorkspaceSplit? openingSplit)
     {
         return node switch
         {
             ViewerPane pane => GetOrCreatePaneView(pane, retainedPanes),
             WorkspaceSplit split => new SplitPanel(
-                Build(split.First, retainedPanes),
-                Build(split.Second, retainedPanes),
+                Build(split.First, retainedPanes, openingSplit),
+                Build(split.Second, retainedPanes, openingSplit),
                 split.Orientation == WorkspaceSplitOrientation.Horizontal
                     ? UiOrientation.Horizontal
                     : UiOrientation.Vertical,
                 split.Ratio,
-                split.SetRatio),
+                split.SetRatio,
+                animateOpening: ReferenceEquals(split, openingSplit)),
             _ => throw new InvalidOperationException($"Unsupported workspace node: {node.GetType().Name}."),
         };
     }
