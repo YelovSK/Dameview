@@ -3,6 +3,7 @@ using System.Numerics;
 using Dameview.Imaging;
 using Dameview.Navigation;
 using Dameview.Platform;
+using Dameview.Rendering;
 using Dameview.Settings;
 using Dameview.UI.Layout;
 using Vortice.Direct2D1;
@@ -21,8 +22,10 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private const float LabelHeight = 24.0f;
     private const float MinimumItemWidthDips = 132.0f;
     private const float DragThresholdDips = 4.0f;
+    private const float ThumbnailSharpness = 1.0f;
 
     private readonly ID2D1DeviceContext _deviceContext;
+    private readonly ID2D1DeviceContext _thumbnailScaleContext;
     private readonly IDWriteFactory _directWriteFactory;
     private readonly IDWriteTextFormat _labelFormat;
     private readonly IDWriteInlineObject _ellipsisSign;
@@ -51,6 +54,8 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         Action<string, WorkspaceDragEvent>? dragPointer = null)
     {
         _deviceContext = deviceContext;
+        using ID2D1Device device = deviceContext.Device;
+        _thumbnailScaleContext = device.CreateDeviceContext();
         _directWriteFactory = directWriteFactory;
         _thumbnailLoader = thumbnailLoader;
         _openImage = openImage;
@@ -290,6 +295,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     public void Dispose()
     {
         ClearSlots();
+        _thumbnailScaleContext.Dispose();
         _ellipsisSign.Dispose();
         _labelFormat.Dispose();
     }
@@ -426,13 +432,20 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             MathF.Max(0.0f, itemBounds.Width - 2.0f * ItemPadding),
             imageHeight);
         _slots.TryGetValue(entry.FullName, out GalleryItemSlot? slot);
-        if (slot?.Bitmap is { } bitmap)
+        if (slot?.SourceBitmap is { } sourceBitmap)
         {
             float scale = MathF.Min(
-                imageBounds.Width / bitmap.PixelSize.Width,
-                imageBounds.Height / bitmap.PixelSize.Height);
-            float width = bitmap.PixelSize.Width * scale;
-            float height = bitmap.PixelSize.Height * scale;
+                imageBounds.Width / sourceBitmap.PixelSize.Width,
+                imageBounds.Height / sourceBitmap.PixelSize.Height);
+            float requestedWidth = sourceBitmap.PixelSize.Width * scale;
+            float requestedHeight = sourceBitmap.PixelSize.Height * scale;
+            ID2D1Bitmap1 bitmap = slot.GetDisplayBitmap(
+                _thumbnailScaleContext,
+                requestedWidth,
+                requestedHeight,
+                context.Dpi);
+            float width = bitmap.Size.Width;
+            float height = bitmap.Size.Height;
             var destination = new Rect(
                 imageBounds.X + (imageBounds.Width - width) / 2.0f,
                 imageBounds.Y + (imageBounds.Height - height) / 2.0f,
@@ -443,7 +456,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
                 destination,
                 context.Opacity,
                 BitmapInterpolationMode.Linear,
-                new Rect(0.0f, 0.0f, bitmap.PixelSize.Width, bitmap.PixelSize.Height));
+                new Rect(0.0f, 0.0f, bitmap.Size.Width, bitmap.Size.Height));
         }
         else
         {
@@ -510,7 +523,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
         slot.Request?.Dispose();
         slot.Request = null;
-        slot.Bitmap = D2DBitmapFactory.Create(_deviceContext, image);
+        slot.SetSourceBitmap(D2DBitmapFactory.Create(_deviceContext, image));
 
         InvalidateVisual();
     }
@@ -645,6 +658,9 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private sealed class GalleryItemSlot : IDisposable
     {
         private float _labelWidth;
+        private SizeI _displayPixelSize;
+        private float _displayDpi;
+        private ID2D1Bitmap1? _displayBitmap;
 
         internal GalleryItemSlot(
             IDWriteFactory directWriteFactory,
@@ -657,8 +673,46 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         }
 
         internal IDisposable? Request { get; set; }
-        internal ID2D1Bitmap1? Bitmap { get; set; }
+        internal ID2D1Bitmap1? SourceBitmap { get; private set; }
         internal IDWriteTextLayout LabelLayout { get; private set; }
+
+        internal void SetSourceBitmap(ID2D1Bitmap1 bitmap)
+        {
+            SourceBitmap?.Dispose();
+            SourceBitmap = bitmap;
+            ClearDisplayBitmap();
+        }
+
+        internal ID2D1Bitmap1 GetDisplayBitmap(
+            ID2D1DeviceContext scaleContext,
+            float width,
+            float height,
+            float dpi)
+        {
+            ID2D1Bitmap1 source = SourceBitmap
+                ?? throw new InvalidOperationException("The thumbnail has not been loaded.");
+            var pixelSize = new SizeI(
+                Math.Max(1, (int)MathF.Round(UiDpi.DipsToPixels(width, dpi))),
+                Math.Max(1, (int)MathF.Round(UiDpi.DipsToPixels(height, dpi))));
+            if (_displayBitmap is not null
+                && _displayPixelSize == pixelSize
+                && _displayDpi == dpi)
+            {
+                return _displayBitmap;
+            }
+
+            ID2D1Bitmap1 bitmap = D2DBitmapFactory.CreateScaled(
+                scaleContext,
+                source,
+                pixelSize,
+                dpi,
+                ThumbnailSharpness);
+            ClearDisplayBitmap();
+            _displayBitmap = bitmap;
+            _displayPixelSize = pixelSize;
+            _displayDpi = dpi;
+            return bitmap;
+        }
 
         internal void SetLabelLayout(
             IDWriteFactory directWriteFactory,
@@ -679,8 +733,17 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         public void Dispose()
         {
             Request?.Dispose();
-            Bitmap?.Dispose();
+            ClearDisplayBitmap();
+            SourceBitmap?.Dispose();
             LabelLayout.Dispose();
+        }
+
+        private void ClearDisplayBitmap()
+        {
+            _displayBitmap?.Dispose();
+            _displayBitmap = null;
+            _displayPixelSize = default;
+            _displayDpi = 0.0f;
         }
     }
 }

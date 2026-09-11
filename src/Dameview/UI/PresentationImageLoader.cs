@@ -1,4 +1,5 @@
 using Dameview.Imaging;
+using Dameview.Rendering;
 using Vortice.Direct2D1;
 
 namespace Dameview.UI;

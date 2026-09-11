@@ -1,6 +1,7 @@
 using System.Drawing;
 using Dameview.Imaging;
 using Dameview.Platform;
+using Dameview.Rendering;
 using Dameview.UI.Components;
 using Dameview.UI.Layout;
 using Dameview.UI.Panels;
