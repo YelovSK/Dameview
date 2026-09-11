@@ -33,15 +33,14 @@ internal sealed class ImageDecoder : IImageDecoder
         return Decode(decoder);
     }
 
+    // Reads the stored pixel dimensions from the file header. EXIF orientation is deliberately not
+    // applied: resolving it needs a metadata scan that is very slow for some formats (notably large
+    // PNGs), and the preview infers a 90/270 swap from the thumbnail aspect instead.
     internal ImageInfo GetInfo(string path)
     {
         using IWICBitmapDecoder decoder = CreateDecoder(path, DecodeOptions.CacheOnDemand);
         using IWICBitmapFrameDecode frame = decoder.GetFrame(0);
-        ExifOrientation orientation = GetExifOrientation(frame);
-        bool swapsDimensions = SwapsDimensions(orientation);
-        return swapsDimensions
-            ? new ImageInfo(frame.Size.Height, frame.Size.Width)
-            : new ImageInfo(frame.Size.Width, frame.Size.Height);
+        return new ImageInfo(frame.Size.Width, frame.Size.Height);
     }
 
     internal DecodedImageUpload DecodeUpload(
@@ -156,12 +155,6 @@ internal sealed class ImageDecoder : IImageDecoder
             _ => BitmapTransformOptions.Rotate0,
         };
     }
-
-    private static bool SwapsDimensions(ExifOrientation orientation) =>
-        orientation is ExifOrientation.Transpose
-            or ExifOrientation.Rotate90Clockwise
-            or ExifOrientation.Transverse
-            or ExifOrientation.Rotate270Clockwise;
 
     internal static DecodedImage ApplyExifOrientation(
         ExifOrientation orientation,

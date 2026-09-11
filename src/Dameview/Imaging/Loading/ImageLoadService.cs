@@ -411,12 +411,23 @@ internal sealed class ImageLoadService : IDisposable
         try
         {
             await Task.WhenAll(thumbnail, request.SourceInfo).ConfigureAwait(false);
-            var preview = new PreviewImage(thumbnail.Result, request.SourceInfo.Result);
+            DecodedImage image = thumbnail.Result;
+            ImageInfo display = GetDisplayInfo(request.SourceInfo.Result, image);
+            var preview = new PreviewImage(image, display);
             PostToUi(() => DeliverPreview(request, preview));
         }
         catch (Exception)
         {
         }
+    }
+
+    // GetInfo returns the stored (unrotated) dimensions while the thumbnail is orientation-applied.
+    // Infer a 90/270 swap when their aspect orientations disagree, so the preview matches the image.
+    private static ImageInfo GetDisplayInfo(ImageInfo source, DecodedImage thumbnail)
+    {
+        return (source.Width >= source.Height) == (thumbnail.Width >= thumbnail.Height)
+            ? source
+            : new ImageInfo(source.Height, source.Width);
     }
 
     private DecodedImageUpload DecodeShared(
