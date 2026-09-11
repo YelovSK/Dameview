@@ -105,6 +105,32 @@ internal static class D2DBitmapFactory
         });
     }
 
+    internal static ID2D1Bitmap1 CreateBlurred(
+        ID2D1DeviceContext deviceContext,
+        ID2D1Bitmap1 source,
+        float standardDeviation)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(standardDeviation);
+
+        using var blur = (ID2D1Effect)deviceContext.CreateEffect(EffectGuids.GaussianBlur);
+        blur.SetValue((int)GaussianBlurProperties.StandardDeviation, standardDeviation);
+        blur.SetValue((int)GaussianBlurProperties.Optimization, GaussianBlurOptimization.Balanced);
+        blur.SetValue((int)GaussianBlurProperties.BorderMode, BorderMode.Soft);
+        blur.SetInput(0, source, true);
+        using ID2D1Image output = blur.Output;
+
+        var pixelSize = new SizeI(source.PixelSize.Width, source.PixelSize.Height);
+        return CreateTargetBitmap(deviceContext, pixelSize, DefaultDpi, () =>
+        {
+            deviceContext.DrawImage(
+                output,
+                Vector2.Zero,
+                null,
+                InterpolationMode.Linear,
+                CompositeMode.SourceOver);
+        });
+    }
+
     private static ID2D1Bitmap1 CreateTargetBitmap(
         ID2D1DeviceContext deviceContext,
         SizeI pixelSize,

@@ -2,6 +2,7 @@ using System.Drawing;
 using Dameview.Imaging;
 using Dameview.Platform;
 using Dameview.Rendering;
+using Dameview.UI.Animation;
 using Dameview.Viewing;
 using Vortice.Direct2D1;
 using Vortice.Mathematics;
@@ -11,12 +12,14 @@ namespace Dameview.UI.Panels;
 internal sealed class ImagePanel : UiElement, IDisposable
 {
     private readonly ID2D1DeviceContext _deviceContext;
+    private readonly ID2D1DeviceContext _scaleContext;
     private readonly ImagePresentationCache _presentationCache;
     private ImageViewport _viewport;
     private ViewportAnimator _animator;
     private readonly TimeProvider _timeProvider;
     private const float PanStartThresholdDips = 4.0f;
     private ID2D1Bitmap1? _ownedImage;
+    private ID2D1Bitmap1? _previewImage;
     private ID2D1Bitmap1? _cachedImage;
     private TiledImageRenderer? _tiledImage;
     private AnimatedImagePlayer? _imageAnimation;
@@ -24,6 +27,8 @@ internal sealed class ImagePanel : UiElement, IDisposable
     private bool _pointerPressed;
     private PointF _panStart;
     private bool _isPreview;
+    private readonly AnimatedFloat _previewFade = new(0.0f, 20.0);
+    private const float PreviewBlurStandardDeviation = 0.75f;
     private System.Drawing.Size _viewportPixelSize;
 
     internal ImagePanel(
@@ -33,6 +38,8 @@ internal sealed class ImagePanel : UiElement, IDisposable
         TimeProvider? timeProvider = null)
     {
         _deviceContext = deviceContext;
+        using ID2D1Device device = deviceContext.Device;
+        _scaleContext = device.CreateDeviceContext();
         _presentationCache = new ImagePresentationCache(deviceContext);
         _viewport = viewport;
         _animator = animator;
@@ -54,6 +61,10 @@ internal sealed class ImagePanel : UiElement, IDisposable
         _tiledImage = null;
         _ownedImage?.Dispose();
         _ownedImage = null;
+        _previewImage?.Dispose();
+        _previewImage = null;
+        _previewFade.SetValue(0.0f);
+        _isPreview = false;
         _pointerPressed = false;
         _isPanning = false;
         _viewport = viewport;
@@ -64,6 +75,15 @@ internal sealed class ImagePanel : UiElement, IDisposable
 
     internal void SetImage(ImageRepresentation image, bool isPreview)
     {
+        if (isPreview)
+        {
+            ClearPreviewTransition();
+        }
+        else
+        {
+            BeginPreviewTransition();
+        }
+
         switch (image)
         {
             case CachedBitmapRepresentation cached:
@@ -96,6 +116,10 @@ internal sealed class ImagePanel : UiElement, IDisposable
         _tiledImage = null;
         SetBitmap(image);
         _isPreview = isPreview;
+        if (isPreview && _ownedImage is { } previewSource)
+        {
+            CreatePreviewImage(previewSource);
+        }
     }
 
     private void SetTiledImage(IImageTileSource source)
@@ -170,6 +194,13 @@ internal sealed class ImagePanel : UiElement, IDisposable
     protected override bool UpdateCore(in UiUpdateContext context)
     {
         bool continues = _animator.Update(context);
+        continues |= _previewFade.Update(context);
+        if (!_isPreview && _previewFade.Current == 0.0f && _previewImage is not null)
+        {
+            _previewImage.Dispose();
+            _previewImage = null;
+        }
+
         if (_imageAnimation is { } animation)
         {
             animation.Update();
@@ -203,6 +234,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
         if (_tiledImage is { } tiledImage)
         {
             tiledImage.Draw(context, ToPixels(Bounds.Width), ToPixels(Bounds.Height));
+            DrawPreviewTransition(context);
             return;
         }
 
@@ -213,6 +245,12 @@ internal sealed class ImagePanel : UiElement, IDisposable
         }
 
         RectangleF destinationPixels = _viewport.GetDestinationRectangle();
+        if (_isPreview && _previewImage is { } preview)
+        {
+            DrawBitmap(context, preview, destinationPixels);
+            return;
+        }
+
         if (_imageAnimation is not null
             || _animator.IsAnimating
             || _isPanning
@@ -220,6 +258,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
         {
             _presentationCache.Clear();
             DrawBitmap(context, image, destinationPixels);
+            DrawPreviewTransition(context);
             return;
         }
 
@@ -243,12 +282,22 @@ internal sealed class ImagePanel : UiElement, IDisposable
             context.Opacity,
             BitmapInterpolationMode.Linear,
             new Rect(0.0f, 0.0f, cached.Bitmap.Size.Width, cached.Bitmap.Size.Height));
+        DrawPreviewTransition(context);
+    }
+
+    private void DrawPreviewTransition(in UiDrawContext context)
+    {
+        if (_previewImage is { } preview && _previewFade.Current > 0.0f)
+        {
+            DrawBitmap(context, preview, _viewport.GetDestinationRectangle(), _previewFade.Current);
+        }
     }
 
     private void DrawBitmap(
         in UiDrawContext context,
         ID2D1Bitmap1 image,
-        RectangleF destinationPixels)
+        RectangleF destinationPixels,
+        float opacity = 1.0f)
     {
         _deviceContext.DrawBitmap(
             image,
@@ -257,7 +306,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
                 context.PixelsToDips(destinationPixels.Y),
                 context.PixelsToDips(destinationPixels.Width),
                 context.PixelsToDips(destinationPixels.Height)),
-            context.Opacity,
+            context.Opacity * opacity,
             InterpolationMode.Linear,
             new Rect(0.0f, 0.0f, image.PixelSize.Width, image.PixelSize.Height),
             null);
@@ -339,6 +388,43 @@ internal sealed class ImagePanel : UiElement, IDisposable
         ClearCachedImage();
         _tiledImage?.Dispose();
         _ownedImage?.Dispose();
+        _previewImage?.Dispose();
+        _scaleContext.Dispose();
+    }
+
+    private void CreatePreviewImage(ID2D1Bitmap1 source)
+    {
+        try
+        {
+            _previewImage = D2DBitmapFactory.CreateBlurred(
+                _scaleContext,
+                source,
+                PreviewBlurStandardDeviation);
+        }
+        catch
+        {
+            // The blurred preview is best-effort; fall back to drawing the sharp thumbnail.
+            _previewImage = null;
+        }
+    }
+
+    private void BeginPreviewTransition()
+    {
+        if (!_isPreview || _previewImage is null)
+        {
+            return;
+        }
+
+        _previewFade.SetValue(1.0f);
+        _previewFade.SetTarget(0.0f);
+        InvalidateVisual();
+    }
+
+    private void ClearPreviewTransition()
+    {
+        _previewImage?.Dispose();
+        _previewImage = null;
+        _previewFade.SetValue(0.0f);
     }
 
     private float ToPixels(float value) => Root?.DipsToPixels(value) ?? value;
