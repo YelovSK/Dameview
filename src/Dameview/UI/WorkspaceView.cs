@@ -11,7 +11,8 @@ internal sealed class WorkspaceView : UiElement, IDisposable
     private readonly Dictionary<ViewerPane, ViewerPaneView> _paneViews = [];
     private UiElement? _content;
     private ViewerPane? _closingPane;
-    private Action? _pendingCloseCompletion;
+    private Action? _closeCompletion;
+    private bool _closeReady;
 
     internal WorkspaceView(
         WorkspaceNode root,
@@ -54,10 +55,12 @@ internal sealed class WorkspaceView : UiElement, IDisposable
     {
         ArgumentNullException.ThrowIfNull(pane);
         ArgumentNullException.ThrowIfNull(completed);
-        if (_closingPane is not null)
+        if (ReferenceEquals(_closingPane, pane))
         {
             return true;
         }
+
+        CompleteCloseImmediately();
 
         ViewerPaneView paneView = FindPaneView(pane)
             ?? throw new ArgumentException("The pane is not attached to this workspace view.", nameof(pane));
@@ -67,19 +70,31 @@ internal sealed class WorkspaceView : UiElement, IDisposable
         }
 
         _closingPane = pane;
-        parent.Collapse(paneView, () => _pendingCloseCompletion = completed);
+        _closeCompletion = completed;
+        parent.Collapse(paneView, () => _closeReady = true);
         return true;
     }
 
     internal void CompletePendingClose()
     {
-        if (_pendingCloseCompletion is not { } completed)
+        if (!_closeReady)
         {
             return;
         }
 
-        _pendingCloseCompletion = null;
+        CompleteCloseImmediately();
+    }
+
+    private void CompleteCloseImmediately()
+    {
+        if (_closeCompletion is not { } completed)
+        {
+            return;
+        }
+
+        _closeCompletion = null;
         _closingPane = null;
+        _closeReady = false;
         completed();
     }
 
@@ -145,7 +160,8 @@ internal sealed class WorkspaceView : UiElement, IDisposable
     public void Dispose()
     {
         _closingPane = null;
-        _pendingCloseCompletion = null;
+        _closeCompletion = null;
+        _closeReady = false;
         DetachLayout();
         foreach (ViewerPaneView paneView in _paneViews.Values)
         {

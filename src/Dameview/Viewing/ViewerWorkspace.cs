@@ -199,6 +199,15 @@ internal sealed class ViewerWorkspace : IDisposable
         ActivePaneChanged?.Invoke(pane);
     }
 
+    internal void ActivatePaneAfterClosing(ViewerPane pane)
+    {
+        EnsureContains(pane);
+        if (ReferenceEquals(pane, ActivePane))
+        {
+            SelectPane(FindRemovalSuccessor(pane));
+        }
+    }
+
     private static (int PaneCount, bool Changed) EqualizeSubtree(WorkspaceNode node)
     {
         if (node is not WorkspaceSplit split)
@@ -260,16 +269,26 @@ internal sealed class ViewerWorkspace : IDisposable
             return false;
         }
 
-        WorkspaceNode sibling = RemovePaneNode(pane);
+        ViewerPane? successor = ReferenceEquals(ActivePane, pane)
+            ? FindRemovalSuccessor(pane)
+            : null;
+        RemovePaneNode(pane);
 
-        if (ReferenceEquals(ActivePane, pane))
+        if (successor is not null)
         {
-            ActivePane = FindFirstPane(sibling);
-            ActivePaneChanged?.Invoke(ActivePane);
+            ActivePane = successor;
+            ActivePaneChanged?.Invoke(successor);
         }
 
         LayoutChanged?.Invoke(null);
         return true;
+    }
+
+    private ViewerPane FindRemovalSuccessor(ViewerPane pane)
+    {
+        WorkspaceSplit parent = FindParent(Root, pane)
+            ?? throw new InvalidOperationException("The pane has no parent split.");
+        return FindFirstPane(parent.GetSibling(pane));
     }
 
     internal void SetSort(FolderSort sort)

@@ -365,6 +365,23 @@ public sealed class ViewerWorkspaceTests
     }
 
     [TestMethod]
+    public void StartingToCloseTheActivePaneFocusesItsSiblingBeforeRemoval()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane first = workspace.ActivePane;
+        ViewerPane second = workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
+        workspace.SelectPane(second);
+        int focusChanges = 0;
+        workspace.ActivePaneChanged += _ => focusChanges++;
+
+        workspace.ActivatePaneAfterClosing(second);
+
+        Assert.AreSame(first, workspace.ActivePane);
+        Assert.IsInstanceOfType<WorkspaceSplit>(workspace.Root);
+        Assert.AreEqual(1, focusChanges);
+    }
+
+    [TestMethod]
     public void ClosingTheOnlyTabInTheActivePaneCollapsesThatPane()
     {
         using var workspace = new ViewerWorkspace(CreateTab);

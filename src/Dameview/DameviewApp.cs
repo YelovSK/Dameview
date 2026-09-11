@@ -425,6 +425,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
 
         if (_ui.BeginClosePane(pane, () => _workspace.RemovePane(pane)))
         {
+            _workspace.ActivatePaneAfterClosing(pane);
             _window.RequestRepaint();
             return;
         }
