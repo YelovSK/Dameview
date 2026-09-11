@@ -113,18 +113,18 @@ internal sealed class ImageLoadService : IDisposable
 
         previousPreview?.Dispose();
 
-        // Both preview inputs start here, off the decode workers, so fast navigation does not
-        // have to wait for a worker stuck on an in-flight (non-cancellable) decode.
+        // Both preview inputs are started here, off the decode workers, so fast navigation does
+        // not have to wait for a worker stuck on an in-flight (non-cancellable) decode.
         IDisposable? previewRequest = null;
         if (request is StaticLoadRequest staticRequest)
         {
-            var preview = new PendingPreview(
-                result => PostToUi(() => DeliverPreview(staticRequest, result)));
+            var thumbnail = new TaskCompletionSource<DecodedImage>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
             previewRequest = _thumbnailLoader.Request(
                 path,
                 ThumbnailPriority.Foreground,
-                preview.SetImage);
-            _ = ObserveSourceInfoAsync(staticRequest.SourceInfo, preview);
+                image => thumbnail.TrySetResult(image));
+            _ = DeliverPreviewAsync(staticRequest, thumbnail.Task);
         }
 
         bool accepted;
@@ -404,19 +404,19 @@ internal sealed class ImageLoadService : IDisposable
             IsPreview: true));
     }
 
-    private static async Task ObserveSourceInfoAsync(Task<ImageInfo> sourceInfo, PendingPreview preview)
+    // A preview is the join of two independent async inputs: the thumbnail pixels and the
+    // source dimensions. It is best-effort, so either input failing simply yields no preview;
+    // a stale preview is dropped by Deliver's currency check.
+    private async Task DeliverPreviewAsync(StaticLoadRequest request, Task<DecodedImage> thumbnail)
     {
         try
         {
-            ImageInfo info = await sourceInfo.ConfigureAwait(false);
-            preview.SetSourceInfo(info);
-        }
-        catch (OperationCanceledException)
-        {
+            await Task.WhenAll(thumbnail, request.SourceInfo).ConfigureAwait(false);
+            var preview = new PreviewImage(thumbnail.Result, request.SourceInfo.Result);
+            PostToUi(() => DeliverPreview(request, preview));
         }
         catch (Exception)
         {
-            // Preview metadata is best-effort; the foreground decode reports the failure.
         }
     }
 
@@ -618,58 +618,6 @@ internal sealed class ImageLoadService : IDisposable
     }
 
     private readonly record struct PreviewImage(DecodedImage Image, ImageInfo SourceInfo);
-
-    // Rendezvous for a preview's two independent inputs. Exactly one caller observes both
-    // halves and delivers the combined image; late or duplicate completions are ignored.
-    private sealed class PendingPreview(Action<PreviewImage> deliver)
-    {
-        private readonly object _sync = new();
-        private DecodedImage? _image;
-        private ImageInfo? _info;
-        private bool _delivered;
-
-        internal void SetImage(DecodedImage image)
-        {
-            PreviewImage? result;
-            lock (_sync)
-            {
-                _image = image;
-                result = TryComplete();
-            }
-
-            if (result is not null)
-            {
-                deliver(result.Value);
-            }
-        }
-
-        internal void SetSourceInfo(ImageInfo info)
-        {
-            PreviewImage? result;
-            lock (_sync)
-            {
-                _info = info;
-                result = TryComplete();
-            }
-
-            if (result is not null)
-            {
-                deliver(result.Value);
-            }
-        }
-
-        // The caller must hold _sync.
-        private PreviewImage? TryComplete()
-        {
-            if (_delivered || _image is null || _info is null)
-            {
-                return null;
-            }
-
-            _delivered = true;
-            return new PreviewImage(_image, _info.Value);
-        }
-    }
 
     private sealed record PreloadRequest(
         ImageLoadClient Client,
