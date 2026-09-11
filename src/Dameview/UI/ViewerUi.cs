@@ -46,8 +46,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         UiTheme theme,
         IAppCommands commands,
         IThumbnailLoader thumbnailLoader,
-        TimeProvider? timeProvider = null,
-        UiPost? postToUi = null)
+        TimeProvider? timeProvider = null)
     {
         _deviceContext = deviceContext;
         _brush = deviceContext.CreateSolidColorBrush(default(Color4));
@@ -68,8 +67,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
                 ShowSettings,
                 ShowTabPreview,
                 HandleTabDragPointer,
-                timeProvider,
-                postToUi));
+                timeProvider));
         _activePaneView = FindPaneView(_activePane)
             ?? throw new InvalidOperationException("The active pane view was not created.");
         _workspaceView.SetActivePane(_activePane);

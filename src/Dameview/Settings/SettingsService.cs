@@ -1,4 +1,3 @@
-using Dameview.Platform;
 using Dameview.Serialization;
 
 namespace Dameview.Settings;
@@ -8,7 +7,7 @@ namespace Dameview.Settings;
 internal sealed class SettingsService : IDisposable
 {
     private readonly string _path;
-    private readonly UiPost _postToUi;
+    private readonly SynchronizationContext _uiContext;
     private readonly Lock _gate = new();
     private readonly Timer _reloadTimer;
     private FileSystemWatcher? _watcher;
@@ -16,11 +15,11 @@ internal sealed class SettingsService : IDisposable
     private bool _disposed;
     private int _readAttempts;
 
-    internal SettingsService(string path, UiPost postToUi)
+    internal SettingsService(string path, SynchronizationContext uiContext)
     {
         _path = Path.GetFullPath(path);
-        _postToUi = postToUi;
-        _reloadTimer = new Timer(_ => _postToUi(Reload), null, Timeout.Infinite, Timeout.Infinite);
+        _uiContext = uiContext;
+        _reloadTimer = new Timer(_ => _uiContext.Post(_ => Reload(), null), null, Timeout.Infinite, Timeout.Infinite);
     }
 
     internal static string DefaultPath => Path.Combine(

@@ -1,4 +1,5 @@
 using Dameview.Imaging;
+using Dameview.Platform;
 using Dameview.UI;
 
 namespace Dameview.Tests.UI;
@@ -14,7 +15,7 @@ public sealed class PresentationImageLoaderTests
         using var firstCompleted = new ManualResetEventSlim();
         int decodeCount = 0;
         using var service = new ImageLoadService(
-            action => action(),
+            new UiSynchronizationContext(action => action()),
             new FakeBackend(() =>
             {
                 Interlocked.Increment(ref decodeCount);
@@ -55,7 +56,7 @@ public sealed class PresentationImageLoaderTests
     {
         int decodeCount = 0;
         using var service = new ImageLoadService(
-            action => action(),
+            new UiSynchronizationContext(action => action()),
             new FakeBackend(() =>
             {
                 Interlocked.Increment(ref decodeCount);

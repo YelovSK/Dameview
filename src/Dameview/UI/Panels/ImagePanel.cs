@@ -15,7 +15,6 @@ internal sealed class ImagePanel : UiElement, IDisposable
     private ImageViewport _viewport;
     private ViewportAnimator _animator;
     private readonly TimeProvider _timeProvider;
-    private readonly UiPost? _postToUi;
     private const float PanStartThresholdDips = 4.0f;
     private ID2D1Bitmap1? _ownedImage;
     private ID2D1Bitmap1? _cachedImage;
@@ -31,15 +30,13 @@ internal sealed class ImagePanel : UiElement, IDisposable
         ID2D1DeviceContext deviceContext,
         ImageViewport viewport,
         ViewportAnimator animator,
-        TimeProvider? timeProvider = null,
-        UiPost? postToUi = null)
+        TimeProvider? timeProvider = null)
     {
         _deviceContext = deviceContext;
         _presentationCache = new ImagePresentationCache(deviceContext);
         _viewport = viewport;
         _animator = animator;
         _timeProvider = timeProvider ?? TimeProvider.System;
-        _postToUi = postToUi;
     }
 
     internal float ZoomPercentage => _viewport.Scale * 100.0f;
@@ -109,13 +106,10 @@ internal sealed class ImagePanel : UiElement, IDisposable
         _ownedImage?.Dispose();
         _ownedImage = null;
         _tiledImage?.Dispose();
-        UiPost postToUi = _postToUi
-            ?? throw new InvalidOperationException("Tiled rendering requires UI-thread dispatch.");
         _tiledImage = new TiledImageRenderer(
             _deviceContext,
             source,
             _viewport,
-            postToUi,
             InvalidateVisual);
         _isPreview = false;
     }

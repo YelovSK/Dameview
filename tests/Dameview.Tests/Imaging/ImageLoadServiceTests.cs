@@ -17,7 +17,7 @@ public sealed class ImageLoadServiceTests
         using var firstCompleted = new ManualResetEventSlim();
         using var secondCompleted = new ManualResetEventSlim();
         using var service = new ImageLoadService(
-            action => action(),
+            new UiSynchronizationContext(action => action()),
             new FakeImageLoadingBackend(() => new FakeImageDecoder(path =>
             {
                 if (path == "first")
@@ -67,7 +67,7 @@ public sealed class ImageLoadServiceTests
         using var completed = new CountdownEvent(3);
         var decodedPaths = new ConcurrentQueue<string>();
         using var service = new ImageLoadService(
-            action => action(),
+            new UiSynchronizationContext(action => action()),
             new FakeImageLoadingBackend(() => new FakeImageDecoder(path =>
             {
                 decodedPaths.Enqueue(path);
@@ -457,7 +457,7 @@ public sealed class ImageLoadServiceTests
     {
         using var release = new ManualResetEventSlim();
         using var posted = new BlockingCollection<Action>();
-        using var thumbnails = new ThumbnailCoordinator(posted.Add, _ => CreateImage(512, 512));
+        using var thumbnails = new ThumbnailCoordinator(_ => CreateImage(512, 512), new UiSynchronizationContext(posted.Add));
         using var coordinator = new TestClient(posted.Add,
             new FakeImageLoadingBackend(
                 () => new FakeImageDecoder(
@@ -500,7 +500,7 @@ public sealed class ImageLoadServiceTests
         using var releaseDecode = new ManualResetEventSlim();
         using var posted = new BlockingCollection<Action>();
         var info = new ManualImageInfoLoader();
-        using var thumbnails = new ThumbnailCoordinator(posted.Add, _ => CreateImage(512, 512));
+        using var thumbnails = new ThumbnailCoordinator(_ => CreateImage(512, 512), new UiSynchronizationContext(posted.Add));
         using var coordinator = new TestClient(posted.Add,
             new FakeImageLoadingBackend(
                 () => new FakeImageDecoder(_ => { releaseDecode.Wait(); return CreateImage(9, 9); })),
@@ -534,17 +534,73 @@ public sealed class ImageLoadServiceTests
     }
 
     [TestMethod]
+    public void PendingLoadPreviewArrivesWhileActiveDecodeIsBlocked()
+    {
+        using var firstStarted = new ManualResetEventSlim();
+        using var releaseFirst = new ManualResetEventSlim();
+        using var posted = new BlockingCollection<Action>();
+        using var thumbnails = new ThumbnailCoordinator(
+            _ => CreateImage(512, 512),
+            new UiSynchronizationContext(posted.Add));
+        using var coordinator = new TestClient(posted.Add,
+            new FakeImageLoadingBackend(
+                () => new FakeImageDecoder(path =>
+                {
+                    if (path == "first")
+                    {
+                        firstStarted.Set();
+                        releaseFirst.Wait();
+                    }
+
+                    return CreateImage(100, 100);
+                })),
+            TestPolicy,
+            thumbnails,
+            new FakeImageInfoLoader(_ => new ImageInfo(100, 100)));
+
+        bool previewDelivered = false;
+        try
+        {
+            coordinator.Load("first", result => ((ImageLoaded)result).Dispose());
+            Assert.IsTrue(firstStarted.Wait(TimeSpan.FromSeconds(5)));
+
+            coordinator.Load("second", result =>
+            {
+                var loaded = (ImageLoaded)result;
+                previewDelivered |= loaded.IsPreview;
+                if (loaded.IsPreview)
+                {
+                    loaded.Dispose();
+                }
+            });
+
+            while (!previewDelivered && posted.TryTake(out Action? action, TimeSpan.FromSeconds(5)))
+            {
+                action();
+            }
+
+            Assert.IsTrue(previewDelivered);
+        }
+        finally
+        {
+            releaseFirst.Set();
+        }
+    }
+
+    [TestMethod]
     public void LatePreviewCannotReplaceFullImage()
     {
         using var releasePreview = new ManualResetEventSlim();
         using var previewStarted = new ManualResetEventSlim();
         using var posted = new BlockingCollection<Action>();
-        using var thumbnails = new ThumbnailCoordinator(posted.Add, _ =>
-        {
-            previewStarted.Set();
-            releasePreview.Wait();
-            return CreateImage();
-        });
+        using var thumbnails = new ThumbnailCoordinator(
+            _ =>
+            {
+                previewStarted.Set();
+                releasePreview.Wait();
+                return CreateImage();
+            },
+            new UiSynchronizationContext(posted.Add));
         using var coordinator = new TestClient(posted.Add,
             new FakeImageLoadingBackend(
                 () => new FakeImageDecoder(_ => CreateImage())),
@@ -574,8 +630,9 @@ public sealed class ImageLoadServiceTests
     public void ThumbnailFailureDoesNotPreventFullDecode()
     {
         using var posted = new BlockingCollection<Action>();
-        using var thumbnails = new ThumbnailCoordinator(posted.Add, _ =>
-            throw new IOException("Thumbnail unavailable"));
+        using var thumbnails = new ThumbnailCoordinator(
+            _ => throw new IOException("Thumbnail unavailable"),
+            new UiSynchronizationContext(posted.Add));
         using var coordinator = new TestClient(posted.Add,
             new FakeImageLoadingBackend(
                 () => new FakeImageDecoder(_ => CreateImage())),
@@ -629,14 +686,14 @@ public sealed class ImageLoadServiceTests
         private readonly ImageLoadClient _client;
 
         internal TestClient(
-            UiPost postToUi,
+            Action<Action> postToUi,
             IImageLoadingBackend backend,
             ImageRepresentationPolicy representationPolicy,
             IThumbnailLoader thumbnailLoader,
             IImageInfoLoader? imageInfoLoader = null)
         {
             _service = new ImageLoadService(
-                postToUi,
+                new UiSynchronizationContext(postToUi),
                 backend,
                 representationPolicy,
                 thumbnailLoader,

@@ -1,5 +1,4 @@
 using Dameview.Imaging;
-using Dameview.Platform;
 
 namespace Dameview.UI.Panels;
 
@@ -12,7 +11,7 @@ internal sealed class TileDecodeScheduler : IDisposable
         8);
 
     private readonly IImageTileSource _source;
-    private readonly UiPost _postToUi;
+    private readonly SynchronizationContext _uiContext;
     private readonly Action<ImageTile, DecodedImage?> _completed;
     private readonly int _maximumWorkers;
     private readonly Lock _gate = new();
@@ -24,14 +23,16 @@ internal sealed class TileDecodeScheduler : IDisposable
 
     internal TileDecodeScheduler(
         IImageTileSource source,
-        UiPost postToUi,
         Action<ImageTile, DecodedImage?> completed,
-        int? maximumWorkers = null)
+        int? maximumWorkers = null,
+        SynchronizationContext? uiContext = null)
     {
         _source = source;
-        _postToUi = postToUi;
         _completed = completed;
         _maximumWorkers = maximumWorkers ?? DefaultMaximumWorkers;
+        _uiContext = uiContext
+            ?? SynchronizationContext.Current
+            ?? throw new InvalidOperationException("Tile decoding requires a UI SynchronizationContext.");
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(_maximumWorkers);
     }
 
@@ -169,7 +170,7 @@ internal sealed class TileDecodeScheduler : IDisposable
         var published = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         try
         {
-            _postToUi(() =>
+            _uiContext.Post(_ =>
             {
                 try
                 {
@@ -184,7 +185,7 @@ internal sealed class TileDecodeScheduler : IDisposable
 
                     published.TrySetResult();
                 }
-            });
+            }, null);
             // Do not let decoded CPU buffers accumulate behind the UI thread.
             published.Task.Wait(token);
         }

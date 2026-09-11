@@ -1,17 +1,15 @@
-using Dameview.Platform;
-
 namespace Dameview.Updates;
 
 internal sealed class UpdateService
 {
     private readonly IUpdateClient _client;
-    private readonly UiPost _postToUi;
+    private readonly SynchronizationContext _uiContext;
     private readonly Version? _currentVersion;
 
-    internal UpdateService(IUpdateClient client, UiPost postToUi, Version? currentVersion)
+    internal UpdateService(IUpdateClient client, SynchronizationContext uiContext, Version? currentVersion)
     {
         _client = client;
-        _postToUi = postToUi;
+        _uiContext = uiContext;
         _currentVersion = currentVersion;
         State = new UpdateState(currentVersion is null ? UpdateStatus.Unavailable : UpdateStatus.Idle);
     }
@@ -49,7 +47,7 @@ internal sealed class UpdateService
                 UpdateStatus status = release.Version > _currentVersion
                     ? UpdateStatus.Available
                     : UpdateStatus.Current;
-                _postToUi(() => SetState(new UpdateState(status, release)));
+                PostToUi(() => SetState(new UpdateState(status, release)));
             }
             catch (Exception exception)
             {
@@ -66,7 +64,7 @@ internal sealed class UpdateService
             try
             {
                 string path = _client.Download(release);
-                _postToUi(() => Apply(path, release));
+                PostToUi(() => Apply(path, release));
             }
             catch (Exception exception)
             {
@@ -93,7 +91,7 @@ internal sealed class UpdateService
 
     private void PostFailure(string operation, Exception exception, AppRelease? release = null)
     {
-        _postToUi(() => SetState(new UpdateState(
+        PostToUi(() => SetState(new UpdateState(
             UpdateStatus.Failed,
             release,
             Error: $"{operation}: {exception.Message}")));
@@ -104,4 +102,6 @@ internal sealed class UpdateService
         State = state;
         Changed?.Invoke(state);
     }
+
+    private void PostToUi(Action action) => _uiContext.Post(_ => action(), null);
 }

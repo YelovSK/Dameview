@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Dameview.Imaging;
+using Dameview.Platform;
 using Dameview.UI.Panels;
 
 namespace Dameview.Tests.UI;
@@ -41,13 +42,13 @@ public sealed class TileDecodeSchedulerTests
         var completed = new List<ImageTile>();
         using var scheduler = new TileDecodeScheduler(
             source,
-            posted.Add,
             (tile, image) =>
             {
                 Assert.IsNotNull(image);
                 completed.Add(tile);
             },
-            workerCount);
+            workerCount,
+            new UiSynchronizationContext(posted.Add));
         ImageTile[] oldTiles = CreateTiles(0, 100);
         ImageTile[] newTiles = CreateTiles(1_000, 100);
 
@@ -93,12 +94,12 @@ public sealed class TileDecodeSchedulerTests
         var failed = new List<ImageTile>();
         using var scheduler = new TileDecodeScheduler(
             source,
-            posted.Add,
             (tile, image) =>
             {
                 (image is null ? failed : completed).Add(tile);
             },
-            maximumWorkers: 1);
+            maximumWorkers: 1,
+            uiContext: new UiSynchronizationContext(posted.Add));
 
         scheduler.ReplaceRequests([failedTile, healthyTile]);
         TakePostedAction(posted)();
@@ -130,9 +131,9 @@ public sealed class TileDecodeSchedulerTests
         });
         var scheduler = new TileDecodeScheduler(
             source,
-            _ => { },
             (_, _) => { },
-            maximumWorkers: 1);
+            maximumWorkers: 1,
+            uiContext: new UiSynchronizationContext(_ => { }));
 
         scheduler.ReplaceRequests([new ImageTile(0, 0, 1, 1)]);
         Assert.IsTrue(started.Wait(TimeSpan.FromSeconds(5)));

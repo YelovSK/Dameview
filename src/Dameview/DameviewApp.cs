@@ -16,6 +16,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     private const long RenderBitmapCacheCapacityBytes = 256L * 1024L * 1024L;
 
     private readonly AppWindow _window;
+    private readonly SynchronizationContext _uiContext;
     private readonly D2DRenderer _renderer;
     private readonly ViewerUi _ui;
     private readonly WindowsImageLoadingBackend _imageBackend;
@@ -33,6 +34,8 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     public DameviewApp()
     {
         _window = new AppWindow("Dameview", 1100, 720);
+        _uiContext = new UiSynchronizationContext(_window.Post);
+        SynchronizationContext.SetSynchronizationContext(_uiContext);
         _window.SetTitleBarTheme(dark: true, UiTheme.Default.Background, UiTheme.Default.PrimaryText);
         _pointerX = _window.ClientWidth / 2;
         _pointerY = _window.ClientHeight / 2;
@@ -43,11 +46,11 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             _window.Dpi);
         _imageBackend = new WindowsImageLoadingBackend();
         _thumbnailCoordinator = new ThumbnailCoordinator(
-            _window.Post,
-            _imageBackend.LoadThumbnail);
+            _imageBackend.LoadThumbnail,
+            _uiContext);
         _imageInfoLoader = new ImageInfoLoader(_imageBackend.CreateDecoder);
         _imageLoadService = new ImageLoadService(
-            _window.Post,
+            _uiContext,
             _imageBackend,
             new ImageRepresentationPolicy(checked((int)_renderer.DeviceContext.MaximumBitmapSize)),
             _thumbnailCoordinator,
@@ -57,10 +60,10 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         HashSet<string> extensions = imageDecoder.GetProbablySupportedExtensions();
         _folderScanner = new FolderScanner(path => extensions.Contains(Path.GetExtension(path)));
         _workspace = new ViewerWorkspace(CreateTab);
-        _settings = new SettingsService(SettingsService.DefaultPath, _window.Post);
+        _settings = new SettingsService(SettingsService.DefaultPath, _uiContext);
         _updates = new UpdateService(
             new GitHubUpdateClient(),
-            _window.Post,
+            _uiContext,
             AppInstallation.GetInstalledRunningVersion());
         _ui = new ViewerUi(
             _renderer.DeviceContext,
@@ -69,8 +72,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             _window.Dpi,
             UiTheme.Default,
             this,
-            _thumbnailCoordinator,
-            postToUi: _window.Post);
+            _thumbnailCoordinator);
         _ui.Invalidated += _window.RequestRepaint;
         _ui.CursorChanged += _window.ApplyCursor;
         _workspace.ActivePaneChanged += HandleActivePaneChanged;
@@ -452,7 +454,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         var folderMonitor = new FolderMonitor(
             _folderScanner,
             new FileSystemFolderWatcher(),
-            _window.Post);
+            _uiContext);
         var session = new ViewerSession(
             new FolderNavigator(),
             folderMonitor,

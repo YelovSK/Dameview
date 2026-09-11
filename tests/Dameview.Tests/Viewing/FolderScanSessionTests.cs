@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Dameview.Imaging;
 using Dameview.Navigation;
+using Dameview.Platform;
 using Dameview.Viewing;
 
 namespace Dameview.Tests.Viewing;
@@ -167,7 +168,7 @@ public sealed class FolderScanSessionTests
     {
         var scanner = new ExtensionScanner();
         using var watcher = new FakeFolderWatcher();
-        using var monitor = new FolderMonitor(scanner, watcher, _ => { }, debounceMilliseconds: 0);
+        using var monitor = new FolderMonitor(scanner, watcher, new UiSynchronizationContext(_ => { }), debounceMilliseconds: 0);
         monitor.Open(@"C:\images");
         Assert.AreEqual(1, scanner.Requests);
 
@@ -183,7 +184,7 @@ public sealed class FolderScanSessionTests
     {
         var scanner = new ExtensionScanner();
         using var watcher = new FakeFolderWatcher();
-        using var monitor = new FolderMonitor(scanner, watcher, _ => { }, debounceMilliseconds: 0);
+        using var monitor = new FolderMonitor(scanner, watcher, new UiSynchronizationContext(_ => { }), debounceMilliseconds: 0);
         monitor.Open(@"C:\images");
         Assert.AreEqual(1, scanner.Requests);
 
@@ -208,7 +209,7 @@ public sealed class FolderScanSessionTests
 
         internal Fixture()
         {
-            Monitor = new FolderMonitor(Scanner, Watcher, _posts.Add, debounceMilliseconds: 0);
+            Monitor = new FolderMonitor(Scanner, Watcher, new UiSynchronizationContext(_posts.Add), debounceMilliseconds: 0);
             Session = new ViewerSession(new FolderNavigator(), Monitor, Loader);
         }
 

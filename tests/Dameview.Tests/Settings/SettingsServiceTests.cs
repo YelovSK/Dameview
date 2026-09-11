@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using Dameview.Navigation;
+using Dameview.Platform;
 using Dameview.Settings;
 using Dameview.UI;
 
@@ -209,7 +210,7 @@ public sealed class SettingsServiceTests
 
         internal SettingsService CreateService()
         {
-            return new SettingsService(Path, Posted.Enqueue);
+            return new SettingsService(Path, new UiSynchronizationContext(Posted.Enqueue));
         }
 
         internal void Drain()

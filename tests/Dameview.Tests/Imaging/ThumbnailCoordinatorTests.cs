@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Dameview.Imaging;
+using Dameview.Platform;
 
 namespace Dameview.Tests.Imaging;
 
@@ -13,13 +14,15 @@ public sealed class ThumbnailCoordinatorTests
         using var release = new ManualResetEventSlim();
         using var posted = new BlockingCollection<Action>();
         int loadCount = 0;
-        using var coordinator = new ThumbnailCoordinator(posted.Add, _ =>
-        {
-            Interlocked.Increment(ref loadCount);
-            started.Set();
-            release.Wait();
-            return CreateImage();
-        });
+        using var coordinator = new ThumbnailCoordinator(
+            _ =>
+            {
+                Interlocked.Increment(ref loadCount);
+                started.Set();
+                release.Wait();
+                return CreateImage();
+            },
+            new UiSynchronizationContext(posted.Add));
         int completed = 0;
 
         using IDisposable gallery = coordinator.Request(
@@ -46,11 +49,13 @@ public sealed class ThumbnailCoordinatorTests
     {
         using var posted = new BlockingCollection<Action>();
         int loadCount = 0;
-        using var coordinator = new ThumbnailCoordinator(posted.Add, _ =>
-        {
-            Interlocked.Increment(ref loadCount);
-            return CreateImage();
-        });
+        using var coordinator = new ThumbnailCoordinator(
+            _ =>
+            {
+                Interlocked.Increment(ref loadCount);
+                return CreateImage();
+            },
+            new UiSynchronizationContext(posted.Add));
 
         using IDisposable firstRequest = coordinator.Request(
             "cached.jpg",
@@ -72,7 +77,9 @@ public sealed class ThumbnailCoordinatorTests
     public void CancelledRequestIsNotDelivered()
     {
         using var posted = new BlockingCollection<Action>();
-        using var coordinator = new ThumbnailCoordinator(posted.Add, _ => CreateImage());
+        using var coordinator = new ThumbnailCoordinator(
+            _ => CreateImage(),
+            new UiSynchronizationContext(posted.Add));
         bool delivered = false;
         IDisposable request = coordinator.Request(
             "cancelled.jpg",

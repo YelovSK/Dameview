@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using Dameview.Platform;
 
 namespace Dameview.Imaging;
@@ -23,29 +22,22 @@ internal sealed class ThumbnailCoordinator : IThumbnailLoader, IDisposable
     private const long DefaultCacheCapacityBytes = 64L * 1024L * 1024L;
 
     private readonly object _sync = new();
-    private readonly UiPost _postToUi;
+    private readonly SynchronizationContext _uiContext;
     private readonly Func<string, DecodedImage?> _load;
     private readonly DecodedImageCache _cache;
-    private readonly Queue<string> _foregroundQueue = new();
-    private readonly Queue<string> _galleryQueue = new();
-    private readonly Dictionary<string, PendingThumbnail> _pending =
+    private readonly Dictionary<string, List<ThumbnailSubscription>> _pending =
         new(StringComparer.OrdinalIgnoreCase);
-    private readonly Thread _worker;
+    private readonly BackgroundQueue<object?> _queue;
     private bool _stopping;
 
     internal ThumbnailCoordinator(
-        UiPost postToUi,
-        Func<string, DecodedImage?> load)
+        Func<string, DecodedImage?> load,
+        SynchronizationContext uiContext)
     {
-        _postToUi = postToUi;
         _load = load;
+        _uiContext = uiContext;
         _cache = new DecodedImageCache(DefaultCacheCapacityBytes);
-        _worker = new Thread(Work)
-        {
-            IsBackground = true,
-            Name = "Dameview thumbnails",
-        };
-        _worker.Start();
+        _queue = new BackgroundQueue<object?>("Dameview thumbnails", 1, static () => null);
     }
 
     public IDisposable Request(
@@ -55,22 +47,33 @@ internal sealed class ThumbnailCoordinator : IThumbnailLoader, IDisposable
     {
         var subscription = new ThumbnailSubscription(completed);
         DecodedImage? cached = null;
+        bool enqueue = false;
         lock (_sync)
         {
             ObjectDisposedException.ThrowIf(_stopping, this);
             if (_cache.TryGet(path, out cached))
             {
-                // Delivery remains asynchronous and uses the same UI boundary as a load.
+                // Delivery stays asynchronous, through the same UI boundary as a load.
+            }
+            else if (_pending.TryGetValue(path, out List<ThumbnailSubscription>? pending))
+            {
+                pending.Add(subscription);
             }
             else
             {
-                EnqueueRequest(path, priority, subscription);
+                _pending.Add(path, [subscription]);
+                enqueue = true;
             }
         }
 
         if (cached is not null)
         {
-            Post(subscription, cached);
+            DecodedImage image = cached;
+            Post(() => subscription.Complete(image));
+        }
+        else if (enqueue)
+        {
+            _ = LoadAsync(path, priority);
         }
 
         return subscription;
@@ -86,167 +89,97 @@ internal sealed class ThumbnailCoordinator : IThumbnailLoader, IDisposable
             }
 
             _stopping = true;
-            _foregroundQueue.Clear();
-            _galleryQueue.Clear();
             _pending.Clear();
-            Monitor.PulseAll(_sync);
         }
+
+        _queue.Dispose();
     }
 
-    private void EnqueueRequest(string path, ThumbnailPriority priority, ThumbnailSubscription subscription)
+    private async Task LoadAsync(string path, ThumbnailPriority priority)
     {
-        if (_pending.TryGetValue(path, out PendingThumbnail? pending))
+        DecodedImage? image = null;
+        try
         {
-            pending.Subscriptions.Add(subscription);
-            if (!pending.IsLoading && priority > pending.Priority)
-            {
-                pending.Priority = priority;
-                GetQueue(priority).Enqueue(path);
-                Monitor.Pulse(_sync);
-            }
+            image = await _queue.Enqueue(
+                (_, _) => Load(path),
+                (int)priority).ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            // Missing or broken shell thumbnails are represented by null.
+        }
 
+        if (image is null)
+        {
             return;
         }
 
-        pending = new PendingThumbnail(priority, subscription);
-        _pending.Add(path, pending);
-        GetQueue(priority).Enqueue(path);
-        Monitor.Pulse(_sync);
-    }
-
-    private void Work()
-    {
-        NativeMethods.InitializeComApartment(ComApartment.MultiThreaded);
-        try
+        List<ThumbnailSubscription> subscriptions;
+        lock (_sync)
         {
-            while (TryTakeWork(out string? path, out PendingThumbnail? pending))
+            subscriptions = [];
+            if (_pending.Remove(path, out List<ThumbnailSubscription>? pending))
             {
-                DecodedImage? image = null;
-                try
-                {
-                    image = _load(path);
-                    if (image is not null)
-                    {
-                        _cache.Add(path, image);
-                    }
-                }
-                catch (Exception)
-                {
-                    // Missing or broken shell thumbnails are represented by null.
-                }
-
-                List<ThumbnailSubscription> subscriptions;
-                lock (_sync)
-                {
-                    if (!_pending.Remove(path, out PendingThumbnail? current)
-                        || !ReferenceEquals(current, pending))
-                    {
-                        continue;
-                    }
-
-                    subscriptions = current.Subscriptions;
-                }
-
-                if (image is null)
-                {
-                    continue;
-                }
-
-                foreach (ThumbnailSubscription subscription in subscriptions)
-                {
-                    Post(subscription, image);
-                }
+                subscriptions = pending;
             }
         }
-        finally
+
+        DecodedImage loaded = image;
+        foreach (ThumbnailSubscription subscription in subscriptions)
         {
-            NativeMethods.UninitializeComApartment();
+            Post(() => subscription.Complete(loaded));
         }
     }
 
-    private bool TryTakeWork(
-        [NotNullWhen(true)] out string? path,
-        [NotNullWhen(true)] out PendingThumbnail? pending)
+    private DecodedImage? Load(string path)
     {
         lock (_sync)
         {
-            while (!_stopping)
+            if (_stopping)
             {
-                if (TryTakeQueue(_foregroundQueue, ThumbnailPriority.Foreground, out path, out pending)
-                    || TryTakeQueue(_galleryQueue, ThumbnailPriority.Gallery, out path, out pending))
-                {
-                    return true;
-                }
-
-                Monitor.Wait(_sync);
+                return null;
             }
 
-            path = null;
-            pending = null;
-            return false;
-        }
-    }
-
-    private bool TryTakeQueue(
-        Queue<string> queue,
-        ThumbnailPriority priority,
-        [NotNullWhen(true)] out string? path,
-        [NotNullWhen(true)] out PendingThumbnail? pending)
-    {
-        while (queue.TryDequeue(out path))
-        {
-            if (!_pending.TryGetValue(path, out pending)
-                || pending.IsLoading
-                || pending.Priority != priority)
-            {
-                continue;
-            }
-
-            if (pending.Subscriptions.All(subscription => subscription.IsCancelled))
+            if (_pending.TryGetValue(path, out List<ThumbnailSubscription>? pending)
+                && pending.All(subscription => subscription.IsCancelled))
             {
                 _pending.Remove(path);
-                continue;
+                return null;
             }
-
-            pending.IsLoading = true;
-            return true;
         }
 
-        path = null;
-        pending = null;
-        return false;
-    }
-
-    private Queue<string> GetQueue(ThumbnailPriority priority) =>
-        priority == ThumbnailPriority.Foreground ? _foregroundQueue : _galleryQueue;
-
-    private void Post(ThumbnailSubscription subscription, DecodedImage image)
-    {
-        _postToUi(() =>
+        try
         {
-            lock (_sync)
+            DecodedImage? image = _load(path);
+            if (image is not null)
             {
-                if (_stopping || subscription.IsCancelled)
-                {
-                    return;
-                }
+                _cache.Add(path, image);
             }
 
-            subscription.Complete(image);
-        });
+            return image;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
-    private sealed class PendingThumbnail
+    private void Post(Action action)
     {
-        internal PendingThumbnail(ThumbnailPriority priority, ThumbnailSubscription subscription)
-        {
-            Priority = priority;
-            Subscriptions = [subscription];
-        }
+        _uiContext.Post(
+            _ =>
+            {
+                lock (_sync)
+                {
+                    if (_stopping)
+                    {
+                        return;
+                    }
+                }
 
-        internal ThumbnailPriority Priority { get; set; }
-        internal bool IsLoading { get; set; }
-        internal List<ThumbnailSubscription> Subscriptions { get; }
+                action();
+            },
+            null);
     }
 
     private sealed class ThumbnailSubscription(Action<DecodedImage> completed) : IDisposable

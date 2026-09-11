@@ -1,6 +1,5 @@
 using System.Drawing;
 using Dameview.Imaging;
-using Dameview.Platform;
 using Dameview.Rendering;
 using Dameview.Viewing;
 using Vortice.Direct2D1;
@@ -35,7 +34,6 @@ internal sealed class TiledImageRenderer : IDisposable
         ID2D1DeviceContext deviceContext,
         IImageTileSource source,
         ImageViewport viewport,
-        UiPost postToUi,
         Action invalidate)
     {
         _deviceContext = deviceContext;
@@ -48,7 +46,7 @@ internal sealed class TiledImageRenderer : IDisposable
         }
 
         _overview = D2DBitmapFactory.Create(deviceContext, source.Overview);
-        _scheduler = new TileDecodeScheduler(source, postToUi, CompleteTile);
+        _scheduler = new TileDecodeScheduler(source, CompleteTile);
     }
 
     internal void Draw(in UiDrawContext context, float viewportWidthPixels, float viewportHeightPixels)

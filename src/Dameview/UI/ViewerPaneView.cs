@@ -1,6 +1,5 @@
 using System.Drawing;
 using Dameview.Imaging;
-using Dameview.Platform;
 using Dameview.Rendering;
 using Dameview.UI.Components;
 using Dameview.UI.Layout;
@@ -33,8 +32,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         Action showSettings,
         Action<ViewerPane, ViewerTabInfo?, RectangleF> hoveredTabChanged,
         Action<ViewerPane, int, WorkspaceDragEvent> tabDragPointer,
-        TimeProvider? timeProvider = null,
-        UiPost? postToUi = null)
+        TimeProvider? timeProvider = null)
     {
         Pane = pane;
         _hoveredTabChanged = hoveredTabChanged;
@@ -45,8 +43,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             deviceContext,
             session.Viewport,
             session.Animator,
-            timeProvider,
-            postToUi);
+            timeProvider);
         _viewerTabs = new ViewerTabStrip(
             directWriteFactory,
             [new ViewerTabInfo("Dameview", null)],

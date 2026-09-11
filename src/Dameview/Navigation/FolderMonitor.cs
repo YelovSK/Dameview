@@ -1,5 +1,3 @@
-using Dameview.Platform;
-
 namespace Dameview.Navigation;
 
 internal sealed record FolderUpdate(
@@ -22,7 +20,7 @@ internal sealed class FolderMonitor : IFolderMonitor
 
     private readonly IFolderScanner _scanner;
     private readonly IFolderWatcher _watcher;
-    private readonly UiPost _postToUi;
+    private readonly SynchronizationContext _uiContext;
     private readonly int _debounceMilliseconds;
     private readonly Lock _gate = new();
     private readonly Timer _debounceTimer;
@@ -32,12 +30,12 @@ internal sealed class FolderMonitor : IFolderMonitor
     internal FolderMonitor(
         IFolderScanner scanner,
         IFolderWatcher watcher,
-        UiPost postToUi,
+        SynchronizationContext uiContext,
         int debounceMilliseconds = DefaultDebounceMilliseconds)
     {
         _scanner = scanner;
         _watcher = watcher;
-        _postToUi = postToUi;
+        _uiContext = uiContext;
         _debounceMilliseconds = debounceMilliseconds;
         _debounceTimer = new Timer(_ => HandleDebounceTimer(), null, Timeout.Infinite, Timeout.Infinite);
         _watcher.Changed += ScheduleDebounceIfSupported;
@@ -197,7 +195,7 @@ internal sealed class FolderMonitor : IFolderMonitor
             return;
         }
 
-        _postToUi(() =>
+        PostToUi(() =>
         {
             if (_disposed || token.IsCancellationRequested)
             {
@@ -207,6 +205,8 @@ internal sealed class FolderMonitor : IFolderMonitor
             Updated?.Invoke(new FolderUpdate(files, error));
         });
     }
+
+    private void PostToUi(Action action) => _uiContext.Post(_ => action(), null);
 
     private static bool IsRecoverableError(Exception exception)
     {

@@ -1,6 +1,7 @@
 using System.Drawing;
 using Dameview.Imaging;
 using Dameview.Navigation;
+using Dameview.Platform;
 using Dameview.Viewing;
 
 namespace Dameview.Tests.Viewing;
@@ -37,7 +38,7 @@ public sealed class ViewerSessionTests
         using var files = new SessionFiles();
         var loader = new ManualImageLoader();
         var scanner = new ImmediateScanner();
-        var monitor = new FolderMonitor(scanner, new FakeFolderWatcher(), action => action(), debounceMilliseconds: 0);
+        var monitor = new FolderMonitor(scanner, new FakeFolderWatcher(), new UiSynchronizationContext(action => action()), debounceMilliseconds: 0);
         using var session = new ViewerSession(new FolderNavigator(), monitor, loader);
         session.Viewport.SetViewportSize(800, 600);
         session.OpenImage(files.First);
@@ -236,7 +237,7 @@ public sealed class ViewerSessionTests
 
     private static ViewerSession CreateSession(ManualImageLoader loader)
     {
-        var monitor = new FolderMonitor(new ImmediateScanner(), new FakeFolderWatcher(), action => action(), debounceMilliseconds: 0);
+        var monitor = new FolderMonitor(new ImmediateScanner(), new FakeFolderWatcher(), new UiSynchronizationContext(action => action()), debounceMilliseconds: 0);
         var session = new ViewerSession(new FolderNavigator(), monitor, loader);
         session.Viewport.SetViewportSize(800, 600);
         return session;

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Dameview.Platform;
 using Dameview.Updates;
 
 namespace Dameview.Tests.Updates;
@@ -10,7 +11,7 @@ public sealed class UpdateServiceTests
     public void PortableCopyDoesNotCheckForUpdates()
     {
         var client = new FakeUpdateClient(new AppRelease("v2.0.0", new Version(2, 0, 0, 0)));
-        var service = new UpdateService(client, _ => { }, currentVersion: null);
+        var service = new UpdateService(client, new UiSynchronizationContext(_ => { }), currentVersion: null);
 
         service.Activate();
 
@@ -24,7 +25,7 @@ public sealed class UpdateServiceTests
         var release = new AppRelease("v2.0.0", new Version(2, 0, 0, 0));
         var client = new FakeUpdateClient(release);
         var queue = new ConcurrentQueue<Action>();
-        var service = new UpdateService(client, queue.Enqueue, new Version(1, 0, 0, 0));
+        var service = new UpdateService(client, new UiSynchronizationContext(queue.Enqueue), new Version(1, 0, 0, 0));
         string? downloadedPath = null;
         service.UpdateDownloaded += path => downloadedPath = path;
 
@@ -47,7 +48,7 @@ public sealed class UpdateServiceTests
         var release = new AppRelease("v1.0.0", new Version(1, 0, 0, 0));
         var client = new FakeUpdateClient(release);
         var queue = new ConcurrentQueue<Action>();
-        var service = new UpdateService(client, queue.Enqueue, new Version(1, 0, 0, 0));
+        var service = new UpdateService(client, new UiSynchronizationContext(queue.Enqueue), new Version(1, 0, 0, 0));
 
         service.Activate();
         DispatchNext(queue);
