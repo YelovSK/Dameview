@@ -293,11 +293,20 @@ internal sealed class ImageLoadService : IDisposable
 
     private async Task ProcessPreloadAsync(PreloadRequest request)
     {
-        ImageLoadResult? result;
+        ImageLoadResult? result = null;
         try
         {
-            result = await _preloadQueue.Enqueue(
-                (decoder, _) => PreloadOne(request, decoder)).ConfigureAwait(false);
+            if (IsPreloadCurrent(request) && !_backend.SupportsAnimation(request.Path))
+            {
+                ImageInfo info = await _imageInfoLoader
+                    .LoadAsync(request.Path, CancellationToken.None)
+                    .ConfigureAwait(false);
+                if (!_representationPolicy.RequiresTiling(info))
+                {
+                    result = await _preloadQueue.Enqueue(
+                        (decoder, _) => PreloadDecode(request, decoder)).ConfigureAwait(false);
+                }
+            }
         }
         catch (OperationCanceledException)
         {
@@ -314,29 +323,15 @@ internal sealed class ImageLoadService : IDisposable
         }
     }
 
-    private ImageLoadResult? PreloadOne(PreloadRequest request, IImageDecoder decoder)
+    private ImageLoadResult? PreloadDecode(PreloadRequest request, IImageDecoder decoder)
     {
-        lock (_sync)
-        {
-            if (!_clients.TryGetValue(request.Client, out ClientState? state)
-                || request.Generation != state.PreloadGeneration)
-            {
-                return null;
-            }
-        }
-
-        if (_backend.SupportsAnimation(request.Path))
+        if (!IsPreloadCurrent(request))
         {
             return null;
         }
 
         try
         {
-            if (RequiresTiledRepresentation(request.Path, decoder))
-            {
-                return null;
-            }
-
             return new ImageLoaded(
                 request.Path,
                 new UploadImageRepresentation(DecodeShared(
@@ -347,6 +342,15 @@ internal sealed class ImageLoadService : IDisposable
         catch (Exception exception)
         {
             return new ImageLoadFailed(request.Path, exception);
+        }
+    }
+
+    private bool IsPreloadCurrent(PreloadRequest request)
+    {
+        lock (_sync)
+        {
+            return _clients.TryGetValue(request.Client, out ClientState? state)
+                && request.Generation == state.PreloadGeneration;
         }
     }
 
@@ -389,11 +393,6 @@ internal sealed class ImageLoadService : IDisposable
         {
             animation?.Dispose();
         }
-    }
-
-    private bool RequiresTiledRepresentation(string path, IImageDecoder decoder)
-    {
-        return _representationPolicy.RequiresTiling(decoder.GetInfo(path));
     }
 
     private void DeliverPreview(StaticLoadRequest request, PreviewImage preview)

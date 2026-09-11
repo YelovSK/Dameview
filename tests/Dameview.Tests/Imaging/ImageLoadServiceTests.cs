@@ -362,27 +362,26 @@ public sealed class ImageLoadServiceTests
         using var coordinator = new TestClient(
             action => action(),
             new FakeImageLoadingBackend(
-                () => new FakeImageDecoder(
-                    path =>
+                () => new FakeImageDecoder(path =>
+                {
+                    decodedPaths.Enqueue(path);
+                    if (path == "sentinel")
                     {
-                        decodedPaths.Enqueue(path);
-                        if (path == "sentinel")
-                        {
-                            sentinelDecoded.Set();
-                        }
+                        sentinelDecoded.Set();
+                    }
 
-                        return CreateImage();
-                    },
-                    path => path == "large"
-                        ? new ImageInfo(20_000, 10_000)
-                        : new ImageInfo(1, 1)),
+                    return CreateImage();
+                }),
                 openTiledImage: path =>
                 {
                     openedTilePaths.Enqueue(path);
                     return new FakeTileSource();
                 }),
             TestPolicy,
-            NoThumbnailLoader.Instance);
+            NoThumbnailLoader.Instance,
+            new FakeImageInfoLoader(path => path == "large"
+                ? new ImageInfo(20_000, 10_000)
+                : new ImageInfo(1, 1)));
 
         coordinator.Preload(["large", "sentinel"], DisposeResult);
 
