@@ -10,6 +10,7 @@ internal sealed class ImageLoadService : IDisposable
     private readonly IImageLoadingBackend _backend;
     private readonly ImageRepresentationPolicy _representationPolicy;
     private readonly IThumbnailLoader _thumbnailLoader;
+    private readonly IImageInfoLoader _imageInfoLoader;
     private readonly Thread[] _foregroundWorkers;
     private readonly Thread _preloadWorker;
     private readonly Queue<ImageLoadClient> _pendingClients = new();
@@ -23,12 +24,14 @@ internal sealed class ImageLoadService : IDisposable
         UiPost postToUi,
         IImageLoadingBackend backend,
         ImageRepresentationPolicy representationPolicy,
-        IThumbnailLoader thumbnailLoader)
+        IThumbnailLoader thumbnailLoader,
+        IImageInfoLoader imageInfoLoader)
     {
         _postToUi = postToUi;
         _backend = backend;
         _representationPolicy = representationPolicy;
         _thumbnailLoader = thumbnailLoader;
+        _imageInfoLoader = imageInfoLoader;
         _foregroundWorkers =
         [
             CreateWorker("Dameview image loader 1", ForegroundWork),
@@ -86,8 +89,15 @@ internal sealed class ImageLoadService : IDisposable
         }
     }
 
+    // Must be called on the UI thread, serialized per client. The request, its preview
+    // subscription, and the queued work are swapped across two critical sections because the
+    // preview has to be registered before a worker can pick the request up; a concurrent caller
+    // for the same client would break that ordering.
     internal void Load(ImageLoadClient client, string path, Action<ImageLoadResult> completed)
     {
+        bool supportsAnimation = _backend.SupportsAnimation(path);
+
+        LoadRequest request;
         IDisposable? previousPreview;
         lock (_sync)
         {
@@ -96,13 +106,50 @@ internal sealed class ImageLoadService : IDisposable
             previousPreview = state.PreviewRequest;
             state.PreviewRequest = null;
             var cancellation = new CancellationTokenSource();
-            var request = new LoadRequest(client, path, completed, cancellation);
+            request = supportsAnimation
+                ? new AnimatedLoadRequest(client, path, completed, cancellation)
+                : new StaticLoadRequest(
+                    client,
+                    path,
+                    completed,
+                    cancellation,
+                    _imageInfoLoader.LoadAsync(path, cancellation.Token));
             state.CurrentLoad = request;
-            state.PendingLoad = request;
-            QueueClient(client, state);
         }
 
         previousPreview?.Dispose();
+
+        // Both preview inputs start here, off the decode workers, so fast navigation does not
+        // have to wait for a worker stuck on an in-flight (non-cancellable) decode.
+        IDisposable? previewRequest = null;
+        if (request is StaticLoadRequest staticRequest)
+        {
+            var preview = new PendingPreview(
+                result => _postToUi(() => DeliverPreview(staticRequest, result)));
+            previewRequest = _thumbnailLoader.Request(
+                path,
+                ThumbnailPriority.Foreground,
+                preview.SetImage);
+            _ = ObserveSourceInfoAsync(staticRequest.SourceInfo, preview);
+        }
+
+        bool accepted;
+        lock (_sync)
+        {
+            accepted = IsCurrentUnsafe(request);
+            if (accepted)
+            {
+                ClientState state = _clients[request.Client];
+                state.PreviewRequest = previewRequest;
+                state.PendingLoad = request;
+                QueueClient(request.Client, state);
+            }
+        }
+
+        if (!accepted)
+        {
+            previewRequest?.Dispose();
+        }
     }
 
     internal void Preload(
@@ -288,10 +335,10 @@ internal sealed class ImageLoadService : IDisposable
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (!_backend.SupportsAnimation(request.Path))
+        if (request is StaticLoadRequest staticRequest)
         {
-            ImageInfo sourceInfo = decoder.GetInfo(request.Path);
-            RequestPreview(request, sourceInfo);
+            ImageInfo sourceInfo = staticRequest.SourceInfo.GetAwaiter().GetResult();
+            cancellationToken.ThrowIfCancellationRequested();
             if (_representationPolicy.RequiresTiling(sourceInfo))
             {
                 IImageTileSource tiledImage = _backend.OpenTiledImage(request.Path);
@@ -373,33 +420,27 @@ internal sealed class ImageLoadService : IDisposable
         return _representationPolicy.RequiresTiling(decoder.GetInfo(path));
     }
 
-    private void RequestPreview(LoadRequest request, ImageInfo sourceInfo)
+    private void DeliverPreview(StaticLoadRequest request, PreviewImage preview)
     {
-        if (!IsCurrent(request))
-        {
-            return;
-        }
-
-        IDisposable previewRequest = _thumbnailLoader.Request(
+        Deliver(request, new ImageLoaded(
             request.Path,
-            ThumbnailPriority.Foreground,
-            image => Deliver(request, new ImageLoaded(
-                request.Path,
-                new DecodedImageRepresentation(image, sourceInfo),
-                IsPreview: true)));
-        bool accepted;
-        lock (_sync)
-        {
-            accepted = IsCurrentUnsafe(request);
-            if (accepted)
-            {
-                _clients[request.Client].PreviewRequest = previewRequest;
-            }
-        }
+            new DecodedImageRepresentation(preview.Image, preview.SourceInfo),
+            IsPreview: true));
+    }
 
-        if (!accepted)
+    private static async Task ObserveSourceInfoAsync(Task<ImageInfo> sourceInfo, PendingPreview preview)
+    {
+        try
         {
-            previewRequest.Dispose();
+            ImageInfo info = await sourceInfo.ConfigureAwait(false);
+            preview.SetSourceInfo(info);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception)
+        {
+            // Preview metadata is best-effort; the foreground decode reports the failure.
         }
     }
 
@@ -616,7 +657,7 @@ internal sealed class ImageLoadService : IDisposable
         internal bool LoadQueued { get; set; }
     }
 
-    private sealed class LoadRequest(
+    private abstract class LoadRequest(
         ImageLoadClient client,
         string path,
         Action<ImageLoadResult> completed,
@@ -627,6 +668,80 @@ internal sealed class ImageLoadService : IDisposable
         internal Action<ImageLoadResult> Completed { get; } = completed;
         internal CancellationTokenSource Cancellation { get; } = cancellation;
         internal bool IsComplete { get; set; }
+    }
+
+    private sealed class AnimatedLoadRequest(
+        ImageLoadClient client,
+        string path,
+        Action<ImageLoadResult> completed,
+        CancellationTokenSource cancellation)
+        : LoadRequest(client, path, completed, cancellation)
+    {
+    }
+
+    private sealed class StaticLoadRequest(
+        ImageLoadClient client,
+        string path,
+        Action<ImageLoadResult> completed,
+        CancellationTokenSource cancellation,
+        Task<ImageInfo> sourceInfo)
+        : LoadRequest(client, path, completed, cancellation)
+    {
+        internal Task<ImageInfo> SourceInfo { get; } = sourceInfo;
+    }
+
+    private readonly record struct PreviewImage(DecodedImage Image, ImageInfo SourceInfo);
+
+    // Rendezvous for a preview's two independent inputs. Exactly one caller observes both
+    // halves and delivers the combined image; late or duplicate completions are ignored.
+    private sealed class PendingPreview(Action<PreviewImage> deliver)
+    {
+        private readonly object _sync = new();
+        private DecodedImage? _image;
+        private ImageInfo? _info;
+        private bool _delivered;
+
+        internal void SetImage(DecodedImage image)
+        {
+            PreviewImage? result;
+            lock (_sync)
+            {
+                _image = image;
+                result = TryComplete();
+            }
+
+            if (result is not null)
+            {
+                deliver(result.Value);
+            }
+        }
+
+        internal void SetSourceInfo(ImageInfo info)
+        {
+            PreviewImage? result;
+            lock (_sync)
+            {
+                _info = info;
+                result = TryComplete();
+            }
+
+            if (result is not null)
+            {
+                deliver(result.Value);
+            }
+        }
+
+        // The caller must hold _sync.
+        private PreviewImage? TryComplete()
+        {
+            if (_delivered || _image is null || _info is null)
+            {
+                return null;
+            }
+
+            _delivered = true;
+            return new PreviewImage(_image, _info.Value);
+        }
     }
 
     private sealed record PreloadRequest(

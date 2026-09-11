@@ -29,7 +29,8 @@ public sealed class ImageLoadServiceTests
                 return CreateImage();
             })),
             TestPolicy,
-            NoThumbnailLoader.Instance);
+            NoThumbnailLoader.Instance,
+            new FakeImageInfoLoader());
         using ImageLoadClient first = service.CreateClient();
         using ImageLoadClient second = service.CreateClient();
 
@@ -79,7 +80,8 @@ public sealed class ImageLoadServiceTests
                 return CreateImage();
             })),
             TestPolicy,
-            NoThumbnailLoader.Instance);
+            NoThumbnailLoader.Instance,
+            new FakeImageInfoLoader());
         using ImageLoadClient first = service.CreateClient();
         using ImageLoadClient second = service.CreateClient();
 
@@ -293,20 +295,17 @@ public sealed class ImageLoadServiceTests
     public void AnimatedImageSkipsThumbnailPreview()
     {
         using var completed = new ManualResetEventSlim();
-        int thumbnailLoads = 0;
+        var thumbnails = new RecordingThumbnailLoader();
+        var info = new FakeImageInfoLoader();
         using var decoder = new FakeAnimatedImageDecoder(_ => new FakeAnimationSession());
         using var coordinator = new TestClient(
             action => action(),
             new FakeImageLoadingBackend(
                 () => decoder,
-                decoder,
-                _ =>
-                {
-                    Interlocked.Increment(ref thumbnailLoads);
-                    return CreateImage();
-                }),
+                decoder),
             TestPolicy,
-            NoThumbnailLoader.Instance);
+            thumbnails,
+            info);
 
         coordinator.Load("animated.gif", result =>
         {
@@ -315,7 +314,8 @@ public sealed class ImageLoadServiceTests
         });
 
         Assert.IsTrue(completed.Wait(TimeSpan.FromSeconds(5)));
-        Assert.AreEqual(0, Volatile.Read(ref thumbnailLoads));
+        Assert.AreEqual(0, thumbnails.Requests);
+        Assert.AreEqual(0, info.Requests);
     }
 
     [TestMethod]
@@ -336,7 +336,8 @@ public sealed class ImageLoadServiceTests
                     _ => new ImageInfo(20_000, 10_000)),
                 openTiledImage: _ => tiles),
             TestPolicy,
-            NoThumbnailLoader.Instance);
+            NoThumbnailLoader.Instance,
+            new FakeImageInfoLoader(_ => new ImageInfo(20_000, 10_000)));
         ImageLoaded? loaded = null;
 
         coordinator.Load("large.png", result =>
@@ -461,13 +462,16 @@ public sealed class ImageLoadServiceTests
             new FakeImageLoadingBackend(
                 () => new FakeImageDecoder(
                     _ => { release.Wait(); return CreateImage(100, 100); },
-                    _ => new ImageInfo(100, 100))),
+                    _ => throw new InvalidOperationException("Foreground must reuse source info."))),
             TestPolicy,
-            thumbnails);
+            thumbnails,
+            new FakeImageInfoLoader(_ => new ImageInfo(100, 100)));
         var results = new List<ImageLoaded>();
         try
         {
             coordinator.Load("image", result => results.Add((ImageLoaded)result));
+            Assert.IsTrue(posted.TryTake(out Action? thumbnail, TimeSpan.FromSeconds(5)));
+            thumbnail();
             Assert.IsTrue(posted.TryTake(out Action? preview, TimeSpan.FromSeconds(5)));
             preview();
             Assert.IsTrue(results[0].IsPreview);
@@ -487,6 +491,45 @@ public sealed class ImageLoadServiceTests
         finally
         {
             release.Set();
+        }
+    }
+
+    [TestMethod]
+    public void PreviewWaitsForSourceInfoWhenThumbnailArrivesFirst()
+    {
+        using var releaseDecode = new ManualResetEventSlim();
+        using var posted = new BlockingCollection<Action>();
+        var info = new ManualImageInfoLoader();
+        using var thumbnails = new ThumbnailCoordinator(posted.Add, _ => CreateImage(512, 512));
+        using var coordinator = new TestClient(posted.Add,
+            new FakeImageLoadingBackend(
+                () => new FakeImageDecoder(_ => { releaseDecode.Wait(); return CreateImage(9, 9); })),
+            TestPolicy,
+            thumbnails,
+            info);
+        var results = new List<ImageLoaded>();
+        try
+        {
+            coordinator.Load("image", result => results.Add((ImageLoaded)result));
+
+            // The thumbnail is ready, but the preview must wait for the dimensions.
+            Assert.IsTrue(posted.TryTake(out Action? thumbnail, TimeSpan.FromSeconds(5)));
+            thumbnail();
+            Assert.AreEqual(0, results.Count);
+
+            info.Complete(new ImageInfo(40, 30));
+            Assert.IsTrue(posted.TryTake(out Action? preview, TimeSpan.FromSeconds(5)));
+            preview();
+            Assert.IsTrue(results[0].IsPreview);
+            Assert.AreEqual(40, results[0].Representation.Width);
+            Assert.AreEqual(30, results[0].Representation.Height);
+            var previewImage = (DecodedImageRepresentation)results[0].Representation;
+            Assert.AreEqual(512, previewImage.Image.Width);
+            Assert.AreEqual(512, previewImage.Image.Height);
+        }
+        finally
+        {
+            releaseDecode.Set();
         }
     }
 
@@ -546,6 +589,29 @@ public sealed class ImageLoadServiceTests
         Assert.IsFalse(((ImageLoaded)result).IsPreview);
     }
 
+    [TestMethod]
+    public void MetadataFailureFailsForegroundLoad()
+    {
+        using var completed = new ManualResetEventSlim();
+        using var coordinator = new TestClient(
+            action => action(),
+            new FakeImageLoadingBackend(
+                () => new FakeImageDecoder(_ => CreateImage())),
+            TestPolicy,
+            NoThumbnailLoader.Instance,
+            new FaultingImageInfoLoader(new IOException("Broken header")));
+        ImageLoadResult? result = null;
+
+        coordinator.Load("image", loaded =>
+        {
+            result = loaded;
+            completed.Set();
+        });
+
+        Assert.IsTrue(completed.Wait(TimeSpan.FromSeconds(5)));
+        Assert.IsInstanceOfType<ImageLoadFailed>(result);
+    }
+
     private static DecodedImage CreateImage(int width = 1, int height = 1)
     {
         int stride = checked(width * 4);
@@ -566,13 +632,15 @@ public sealed class ImageLoadServiceTests
             UiPost postToUi,
             IImageLoadingBackend backend,
             ImageRepresentationPolicy representationPolicy,
-            IThumbnailLoader thumbnailLoader)
+            IThumbnailLoader thumbnailLoader,
+            IImageInfoLoader? imageInfoLoader = null)
         {
             _service = new ImageLoadService(
                 postToUi,
                 backend,
                 representationPolicy,
-                thumbnailLoader);
+                thumbnailLoader,
+                imageInfoLoader ?? new FakeImageInfoLoader());
             _client = _service.CreateClient();
         }
 
@@ -641,14 +709,75 @@ public sealed class ImageLoadServiceTests
             string path,
             ThumbnailPriority priority,
             Action<DecodedImage> completed) => NoopSubscription.Instance;
+    }
 
-        private sealed class NoopSubscription : IDisposable
+    private sealed class RecordingThumbnailLoader : IThumbnailLoader
+    {
+        internal int Requests;
+
+        public IDisposable Request(
+            string path,
+            ThumbnailPriority priority,
+            Action<DecodedImage> completed)
         {
-            internal static readonly NoopSubscription Instance = new();
+            Interlocked.Increment(ref Requests);
+            return NoopSubscription.Instance;
+        }
+    }
 
-            public void Dispose()
+    private sealed class FakeImageInfoLoader(Func<string, ImageInfo>? getInfo = null) : IImageInfoLoader
+    {
+        private readonly Func<string, ImageInfo> _getInfo = getInfo ?? (_ => new ImageInfo(1, 1));
+        internal int Requests;
+
+        public Task<ImageInfo> LoadAsync(string path, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref Requests);
+            return Task.FromResult(_getInfo(path));
+        }
+    }
+
+    private sealed class ManualImageInfoLoader : IImageInfoLoader
+    {
+        private readonly object _sync = new();
+        private readonly Queue<TaskCompletionSource<ImageInfo>> _pending = new();
+
+        public Task<ImageInfo> LoadAsync(string path, CancellationToken cancellationToken)
+        {
+            var completion = new TaskCompletionSource<ImageInfo>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            lock (_sync)
             {
+                _pending.Enqueue(completion);
             }
+
+            return completion.Task;
+        }
+
+        internal void Complete(ImageInfo info)
+        {
+            TaskCompletionSource<ImageInfo> completion;
+            lock (_sync)
+            {
+                completion = _pending.Dequeue();
+            }
+
+            completion.SetResult(info);
+        }
+    }
+
+    private sealed class FaultingImageInfoLoader(Exception exception) : IImageInfoLoader
+    {
+        public Task<ImageInfo> LoadAsync(string path, CancellationToken cancellationToken) =>
+            Task.FromException<ImageInfo>(exception);
+    }
+
+    private sealed class NoopSubscription : IDisposable
+    {
+        internal static readonly NoopSubscription Instance = new();
+
+        public void Dispose()
+        {
         }
     }
 

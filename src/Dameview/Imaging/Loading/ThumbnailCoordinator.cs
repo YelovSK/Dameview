@@ -62,22 +62,9 @@ internal sealed class ThumbnailCoordinator : IThumbnailLoader, IDisposable
             {
                 // Delivery remains asynchronous and uses the same UI boundary as a load.
             }
-            else if (_pending.TryGetValue(path, out PendingThumbnail? pending))
-            {
-                pending.Subscriptions.Add(subscription);
-                if (!pending.IsLoading && priority > pending.Priority)
-                {
-                    pending.Priority = priority;
-                    _foregroundQueue.Enqueue(path);
-                    Monitor.Pulse(_sync);
-                }
-            }
             else
             {
-                pending = new PendingThumbnail(priority, subscription);
-                _pending.Add(path, pending);
-                GetQueue(priority).Enqueue(path);
-                Monitor.Pulse(_sync);
+                EnqueueRequest(path, priority, subscription);
             }
         }
 
@@ -104,6 +91,27 @@ internal sealed class ThumbnailCoordinator : IThumbnailLoader, IDisposable
             _pending.Clear();
             Monitor.PulseAll(_sync);
         }
+    }
+
+    private void EnqueueRequest(string path, ThumbnailPriority priority, ThumbnailSubscription subscription)
+    {
+        if (_pending.TryGetValue(path, out PendingThumbnail? pending))
+        {
+            pending.Subscriptions.Add(subscription);
+            if (!pending.IsLoading && priority > pending.Priority)
+            {
+                pending.Priority = priority;
+                GetQueue(priority).Enqueue(path);
+                Monitor.Pulse(_sync);
+            }
+
+            return;
+        }
+
+        pending = new PendingThumbnail(priority, subscription);
+        _pending.Add(path, pending);
+        GetQueue(priority).Enqueue(path);
+        Monitor.Pulse(_sync);
     }
 
     private void Work()

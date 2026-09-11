@@ -20,6 +20,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     private readonly ViewerUi _ui;
     private readonly WindowsImageLoadingBackend _imageBackend;
     private readonly ThumbnailCoordinator _thumbnailCoordinator;
+    private readonly ImageInfoLoader _imageInfoLoader;
     private readonly ImageLoadService _imageLoadService;
     private readonly RenderBitmapCache _renderBitmapCache;
     private readonly IFolderScanner _folderScanner;
@@ -41,12 +42,16 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             _window.ClientHeight,
             _window.Dpi);
         _imageBackend = new WindowsImageLoadingBackend();
-        _thumbnailCoordinator = new ThumbnailCoordinator(_window.Post, _imageBackend.LoadThumbnail);
+        _thumbnailCoordinator = new ThumbnailCoordinator(
+            _window.Post,
+            _imageBackend.LoadThumbnail);
+        _imageInfoLoader = new ImageInfoLoader(_imageBackend.CreateDecoder);
         _imageLoadService = new ImageLoadService(
             _window.Post,
             _imageBackend,
             new ImageRepresentationPolicy(checked((int)_renderer.DeviceContext.MaximumBitmapSize)),
-            _thumbnailCoordinator);
+            _thumbnailCoordinator,
+            _imageInfoLoader);
         _renderBitmapCache = new RenderBitmapCache(RenderBitmapCacheCapacityBytes);
         using var imageDecoder = new ImageDecoder();
         HashSet<string> extensions = imageDecoder.GetProbablySupportedExtensions();
@@ -124,8 +129,9 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _workspace.Dispose();
         _renderBitmapCache.Dispose();
         _imageLoadService.Dispose();
-        _imageBackend.Dispose();
+        _imageInfoLoader.Dispose();
         _thumbnailCoordinator.Dispose();
+        _imageBackend.Dispose();
         _renderer.Dispose();
         _window.Dispose();
     }

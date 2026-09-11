@@ -21,7 +21,8 @@ public sealed class PresentationImageLoaderTests
                 return CreateUpload();
             }),
             TestPolicy,
-            NoThumbnailLoader.Instance);
+            NoThumbnailLoader.Instance,
+            NoImageInfoLoader.Instance);
         using ImageLoadClient producer = service.CreateClient();
         using var cache = new RenderBitmapCache(1024, _ => { });
         using var loader = new PresentationImageLoader(
@@ -61,7 +62,8 @@ public sealed class PresentationImageLoaderTests
                 return CreateUpload();
             }),
             TestPolicy,
-            NoThumbnailLoader.Instance);
+            NoThumbnailLoader.Instance,
+            NoImageInfoLoader.Instance);
         using ImageLoadClient producer = service.CreateClient();
         using var cache = new RenderBitmapCache(4, _ => { });
         using CachedBitmapLease current = cache.AddAndAcquire("current", null!, 1, 1);
@@ -117,5 +119,13 @@ public sealed class PresentationImageLoaderTests
             {
             }
         }
+    }
+
+    private sealed class NoImageInfoLoader : IImageInfoLoader
+    {
+        internal static readonly NoImageInfoLoader Instance = new();
+
+        public Task<ImageInfo> LoadAsync(string path, CancellationToken cancellationToken) =>
+            Task.FromResult(new ImageInfo(1, 1));
     }
 }
