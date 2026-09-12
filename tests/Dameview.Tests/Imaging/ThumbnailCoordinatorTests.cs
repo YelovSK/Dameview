@@ -91,5 +91,41 @@ public sealed class ThumbnailCoordinatorTests
         Assert.IsFalse(delivered);
     }
 
+    [TestMethod]
+    public void FailedThumbnailCanBeRequestedAgain()
+    {
+        using var posted = new BlockingCollection<Action>();
+        int loadCount = 0;
+        using var coordinator = new ThumbnailCoordinator(
+            _ => Interlocked.Increment(ref loadCount) == 1 ? null : CreateImage(),
+            new UiSynchronizationContext(posted.Add));
+        using IDisposable firstRequest = coordinator.Request(
+            "retry.jpg",
+            ThumbnailPriority.Gallery,
+            _ => { });
+        Assert.IsTrue(SpinWait.SpinUntil(
+            () => Volatile.Read(ref loadCount) == 1,
+            TimeSpan.FromSeconds(5)));
+
+        var retryRequests = new List<IDisposable>();
+        Action? delivery = null;
+        for (int attempt = 0; attempt < 100 && delivery is null; attempt++)
+        {
+            retryRequests.Add(coordinator.Request(
+                "retry.jpg",
+                ThumbnailPriority.Foreground,
+                _ => { }));
+            _ = posted.TryTake(out delivery, TimeSpan.FromMilliseconds(50));
+        }
+
+        foreach (IDisposable request in retryRequests)
+        {
+            request.Dispose();
+        }
+
+        Assert.IsNotNull(delivery);
+        Assert.AreEqual(2, Volatile.Read(ref loadCount));
+    }
+
     private static DecodedImage CreateImage() => new(1, 1, 4, new byte[4]);
 }

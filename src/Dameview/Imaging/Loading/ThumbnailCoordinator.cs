@@ -109,11 +109,6 @@ internal sealed class ThumbnailCoordinator : IThumbnailLoader, IDisposable
             // Missing or broken shell thumbnails are represented by null.
         }
 
-        if (image is null)
-        {
-            return;
-        }
-
         List<ThumbnailSubscription> subscriptions;
         lock (_sync)
         {
@@ -122,6 +117,11 @@ internal sealed class ThumbnailCoordinator : IThumbnailLoader, IDisposable
             {
                 subscriptions = pending;
             }
+        }
+
+        if (image is null)
+        {
+            return;
         }
 
         DecodedImage loaded = image;
