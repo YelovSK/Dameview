@@ -1,6 +1,8 @@
 # Architecture
 
-Dameview is a Windows desktop application distributed as one Native AOT executable. It uses Win32 for the window and message loop, WIC for image decoding, and Direct2D for a custom-drawn UI. The production code lives in one project; its folders are responsibility boundaries, not independently deployable layers.
+Dameview is a Windows desktop application distributed as one Native AOT executable. It uses Win32 for the window and message loop, WIC for image decoding, and Direct2D for a custom-drawn UI.
+
+Production code is split between a platform-neutral `Dameview.Core` library and the Windows `Dameview` executable. The executable references Core, never the reverse, so the compiler prevents viewing and navigation code from depending on the Windows frontend. Folders within each project are responsibility boundaries rather than independently deployable layers.
 
 ## Runtime shape
 
@@ -18,17 +20,17 @@ Most mutable application and graphics state belongs to the UI thread. File scann
 
 ## Subsystems
 
-### Viewing (`src/Dameview/Viewing`)
+### Viewing (`src/Dameview.Core/Viewing`)
 
 `Viewing` owns the logical state of an open workspace independently of its presentation. A workspace is a binary tree of panes and splits. Each pane owns tabs, and each tab owns a viewing session plus the per-tab services used by that session. A session owns navigation state, the accepted image representation, and the viewport.
 
 The workspace is the source of truth for pane layout, active pane, tabs, and active sessions. The UI observes and presents that state; it should not maintain a separate copy of the workspace state.
 
-### Imaging (`src/Dameview/Imaging`)
+### Imaging (`src/Dameview.Core/Imaging`, `src/Dameview/Imaging`)
 
-`Imaging` turns a path into a presentation-appropriate image representation. The shared loading infrastructure coordinates foreground loads, previews, preloading, caching, animations, and oversized tiled images. Windows-specific decoding is kept behind small backend interfaces.
+`Imaging` turns a path into a presentation-appropriate image representation. Core contains the representations, policies, and loading contracts used by viewing; the executable contains the shared loading infrastructure and Windows-specific decoders. Together they coordinate foreground loads, previews, preloading, caching, animations, and oversized tiled images.
 
-### Navigation (`src/Dameview/Navigation`)
+### Navigation (`src/Dameview.Core/Navigation`)
 
 `Navigation` produces and monitors folder snapshots. A viewing session combines those snapshots with its current selection, but directory enumeration and file-system watching remain separate from workspace and UI concerns.
 
