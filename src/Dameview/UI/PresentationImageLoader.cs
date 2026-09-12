@@ -6,7 +6,7 @@ namespace Dameview.UI;
 
 // UI-thread facade: checks render resources before asking the background pixel
 // producer, and converts temporary uploads into cache-owned Direct2D bitmaps.
-internal sealed class PresentationImageLoader : IImageLoader, IDisposable
+internal sealed class PresentationImageLoader : IImageLoader
 {
     private readonly ImageLoadClient _producer;
     private readonly RenderBitmapCache _cache;
@@ -228,6 +228,12 @@ internal sealed class PresentationImageLoader : IImageLoader, IDisposable
 
     public void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         _disposed = true;
+        _producer.Dispose();
     }
 }

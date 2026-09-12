@@ -62,26 +62,6 @@ public sealed class ViewerWorkspaceTests
     }
 
     [TestMethod]
-    public void TabsKeepIndependentGalleryScrollState()
-    {
-        using var workspace = new ViewerWorkspace(CreateTab);
-        ViewerTab first = workspace.ActiveTab;
-        first.GalleryState.ScrollOffset.SetMaximum(500.0f);
-        first.GalleryState.ScrollOffset.SetImmediate(240.0f);
-
-        workspace.OpenImageInNewTab(@"C:\second\image.png");
-        ViewerTab second = workspace.Tabs[1];
-        second.GalleryState.ScrollOffset.SetMaximum(500.0f);
-        second.GalleryState.ScrollOffset.SetImmediate(80.0f);
-
-        workspace.SelectTab(1);
-        Assert.AreEqual(80.0f, workspace.ActiveTab.GalleryState.ScrollOffset.Offset);
-
-        workspace.SelectTab(0);
-        Assert.AreEqual(240.0f, workspace.ActiveTab.GalleryState.ScrollOffset.Offset);
-    }
-
-    [TestMethod]
     public void ClosingTheActiveTabSelectsTheRemainingTab()
     {
         using var workspace = new ViewerWorkspace(CreateTab);
@@ -632,6 +612,10 @@ public sealed class ViewerWorkspaceTests
         }
 
         public void Preload(IEnumerable<string?> paths)
+        {
+        }
+
+        public void Dispose()
         {
         }
     }

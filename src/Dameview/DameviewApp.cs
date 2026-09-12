@@ -460,11 +460,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             new FolderNavigator(),
             folderMonitor,
             imageLoader);
-        return new ViewerTab(
-            session,
-            folderMonitor,
-            imageLoader,
-            loadClient);
+        return new ViewerTab(session);
     }
 
     private void HandleDpiChanged(float dpi)

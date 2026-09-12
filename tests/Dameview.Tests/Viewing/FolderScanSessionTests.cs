@@ -284,6 +284,10 @@ public sealed class FolderScanSessionTests
             Preloads = [.. paths];
         }
 
+        public void Dispose()
+        {
+        }
+
         internal void Complete()
         {
             _completed!(new ImageLoaded(

@@ -202,6 +202,7 @@ public sealed class ViewerSessionTests
         session.Dispose();
 
         Assert.IsTrue(animation.IsDisposed);
+        Assert.IsTrue(loader.IsDisposed);
     }
 
     [TestMethod]
@@ -276,6 +277,7 @@ public sealed class ViewerSessionTests
         private string _path = string.Empty;
         private Action<ImageLoadResult>? _completed;
         internal string?[] Preloads { get; private set; } = [];
+        internal bool IsDisposed { get; private set; }
 
         public void Load(string path, Action<ImageLoadResult> completed)
         {
@@ -286,6 +288,11 @@ public sealed class ViewerSessionTests
         public void Preload(IEnumerable<string?> paths)
         {
             Preloads = [.. paths];
+        }
+
+        public void Dispose()
+        {
+            IsDisposed = true;
         }
 
         internal void Preview(DecodedImage image)

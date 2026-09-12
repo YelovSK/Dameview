@@ -34,6 +34,9 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private readonly UiAnimationClock _animationClock;
     private readonly UiRoot _root;
     private readonly Action<ViewerPane> _selectPane;
+    // A ConditionalWeakTable could tie these states to tab reachability, but explicit
+    // disposal keeps this UI ownership visible and deterministic.
+    private readonly Dictionary<ViewerTab, GalleryPanelState> _galleryStates = [];
     private ViewerPane _activePane;
     private ViewerPaneView _activePaneView;
     private bool _animationsEnabled = true;
@@ -81,7 +84,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
             commands.OpenImage,
             commands.OpenImageInNewTab,
             HandleGalleryDragPointer);
-        _galleryPanel.Bind(_activePane.ActiveTab.GalleryState);
+        _galleryPanel.Bind(GetGalleryState(_activePane.ActiveTab));
         _mainOverlay = new Overlay(_workspaceView, _toolbarPanel);
         _splitView = new SplitView(
             _mainOverlay,
@@ -194,7 +197,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _workspaceView.SetActivePane(pane);
 
         ViewerSessionState state = pane.ActiveSession.State;
-        _galleryPanel.Bind(pane.ActiveTab.GalleryState);
+        _galleryPanel.Bind(GetGalleryState(pane.ActiveTab));
         ApplyActivePaneState(state, showToolbar: false);
     }
 
@@ -229,7 +232,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         FindPaneView(pane)?.BindTab(tab);
         if (ReferenceEquals(pane, _activePane))
         {
-            _galleryPanel.Bind(tab.GalleryState);
+            _galleryPanel.Bind(GetGalleryState(tab));
         }
     }
 
@@ -375,6 +378,12 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _modalHost.Close();
         _popupHost.Close();
         _dragController.Cancel();
+        foreach (ViewerTab tab in _galleryStates.Keys)
+        {
+            tab.Disposed -= HandleTabDisposed;
+        }
+
+        _galleryStates.Clear();
         _dragOverlay.Dispose();
         _tabPreview.Dispose();
         _commandPalettePanel.Dispose();
@@ -516,6 +525,24 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private ViewerPaneView? FindPaneView(ViewerPane pane)
     {
         return _workspaceView.FindPaneView(pane);
+    }
+
+    private GalleryPanelState GetGalleryState(ViewerTab tab)
+    {
+        if (!_galleryStates.TryGetValue(tab, out GalleryPanelState? state))
+        {
+            state = new GalleryPanelState();
+            _galleryStates.Add(tab, state);
+            tab.Disposed += HandleTabDisposed;
+        }
+
+        return state;
+    }
+
+    private void HandleTabDisposed(ViewerTab tab)
+    {
+        tab.Disposed -= HandleTabDisposed;
+        _galleryStates.Remove(tab);
     }
 }
 

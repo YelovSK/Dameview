@@ -1,5 +1,4 @@
 using System.Drawing;
-using Dameview.UI;
 
 namespace Dameview.Viewing;
 
@@ -171,19 +170,19 @@ internal sealed class ViewportAnimator
         return Fit();
     }
 
-    internal bool Update(in UiUpdateContext context)
+    internal bool Update(double elapsedSeconds, bool animationsEnabled = true)
     {
-        if (!context.AnimationsEnabled)
+        if (!animationsEnabled)
         {
             CompleteAnimations();
             return false;
         }
 
-        if (IsAnimating && context.ElapsedSeconds > 0.0)
+        if (IsAnimating && elapsedSeconds > 0.0)
         {
-            UpdateZoom(context.ElapsedSeconds);
-            UpdateTransform(context.ElapsedSeconds);
-            UpdateMomentum(context.ElapsedSeconds);
+            UpdateZoom(elapsedSeconds);
+            UpdateTransform(elapsedSeconds);
+            UpdateMomentum(elapsedSeconds);
         }
 
         return IsAnimating;

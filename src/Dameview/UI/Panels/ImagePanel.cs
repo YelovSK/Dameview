@@ -193,7 +193,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
 
     protected override bool UpdateCore(in UiUpdateContext context)
     {
-        bool continues = _animator.Update(context);
+        bool continues = _animator.Update(context.ElapsedSeconds, context.AnimationsEnabled);
         continues |= _previewFade.Update(context);
         if (!_isPreview && _previewFade.Current == 0.0f && _previewImage is not null)
         {

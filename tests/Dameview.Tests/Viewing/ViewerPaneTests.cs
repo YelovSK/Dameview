@@ -8,6 +8,19 @@ namespace Dameview.Tests.Viewing;
 public sealed class ViewerPaneTests
 {
     [TestMethod]
+    public void TabReportsDisposalOnce()
+    {
+        ViewerTab tab = CreateTab();
+        int disposalCount = 0;
+        tab.Disposed += _ => disposalCount++;
+
+        tab.Dispose();
+        tab.Dispose();
+
+        Assert.AreEqual(1, disposalCount);
+    }
+
+    [TestMethod]
     public void AddedTabDoesNotReplaceTheActiveTab()
     {
         ViewerTab first = CreateTab();
@@ -76,6 +89,10 @@ public sealed class ViewerPaneTests
         }
 
         public void Preload(IEnumerable<string?> paths)
+        {
+        }
+
+        public void Dispose()
         {
         }
     }

@@ -4,8 +4,8 @@ using Dameview.Navigation;
 namespace Dameview.Viewing;
 
 // UI-thread owned. The loader delivers only the latest request on this thread.
-// Dependencies are borrowed; the application owns their lifetime. The session owns
-// the representation attached to its currently displayed image.
+// The session owns its monitor, loader, and the representation attached to its
+// currently displayed image.
 internal sealed class ViewerSession : IDisposable
 {
     private readonly FolderNavigator _folderNavigator;
@@ -121,8 +121,9 @@ internal sealed class ViewerSession : IDisposable
 
         _disposed = true;
         _folderMonitor.Updated -= HandleFolderUpdated;
-        _folderMonitor.Close();
         State.DisplayedImage?.Dispose();
+        _imageLoader.Dispose();
+        _folderMonitor.Dispose();
     }
 
     private void HandleFolderUpdated(FolderUpdate update)
