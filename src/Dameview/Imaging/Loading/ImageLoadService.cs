@@ -4,7 +4,7 @@ namespace Dameview.Imaging;
 
 internal sealed class ImageLoadService : IDisposable
 {
-    private readonly object _sync = new();
+    private readonly Lock _sync = new();
     private readonly SynchronizationContext _uiContext;
     private readonly IImageLoadingBackend _backend;
     private readonly ImageRepresentationPolicy _representationPolicy;

@@ -21,7 +21,7 @@ internal sealed class ThumbnailCoordinator : IThumbnailLoader, IDisposable
 {
     private const long DefaultCacheCapacityBytes = 64L * 1024L * 1024L;
 
-    private readonly object _sync = new();
+    private readonly Lock _sync = new();
     private readonly SynchronizationContext _uiContext;
     private readonly Func<string, DecodedImage?> _load;
     private readonly DecodedImageCache _cache;

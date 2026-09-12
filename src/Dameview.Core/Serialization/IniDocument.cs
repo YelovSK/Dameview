@@ -5,8 +5,8 @@ namespace Dameview.Serialization;
 // Small, deliberately limited INI document whose values are opaque strings.
 internal sealed class IniDocument
 {
-    private readonly List<Entry> _entries = new();
-    private readonly List<string> _sections = new();
+    private readonly List<Entry> _entries = [];
+    private readonly List<string> _sections = [];
 
     internal static IniDocument Parse(string text)
     {
