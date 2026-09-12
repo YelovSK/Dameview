@@ -3,7 +3,6 @@ using System.Diagnostics;
 using Dameview.Navigation;
 using Dameview.Platform;
 using Dameview.Settings;
-using Dameview.UI;
 
 namespace Dameview.Tests.Settings;
 
@@ -19,7 +18,7 @@ public sealed class SettingsServiceTests
         Assert.Contains("theme=dark", File.ReadAllText(files.Path));
         settings.Update(new AppSettings
         {
-            Theme = Themes.Light,
+            Theme = ThemeId.Light,
             AnimationsEnabled = false,
             Sort = FolderSort.SizeLargest,
             GalleryThumbnailSize = GalleryThumbnailSize.Large,
@@ -40,11 +39,11 @@ public sealed class SettingsServiceTests
         File.WriteAllText(files.Path, "theme=light");
         using SettingsService settings = files.CreateService();
         settings.Start();
-        Assert.AreEqual(Themes.Light, settings.Current.Theme);
+        Assert.AreEqual(ThemeId.Light, settings.Current.Theme);
         Assert.IsTrue(settings.Current.AnimationsEnabled);
         Assert.AreEqual(FolderSort.NameAscending, settings.Current.Sort);
         Assert.AreEqual(GalleryThumbnailSize.Medium, settings.Current.GalleryThumbnailSize);
-        Assert.AreEqual(UiDesign.DefaultGalleryWidth, settings.Current.GalleryWidthDips);
+        Assert.AreEqual(AppSettings.DefaultGalleryWidthDips, settings.Current.GalleryWidthDips);
     }
 
     [TestMethod]
@@ -55,7 +54,7 @@ public sealed class SettingsServiceTests
         using SettingsService settings = files.CreateService();
         settings.Start();
 
-        Assert.AreEqual(Themes.Light, settings.Current.Theme);
+        Assert.AreEqual(ThemeId.Light, settings.Current.Theme);
         Assert.AreEqual(FolderSort.NameAscending, settings.Current.Sort);
         Assert.IsNull(settings.Error);
     }
@@ -71,8 +70,8 @@ public sealed class SettingsServiceTests
         settings.Changed += (previous, current) =>
         {
             Assert.AreEqual(ownerThread, Environment.CurrentManagedThreadId);
-            Assert.AreEqual(Themes.Dark, previous.Theme);
-            Assert.AreEqual(Themes.Light, current.Theme);
+            Assert.AreEqual(ThemeId.Dark, previous.Theme);
+            Assert.AreEqual(ThemeId.Light, current.Theme);
             changes++;
         };
         string replacement = files.Path + ".tmp";
@@ -84,7 +83,7 @@ public sealed class SettingsServiceTests
         File.WriteAllText(files.Path, "theme");
         files.PumpUntil(() => settings.Error is not null);
         Assert.AreEqual(1, changes);
-        Assert.AreEqual(Themes.Light, settings.Current.Theme);
+        Assert.AreEqual(ThemeId.Light, settings.Current.Theme);
     }
 
     [TestMethod]
@@ -106,16 +105,7 @@ public sealed class SettingsServiceTests
     [TestMethod]
     public void NamedThemesPersistAcrossReload()
     {
-        foreach (Theme theme in new[]
-        {
-            Themes.CatppuccinFrappe,
-            Themes.CatppuccinMacchiato,
-            Themes.CatppuccinMocha,
-            Themes.GruvboxDark,
-            Themes.Nord,
-            Themes.Dracula,
-            Themes.RosePine,
-        })
+        foreach (ThemeId theme in Enum.GetValues<ThemeId>())
         {
             using var files = new SettingsFiles();
             using SettingsService settings = files.CreateService();
@@ -143,10 +133,10 @@ public sealed class SettingsServiceTests
         using var files = new SettingsFiles();
         using SettingsService settings = files.CreateService();
         settings.Start();
-        settings.Update(new AppSettings { Theme = Themes.Light });
+        settings.Update(new AppSettings { Theme = ThemeId.Light });
         File.WriteAllText(files.Path, json);
         files.PumpUntil(() => settings.Error is not null);
-        Assert.AreEqual(Themes.Light, settings.Current.Theme);
+        Assert.AreEqual(ThemeId.Light, settings.Current.Theme);
     }
 
     [TestMethod]
@@ -161,10 +151,10 @@ public sealed class SettingsServiceTests
             files.PumpUntil(() => !files.Posted.IsEmpty, drain: false);
             files.Drain();
             Assert.IsNull(settings.Error);
-            Assert.AreEqual(Themes.Dark, settings.Current.Theme);
+            Assert.AreEqual(ThemeId.Dark, settings.Current.Theme);
         }
 
-        files.PumpUntil(() => settings.Current.Theme == Themes.Light);
+        files.PumpUntil(() => settings.Current.Theme == ThemeId.Light);
         Assert.IsNull(settings.Error);
     }
 
@@ -176,9 +166,9 @@ public sealed class SettingsServiceTests
         settings.Start();
         files.PumpUntil(() => !files.Posted.IsEmpty, drain: false);
         using var locked = new FileStream(files.Path, FileMode.Open, FileAccess.Read, FileShare.Read);
-        settings.Update(new AppSettings { Theme = Themes.Light });
+        settings.Update(new AppSettings { Theme = ThemeId.Light });
         files.Drain();
-        Assert.AreEqual(Themes.Light, settings.Current.Theme);
+        Assert.AreEqual(ThemeId.Light, settings.Current.Theme);
         Assert.IsNotNull(settings.Error);
         StringAssert.Contains(settings.Error, "Could not save");
     }
@@ -193,7 +183,7 @@ public sealed class SettingsServiceTests
         files.PumpUntil(() => !files.Posted.IsEmpty, drain: false);
         settings.Dispose();
         files.Drain();
-        Assert.AreEqual(Themes.Dark, settings.Current.Theme);
+        Assert.AreEqual(ThemeId.Dark, settings.Current.Theme);
     }
 
     private sealed class SettingsFiles : IDisposable

@@ -2,12 +2,12 @@ using Dameview.Serialization;
 
 namespace Dameview.Settings;
 
-// Start, Update, reload delivery, and Dispose belong to the UI thread.
-// Watcher callbacks only schedule a reload; they never mutate application state.
+// Start, Update, reload delivery, and Dispose belong to the owning thread.
+// Watcher callbacks only schedule a reload onto that thread; they never mutate application state.
 internal sealed class SettingsService : IDisposable
 {
     private readonly string _path;
-    private readonly SynchronizationContext _uiContext;
+    private readonly SynchronizationContext _ownerContext;
     private readonly Lock _gate = new();
     private readonly Timer _reloadTimer;
     private FileSystemWatcher? _watcher;
@@ -15,11 +15,11 @@ internal sealed class SettingsService : IDisposable
     private bool _disposed;
     private int _readAttempts;
 
-    internal SettingsService(string path, SynchronizationContext uiContext)
+    internal SettingsService(string path, SynchronizationContext ownerContext)
     {
         _path = Path.GetFullPath(path);
-        _uiContext = uiContext;
-        _reloadTimer = new Timer(_ => _uiContext.Post(_ => Reload(), null), null, Timeout.Infinite, Timeout.Infinite);
+        _ownerContext = ownerContext;
+        _reloadTimer = new Timer(_ => _ownerContext.Post(_ => Reload(), null), null, Timeout.Infinite, Timeout.Infinite);
     }
 
     internal static string DefaultPath => Path.Combine(

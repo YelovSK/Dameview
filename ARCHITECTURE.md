@@ -2,7 +2,7 @@
 
 Dameview is a Windows desktop application distributed as one Native AOT executable. It uses Win32 for the window and message loop, WIC for image decoding, and Direct2D for a custom-drawn UI.
 
-Production code is split between a platform-neutral `Dameview.Core` library and the Windows `Dameview` executable. The executable references Core, never the reverse, so the compiler prevents viewing and navigation code from depending on the Windows frontend. Folders within each project are responsibility boundaries rather than independently deployable layers.
+Production code is split between `Dameview.Core`, which contains headless application state and logic, and the Windows `Dameview` executable, which contains the frontend and native implementations. The executable references Core, never the reverse, so the compiler keeps Core independent of presentation and Windows-specific code. Folders within each project are responsibility boundaries rather than independently deployable layers.
 
 ## Runtime shape
 
@@ -46,9 +46,9 @@ The workspace is the source of truth for pane layout, active pane, tabs, and act
 
 `Platform` contains the Win32 boundary: the native window, input translation, synchronization with the message loop, installation, registration, and narrow native helpers.
 
-### Settings (`src/Dameview/Settings`)
+### Settings (`src/Dameview.Core/Settings`)
 
-`Settings` owns persistent application preferences and reports live changes through the UI synchronization context.
+`Settings` owns platform-neutral application preferences, their persistence, and live-change delivery. The frontend maps stable setting values such as theme identities and window placement onto UI palettes and native window operations.
 
 ### Updates (`src/Dameview/Updates`)
 
@@ -58,7 +58,7 @@ The workspace is the source of truth for pane layout, active pane, tabs, and act
 
 `Commands` defines the actions exposed by the application and the catalog used to invoke them.
 
-### Serialization (`src/Dameview/Serialization`)
+### Serialization (`src/Dameview.Core/Serialization`)
 
 `Serialization` contains the general parsing primitives used by persisted application data.
 

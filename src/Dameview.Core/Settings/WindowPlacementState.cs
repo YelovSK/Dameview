@@ -1,4 +1,4 @@
-namespace Dameview.Platform;
+namespace Dameview.Settings;
 
 internal sealed record WindowPlacementState
 {

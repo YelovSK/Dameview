@@ -332,7 +332,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
 
     public void ActivateUpdate() => _updates.Activate();
 
-    public void SetTheme(Theme theme) => _settings.Update(_settings.Current with { Theme = theme });
+    public void SetTheme(ThemeId theme) => _settings.Update(_settings.Current with { Theme = theme });
 
     public void SetAnimationsEnabled(bool enabled) =>
         _settings.Update(_settings.Current with { AnimationsEnabled = enabled });
@@ -352,8 +352,9 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _ui.ApplySettings(current);
         if (previous.Theme != current.Theme)
         {
-            _ui.Palette = current.Theme.Palette;
-            _window.SetTitleBarTheme(current.Theme.IsDark, current.Theme.Palette.Background, current.Theme.Palette.PrimaryText);
+            Theme theme = Themes.Get(current.Theme);
+            _ui.Palette = theme.Palette;
+            _window.SetTitleBarTheme(theme.IsDark, theme.Palette.Background, theme.Palette.PrimaryText);
         }
 
         if (previous.Sort != current.Sort)

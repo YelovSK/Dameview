@@ -1,8 +1,6 @@
 using System.Globalization;
 using Dameview.Navigation;
-using Dameview.Platform;
 using Dameview.Serialization;
-using Dameview.UI;
 
 namespace Dameview.Settings;
 
@@ -11,7 +9,7 @@ internal static class SettingsIniSerializer
     internal static AppSettings Read(string text)
     {
         var document = IniDocument.Parse(text);
-        Theme theme = ReadTheme(document.Get(string.Empty, "theme"));
+        ThemeId theme = ReadTheme(document.Get(string.Empty, "theme"));
         bool animationsEnabled = ReadOptionalBoolean(
             document.Get(string.Empty, "animations"),
             defaultValue: true);
@@ -20,7 +18,7 @@ internal static class SettingsIniSerializer
             document.Get(string.Empty, "galleryThumbnailSize"));
         float galleryWidth = ReadOptionalFloat(
             document.Get(string.Empty, "galleryWidth"),
-            UiDesign.DefaultGalleryWidth);
+            AppSettings.DefaultGalleryWidthDips);
         WindowPlacementState? window = !document.HasSection("window") ? null : new WindowPlacementState
         {
             X = ReadRequiredInt(document.Get("window", "x")),
@@ -61,15 +59,19 @@ internal static class SettingsIniSerializer
         return document.Write();
     }
 
-    private static Theme ReadTheme(string? value)
+    private static ThemeId ReadTheme(string? value) => value switch
     {
-        if (value is null)
-        {
-            return Themes.Dark;
-        }
-
-        return Themes.FromId(value) ?? throw new IniFormatException("Unknown theme value.");
-    }
+        null or "dark" => ThemeId.Dark,
+        "light" => ThemeId.Light,
+        "catppuccinFrappe" => ThemeId.CatppuccinFrappe,
+        "catppuccinMacchiato" => ThemeId.CatppuccinMacchiato,
+        "catppuccinMocha" => ThemeId.CatppuccinMocha,
+        "gruvboxDark" => ThemeId.GruvboxDark,
+        "nord" => ThemeId.Nord,
+        "dracula" => ThemeId.Dracula,
+        "rosePine" => ThemeId.RosePine,
+        _ => throw new IniFormatException("Unknown theme value."),
+    };
 
     private static FolderSort ReadSort(string? value) => value switch
     {
@@ -129,7 +131,19 @@ internal static class SettingsIniSerializer
         throw new IniFormatException("Expected a number.");
     }
 
-    private static string WriteTheme(Theme value) => value.Id;
+    private static string WriteTheme(ThemeId value) => value switch
+    {
+        ThemeId.Dark => "dark",
+        ThemeId.Light => "light",
+        ThemeId.CatppuccinFrappe => "catppuccinFrappe",
+        ThemeId.CatppuccinMacchiato => "catppuccinMacchiato",
+        ThemeId.CatppuccinMocha => "catppuccinMocha",
+        ThemeId.GruvboxDark => "gruvboxDark",
+        ThemeId.Nord => "nord",
+        ThemeId.Dracula => "dracula",
+        ThemeId.RosePine => "rosePine",
+        _ => throw new ArgumentOutOfRangeException(nameof(value)),
+    };
 
     private static string WriteGalleryThumbnailSize(GalleryThumbnailSize value) => value switch
     {

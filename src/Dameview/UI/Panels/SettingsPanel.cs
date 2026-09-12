@@ -41,7 +41,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
     ];
 
     private readonly Button _closeButton;
-    private readonly Dropdown<Theme> _themeDropdown;
+    private readonly Dropdown<ThemeId> _themeDropdown;
     private readonly Dropdown<GalleryThumbnailSize> _galleryThumbnailSizeDropdown;
     private readonly Toggle _animationsToggle;
     private readonly Dropdown<SortField> _sortField;
@@ -89,13 +89,13 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
             fontFamily: UiTypography.IconFontFamily,
             fontSize: 16.0f);
 
-        _themeDropdown = new Dropdown<Theme>(
+        _themeDropdown = new Dropdown<ThemeId>(
             factory,
             popupHost,
             Themes.All
-                .Select(theme => new DropdownOption<Theme>(theme.DisplayName, theme))
+                .Select(theme => new DropdownOption<ThemeId>(theme.DisplayName, theme.Id))
                 .ToArray(),
-            Themes.Dark,
+            ThemeId.Dark,
             _commands.SetTheme);
         _themeRow = new SettingsRow(factory, "Theme", _themeDropdown);
         _galleryThumbnailSizeDropdown = new Dropdown<GalleryThumbnailSize>(

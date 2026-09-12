@@ -2,7 +2,7 @@ using System.Text;
 
 namespace Dameview.Serialization;
 
-// Small, deliberately limited INI document. Values are opaque strings.
+// Small, deliberately limited INI document whose values are opaque strings.
 internal sealed class IniDocument
 {
     private readonly List<Entry> _entries = new();

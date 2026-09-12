@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
+using Dameview.Settings;
 using Dameview.UI;
 using Vortice.Mathematics;
 using Windows.Win32.Foundation;

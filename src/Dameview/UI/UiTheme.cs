@@ -1,3 +1,4 @@
+using Dameview.Settings;
 using Vortice.Mathematics;
 
 namespace Dameview.UI;
@@ -148,45 +149,45 @@ internal sealed record UiTheme(
 }
 
 /// <summary>A named theme option: a persisted identity, its display name, and its palette.</summary>
-internal sealed record Theme(string Id, string DisplayName, UiTheme Palette, bool IsDark);
+internal sealed record Theme(ThemeId Id, string DisplayName, UiTheme Palette, bool IsDark);
 
 /// <summary>The catalog of available themes.</summary>
 internal static class Themes
 {
-    internal static Theme Dark { get; } = new("dark", "Dark", UiTheme.Default, IsDark: true);
-    internal static Theme Light { get; } = new("light", "Light", UiTheme.Light, IsDark: false);
+    internal static Theme Dark { get; } = new(ThemeId.Dark, "Dark", UiTheme.Default, IsDark: true);
+    internal static Theme Light { get; } = new(ThemeId.Light, "Light", UiTheme.Light, IsDark: false);
     internal static Theme CatppuccinFrappe { get; } = new(
-        "catppuccinFrappe",
+        ThemeId.CatppuccinFrappe,
         "Catppuccin Frappé",
         UiTheme.CatppuccinFrappe,
         IsDark: true);
     internal static Theme CatppuccinMacchiato { get; } = new(
-        "catppuccinMacchiato",
+        ThemeId.CatppuccinMacchiato,
         "Catppuccin Macchiato",
         UiTheme.CatppuccinMacchiato,
         IsDark: true);
     internal static Theme CatppuccinMocha { get; } = new(
-        "catppuccinMocha",
+        ThemeId.CatppuccinMocha,
         "Catppuccin Mocha",
         UiTheme.CatppuccinMocha,
         IsDark: true);
     internal static Theme GruvboxDark { get; } = new(
-        "gruvboxDark",
+        ThemeId.GruvboxDark,
         "Gruvbox Dark",
         UiTheme.GruvboxDark,
         IsDark: true);
     internal static Theme Nord { get; } = new(
-        "nord",
+        ThemeId.Nord,
         "Nord",
         UiTheme.Nord,
         IsDark: true);
     internal static Theme Dracula { get; } = new(
-        "dracula",
+        ThemeId.Dracula,
         "Dracula",
         UiTheme.Dracula,
         IsDark: true);
     internal static Theme RosePine { get; } = new(
-        "rosePine",
+        ThemeId.RosePine,
         "Rosé Pine",
         UiTheme.RosePine,
         IsDark: true);
@@ -204,17 +205,17 @@ internal static class Themes
         RosePine,
     ];
 
-    internal static Theme? FromId(string id) => id switch
+    internal static Theme Get(ThemeId id) => id switch
     {
-        "dark" => Dark,
-        "light" => Light,
-        "catppuccinFrappe" => CatppuccinFrappe,
-        "catppuccinMacchiato" => CatppuccinMacchiato,
-        "catppuccinMocha" => CatppuccinMocha,
-        "gruvboxDark" => GruvboxDark,
-        "nord" => Nord,
-        "dracula" => Dracula,
-        "rosePine" => RosePine,
-        _ => null,
+        ThemeId.Dark => Dark,
+        ThemeId.Light => Light,
+        ThemeId.CatppuccinFrappe => CatppuccinFrappe,
+        ThemeId.CatppuccinMacchiato => CatppuccinMacchiato,
+        ThemeId.CatppuccinMocha => CatppuccinMocha,
+        ThemeId.GruvboxDark => GruvboxDark,
+        ThemeId.Nord => Nord,
+        ThemeId.Dracula => Dracula,
+        ThemeId.RosePine => RosePine,
+        _ => throw new ArgumentOutOfRangeException(nameof(id)),
     };
 }

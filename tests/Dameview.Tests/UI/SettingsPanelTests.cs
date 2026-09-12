@@ -164,13 +164,13 @@ public sealed class SettingsPanelTests
 
     private sealed class TestSettingsCommands : ISettingsCommands
     {
-        internal Action<Theme>? Theme { get; init; }
+        internal Action<ThemeId>? Theme { get; init; }
         internal Action<bool>? Animations { get; init; }
         internal Action<GalleryThumbnailSize>? GalleryThumbnailSize { get; init; }
         internal Action<FolderSort>? Sort { get; init; }
         internal Action? Activate { get; init; }
 
-        public void SetTheme(Theme theme) => Theme?.Invoke(theme);
+        public void SetTheme(ThemeId theme) => Theme?.Invoke(theme);
         public void SetAnimationsEnabled(bool enabled) => Animations?.Invoke(enabled);
         public void SetGalleryThumbnailSize(GalleryThumbnailSize size) => GalleryThumbnailSize?.Invoke(size);
         public void SetSort(FolderSort sort) => Sort?.Invoke(sort);
