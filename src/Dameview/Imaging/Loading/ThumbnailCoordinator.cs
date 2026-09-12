@@ -25,7 +25,7 @@ internal sealed class ThumbnailCoordinator : IThumbnailLoader, IDisposable
     private readonly SynchronizationContext _uiContext;
     private readonly Func<string, DecodedImage?> _load;
     private readonly DecodedImageCache _cache;
-    private readonly Dictionary<string, List<ThumbnailSubscription>> _pending =
+    private readonly Dictionary<string, PendingThumbnail> _pending =
         new(StringComparer.OrdinalIgnoreCase);
     private readonly BackgroundQueue<object?> _queue;
     private bool _stopping;
@@ -47,7 +47,7 @@ internal sealed class ThumbnailCoordinator : IThumbnailLoader, IDisposable
     {
         var subscription = new ThumbnailSubscription(completed);
         DecodedImage? cached = null;
-        bool enqueue = false;
+        PendingThumbnail? enqueue = null;
         lock (_sync)
         {
             ObjectDisposedException.ThrowIf(_stopping, this);
@@ -55,14 +55,20 @@ internal sealed class ThumbnailCoordinator : IThumbnailLoader, IDisposable
             {
                 // Delivery stays asynchronous, through the same UI boundary as a load.
             }
-            else if (_pending.TryGetValue(path, out List<ThumbnailSubscription>? pending))
+            else if (_pending.TryGetValue(path, out PendingThumbnail? pending))
             {
-                pending.Add(subscription);
+                pending.Subscriptions.Add(subscription);
+                if (!pending.IsLoading && priority > pending.Priority)
+                {
+                    pending.Priority = priority;
+                    enqueue = pending;
+                }
             }
             else
             {
-                _pending.Add(path, [subscription]);
-                enqueue = true;
+                var created = new PendingThumbnail(priority, subscription);
+                _pending.Add(path, created);
+                enqueue = created;
             }
         }
 
@@ -71,9 +77,9 @@ internal sealed class ThumbnailCoordinator : IThumbnailLoader, IDisposable
             DecodedImage image = cached;
             Post(() => subscription.Complete(image));
         }
-        else if (enqueue)
+        else if (enqueue is not null)
         {
-            _ = LoadAsync(path, priority);
+            _ = LoadAsync(path, enqueue, priority);
         }
 
         return subscription;
@@ -95,13 +101,16 @@ internal sealed class ThumbnailCoordinator : IThumbnailLoader, IDisposable
         _queue.Dispose();
     }
 
-    private async Task LoadAsync(string path, ThumbnailPriority priority)
+    private async Task LoadAsync(
+        string path,
+        PendingThumbnail request,
+        ThumbnailPriority priority)
     {
         DecodedImage? image = null;
         try
         {
             image = await _queue.Enqueue(
-                (_, _) => Load(path),
+                (_, _) => Load(path, request, priority),
                 (int)priority).ConfigureAwait(false);
         }
         catch (Exception)
@@ -113,9 +122,13 @@ internal sealed class ThumbnailCoordinator : IThumbnailLoader, IDisposable
         lock (_sync)
         {
             subscriptions = [];
-            if (_pending.Remove(path, out List<ThumbnailSubscription>? pending))
+            if (_pending.TryGetValue(path, out PendingThumbnail? pending)
+                && ReferenceEquals(pending, request)
+                && pending.Priority == priority
+                && (pending.IsLoading || image is null))
             {
-                subscriptions = pending;
+                _pending.Remove(path);
+                subscriptions = pending.Subscriptions;
             }
         }
 
@@ -131,7 +144,10 @@ internal sealed class ThumbnailCoordinator : IThumbnailLoader, IDisposable
         }
     }
 
-    private DecodedImage? Load(string path)
+    private DecodedImage? Load(
+        string path,
+        PendingThumbnail request,
+        ThumbnailPriority priority)
     {
         lock (_sync)
         {
@@ -140,12 +156,21 @@ internal sealed class ThumbnailCoordinator : IThumbnailLoader, IDisposable
                 return null;
             }
 
-            if (_pending.TryGetValue(path, out List<ThumbnailSubscription>? pending)
-                && pending.All(subscription => subscription.IsCancelled))
+            if (!_pending.TryGetValue(path, out PendingThumbnail? pending)
+                || !ReferenceEquals(pending, request)
+                || pending.IsLoading
+                || pending.Priority != priority)
+            {
+                return null;
+            }
+
+            if (pending.Subscriptions.All(subscription => subscription.IsCancelled))
             {
                 _pending.Remove(path);
                 return null;
             }
+
+            pending.IsLoading = true;
         }
 
         try
@@ -180,6 +205,15 @@ internal sealed class ThumbnailCoordinator : IThumbnailLoader, IDisposable
                 action();
             },
             null);
+    }
+
+    private sealed class PendingThumbnail(
+        ThumbnailPriority priority,
+        ThumbnailSubscription subscription)
+    {
+        internal ThumbnailPriority Priority { get; set; } = priority;
+        internal bool IsLoading { get; set; }
+        internal List<ThumbnailSubscription> Subscriptions { get; } = [subscription];
     }
 
     private sealed class ThumbnailSubscription(Action<DecodedImage> completed) : IDisposable

@@ -45,6 +45,62 @@ public sealed class ThumbnailCoordinatorTests
     }
 
     [TestMethod]
+    public void ForegroundRequestPromotesPendingGalleryThumbnail()
+    {
+        using var blockerStarted = new ManualResetEventSlim();
+        using var releaseBlocker = new ManualResetEventSlim();
+        using var loaded = new CountdownEvent(2);
+        using var posted = new BlockingCollection<Action>();
+        var loadOrder = new ConcurrentQueue<string>();
+        using var coordinator = new ThumbnailCoordinator(
+            path =>
+            {
+                if (path == "blocker.jpg")
+                {
+                    blockerStarted.Set();
+                    releaseBlocker.Wait();
+                }
+                else
+                {
+                    loadOrder.Enqueue(path);
+                    loaded.Signal();
+                }
+
+                return CreateImage();
+            },
+            new UiSynchronizationContext(posted.Add));
+
+        using IDisposable blocker = coordinator.Request(
+            "blocker.jpg",
+            ThumbnailPriority.Foreground,
+            _ => { });
+        Assert.IsTrue(blockerStarted.Wait(TimeSpan.FromSeconds(5)));
+        using IDisposable earlierGallery = coordinator.Request(
+            "earlier.jpg",
+            ThumbnailPriority.Gallery,
+            _ => { });
+        using IDisposable gallery = coordinator.Request(
+            "promoted.jpg",
+            ThumbnailPriority.Gallery,
+            _ => { });
+        using IDisposable foreground = coordinator.Request(
+            "promoted.jpg",
+            ThumbnailPriority.Foreground,
+            _ => { });
+        releaseBlocker.Set();
+
+        Assert.IsTrue(loaded.Wait(TimeSpan.FromSeconds(5)));
+        for (int index = 0; index < 4; index++)
+        {
+            Assert.IsTrue(posted.TryTake(out Action? delivery, TimeSpan.FromSeconds(5)));
+            delivery();
+        }
+
+        string[] expected = ["promoted.jpg", "earlier.jpg"];
+        CollectionAssert.AreEqual(expected, loadOrder.ToArray());
+    }
+
+    [TestMethod]
     public void CachedThumbnailDoesNotLoadAgain()
     {
         using var posted = new BlockingCollection<Action>();
