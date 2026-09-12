@@ -1,6 +1,6 @@
 namespace Dameview.Navigation;
 
-/// <summary>Finds supported image files in a directory without blocking the UI thread.</summary>
+/// <summary>Finds supported image files in a directory without blocking the caller.</summary>
 internal interface IFolderScanner
 {
     /// <summary>Scans a directory and returns file metadata in an arbitrary enumeration order.</summary>

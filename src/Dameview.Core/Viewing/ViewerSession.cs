@@ -3,7 +3,7 @@ using Dameview.Navigation;
 
 namespace Dameview.Viewing;
 
-// UI-thread owned. The loader delivers only the latest request on this thread.
+// Owner-thread confined. The monitor and loader deliver their results on this thread.
 // The session owns its monitor, loader, and the representation attached to its
 // currently displayed image.
 internal sealed class ViewerSession : IDisposable

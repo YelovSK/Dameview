@@ -1,7 +1,7 @@
 namespace Dameview.Imaging;
 
 // Owns the resources needed to present one accepted image. ViewerSession owns the
-// representation; UI components borrow it and own only their graphics resources.
+// representation; presentation consumers borrow it and own their graphics resources.
 internal abstract class ImageRepresentation(int width, int height) : IDisposable
 {
     private bool _disposed;

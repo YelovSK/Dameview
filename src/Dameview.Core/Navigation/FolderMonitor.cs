@@ -20,7 +20,7 @@ internal sealed class FolderMonitor : IFolderMonitor
 
     private readonly IFolderScanner _scanner;
     private readonly IFolderWatcher _watcher;
-    private readonly SynchronizationContext _uiContext;
+    private readonly SynchronizationContext _ownerContext;
     private readonly int _debounceMilliseconds;
     private readonly Lock _gate = new();
     private readonly Timer _debounceTimer;
@@ -30,12 +30,12 @@ internal sealed class FolderMonitor : IFolderMonitor
     internal FolderMonitor(
         IFolderScanner scanner,
         IFolderWatcher watcher,
-        SynchronizationContext uiContext,
+        SynchronizationContext ownerContext,
         int debounceMilliseconds = DefaultDebounceMilliseconds)
     {
         _scanner = scanner;
         _watcher = watcher;
-        _uiContext = uiContext;
+        _ownerContext = ownerContext;
         _debounceMilliseconds = debounceMilliseconds;
         _debounceTimer = new Timer(_ => HandleDebounceTimer(), null, Timeout.Infinite, Timeout.Infinite);
         _watcher.Changed += ScheduleDebounceIfSupported;
@@ -195,7 +195,7 @@ internal sealed class FolderMonitor : IFolderMonitor
             return;
         }
 
-        PostToUi(() =>
+        PostToOwner(() =>
         {
             if (_disposed || token.IsCancellationRequested)
             {
@@ -206,7 +206,7 @@ internal sealed class FolderMonitor : IFolderMonitor
         });
     }
 
-    private void PostToUi(Action action) => _uiContext.Post(_ => action(), null);
+    private void PostToOwner(Action action) => _ownerContext.Post(_ => action(), null);
 
     private static bool IsRecoverableError(Exception exception)
     {

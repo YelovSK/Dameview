@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 
 namespace Dameview.Imaging;
 
-// Owns temporary CPU pixels used to upload one static image to Direct2D.
+// Owns temporary CPU pixels used to upload one static image to a graphics backend.
 internal sealed unsafe class DecodedImageUpload : IDisposable
 {
     private readonly SharedPixels _shared;
