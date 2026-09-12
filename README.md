@@ -13,6 +13,8 @@ https://github.com/user-attachments/assets/3f427e63-679a-4f7d-805f-54f9f93250a2
 - WIC for image decoding
 - Custom-drawn UI
 
+More in [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ## Features
 
 - A single <4 MB executable
