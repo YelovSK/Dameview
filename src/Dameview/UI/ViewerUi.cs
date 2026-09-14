@@ -42,6 +42,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private ViewerPane _activePane;
     private ViewerPaneView _activePaneView;
     private bool _animationsEnabled = true;
+    private bool _chromeVisible = true;
 
     internal ViewerUi(
         ID2D1DeviceContext deviceContext,
@@ -167,7 +168,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         MathF.Max(1.0f, _root.DipsToPixels(_workspaceView.Bounds.Width)),
         MathF.Max(1.0f, _root.DipsToPixels(_workspaceView.Bounds.Height)),
         _root.DipsToPixels(SplitPanel.SplitterSizeDips),
-        _root.DipsToPixels(ViewerTabStrip.HeightDips),
+        _chromeVisible ? _root.DipsToPixels(ViewerTabStrip.HeightDips) : 0.0f,
         _root.DipsToPixels(SplitPanel.MinimumPaneSizeDips));
 
     internal PointF GetImageViewportPoint(PointF nativePoint)
@@ -208,6 +209,11 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _root.ClearPointer();
         _tabPreview.Hide();
         _workspaceView.ApplyLayout(root, openingSplit);
+        foreach (ViewerPaneView paneView in _workspaceView.PaneViews)
+        {
+            paneView.SetChromeVisible(_chromeVisible);
+        }
+
         _activePaneView = FindPaneView(_activePane)
             ?? throw new InvalidOperationException("The active pane view is not attached.");
         _activePaneView.SettingsError = _settingsPanel.Error;
@@ -268,6 +274,17 @@ internal sealed class ViewerUi : UiElement, IDisposable
     }
 
     internal void ApplyUpdateState(UpdateState state) => _settingsPanel.ApplyUpdateState(state);
+
+    internal void SetFullscreen(bool fullscreen)
+    {
+        _chromeVisible = !fullscreen;
+        foreach (ViewerPaneView paneView in _workspaceView.PaneViews)
+        {
+            paneView.SetChromeVisible(_chromeVisible);
+        }
+
+        ApplyActivePaneState(_activePane.ActiveSession.State, showToolbar: false);
+    }
 
     internal void ApplyTabs(ViewerPane pane, IReadOnlyList<ViewerTabInfo> tabs, int selectedIndex)
     {
@@ -506,13 +523,13 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private void ApplyActivePaneState(ViewerSessionState state, bool showToolbar)
     {
         bool hasImage = state.DisplayedImage is not null;
-        _toolbarPanel.IsVisible = hasImage;
-        if (showToolbar)
+        _toolbarPanel.IsVisible = _chromeVisible && hasImage;
+        if (_chromeVisible && showToolbar)
         {
             _toolbarPanel.Show();
         }
 
-        _galleryPanel.IsVisible = ShouldShowGallery(state);
+        _galleryPanel.IsVisible = _chromeVisible && ShouldShowGallery(state);
         _splitView.SecondPaneVisible = _galleryPanel.IsVisible;
         _galleryPanel.ApplyState(state.FolderEntries, state.RequestedPath);
     }

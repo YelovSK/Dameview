@@ -266,6 +266,12 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             return;
         }
 
+        if (input.Key == WindowKey.Escape && _window.IsFullscreen)
+        {
+            ToggleFullscreen();
+            return;
+        }
+
         if (ViewerKeyBindings.TryGetCommand(ViewerKeyBindings.Viewer, input, out command))
         {
             if (command == ViewerCommandId.ShowActualSize)
@@ -324,6 +330,10 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
                 ShowActualSize();
                 break;
 
+            case ViewerCommandId.ToggleFullscreen:
+                ToggleFullscreen();
+                break;
+
             case ViewerCommandId.SplitRight:
                 SplitRight();
                 break;
@@ -368,6 +378,12 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _settings.Update(_settings.Current with { GalleryThumbnailSize = size });
 
     public void SetSort(FolderSort sort) => _settings.Update(_settings.Current with { Sort = sort });
+
+    private void ToggleFullscreen()
+    {
+        _window.ToggleFullscreen();
+        _ui.SetFullscreen(_window.IsFullscreen);
+    }
 
     private void ApplySettings(AppSettings previous, AppSettings current)
     {

@@ -23,6 +23,7 @@ internal enum WindowKey : uint
     T = 0x54,
     W = 0x57,
     Numpad1 = 0x61,
+    F11 = 0x7A,
     Comma = 0xBC,
 }
 

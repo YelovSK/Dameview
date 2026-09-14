@@ -43,7 +43,9 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
             .. commands.Select(command => new CommandItem(
                 factory,
                 command,
-                ViewerKeyBindings.GetPrimaryShortcut(command.Id),
+                string.Join(
+                    ", ",
+                    ViewerKeyBindings.GetShortcuts(command.Id).Select(shortcut => shortcut.DisplayText)),
                 () => execute(command.Id))),
         ];
         var itemList = new StackPanel(
@@ -215,18 +217,18 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
         internal CommandItem(
             IDWriteFactory factory,
             ViewerCommand command,
-            ViewerCommandShortcut? shortcut,
+            string shortcutText,
             Action execute)
         {
             Command = command;
-            Shortcut = shortcut;
+            ShortcutText = shortcutText;
             _execute = execute;
             _labelFormat = CreateFormat(factory, TextAlignment.Leading, FontWeight.Medium);
             _shortcutFormat = CreateFormat(factory, TextAlignment.Trailing, FontWeight.Normal);
         }
 
         internal ViewerCommand Command { get; }
-        internal ViewerCommandShortcut? Shortcut { get; }
+        internal string ShortcutText { get; }
         internal bool IsSelected
         {
             get => HasVisualState(UiVisualState.Selected);
@@ -273,10 +275,10 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
                 new Rect(horizontalPadding, 0.0f, labelRight, Bounds.Height),
                 context.Palette.PrimaryText,
                 DrawTextOptions.Clip);
-            if (Shortcut is { } shortcut)
+            if (ShortcutText.Length > 0)
             {
                 context.DrawText(
-                    shortcut.DisplayText,
+                    ShortcutText,
                     _shortcutFormat,
                     new Rect(
                         labelRight,

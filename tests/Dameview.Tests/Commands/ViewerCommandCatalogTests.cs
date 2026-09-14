@@ -39,6 +39,18 @@ public sealed class ViewerCommandCatalogTests
         Assert.AreEqual(ViewerCommandId.SplitRight, splitRight);
 
         Assert.IsTrue(ViewerKeyBindings.TryGetCommand(
+            ViewerKeyBindings.Window,
+            new WindowKeyEvent(WindowKey.F11),
+            out ViewerCommandId fullscreen));
+        Assert.AreEqual(ViewerCommandId.ToggleFullscreen, fullscreen);
+
+        Assert.IsTrue(ViewerKeyBindings.TryGetCommand(
+            ViewerKeyBindings.Window,
+            new WindowKeyEvent(WindowKey.F, Control: true),
+            out fullscreen));
+        Assert.AreEqual(ViewerCommandId.ToggleFullscreen, fullscreen);
+
+        Assert.IsTrue(ViewerKeyBindings.TryGetCommand(
             ViewerKeyBindings.Viewer,
             new WindowKeyEvent(WindowKey.Left),
             out ViewerCommandId previousImage));
@@ -75,14 +87,23 @@ public sealed class ViewerCommandCatalogTests
         Assert.AreEqual(
             "Ctrl+Shift+P",
             new ViewerCommandShortcut(WindowKey.P, Control: true, Shift: true).DisplayText);
-        Assert.AreEqual(
-            "1",
-            ViewerKeyBindings.GetPrimaryShortcut(ViewerCommandId.ShowActualSize)?.DisplayText);
+        string[] expectedActualSize = ["1", "Numpad1"];
+        CollectionAssert.AreEqual(
+            expectedActualSize,
+            ViewerKeyBindings.GetShortcuts(ViewerCommandId.ShowActualSize)
+                .Select(shortcut => shortcut.DisplayText)
+                .ToArray());
         Assert.AreEqual(
             "Ctrl+S",
-            ViewerKeyBindings.GetPrimaryShortcut(ViewerCommandId.SplitDown)?.DisplayText);
+            ViewerKeyBindings.GetShortcuts(ViewerCommandId.SplitDown).Single().DisplayText);
         Assert.AreEqual(
             "Ctrl+Shift+S",
-            ViewerKeyBindings.GetPrimaryShortcut(ViewerCommandId.SplitRight)?.DisplayText);
+            ViewerKeyBindings.GetShortcuts(ViewerCommandId.SplitRight).Single().DisplayText);
+        string[] expectedFullscreen = ["F11", "Ctrl+F"];
+        CollectionAssert.AreEqual(
+            expectedFullscreen,
+            ViewerKeyBindings.GetShortcuts(ViewerCommandId.ToggleFullscreen)
+                .Select(shortcut => shortcut.DisplayText)
+                .ToArray());
     }
 }

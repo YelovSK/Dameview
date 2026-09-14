@@ -25,6 +25,8 @@ internal sealed unsafe class AppWindow : IDisposable
     private GCHandle _selfHandle;
     private Exception? _unhandledException;
     private bool _frameRequested;
+    private WINDOWPLACEMENT? _windowedPlacement;
+    private WINDOW_STYLE _windowedStyle;
     private SHOW_WINDOW_CMD _initialShowCommand = SHOW_WINDOW_CMD.SW_SHOWNORMAL;
     private WindowPlacementState? _lastPlacement;
     private WindowCursor _cursor = WindowCursor.Default;
@@ -70,6 +72,7 @@ internal sealed unsafe class AppWindow : IDisposable
     internal int ClientWidth { get; private set; }
     internal int ClientHeight { get; private set; }
     internal float Dpi { get; private set; }
+    internal bool IsFullscreen => _windowedPlacement.HasValue;
 
     internal void ApplyCursor(WindowCursor cursor)
     {
@@ -144,6 +147,82 @@ internal sealed unsafe class AppWindow : IDisposable
         }
     }
 
+    internal void ToggleFullscreen()
+    {
+        if (_windowedPlacement is null)
+        {
+            EnterFullscreen();
+        }
+        else
+        {
+            ExitFullscreen();
+        }
+    }
+
+    private void EnterFullscreen()
+    {
+        WINDOWPLACEMENT placement = new() { length = (uint)sizeof(WINDOWPLACEMENT) };
+        HMONITOR monitor = MonitorFromWindow(
+            (HWND)Handle,
+            MONITOR_FROM_FLAGS.MONITOR_DEFAULTTONEAREST);
+        MONITORINFO monitorInfo = new() { cbSize = (uint)sizeof(MONITORINFO) };
+        if (!GetWindowPlacement((HWND)Handle, ref placement)
+            || monitor.IsNull
+            || !GetMonitorInfo(monitor, ref monitorInfo))
+        {
+            return;
+        }
+
+        _windowedPlacement = placement;
+        _windowedStyle = (WINDOW_STYLE)(nuint)GetWindowLongPtr(
+            (HWND)Handle,
+            WINDOW_LONG_PTR_INDEX.GWL_STYLE);
+        _ = SetWindowLongPtr(
+            (HWND)Handle,
+            WINDOW_LONG_PTR_INDEX.GWL_STYLE,
+            (nint)(nuint)(_windowedStyle & ~WINDOW_STYLE.WS_OVERLAPPEDWINDOW));
+
+        RECT bounds = monitorInfo.rcMonitor;
+        SetWindowPos(
+            (HWND)Handle,
+            default,
+            bounds.left,
+            bounds.top,
+            bounds.Width,
+            bounds.Height,
+            SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE
+                | SET_WINDOW_POS_FLAGS.SWP_NOOWNERZORDER
+                | SET_WINDOW_POS_FLAGS.SWP_FRAMECHANGED);
+    }
+
+    private void ExitFullscreen()
+    {
+        if (_windowedPlacement is not { } placement)
+        {
+            return;
+        }
+
+        _ = SetWindowLongPtr(
+            (HWND)Handle,
+            WINDOW_LONG_PTR_INDEX.GWL_STYLE,
+            (nint)(nuint)_windowedStyle);
+        _ = SetWindowPlacement((HWND)Handle, in placement);
+        SetWindowPos(
+            (HWND)Handle,
+            default,
+            0,
+            0,
+            0,
+            0,
+            SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE
+                | SET_WINDOW_POS_FLAGS.SWP_NOOWNERZORDER
+                | SET_WINDOW_POS_FLAGS.SWP_NOMOVE
+                | SET_WINDOW_POS_FLAGS.SWP_NOSIZE
+                | SET_WINDOW_POS_FLAGS.SWP_NOZORDER
+                | SET_WINDOW_POS_FLAGS.SWP_FRAMECHANGED);
+        _windowedPlacement = null;
+    }
+
     internal void RestorePlacement(WindowPlacementState placement)
     {
         if (!placement.IsUsable)
@@ -170,6 +249,11 @@ internal sealed unsafe class AppWindow : IDisposable
 
     internal WindowPlacementState CapturePlacement()
     {
+        if (_windowedPlacement is { } windowedPlacement)
+        {
+            return ToPlacementState(windowedPlacement);
+        }
+
         if (Handle == 0)
         {
             return _lastPlacement ?? new WindowPlacementState
@@ -194,6 +278,11 @@ internal sealed unsafe class AppWindow : IDisposable
             };
         }
 
+        return ToPlacementState(native);
+    }
+
+    private static WindowPlacementState ToPlacementState(WINDOWPLACEMENT native)
+    {
         RECT normal = native.rcNormalPosition;
         return new WindowPlacementState
         {
@@ -538,7 +627,7 @@ internal sealed unsafe class AppWindow : IDisposable
                 return default;
 
             case WM_DESTROY:
-                WindowPlacementState placement = CapturePlacement(window);
+                WindowPlacementState placement = CapturePlacement();
                 if (placement.IsUsable)
                 {
                     _lastPlacement = placement;

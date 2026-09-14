@@ -12,6 +12,7 @@ internal enum ViewerCommandId
     NextImage,
     FitImage,
     ShowActualSize,
+    ToggleFullscreen,
     SplitRight,
     SplitDown,
     EqualizePanes,
@@ -59,6 +60,7 @@ internal static class ViewerCommandCatalog
         new(ViewerCommandId.NextImage, "Next image"),
         new(ViewerCommandId.FitImage, "Fit image"),
         new(ViewerCommandId.ShowActualSize, "Show actual size"),
+        new(ViewerCommandId.ToggleFullscreen, "Toggle fullscreen"),
         new(ViewerCommandId.SplitRight, "Split right"),
         new(ViewerCommandId.SplitDown, "Split down"),
         new(ViewerCommandId.EqualizePanes, "Equalize pane layout"),
@@ -80,6 +82,8 @@ internal static class ViewerKeyBindings
         new(ViewerCommandId.SplitRight, new(WindowKey.S, Control: true, Shift: true)),
         new(ViewerCommandId.ShowSettings, new(WindowKey.Comma, Control: true)),
         new(ViewerCommandId.ShowCommandPalette, new(WindowKey.P, Control: true, Shift: true)),
+        new(ViewerCommandId.ToggleFullscreen, new(WindowKey.F11)),
+        new(ViewerCommandId.ToggleFullscreen, new(WindowKey.F, Control: true)),
     ];
 
     internal static IReadOnlyList<ViewerKeyBinding> Viewer { get; } =
@@ -109,16 +113,8 @@ internal static class ViewerKeyBindings
         return false;
     }
 
-    internal static ViewerCommandShortcut? GetPrimaryShortcut(ViewerCommandId command)
-    {
-        foreach (ViewerKeyBinding binding in Window.Concat(Viewer))
-        {
-            if (binding.Command == command)
-            {
-                return binding.Shortcut;
-            }
-        }
-
-        return null;
-    }
+    internal static IReadOnlyList<ViewerCommandShortcut> GetShortcuts(ViewerCommandId command) =>
+        [.. Window.Concat(Viewer)
+            .Where(binding => binding.Command == command)
+            .Select(binding => binding.Shortcut)];
 }

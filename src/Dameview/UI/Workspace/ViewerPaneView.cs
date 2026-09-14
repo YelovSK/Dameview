@@ -23,6 +23,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     private readonly ActivePaneIndicator _activePaneIndicator;
     private readonly Action<ViewerPane, ViewerTabInfo?, RectangleF> _hoveredTabChanged;
     private ViewerSessionState _state;
+    private bool _chromeVisible = true;
 
     internal ViewerPaneView(
         ID2D1DeviceContext deviceContext,
@@ -90,6 +91,18 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     internal TimeSpan? NextAnimationFrameDelay => _imagePanel.NextAnimationFrameDelay;
     internal RectangleF TabStripBounds => _viewerTabs.GetBoundsRelativeTo(this);
 
+    internal void SetChromeVisible(bool visible)
+    {
+        if (_chromeVisible == visible)
+        {
+            return;
+        }
+
+        _chromeVisible = visible;
+        _viewerTabs.IsVisible = visible;
+        _statusPanel.IsVisible = visible && HasStatus;
+    }
+
     internal bool ShowActivePaneIndicator
     {
         get => _activePaneIndicator.IsVisible;
@@ -107,7 +120,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             }
 
             field = value;
-            _statusPanel.IsVisible = HasStatus;
+            _statusPanel.IsVisible = _chromeVisible && HasStatus;
             InvalidateVisual();
         }
     }
@@ -143,7 +156,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         bool hasImage = HasImage;
         _imagePanel.IsVisible = hasImage;
         _emptyStatePanel.IsVisible = !hasImage;
-        _statusPanel.IsVisible = HasStatus;
+        _statusPanel.IsVisible = _chromeVisible && HasStatus;
         InvalidateVisual();
     }
 
@@ -192,8 +205,9 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
 
     protected override SizeF MeasureCore(SizeF availableSize)
     {
-        float tabHeight = _viewerTabs.Measure(
-            new SizeF(availableSize.Width, ViewerTabStrip.HeightDips)).Height;
+        float tabHeight = _viewerTabs.IsVisible
+            ? _viewerTabs.Measure(new SizeF(availableSize.Width, ViewerTabStrip.HeightDips)).Height
+            : 0.0f;
         var contentSize = new SizeF(
             availableSize.Width,
             MathF.Max(0.0f, availableSize.Height - tabHeight));
@@ -208,7 +222,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
 
     protected override void ArrangeCore(SizeF finalSize)
     {
-        float tabHeight = ViewerTabStrip.HeightDips;
+        float tabHeight = _viewerTabs.IsVisible ? ViewerTabStrip.HeightDips : 0.0f;
         _viewerTabs.Arrange(new RectangleF(0.0f, 0.0f, finalSize.Width, tabHeight));
         ContentBounds = new RectangleF(
             0.0f,
@@ -219,7 +233,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
 
         RectangleF status = ViewerLayout.Calculate(
             ContentBounds.Size,
-            showStatus: HasStatus,
+            showStatus: _chromeVisible && HasStatus,
             showToolbar: false).Status;
         status.Offset(ContentBounds.Location);
         _statusPanel.Arrange(status);
