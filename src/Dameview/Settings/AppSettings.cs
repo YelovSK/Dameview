@@ -1,4 +1,5 @@
 using Dameview.Navigation;
+using Dameview.Platform;
 using Dameview.Serialization;
 
 namespace Dameview.Settings;
@@ -49,7 +50,7 @@ internal sealed record AppSettings
             throw new IniFormatException("Gallery width is invalid.");
         }
 
-        if (Window is not null && !Window.IsUsable)
+        if (Window is { } window && (window.Width < 320 || window.Height < 240))
         {
             throw new IniFormatException("Window dimensions are too small.");
         }

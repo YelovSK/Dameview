@@ -15,7 +15,7 @@ public sealed class PresentationImageLoaderTests
         using var firstCompleted = new ManualResetEventSlim();
         int decodeCount = 0;
         using var service = new ImageLoadService(
-            new UiSynchronizationContext(action => action()),
+            new WindowSynchronizationContext(action => action()),
             new FakeBackend(() =>
             {
                 Interlocked.Increment(ref decodeCount);
@@ -56,7 +56,7 @@ public sealed class PresentationImageLoaderTests
     {
         int decodeCount = 0;
         using var service = new ImageLoadService(
-            new UiSynchronizationContext(action => action()),
+            new WindowSynchronizationContext(action => action()),
             new FakeBackend(() =>
             {
                 Interlocked.Increment(ref decodeCount);

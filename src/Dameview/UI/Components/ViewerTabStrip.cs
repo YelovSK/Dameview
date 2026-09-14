@@ -75,7 +75,7 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
     }
 
     internal float ScrollOffset => _scrollOffset.Offset;
-    internal override UiCursor Cursor => _hoveredIndex >= 0 ? UiCursor.Pointer : UiCursor.Default;
+    internal override WindowCursor Cursor => _hoveredIndex >= 0 ? WindowCursor.Pointer : WindowCursor.Default;
 
     internal int GetInsertionIndex(PointF position)
     {
@@ -127,12 +127,12 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
         InvalidateVisual();
     }
 
-    internal override UiPointerResult OnPointerEvent(in UiPointerEvent input)
+    internal override UiPointerResult OnPointerEvent(in WindowPointerEvent input)
     {
         (int index, bool close) = HitTestTab(input.Position);
         switch (input.Kind)
         {
-            case UiPointerEventKind.Moved:
+            case WindowPointerEventKind.Moved:
                 if (_pressedIndex >= 0)
                 {
                     if (!_dragging && HasCrossedDragThreshold(input.Position))
@@ -160,7 +160,7 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
                 _hoveringClose = close;
                 return new UiPointerResult(Consumed: true, NeedsRepaint: changed);
 
-            case UiPointerEventKind.Pressed when input.Button == PointerButton.Primary:
+            case WindowPointerEventKind.Pressed when input.Button == PointerButton.Primary:
                 _hoveredTabChanged?.Invoke(null, RectangleF.Empty);
                 if (index >= 0)
                 {
@@ -186,7 +186,7 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
                     NeedsRepaint: index >= 0,
                     CapturePointer: index >= 0 && !close);
 
-            case UiPointerEventKind.Pressed when input.Button == PointerButton.Middle:
+            case WindowPointerEventKind.Pressed when input.Button == PointerButton.Middle:
                 _hoveredTabChanged?.Invoke(null, RectangleF.Empty);
                 if (index >= 0)
                 {
@@ -195,7 +195,7 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
 
                 return new UiPointerResult(Consumed: true, NeedsRepaint: index >= 0);
 
-            case UiPointerEventKind.Released:
+            case WindowPointerEventKind.Released:
                 if (_dragging)
                 {
                     _dragPointer?.Invoke(
@@ -208,7 +208,7 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
                 _dragging = false;
                 return new UiPointerResult(Consumed: true, NeedsRepaint: wasDragging);
 
-            case UiPointerEventKind.Cancelled:
+            case WindowPointerEventKind.Cancelled:
                 if (_dragging)
                 {
                     _dragPointer?.Invoke(
@@ -221,7 +221,7 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
                 _dragging = false;
                 return new UiPointerResult(Consumed: true, NeedsRepaint: cancelledDrag);
 
-            case UiPointerEventKind.Wheel:
+            case WindowPointerEventKind.Wheel:
                 SetHoveredTab(-1);
                 _hoveringClose = false;
                 bool scrollChanged = _scrollOffset.ScrollBy(

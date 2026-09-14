@@ -13,10 +13,10 @@ internal sealed unsafe class WinHttpRequest : IDisposable
     private readonly WinHttpHandle _connection;
     private readonly WinHttpHandle _request;
 
-    private WinHttpRequest(string host, string method, string path)
+    private WinHttpRequest(string host, string method, string path, string userAgent)
     {
         _session = WinHttpHandle.Create(WinHttpOpen(
-            "Dameview",
+            userAgent,
             WINHTTP_ACCESS_TYPE.WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
             null,
             null,
@@ -63,9 +63,9 @@ internal sealed unsafe class WinHttpRequest : IDisposable
         }
     }
 
-    internal static WinHttpRequest Send(string host, string method, string path)
+    internal static WinHttpRequest Send(string host, string method, string path, string userAgent)
     {
-        var request = new WinHttpRequest(host, method, path);
+        var request = new WinHttpRequest(host, method, path, userAgent);
         try
         {
             RequireSuccess(WinHttpSendRequest(

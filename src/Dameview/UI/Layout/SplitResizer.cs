@@ -19,9 +19,9 @@ internal sealed class SplitResizer(ISplitResizerTarget target) : UiElement
 
     internal override bool IsHitTestVisible => target.CanResize;
     internal override bool PreservesFocusOnPointerPress => true;
-    internal override UiCursor Cursor => target.Orientation == UiOrientation.Horizontal
-        ? UiCursor.ResizeHorizontal
-        : UiCursor.ResizeVertical;
+    internal override WindowCursor Cursor => target.Orientation == UiOrientation.Horizontal
+        ? WindowCursor.ResizeHorizontal
+        : WindowCursor.ResizeVertical;
 
     protected override void DrawCore(in UiDrawContext context)
     {
@@ -51,25 +51,25 @@ internal sealed class SplitResizer(ISplitResizerTarget target) : UiElement
             _dragging ? 1.0f : highlighted ? 0.9f : 0.65f);
     }
 
-    internal override UiPointerResult OnPointerEvent(in UiPointerEvent input)
+    internal override UiPointerResult OnPointerEvent(in WindowPointerEvent input)
     {
         switch (input.Kind)
         {
-            case UiPointerEventKind.Pressed when input.Button == PointerButton.Primary:
+            case WindowPointerEventKind.Pressed when input.Button == PointerButton.Primary:
                 _dragging = true;
                 _dragStartPointer = GetPointerCoordinate(input.Position);
                 _dragStartPosition = target.DividerPosition;
                 return new UiPointerResult(Consumed: true, CapturePointer: true, NeedsRepaint: true);
 
-            case UiPointerEventKind.Moved when _dragging:
+            case WindowPointerEventKind.Moved when _dragging:
                 target.DividerPosition = _dragStartPosition + GetPointerCoordinate(input.Position) - _dragStartPointer;
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
-            case UiPointerEventKind.Released when _dragging:
+            case WindowPointerEventKind.Released when _dragging:
                 _dragging = false;
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
-            case UiPointerEventKind.Cancelled when _dragging:
+            case WindowPointerEventKind.Cancelled when _dragging:
                 _dragging = false;
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 

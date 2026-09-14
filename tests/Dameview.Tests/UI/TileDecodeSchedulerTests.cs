@@ -48,7 +48,7 @@ public sealed class TileDecodeSchedulerTests
                 completed.Add(tile);
             },
             workerCount,
-            new UiSynchronizationContext(posted.Add));
+            new WindowSynchronizationContext(posted.Add));
         ImageTile[] oldTiles = CreateTiles(0, 100);
         ImageTile[] newTiles = CreateTiles(1_000, 100);
 
@@ -99,7 +99,7 @@ public sealed class TileDecodeSchedulerTests
                 (image is null ? failed : completed).Add(tile);
             },
             maximumWorkers: 1,
-            uiContext: new UiSynchronizationContext(posted.Add));
+            uiContext: new WindowSynchronizationContext(posted.Add));
 
         scheduler.ReplaceRequests([failedTile, healthyTile]);
         TakePostedAction(posted)();
@@ -133,7 +133,7 @@ public sealed class TileDecodeSchedulerTests
             source,
             (_, _) => { },
             maximumWorkers: 1,
-            uiContext: new UiSynchronizationContext(_ => { }));
+            uiContext: new WindowSynchronizationContext(_ => { }));
 
         scheduler.ReplaceRequests([new ImageTile(0, 0, 1, 1)]);
         Assert.IsTrue(started.Wait(TimeSpan.FromSeconds(5)));

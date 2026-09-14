@@ -1,65 +1,102 @@
 # Architecture
 
-Dameview is a Windows desktop application distributed as one Native AOT executable. It uses Win32 for the window and message loop, WIC for image decoding, and Direct2D for a custom-drawn UI.
+Dameview is a Windows image viewer distributed as a single Native AOT executable. It uses Win32 for the window and message loop, WIC for image decoding, and Direct2D for rendering its custom UI.
 
-Production code is split between `Dameview.Core`, which contains headless application state and logic, and the Windows `Dameview` executable, which contains the frontend and native implementations. The executable references Core, never the reverse, so the compiler keeps Core independent of presentation and Windows-specific code. Folders within each project are responsibility boundaries rather than independently deployable layers.
+## Project boundaries
 
-## Runtime shape
+Production code is split into three projects:
 
-`Program` selects between update, installation, and normal viewer startup. In viewer mode, `DameviewApp` is the composition root: it creates the window, renderer, workspace, shared services, and UI, then connects them with events.
+- `Dameview.Core` contains application state and logic that does not depend on Windows, rendering, or UI code.
+- `Dameview.Win32` contains low-level Windows mechanisms such as windowing, input translation, COM-initialized worker queues, the WinHTTP transport, and shell integration. These mechanisms do not depend on Core or the executable's application model.
+- `Dameview` is the executable. It contains the frontend and application-specific workflows, and references both libraries.
 
-The normal interaction flow is:
+The project graph is deliberately one-way:
 
-1. `AppWindow` translates Win32 messages into application-level input and window events.
-2. `DameviewApp` routes those events to the UI or executes a viewer command.
-3. The `Viewing` subsystem changes the workspace or active viewing session.
-4. Viewing events cause the relevant UI state to be rebound and a frame to be requested.
-5. `D2DRenderer` renders the custom UI tree when the window asks for a frame.
+```text
+Dameview -> Dameview.Core
+Dameview -> Dameview.Win32
+```
 
-Most mutable application and graphics state belongs to the UI thread. File scanning, decoding, thumbnail generation, tile loading, and update work may run in the background, but results are posted back to the UI thread before they affect application state or Direct2D resources.
+`Dameview.Win32` is not intended to contain every Windows-specific implementation. WIC decoding and Direct2D rendering remain in the executable because they implement Dameview's imaging and presentation workflows.
 
-## Subsystems
+Within a project, folders and namespaces group related responsibilities; they are not independent layers and do not have a separately enforced dependency graph. Some responsibilities span projects, with platform-neutral state and policy in Core and application-specific implementations in the executable.
 
-### Viewing (`src/Dameview.Core/Viewing`)
+## Runtime flow
 
-`Viewing` owns the logical state of an open workspace independently of its presentation. A workspace is a binary tree of panes and splits. Each pane owns tabs, and each tab owns a viewing session plus the per-tab services used by that session. A session owns navigation state, the accepted image representation, and the viewport.
+`Dameview` is a multi-mode executable. `Program` selects viewer, installer/uninstaller, or update-helper mode. In viewer mode, `DameviewApp` is the composition root: it creates the window, renderer, workspace, services, and UI, then connects them.
 
-The workspace is the source of truth for pane layout, active pane, tabs, and active sessions. The UI observes and presents that state; it should not maintain a separate copy of the workspace state.
+The main interaction flow is:
 
-### Imaging (`src/Dameview.Core/Imaging`, `src/Dameview/Imaging`)
+1. `AppWindow` translates native window messages into window and input events.
+2. `DameviewApp` routes those events to the UI or application commands.
+3. Commands and UI actions update the workspace or an active viewing session.
+4. State changes update the presentation and request a frame.
+5. `D2DRenderer` draws the frame supplied by the UI.
 
-`Imaging` turns a path into a presentation-appropriate image representation. Core contains the representations, policies, and loading contracts used by viewing; the executable contains the shared loading infrastructure and Windows-specific decoders. Together they coordinate foreground loads, previews, preloading, caching, animations, and oversized tiled images.
+Rendering is demand-driven. Input, state changes, and completed background work request frames. Active animations request subsequent or delayed frames; while nothing changes, the application does not continuously render.
 
-### Navigation (`src/Dameview.Core/Navigation`)
+## Ownership
 
-`Navigation` produces and monitors folder snapshots. A viewing session combines those snapshots with its current selection, but directory enumeration and file-system watching remain separate from workspace and UI concerns.
+The names below are responsibility areas, generally reflected by folders and namespaces.
 
-### UI (`src/Dameview/UI`)
+`Viewing` owns the workspace, panes, tabs, viewing sessions, and viewport state. The workspace is the source of truth for its layout and active content; the UI presents that state rather than duplicating it.
 
-`UI` is a retained tree of custom elements responsible for layout, hit testing, interaction, animation, and drawing. `ViewerUi` is the root of the viewer UI, while workspace views project the logical workspace into pane and split elements.
+`Imaging` turns files into image representations suitable for presentation. Core contains the representations and policies used by viewing. The executable contains loading coordination, WIC decoding, animated-image handling, thumbnails, caching, and tiled-image support.
 
-### Rendering (`src/Dameview/Rendering`)
+`UI` owns layout, interaction, animation, and drawing. `Rendering` owns the Direct2D and Direct3D infrastructure and frame lifecycle. Logical viewing state and decodable image data live outside both so they survive graphics-resource recreation.
 
-`Rendering` owns the Direct2D/Direct3D infrastructure and frame lifecycle. UI components own or borrow presentation-side graphics resources as appropriate; logical viewing state and decodable image data live outside the renderer so they can survive graphics-resource recreation.
+`Commands` defines the application actions exposed by the viewer and maps keyboard shortcuts to those actions. `DameviewApp` executes them against the current workspace, UI, or settings.
 
-### Platform (`src/Dameview/Platform`)
+`Settings` owns persisted application preferences and delivers changes to the running application. The executable applies those preferences to Core state, UI presentation, and native window behavior.
 
-`Platform` contains the Win32 boundary: the native window, input translation, synchronization with the message loop, installation, registration, and narrow native helpers.
+`Updates` owns release discovery, download state, and update handoff. `Installation` owns Dameview's install, uninstall, registration, and relaunch workflows. Both use native mechanisms from `Dameview.Win32` while keeping application policy in the executable.
 
-### Settings (`src/Dameview.Core/Settings`)
+## Threading
 
-`Settings` owns platform-neutral application preferences, their persistence, and live-change delivery. The frontend maps stable setting values such as theme identities and window placement onto UI palettes and native window operations.
+Most mutable application state and all Direct2D resources belong to the window thread. File scanning, image decoding, thumbnail loading, tile production, and update work run in the background. Results return to the window thread before changing application or presentation state. Work that uses COM runs on COM-initialized workers.
 
-### Updates (`src/Dameview/Updates`)
+## Workspace model
 
-`Updates` owns the check, download, and apply state machine for application updates.
+`ViewerWorkspace` represents the pane layout as a binary tree. `ViewerPane` objects are its leaves, and `WorkspaceSplit` objects divide the available area between two child nodes. Each pane owns a non-empty group of tabs and its active-tab selection; each `ViewerTab` owns one `ViewerSession`.
 
-### Commands (`src/Dameview/Commands`)
+For example, a workspace with three panes may appear as follows. Square brackets mark the active tab in each pane.
 
-`Commands` defines the actions exposed by the application and the catalog used to invoke them.
+```text
++---------------------------+---------------------------+
+| Pane A                    | Pane B                    |
+| Tabs: cat.jpg | [dog.jpg] | Tabs: [map.png]           |
+| Session: dog.jpg          | Session: map.png          |
++---------------------------+---------------------------+
+| Pane C                                                |
+| Tabs: [diagram.png]                                   |
+| Session: diagram.png                                  |
++-------------------------------------------------------+
+```
 
-### Serialization (`src/Dameview.Core/Serialization`)
+The upper area is split into panes A and B, and that combined area is split from pane C. More complex layouts are formed by nesting the same two-way split.
 
-`Serialization` contains the general parsing primitives used by persisted application data.
+Workspace operations mutate this model directly. `WorkspaceView` mirrors the tree for presentation, retaining views for panes that survive a layout change, but it is not a second source of workspace state.
 
-Tests live in `tests/Dameview.Tests` and broadly mirror the production subsystems.
+## Custom UI
+
+The UI is a retained tree rooted at `ViewerUi` and managed by `UiRoot`. Each `UiElement` owns its children, desired size, arranged bounds, visual state, and element-specific interaction and drawing behavior.
+
+Layout uses a measure-and-arrange pass in device-independent pixels. `UiRoot` reruns layout when the surface size or DPI changes, or when an element invalidates layout.
+
+`AppWindow` reports pointer positions in physical pixels. `UiRoot` converts them to device-independent pixels, hit-tests the tree from front to back, and bubbles pointer events from the target through its ancestors. The root also owns hover, keyboard focus, pointer capture, cursor selection, focus navigation, and routing of key and text input.
+
+`ViewerUi.Update` advances animations and reports whether another frame is needed. During rendering, `UiDrawContext` walks the tree recursively and applies each element's position, clip, and inherited opacity before drawing it with Direct2D. `D2DRenderer` owns the graphics device, swap chain, and frame lifecycle. UI objects may retain element-specific DirectWrite and Direct2D resources that are expensive to recreate. `UiDrawContext` is frame-local and carries borrowed drawing state through the tree.
+
+## Image representations and caching
+
+Image loading selects a representation according to the source. Ordinary static images use decoded pixel data for Direct2D upload, animated images use an animation session, and images that exceed normal bitmap limits use a tiled source. A viewing session owns its accepted representation and disposes it when it is replaced or the session closes; presentation code borrows it.
+
+The caches serve different stages of this pipeline. `ThumbnailCoordinator` keeps decoded CPU thumbnails in a byte-bounded LRU cache. `RenderBitmapCache` is shared by the application and owns uploaded full-image Direct2D bitmaps; displayed images hold leases that prevent their entries from being evicted. Each `ImagePanel` caches a pre-scaled Direct2D bitmap for its current static viewport, avoiding repeated high-quality scaling while the source and viewport remain unchanged. Tiled presentation owns a bounded set of GPU tiles rather than constructing one full-size bitmap.
+
+## Installation and updates
+
+`InstallerApp` uses the same window, renderer, and custom UI infrastructure as the viewer, while `AppInstallation` owns the install and uninstall workflow.
+
+Installation is per-user. It copies the executable to its installed location and creates the shortcut, installed-program entry, and image-viewer registration through mechanisms provided by `Dameview.Win32`. Running a portable copy does not create or modify that installed state unless installation is requested.
+
+`UpdateService` checks releases and downloads an update while the viewer is running. Applying it launches a temporary copy of the current executable and closes the viewer. The helper waits for the old process, delegates replacement and registration to `AppInstallation`, relaunches the installed copy, and schedules its temporary files for deletion.

@@ -1,8 +1,8 @@
 namespace Dameview.Platform;
 
 // Values match Win32 virtual-key codes so AppWindow can pass through keys
-// that are not handled by the UI yet.
-internal enum UiKey : uint
+// that are not named in this enum yet.
+internal enum WindowKey : uint
 {
     Backspace = 0x08,
     Tab = 0x09,
@@ -26,7 +26,7 @@ internal enum UiKey : uint
     Comma = 0xBC,
 }
 
-internal readonly record struct UiKeyEvent(
-    UiKey Key,
+internal readonly record struct WindowKeyEvent(
+    WindowKey Key,
     bool Shift = false,
     bool Control = false);

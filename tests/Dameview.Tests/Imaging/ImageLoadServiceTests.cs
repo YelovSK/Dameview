@@ -17,7 +17,7 @@ public sealed class ImageLoadServiceTests
         using var firstCompleted = new ManualResetEventSlim();
         using var secondCompleted = new ManualResetEventSlim();
         using var service = new ImageLoadService(
-            new UiSynchronizationContext(action => action()),
+            new WindowSynchronizationContext(action => action()),
             new FakeImageLoadingBackend(() => new FakeImageDecoder(path =>
             {
                 if (path == "first")
@@ -67,7 +67,7 @@ public sealed class ImageLoadServiceTests
         using var completed = new CountdownEvent(3);
         var decodedPaths = new ConcurrentQueue<string>();
         using var service = new ImageLoadService(
-            new UiSynchronizationContext(action => action()),
+            new WindowSynchronizationContext(action => action()),
             new FakeImageLoadingBackend(() => new FakeImageDecoder(path =>
             {
                 decodedPaths.Enqueue(path);
@@ -456,7 +456,7 @@ public sealed class ImageLoadServiceTests
     {
         using var release = new ManualResetEventSlim();
         using var posted = new BlockingCollection<Action>();
-        using var thumbnails = new ThumbnailCoordinator(_ => CreateImage(512, 512), new UiSynchronizationContext(posted.Add));
+        using var thumbnails = new ThumbnailCoordinator(_ => CreateImage(512, 512), new WindowSynchronizationContext(posted.Add));
         using var coordinator = new TestClient(posted.Add,
             new FakeImageLoadingBackend(
                 () => new FakeImageDecoder(
@@ -499,7 +499,7 @@ public sealed class ImageLoadServiceTests
         using var releaseDecode = new ManualResetEventSlim();
         using var posted = new BlockingCollection<Action>();
         var info = new ManualImageInfoLoader();
-        using var thumbnails = new ThumbnailCoordinator(_ => CreateImage(512, 512), new UiSynchronizationContext(posted.Add));
+        using var thumbnails = new ThumbnailCoordinator(_ => CreateImage(512, 512), new WindowSynchronizationContext(posted.Add));
         using var coordinator = new TestClient(posted.Add,
             new FakeImageLoadingBackend(
                 () => new FakeImageDecoder(_ => { releaseDecode.Wait(); return CreateImage(9, 9); })),
@@ -540,7 +540,7 @@ public sealed class ImageLoadServiceTests
         using var posted = new BlockingCollection<Action>();
         using var thumbnails = new ThumbnailCoordinator(
             _ => CreateImage(512, 512),
-            new UiSynchronizationContext(posted.Add));
+            new WindowSynchronizationContext(posted.Add));
         using var coordinator = new TestClient(posted.Add,
             new FakeImageLoadingBackend(
                 () => new FakeImageDecoder(path =>
@@ -599,7 +599,7 @@ public sealed class ImageLoadServiceTests
                 releasePreview.Wait();
                 return CreateImage();
             },
-            new UiSynchronizationContext(posted.Add));
+            new WindowSynchronizationContext(posted.Add));
         using var coordinator = new TestClient(posted.Add,
             new FakeImageLoadingBackend(
                 () => new FakeImageDecoder(_ => CreateImage())),
@@ -631,7 +631,7 @@ public sealed class ImageLoadServiceTests
         using var posted = new BlockingCollection<Action>();
         using var thumbnails = new ThumbnailCoordinator(
             _ => throw new IOException("Thumbnail unavailable"),
-            new UiSynchronizationContext(posted.Add));
+            new WindowSynchronizationContext(posted.Add));
         using var coordinator = new TestClient(posted.Add,
             new FakeImageLoadingBackend(
                 () => new FakeImageDecoder(_ => CreateImage())),
@@ -692,7 +692,7 @@ public sealed class ImageLoadServiceTests
             IImageInfoLoader? imageInfoLoader = null)
         {
             _service = new ImageLoadService(
-                new UiSynchronizationContext(postToUi),
+                new WindowSynchronizationContext(postToUi),
                 backend,
                 representationPolicy,
                 thumbnailLoader,

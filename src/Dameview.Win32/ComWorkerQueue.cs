@@ -6,7 +6,7 @@ namespace Dameview.Platform;
 // <paramref name="createContext"/> (for example a decoder) and reuses it across work items.
 // Callers get a Task for ordering, cancellation, and composition; this type owns only the
 // thread, the priority queue, COM initialization, and context lifetime.
-internal sealed class BackgroundQueue<TContext> : IDisposable
+internal sealed class ComWorkerQueue<TContext> : IDisposable
 {
     private readonly object _sync = new();
     private readonly PriorityQueue<WorkItem, (int Priority, long Sequence)> _pending = new();
@@ -16,7 +16,7 @@ internal sealed class BackgroundQueue<TContext> : IDisposable
     private bool _stopping;
     private Exception? _failure;
 
-    internal BackgroundQueue(string name, int workerCount, Func<TContext> createContext)
+    internal ComWorkerQueue(string name, int workerCount, Func<TContext> createContext)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(workerCount);

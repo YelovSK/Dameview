@@ -19,7 +19,7 @@ internal sealed class UiRoot
     }
 
     internal event Action? Invalidated;
-    internal event Action<UiCursor>? CursorChanged;
+    internal event Action<WindowCursor>? CursorChanged;
     internal event Action<UiElement?>? PointerPressed;
 
     internal UiElement? CapturedElement { get; private set; }
@@ -53,16 +53,16 @@ internal sealed class UiRoot
 
     /// <summary>Converts and routes a native pointer event through the UI tree.</summary>
     /// <returns><see langword="true"/> when an element consumed the event.</returns>
-    internal bool HandlePointer(in UiPointerEvent nativeInput)
+    internal bool HandlePointer(in WindowPointerEvent nativeInput)
     {
-        UiPointerEvent input = nativeInput with
+        WindowPointerEvent input = nativeInput with
         {
             Position = new PointF(
                 UiDpi.PixelsToDips(nativeInput.Position.X, Dpi),
                 UiDpi.PixelsToDips(nativeInput.Position.Y, Dpi)),
         };
 
-        if (input.Kind == UiPointerEventKind.Cancelled)
+        if (input.Kind == WindowPointerEventKind.Cancelled)
         {
             bool hadCapture = CapturedElement is not null;
             CancelPointer();
@@ -70,7 +70,7 @@ internal sealed class UiRoot
         }
 
         EnsureLayout(_pixelSize);
-        if (input.Kind == UiPointerEventKind.Moved)
+        if (input.Kind == WindowPointerEventKind.Moved)
         {
             _content.ObservePointerMoveTree(input);
         }
@@ -79,7 +79,7 @@ internal sealed class UiRoot
         SetHovered(hit);
 
         UiElement? target = CapturedElement ?? hit;
-        if (input.Kind == UiPointerEventKind.Pressed)
+        if (input.Kind == WindowPointerEventKind.Pressed)
         {
             PointerPressed?.Invoke(target);
             UiElement? focusable = FindFocusable(target);
@@ -89,13 +89,13 @@ internal sealed class UiRoot
             }
         }
 
-        if (input.Kind == UiPointerEventKind.Released)
+        if (input.Kind == WindowPointerEventKind.Released)
         {
             CapturedElement = null;
         }
 
         bool consumed = RoutePointer(target, input);
-        if (input.Kind is UiPointerEventKind.Released or UiPointerEventKind.Cancelled)
+        if (input.Kind is WindowPointerEventKind.Released or WindowPointerEventKind.Cancelled)
         {
             target?.SetVisualState(UiVisualState.Pressed, false);
         }
@@ -115,7 +115,7 @@ internal sealed class UiRoot
             return;
         }
 
-        captured.OnPointerEvent(new UiPointerEvent(UiPointerEventKind.Cancelled, PointF.Empty));
+        captured.OnPointerEvent(new WindowPointerEvent(WindowPointerEventKind.Cancelled, PointF.Empty));
         captured.SetVisualState(UiVisualState.Pressed, false);
         UpdateCursor();
     }
@@ -149,12 +149,12 @@ internal sealed class UiRoot
     /// <summary>Routes a key event and optionally performs focus navigation.</summary>
     /// <returns><see langword="true"/> when the key was handled or used for navigation.</returns>
     internal bool HandleKey(
-        UiKeyEvent input,
+        WindowKeyEvent input,
         UiElement scope,
         bool wrapFocus,
         bool directionalNavigation)
     {
-        if (input.Key == UiKey.Tab)
+        if (input.Key == WindowKey.Tab)
         {
             MoveFocus(scope, input.Shift ? -1 : 1, wrapFocus);
             return true;
@@ -174,9 +174,9 @@ internal sealed class UiRoot
             }
         }
 
-        if (directionalNavigation && input.Key is UiKey.Left or UiKey.Up or UiKey.Right or UiKey.Down)
+        if (directionalNavigation && input.Key is WindowKey.Left or WindowKey.Up or WindowKey.Right or WindowKey.Down)
         {
-            int direction = input.Key is UiKey.Left or UiKey.Up ? -1 : 1;
+            int direction = input.Key is WindowKey.Left or WindowKey.Up ? -1 : 1;
             MoveFocus(scope, direction, wrap: true);
             return true;
         }
@@ -250,7 +250,7 @@ internal sealed class UiRoot
         _layoutDirty = false;
     }
 
-    private bool RoutePointer(UiElement? target, in UiPointerEvent input)
+    private bool RoutePointer(UiElement? target, in WindowPointerEvent input)
     {
         bool consumed = false;
         for (UiElement? element = target; element is not null; element = element.Parent)
@@ -261,7 +261,7 @@ internal sealed class UiRoot
                 InvalidateVisual();
             }
 
-            if (result.CapturePointer && input.Kind == UiPointerEventKind.Pressed)
+            if (result.CapturePointer && input.Kind == WindowPointerEventKind.Pressed)
             {
                 CapturedElement = element;
                 element.SetVisualState(UiVisualState.Pressed, true);
@@ -291,7 +291,7 @@ internal sealed class UiRoot
 
     private void UpdateCursor()
     {
-        UiCursor cursor = (CapturedElement ?? _hoveredElement)?.Cursor ?? UiCursor.Default;
+        WindowCursor cursor = (CapturedElement ?? _hoveredElement)?.Cursor ?? WindowCursor.Default;
         if (cursor == _cursor)
         {
             return;
@@ -301,7 +301,7 @@ internal sealed class UiRoot
         CursorChanged?.Invoke(cursor);
     }
 
-    private UiCursor _cursor;
+    private WindowCursor _cursor;
 
     private static UiElement? FindFocusable(UiElement? element)
     {

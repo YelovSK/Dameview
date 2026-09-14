@@ -58,9 +58,9 @@ internal sealed class ScrollView : UiElement
         _scrollbar.SetMetrics(_contentHeight, finalSize.Height, _scrollOffset.Offset);
     }
 
-    internal override UiPointerResult OnPointerEvent(in UiPointerEvent input)
+    internal override UiPointerResult OnPointerEvent(in WindowPointerEvent input)
     {
-        if (input.Kind != UiPointerEventKind.Wheel)
+        if (input.Kind != WindowPointerEventKind.Wheel)
         {
             return default;
         }

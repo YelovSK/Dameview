@@ -1,4 +1,5 @@
 using Dameview.Imaging;
+using Dameview.Installation;
 using Dameview.Platform;
 using Dameview.Rendering;
 using Dameview.UI;
@@ -23,7 +24,7 @@ internal sealed class InstallerApp : IDisposable
             : "Install Dameview";
         _window = new AppWindow(title, 580, 435);
         _window.CenterOnPrimaryMonitor();
-        _window.SetTitleBarTheme(dark: true, UiTheme.Default.Background, UiTheme.Default.PrimaryText);
+        _window.SetTitleBarTheme(dark: true, UiTheme.Default.WindowCaptionColor, UiTheme.Default.WindowTextColor);
         _renderer = new D2DRenderer(
             _window.Handle,
             _window.ClientWidth,
@@ -48,7 +49,16 @@ internal sealed class InstallerApp : IDisposable
 
     internal bool Run()
     {
-        _window.Run(_renderer.FrameLatencyWaitHandle);
+        _window.Closed += NativeMethods.RequestMessageLoopExit;
+        try
+        {
+            _window.Run(_renderer.FrameLatencyWaitHandle);
+        }
+        finally
+        {
+            _window.Closed -= NativeMethods.RequestMessageLoopExit;
+        }
+
         if (_uninstallComplete)
         {
             AppInstallation.DeleteInstalledFilesAfterExit();
@@ -134,9 +144,9 @@ internal sealed class InstallerApp : IDisposable
 
     private void Close() => _window.Close();
 
-    private void HandleKeyPress(UiKeyEvent input)
+    private void HandleKeyPress(WindowKeyEvent input)
     {
-        if (input.Key == UiKey.Escape)
+        if (input.Key == WindowKey.Escape)
         {
             if (_uninstallComplete)
             {
@@ -173,7 +183,7 @@ internal sealed class InstallerApp : IDisposable
         _window.RequestRepaint();
     }
 
-    private void HandlePointerInput(UiPointerEvent input)
+    private void HandlePointerInput(WindowPointerEvent input)
     {
         _ui.HandlePointer(input);
     }

@@ -57,7 +57,7 @@ internal sealed class TextInput : UiElement, IDisposable
     internal string Placeholder { get; }
     internal int CaretIndex { get; private set; }
     internal override bool IsFocusable => true;
-    internal override UiCursor Cursor => UiCursor.Text;
+    internal override WindowCursor Cursor => WindowCursor.Text;
 
     internal void Clear() => Text = string.Empty;
 
@@ -75,7 +75,7 @@ internal sealed class TextInput : UiElement, IDisposable
         return true;
     }
 
-    internal override bool OnKeyEvent(UiKeyEvent input)
+    internal override bool OnKeyEvent(WindowKeyEvent input)
     {
         if (input.Control)
         {
@@ -84,27 +84,27 @@ internal sealed class TextInput : UiElement, IDisposable
 
         switch (input.Key)
         {
-            case UiKey.Backspace:
+            case WindowKey.Backspace:
                 DeletePreviousTextElement();
                 return true;
 
-            case UiKey.Delete:
+            case WindowKey.Delete:
                 DeleteNextTextElement();
                 return true;
 
-            case UiKey.Left:
+            case WindowKey.Left:
                 SetCaretIndex(GetPreviousTextElementStart());
                 return true;
 
-            case UiKey.Right:
+            case WindowKey.Right:
                 SetCaretIndex(GetNextTextElementStart());
                 return true;
 
-            case UiKey.Home:
+            case WindowKey.Home:
                 SetCaretIndex(0);
                 return true;
 
-            case UiKey.End:
+            case WindowKey.End:
                 SetCaretIndex(_text.Length);
                 return true;
 
@@ -113,9 +113,9 @@ internal sealed class TextInput : UiElement, IDisposable
         }
     }
 
-    internal override UiPointerResult OnPointerEvent(in UiPointerEvent input)
+    internal override UiPointerResult OnPointerEvent(in WindowPointerEvent input)
     {
-        if (input.Kind == UiPointerEventKind.Pressed && input.Button == PointerButton.Primary)
+        if (input.Kind == WindowPointerEventKind.Pressed && input.Button == PointerButton.Primary)
         {
             SetCaretIndex(_text.Length);
             return new UiPointerResult(Consumed: true, NeedsRepaint: true);

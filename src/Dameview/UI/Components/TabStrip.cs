@@ -117,11 +117,11 @@ internal sealed class TabStrip : UiElement, IDisposable
             _textFormat = textFormat;
         }
 
-        internal override bool OnKeyEvent(UiKeyEvent input)
+        internal override bool OnKeyEvent(WindowKeyEvent input)
         {
-            if (input.Key is UiKey.Left or UiKey.Right)
+            if (input.Key is WindowKey.Left or WindowKey.Right)
             {
-                int direction = input.Key == UiKey.Left ? -1 : 1;
+                int direction = input.Key == WindowKey.Left ? -1 : 1;
                 int next = (_index + direction + _owner._items.Length) % _owner._items.Length;
                 _owner.Select(next, notify: true, moveFocus: true);
                 return true;

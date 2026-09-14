@@ -133,9 +133,9 @@ internal sealed class ViewerUi : UiElement, IDisposable
         remove => _root.Invalidated -= value;
     }
 
-    private Action<UiCursor>? _cursorChanged;
+    private Action<WindowCursor>? _cursorChanged;
 
-    internal event Action<UiCursor>? CursorChanged
+    internal event Action<WindowCursor>? CursorChanged
     {
         add => _cursorChanged += value;
         remove => _cursorChanged -= value;
@@ -274,9 +274,9 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     internal void CenterGallerySelection() => _galleryPanel.CenterSelection();
 
-    internal bool HandleKey(UiKeyEvent input)
+    internal bool HandleKey(WindowKeyEvent input)
     {
-        if (input.Key == UiKey.Escape && _dragController.IsActive)
+        if (input.Key == WindowKey.Escape && _dragController.IsActive)
         {
             _root.CancelPointer();
             return true;
@@ -284,12 +284,12 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
         if (_popupHost.IsOpen)
         {
-            if (input.Key == UiKey.Escape)
+            if (input.Key == WindowKey.Escape)
             {
                 return _popupHost.HandleEscape();
             }
 
-            if (input.Key == UiKey.Tab)
+            if (input.Key == WindowKey.Tab)
             {
                 _popupHost.Close();
             }
@@ -297,7 +297,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
         if (_modalHost.IsOpen)
         {
-            if (input.Key == UiKey.Escape)
+            if (input.Key == WindowKey.Escape)
             {
                 return _modalHost.HandleEscape();
             }
@@ -339,7 +339,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _root.Draw(context, pixelSize);
     }
 
-    internal bool HandlePointer(in UiPointerEvent input) => _root.HandlePointer(input);
+    internal bool HandlePointer(in WindowPointerEvent input) => _root.HandlePointer(input);
 
     protected override SizeF MeasureCore(SizeF availableSize)
     {

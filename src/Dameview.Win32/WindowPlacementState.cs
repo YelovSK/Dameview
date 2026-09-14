@@ -1,4 +1,4 @@
-namespace Dameview.Settings;
+namespace Dameview.Platform;
 
 internal sealed record WindowPlacementState
 {
@@ -8,5 +8,5 @@ internal sealed record WindowPlacementState
     public int Height { get; init; }
     public bool Maximized { get; init; }
 
-    internal bool IsUsable => Width >= 320 && Height >= 240;
+    internal bool IsUsable => Width > 0 && Height > 0;
 }

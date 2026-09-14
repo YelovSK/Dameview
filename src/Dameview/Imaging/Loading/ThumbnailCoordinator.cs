@@ -27,7 +27,7 @@ internal sealed class ThumbnailCoordinator : IThumbnailLoader, IDisposable
     private readonly DecodedImageCache _cache;
     private readonly Dictionary<string, PendingThumbnail> _pending =
         new(StringComparer.OrdinalIgnoreCase);
-    private readonly BackgroundQueue<object?> _queue;
+    private readonly ComWorkerQueue<object?> _queue;
     private bool _stopping;
 
     internal ThumbnailCoordinator(
@@ -37,7 +37,7 @@ internal sealed class ThumbnailCoordinator : IThumbnailLoader, IDisposable
         _load = load;
         _uiContext = uiContext;
         _cache = new DecodedImageCache(DefaultCacheCapacityBytes);
-        _queue = new BackgroundQueue<object?>("Dameview thumbnails", 1, static () => null);
+        _queue = new ComWorkerQueue<object?>("Dameview thumbnails", 1, static () => null);
     }
 
     public IDisposable Request(

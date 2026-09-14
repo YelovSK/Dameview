@@ -1,36 +1,25 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <ApplicationIcon>Assets\dameview.ico</ApplicationIcon>
-    <PublishAot>true</PublishAot>
-    <OptimizationPreference>Size</OptimizationPreference>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsPackable>false</IsPackable>
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <CsWin32RunAsBuildTask>true</CsWin32RunAsBuildTask>
     <DisableRuntimeMarshalling>true</DisableRuntimeMarshalling>
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Assets\dameview.png" />
+    <PackageReference Include="Microsoft.Windows.CsWin32" Version="0.3.333" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Vortice.Direct2D1" Version="3.8.3" />
-    <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="../Dameview.Core/Dameview.Core.csproj" />
-    <ProjectReference Include="../Dameview.Win32/Dameview.Win32.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
+    <InternalsVisibleTo Include="Dameview" />
     <InternalsVisibleTo Include="Dameview.Tests" />
   </ItemGroup>
 

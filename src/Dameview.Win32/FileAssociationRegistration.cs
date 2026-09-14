@@ -1,32 +1,31 @@
 using Microsoft.Win32;
-using Windows.Win32.UI.Shell;
-using static Windows.Win32.PInvoke;
 
 namespace Dameview.Platform;
 
-internal static class ImageViewerRegistration
+internal sealed class FileAssociationRegistration(string applicationId, string progId)
 {
-    private const string ProgId = "Dameview.Image";
     private const string ClassesRegistryPath = @"Software\Classes";
-    private const string CapabilitiesRegistryPath = @"Software\Dameview\Capabilities";
     private const string RegisteredApplicationsRegistryPath = @"Software\RegisteredApplications";
+    private readonly string _capabilitiesRegistryPath = $@"Software\{applicationId}\Capabilities";
 
-    internal static void Register(string executablePath, IEnumerable<string> supportedExtensions)
+    internal void Register(
+        string applicationName, string applicationDescription, string fileTypeDescription,
+        string executablePath, IEnumerable<string> supportedExtensions)
     {
         Unregister(notifyShell: false);
 
-        using (RegistryKey progId = Registry.CurrentUser.CreateSubKey($@"{ClassesRegistryPath}\{ProgId}"))
+        using (RegistryKey progIdKey = Registry.CurrentUser.CreateSubKey($@"{ClassesRegistryPath}\{progId}"))
         {
-            progId.SetValue(null, "Image");
-            using RegistryKey icon = progId.CreateSubKey("DefaultIcon");
+            progIdKey.SetValue(null, fileTypeDescription);
+            using RegistryKey icon = progIdKey.CreateSubKey("DefaultIcon");
             icon.SetValue(null, $"\"{executablePath}\",0");
-            using RegistryKey command = progId.CreateSubKey(@"shell\open\command");
+            using RegistryKey command = progIdKey.CreateSubKey(@"shell\open\command");
             command.SetValue(null, $"\"{executablePath}\" \"%1\"");
         }
 
-        using RegistryKey capabilities = Registry.CurrentUser.CreateSubKey(CapabilitiesRegistryPath);
-        capabilities.SetValue("ApplicationName", "Dameview");
-        capabilities.SetValue("ApplicationDescription", "View images with Dameview");
+        using RegistryKey capabilities = Registry.CurrentUser.CreateSubKey(_capabilitiesRegistryPath);
+        capabilities.SetValue("ApplicationName", applicationName);
+        capabilities.SetValue("ApplicationDescription", applicationDescription);
         using RegistryKey fileAssociations = capabilities.CreateSubKey("FileAssociations");
 
         foreach (string extension in supportedExtensions
@@ -34,26 +33,26 @@ internal static class ImageViewerRegistration
                      .Distinct(StringComparer.OrdinalIgnoreCase)
                      .OrderBy(extension => extension, StringComparer.OrdinalIgnoreCase))
         {
-            fileAssociations.SetValue(extension, ProgId);
+            fileAssociations.SetValue(extension, progId);
             using RegistryKey openWith = Registry.CurrentUser.CreateSubKey(
                 $@"{ClassesRegistryPath}\{extension}\OpenWithProgids");
-            openWith.SetValue(ProgId, Array.Empty<byte>(), RegistryValueKind.None);
+            openWith.SetValue(progId, Array.Empty<byte>(), RegistryValueKind.None);
         }
 
         using RegistryKey registeredApplications = Registry.CurrentUser.CreateSubKey(RegisteredApplicationsRegistryPath);
-        registeredApplications.SetValue("Dameview", CapabilitiesRegistryPath);
-        NotifyAssociationChanged();
+        registeredApplications.SetValue(applicationId, _capabilitiesRegistryPath);
+        ShellIntegration.NotifyAssociationChanged();
     }
 
-    internal static void Unregister()
+    internal void Unregister()
     {
         Unregister(notifyShell: true);
     }
 
-    private static void Unregister(bool notifyShell)
+    private void Unregister(bool notifyShell)
     {
         using (RegistryKey? fileAssociations = Registry.CurrentUser.OpenSubKey(
-                   $@"{CapabilitiesRegistryPath}\FileAssociations"))
+                   $@"{_capabilitiesRegistryPath}\FileAssociations"))
         {
             if (fileAssociations is not null)
             {
@@ -62,7 +61,7 @@ internal static class ImageViewerRegistration
                     using RegistryKey? openWith = Registry.CurrentUser.OpenSubKey(
                         $@"{ClassesRegistryPath}\{extension}\OpenWithProgids",
                         writable: true);
-                    openWith?.DeleteValue(ProgId, throwOnMissingValue: false);
+                    openWith?.DeleteValue(progId, throwOnMissingValue: false);
                 }
             }
         }
@@ -71,15 +70,15 @@ internal static class ImageViewerRegistration
                    RegisteredApplicationsRegistryPath,
                    writable: true))
         {
-            registeredApplications?.DeleteValue("Dameview", throwOnMissingValue: false);
+            registeredApplications?.DeleteValue(applicationId, throwOnMissingValue: false);
         }
 
-        Registry.CurrentUser.DeleteSubKeyTree(CapabilitiesRegistryPath, throwOnMissingSubKey: false);
-        Registry.CurrentUser.DeleteSubKeyTree($@"{ClassesRegistryPath}\{ProgId}", throwOnMissingSubKey: false);
+        Registry.CurrentUser.DeleteSubKeyTree(_capabilitiesRegistryPath, throwOnMissingSubKey: false);
+        Registry.CurrentUser.DeleteSubKeyTree($@"{ClassesRegistryPath}\{progId}", throwOnMissingSubKey: false);
 
         if (notifyShell)
         {
-            NotifyAssociationChanged();
+            ShellIntegration.NotifyAssociationChanged();
         }
     }
 
@@ -88,10 +87,5 @@ internal static class ImageViewerRegistration
         return extension.Length > 1
             && extension[0] == '.'
             && extension.IndexOfAny(['\\', '/', '\0']) < 0;
-    }
-
-    private static unsafe void NotifyAssociationChanged()
-    {
-        SHChangeNotify(SHCNE_ID.SHCNE_ASSOCCHANGED, SHCNF_FLAGS.SHCNF_IDLIST, null, null);
     }
 }

@@ -23,15 +23,15 @@ public sealed class SplitViewTests
         Assert.AreEqual(new RectangleF(0.0f, 0.0f, 796.0f, 800.0f), splitView.FirstPaneBounds);
         Assert.AreEqual(new RectangleF(804.0f, 12.0f, 184.0f, 776.0f), splitView.SecondPaneBounds);
 
-        root.HandlePointer(new UiPointerEvent(
-            UiPointerEventKind.Pressed,
+        root.HandlePointer(new WindowPointerEvent(
+            WindowPointerEventKind.Pressed,
             new PointF(800.0f, 400.0f),
             PointerButton.Primary));
-        root.HandlePointer(new UiPointerEvent(
-            UiPointerEventKind.Moved,
+        root.HandlePointer(new WindowPointerEvent(
+            WindowPointerEventKind.Moved,
             new PointF(760.0f, 400.0f)));
-        root.HandlePointer(new UiPointerEvent(
-            UiPointerEventKind.Released,
+        root.HandlePointer(new WindowPointerEvent(
+            WindowPointerEventKind.Released,
             new PointF(760.0f, 400.0f),
             PointerButton.Primary));
 
@@ -115,9 +115,9 @@ public sealed class SplitViewTests
             var root = new UiRoot(splitView, UiDpi.Default);
             root.Arrange(new SizeF(1000.0f, 800.0f));
 
-            root.HandlePointer(new UiPointerEvent(UiPointerEventKind.Pressed, start, PointerButton.Primary));
-            root.HandlePointer(new UiPointerEvent(UiPointerEventKind.Moved, end));
-            root.HandlePointer(new UiPointerEvent(UiPointerEventKind.Released, end, PointerButton.Primary));
+            root.HandlePointer(new WindowPointerEvent(WindowPointerEventKind.Pressed, start, PointerButton.Primary));
+            root.HandlePointer(new WindowPointerEvent(WindowPointerEventKind.Moved, end));
+            root.HandlePointer(new WindowPointerEvent(WindowPointerEventKind.Released, end, PointerButton.Primary));
 
             Assert.AreEqual(224.0f, splitView.DividerOffsetDips);
         }

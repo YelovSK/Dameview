@@ -41,11 +41,11 @@ public sealed class ModalHostTests
         host.Show(content, host.Close);
         root.Arrange(WindowSize);
 
-        Assert.IsTrue(root.HandlePointer(Pointer(UiPointerEventKind.Pressed, 5, 5)));
+        Assert.IsTrue(root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, 5, 5)));
         Assert.IsTrue(host.IsOpen);
-        Assert.IsTrue(root.HandlePointer(Pointer(UiPointerEventKind.Released, 5, 5)));
+        Assert.IsTrue(root.HandlePointer(Pointer(WindowPointerEventKind.Released, 5, 5)));
         Assert.IsFalse(host.IsOpen);
-        Assert.IsFalse(content.Events.Any(input => input.Kind == UiPointerEventKind.Pressed));
+        Assert.IsFalse(content.Events.Any(input => input.Kind == WindowPointerEventKind.Pressed));
     }
 
     [TestMethod]
@@ -57,11 +57,11 @@ public sealed class ModalHostTests
         host.Show(content, host.Close);
         root.Arrange(WindowSize);
 
-        root.HandlePointer(Pointer(UiPointerEventKind.Pressed, 400, 300));
-        root.HandlePointer(Pointer(UiPointerEventKind.Released, 5, 5));
+        root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, 400, 300));
+        root.HandlePointer(Pointer(WindowPointerEventKind.Released, 5, 5));
 
         Assert.IsTrue(host.IsOpen);
-        Assert.AreEqual(UiPointerEventKind.Released, content.Events[^1].Kind);
+        Assert.AreEqual(WindowPointerEventKind.Released, content.Events[^1].Kind);
     }
 
     [TestMethod]
@@ -73,13 +73,13 @@ public sealed class ModalHostTests
         UiRoot root = CreateRoot(host);
         host.Show(previous, () => { });
         root.Arrange(WindowSize);
-        root.HandlePointer(Pointer(UiPointerEventKind.Pressed, 400, 300));
+        root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, 400, 300));
 
         host.Show(next, () => { });
         root.Arrange(WindowSize);
-        root.HandlePointer(Pointer(UiPointerEventKind.Released, 5, 5));
+        root.HandlePointer(Pointer(WindowPointerEventKind.Released, 5, 5));
 
-        Assert.AreEqual(UiPointerEventKind.Cancelled, previous.Events[^1].Kind);
+        Assert.AreEqual(WindowPointerEventKind.Cancelled, previous.Events[^1].Kind);
         Assert.IsTrue(host.IsOpen);
         Assert.HasCount(0, next.Events);
     }
@@ -116,11 +116,11 @@ public sealed class ModalHostTests
         root.Arrange(WindowSize);
 
         Assert.IsTrue(host.HandleEscape());
-        root.HandlePointer(Pointer(UiPointerEventKind.Pressed, 5, 5));
-        root.HandlePointer(Pointer(UiPointerEventKind.Released, 5, 5));
+        root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, 5, 5));
+        root.HandlePointer(Pointer(WindowPointerEventKind.Released, 5, 5));
 
         Assert.IsTrue(host.IsOpen);
-        Assert.AreEqual(UiKey.Escape, content.Keys.Single().Key);
+        Assert.AreEqual(WindowKey.Escape, content.Keys.Single().Key);
     }
 
     [TestMethod]
@@ -132,13 +132,13 @@ public sealed class ModalHostTests
         host.Show(content, () => { });
         root.Arrange(WindowSize);
 
-        root.HandlePointer(Pointer(UiPointerEventKind.Pressed, 120, 100));
+        root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, 120, 100));
         AssertPoint(new PointF(13.333336f, 16.666668f), content.Events[^1].Position);
-        root.HandlePointer(new UiPointerEvent(UiPointerEventKind.Cancelled, PointF.Empty));
+        root.HandlePointer(new WindowPointerEvent(WindowPointerEventKind.Cancelled, PointF.Empty));
 
         root.SetDpi(192);
         root.Arrange(WindowSize);
-        root.HandlePointer(Pointer(UiPointerEventKind.Pressed, 40, 40));
+        root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, 40, 40));
         AssertPoint(new PointF(8, 8), content.Events[^1].Position);
     }
 
@@ -170,7 +170,7 @@ public sealed class ModalHostTests
         root.Arrange(WindowSize);
         root.SetFocus(content.InitialFocus);
 
-        root.HandlePointer(Pointer(UiPointerEventKind.Pressed, 400, 300));
+        root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, 400, 300));
 
         Assert.AreSame(content.InitialFocus, root.FocusedElement);
     }
@@ -196,9 +196,9 @@ public sealed class ModalHostTests
         return new UiRoot(new RootElement(host), dpi);
     }
 
-    private static UiPointerEvent Pointer(UiPointerEventKind kind, float x, float y)
+    private static WindowPointerEvent Pointer(WindowPointerEventKind kind, float x, float y)
     {
-        return new UiPointerEvent(kind, new PointF(x, y), PointerButton.Primary);
+        return new WindowPointerEvent(kind, new PointF(x, y), PointerButton.Primary);
     }
 
     private static void AssertPoint(PointF expected, PointF actual)
@@ -244,18 +244,18 @@ public sealed class ModalHostTests
         internal override bool IsFocusable => true;
         internal bool CanDismissOnBackdrop { get; init; } = true;
         internal bool CanDismissOnEscape { get; init; } = true;
-        internal List<UiPointerEvent> Events { get; } = [];
-        internal List<UiKeyEvent> Keys { get; } = [];
+        internal List<WindowPointerEvent> Events { get; } = [];
+        internal List<WindowKeyEvent> Keys { get; } = [];
 
-        internal override UiPointerResult OnPointerEvent(in UiPointerEvent input)
+        internal override UiPointerResult OnPointerEvent(in WindowPointerEvent input)
         {
             Events.Add(input);
             return new UiPointerResult(
                 Consumed: true,
-                CapturePointer: input.Kind == UiPointerEventKind.Pressed);
+                CapturePointer: input.Kind == WindowPointerEventKind.Pressed);
         }
 
-        internal override bool OnKeyEvent(UiKeyEvent input)
+        internal override bool OnKeyEvent(WindowKeyEvent input)
         {
             Keys.Add(input);
             return true;

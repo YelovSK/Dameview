@@ -1,4 +1,4 @@
-using Dameview.Platform;
+using Dameview.Installation;
 using Dameview.Platform.Networking;
 
 namespace Dameview.Updates;
@@ -6,13 +6,14 @@ namespace Dameview.Updates;
 internal sealed class GitHubUpdateClient : IUpdateClient
 {
     private const string Host = "github.com";
+    private const string UserAgent = "Dameview";
     private const string LatestReleasePath = "/YelovSK/Dameview/releases/latest";
     private const string ReleaseTagMarker = "/releases/tag/";
     private const long MaximumDownloadBytes = 64L * 1024L * 1024L;
 
     public AppRelease GetLatestRelease()
     {
-        using var request = WinHttpRequest.Send(Host, "HEAD", LatestReleasePath);
+        using var request = WinHttpRequest.Send(Host, "HEAD", LatestReleasePath, UserAgent);
         string finalUrl = request.GetFinalUrl();
         int marker = finalUrl.LastIndexOf(ReleaseTagMarker, StringComparison.OrdinalIgnoreCase);
         if (marker < 0)
@@ -37,7 +38,7 @@ internal sealed class GitHubUpdateClient : IUpdateClient
         try
         {
             string releasePath = $"/YelovSK/Dameview/releases/download/{release.Tag}/Dameview.exe";
-            using var request = WinHttpRequest.Send(Host, "GET", releasePath);
+            using var request = WinHttpRequest.Send(Host, "GET", releasePath, UserAgent);
             using (var output = new FileStream(
                 downloadPath,
                 FileMode.Create,

@@ -1,12 +1,7 @@
 using System.Diagnostics;
-using Microsoft.Win32;
-using Windows.Win32;
-using Windows.Win32.Foundation;
-using Windows.Win32.System.Com;
-using Windows.Win32.UI.Shell;
-using static Windows.Win32.PInvoke;
+using Dameview.Platform;
 
-namespace Dameview.Platform;
+namespace Dameview.Installation;
 
 internal enum AppInstallationAction
 {
@@ -25,8 +20,8 @@ internal static class AppInstallation
 {
     private const string InstallArgument = "--install";
     private const string UninstallArgument = "--uninstall";
-    private const string UninstallRegistryPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Dameview";
-    private static readonly Guid ShellLinkClassId = new("00021401-0000-0000-C000-000000000046");
+    private static readonly InstalledProgramRegistration InstalledProgram = new("Dameview");
+    private static readonly FileAssociationRegistration FileAssociations = new("Dameview", "Dameview.Image");
 
     internal static string InstallDirectory => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -82,9 +77,18 @@ internal static class AppInstallation
         string stagedPath = Path.Combine(InstallDirectory, "Dameview.new.exe");
         File.Copy(sourcePath, stagedPath, overwrite: true);
         File.Move(stagedPath, InstalledExecutablePath, overwrite: true);
-        CreateStartMenuShortcut();
-        WriteUninstallRegistration();
-        ImageViewerRegistration.Register(InstalledExecutablePath, supportedExtensions);
+        ShellIntegration.CreateShortcut(
+            GetStartMenuShortcutPath(), InstalledExecutablePath, InstallDirectory,
+            "Dameview image viewer", InstalledExecutablePath);
+        InstalledProgram.Register(
+            "Dameview", GetDisplayVersion(InstalledExecutablePath), InstallDirectory,
+            InstalledExecutablePath, UninstallArgument);
+        FileAssociations.Register(
+            applicationName: "Dameview",
+            applicationDescription: "View images with Dameview",
+            fileTypeDescription: "Image",
+            executablePath: InstalledExecutablePath,
+            supportedExtensions: supportedExtensions);
     }
 
     internal static void LaunchInstalled()
@@ -104,8 +108,8 @@ internal static class AppInstallation
             File.Delete(shortcutPath);
         }
 
-        ImageViewerRegistration.Unregister();
-        Registry.CurrentUser.DeleteSubKeyTree(UninstallRegistryPath, throwOnMissingSubKey: false);
+        FileAssociations.Unregister();
+        InstalledProgram.Unregister();
     }
 
     internal static void DeleteInstalledFilesAfterExit()
@@ -166,34 +170,9 @@ internal static class AppInstallation
             StringComparison.OrdinalIgnoreCase);
     }
 
-    private static void CreateStartMenuShortcut()
-    {
-        HRESULT result = CoCreateInstance(ShellLinkClassId, null, CLSCTX.CLSCTX_INPROC_SERVER, out IShellLinkW shellLink);
-        result.ThrowOnFailure();
-        shellLink.SetPath(InstalledExecutablePath);
-        shellLink.SetWorkingDirectory(InstallDirectory);
-        shellLink.SetDescription("Dameview image viewer");
-        shellLink.SetIconLocation(InstalledExecutablePath, 0);
-        ((IPersistFile)shellLink).Save(GetStartMenuShortcutPath(), true);
-    }
-
     private static string GetStartMenuShortcutPath()
     {
         return Path.Combine(NativeMethods.GetProgramsPath(), "Dameview.lnk");
-    }
-
-    private static void WriteUninstallRegistration()
-    {
-        using RegistryKey key = Registry.CurrentUser.CreateSubKey(UninstallRegistryPath);
-        string displayVersion = GetDisplayVersion(InstalledExecutablePath);
-        key.SetValue("DisplayName", "Dameview");
-        key.SetValue("DisplayVersion", displayVersion);
-        key.SetValue("InstallLocation", InstallDirectory);
-        key.SetValue("DisplayIcon", InstalledExecutablePath);
-        key.SetValue("UninstallString", $"\"{InstalledExecutablePath}\" {UninstallArgument}");
-        key.SetValue("EstimatedSize", checked((int)((new FileInfo(InstalledExecutablePath).Length + 1023) / 1024)), RegistryValueKind.DWord);
-        key.SetValue("NoModify", 1, RegistryValueKind.DWord);
-        key.SetValue("NoRepair", 1, RegistryValueKind.DWord);
     }
 
     internal static Version? ReadVersion(string? path)

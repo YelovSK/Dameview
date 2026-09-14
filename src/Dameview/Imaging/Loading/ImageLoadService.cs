@@ -10,8 +10,8 @@ internal sealed class ImageLoadService : IDisposable
     private readonly ImageRepresentationPolicy _representationPolicy;
     private readonly IThumbnailLoader _thumbnailLoader;
     private readonly IImageInfoLoader _imageInfoLoader;
-    private readonly BackgroundQueue<IImageDecoder> _foregroundQueue;
-    private readonly BackgroundQueue<IImageDecoder> _preloadQueue;
+    private readonly ComWorkerQueue<IImageDecoder> _foregroundQueue;
+    private readonly ComWorkerQueue<IImageDecoder> _preloadQueue;
     private readonly Dictionary<ImageLoadClient, ClientState> _clients = [];
     private readonly Dictionary<string, InFlightDecode> _inFlightDecodes =
         new(StringComparer.OrdinalIgnoreCase);
@@ -29,11 +29,11 @@ internal sealed class ImageLoadService : IDisposable
         _representationPolicy = representationPolicy;
         _thumbnailLoader = thumbnailLoader;
         _imageInfoLoader = imageInfoLoader;
-        _foregroundQueue = new BackgroundQueue<IImageDecoder>(
+        _foregroundQueue = new ComWorkerQueue<IImageDecoder>(
             "Dameview image loader",
             2,
             _backend.CreateDecoder);
-        _preloadQueue = new BackgroundQueue<IImageDecoder>(
+        _preloadQueue = new ComWorkerQueue<IImageDecoder>(
             "Dameview image preloader",
             1,
             _backend.CreateDecoder);

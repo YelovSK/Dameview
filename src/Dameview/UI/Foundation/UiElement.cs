@@ -3,15 +3,6 @@ using Dameview.Platform;
 
 namespace Dameview.UI;
 
-internal enum UiCursor
-{
-    Default,
-    Pointer,
-    Text,
-    ResizeHorizontal,
-    ResizeVertical,
-}
-
 /// <summary>Base class for an element in the custom UI tree.</summary>
 /// <remarks>
 /// Elements are measured and arranged in DIPs. Pointer positions passed to an
@@ -60,7 +51,7 @@ internal abstract class UiElement
     /// <summary>Whether a pointer press on this element may leave the current focus unchanged.</summary>
     internal virtual bool PreservesFocusOnPointerPress => false;
     /// <summary>The pointer cursor shown while hovering or capturing this element.</summary>
-    internal virtual UiCursor Cursor => UiCursor.Default;
+    internal virtual WindowCursor Cursor => WindowCursor.Default;
     /// <summary>The opacity applied to this element and its drawn content.</summary>
     internal virtual float Opacity => 1.0f;
     /// <summary>An animated translation applied for drawing and hit testing.</summary>
@@ -128,7 +119,7 @@ internal abstract class UiElement
     }
 
     /// <summary>Forwards a pointer-move observation to this element and all visible descendants.</summary>
-    internal void ObservePointerMoveTree(in UiPointerEvent input)
+    internal void ObservePointerMoveTree(in WindowPointerEvent input)
     {
         if (!IsVisible)
         {
@@ -147,7 +138,7 @@ internal abstract class UiElement
     }
 
     /// <summary>Converts a root-space pointer event to this element's local coordinates.</summary>
-    internal UiPointerEvent ToLocal(in UiPointerEvent input)
+    internal WindowPointerEvent ToLocal(in WindowPointerEvent input)
     {
         PointF origin = GetRootOrigin(includeVisualOffset: true);
         return input with
@@ -186,10 +177,10 @@ internal abstract class UiElement
     internal bool HasVisualState(UiVisualState state) => (VisualState & state) != 0;
 
     /// <summary>Handles a pointer event and reports whether it was consumed or requires capture/repaint.</summary>
-    internal virtual UiPointerResult OnPointerEvent(in UiPointerEvent input) => default;
+    internal virtual UiPointerResult OnPointerEvent(in WindowPointerEvent input) => default;
     /// <summary>Handles a key event.</summary>
     /// <returns><see langword="true"/> when the event was handled and should not be routed further.</returns>
-    internal virtual bool OnKeyEvent(UiKeyEvent input) => false;
+    internal virtual bool OnKeyEvent(WindowKeyEvent input) => false;
     /// <summary>Handles committed text input.</summary>
     /// <returns><see langword="true"/> when the text was handled.</returns>
     internal virtual bool OnTextInput(string text) => false;
@@ -268,13 +259,13 @@ internal abstract class UiElement
     /// <returns><see langword="true"/> to hit this element when no child is hit.</returns>
     protected virtual bool HitTestCore(PointF position) => true;
     /// <summary>Observes a pointer move without consuming or capturing the event.</summary>
-    protected virtual void ObservePointerMove(in UiPointerEvent input) { }
+    protected virtual void ObservePointerMove(in WindowPointerEvent input) { }
     /// <summary>Called after one or more visual-state flags change.</summary>
     protected virtual void OnVisualStateChanged() { }
     /// <summary>Called when focus enters or leaves this element's subtree.</summary>
     protected virtual void OnFocusWithinChanged() { }
 
-    private UiPointerEvent ToLayoutLocal(in UiPointerEvent input)
+    private WindowPointerEvent ToLayoutLocal(in WindowPointerEvent input)
     {
         PointF origin = GetRootOrigin(includeVisualOffset: false);
         return input with

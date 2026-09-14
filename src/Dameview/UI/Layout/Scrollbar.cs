@@ -30,7 +30,7 @@ internal sealed class Scrollbar : UiElement
 
     internal override bool IsHitTestVisible => HasOverflow;
     internal override bool PreservesFocusOnPointerPress => true;
-    internal override UiCursor Cursor => UiCursor.Pointer;
+    internal override WindowCursor Cursor => WindowCursor.Pointer;
 
     internal void SetMetrics(float contentExtent, float viewportExtent, float offset)
     {
@@ -59,11 +59,11 @@ internal sealed class Scrollbar : UiElement
             _dragging ? 0.95f : 0.75f);
     }
 
-    internal override UiPointerResult OnPointerEvent(in UiPointerEvent input)
+    internal override UiPointerResult OnPointerEvent(in WindowPointerEvent input)
     {
         switch (input.Kind)
         {
-            case UiPointerEventKind.Pressed when input.Button == PointerButton.Primary:
+            case WindowPointerEventKind.Pressed when input.Button == PointerButton.Primary:
                 RectangleF thumb = GetThumbBounds();
                 _dragging = true;
                 _dragOffset = thumb.Contains(input.Position)
@@ -76,15 +76,15 @@ internal sealed class Scrollbar : UiElement
 
                 return new UiPointerResult(Consumed: true, CapturePointer: true, NeedsRepaint: true);
 
-            case UiPointerEventKind.Moved when _dragging:
+            case WindowPointerEventKind.Moved when _dragging:
                 SetOffsetFromThumbTop(input.Position.Y - _dragOffset - TrackPadding);
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
-            case UiPointerEventKind.Released when _dragging:
+            case WindowPointerEventKind.Released when _dragging:
                 _dragging = false;
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
-            case UiPointerEventKind.Cancelled when _dragging:
+            case WindowPointerEventKind.Cancelled when _dragging:
                 _dragging = false;
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 

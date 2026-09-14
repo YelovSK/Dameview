@@ -3,13 +3,13 @@ using Dameview.Platform;
 namespace Dameview.Tests.Platform;
 
 [TestClass]
-public sealed class UiSynchronizationContextTests
+public sealed class WindowSynchronizationContextTests
 {
     [TestMethod]
     public void PostDefersThroughTheSuppliedDispatcher()
     {
         var actions = new Queue<Action>();
-        var context = new UiSynchronizationContext(actions.Enqueue);
+        var context = new WindowSynchronizationContext(actions.Enqueue);
         bool ran = false;
 
         context.Post(_ => ran = true, null);
@@ -24,7 +24,7 @@ public sealed class UiSynchronizationContextTests
     public void PostPassesStateToTheCallback()
     {
         var actions = new Queue<Action>();
-        var context = new UiSynchronizationContext(actions.Enqueue);
+        var context = new WindowSynchronizationContext(actions.Enqueue);
         object? received = null;
 
         context.Post(state => received = state, "payload");

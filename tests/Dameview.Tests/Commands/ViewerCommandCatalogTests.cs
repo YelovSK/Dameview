@@ -22,40 +22,40 @@ public sealed class ViewerCommandCatalogTests
     {
         Assert.IsTrue(ViewerKeyBindings.TryGetCommand(
             ViewerKeyBindings.Window,
-            new UiKeyEvent(UiKey.Tab, Shift: true, Control: true),
+            new WindowKeyEvent(WindowKey.Tab, Shift: true, Control: true),
             out ViewerCommandId previous));
         Assert.AreEqual(ViewerCommandId.PreviousTab, previous);
 
         Assert.IsTrue(ViewerKeyBindings.TryGetCommand(
             ViewerKeyBindings.Window,
-            new UiKeyEvent(UiKey.S, Control: true),
+            new WindowKeyEvent(WindowKey.S, Control: true),
             out ViewerCommandId splitDown));
         Assert.AreEqual(ViewerCommandId.SplitDown, splitDown);
 
         Assert.IsTrue(ViewerKeyBindings.TryGetCommand(
             ViewerKeyBindings.Window,
-            new UiKeyEvent(UiKey.S, Shift: true, Control: true),
+            new WindowKeyEvent(WindowKey.S, Shift: true, Control: true),
             out ViewerCommandId splitRight));
         Assert.AreEqual(ViewerCommandId.SplitRight, splitRight);
 
         Assert.IsTrue(ViewerKeyBindings.TryGetCommand(
             ViewerKeyBindings.Viewer,
-            new UiKeyEvent(UiKey.Left),
+            new WindowKeyEvent(WindowKey.Left),
             out ViewerCommandId previousImage));
         Assert.AreEqual(ViewerCommandId.PreviousImage, previousImage);
 
         Assert.IsFalse(ViewerKeyBindings.TryGetCommand(
             ViewerKeyBindings.Window,
-            new UiKeyEvent(UiKey.Left),
+            new WindowKeyEvent(WindowKey.Left),
             out _));
         Assert.IsFalse(ViewerKeyBindings.TryGetCommand(
             ViewerKeyBindings.Viewer,
-            new UiKeyEvent(UiKey.Tab, Shift: true, Control: true),
+            new WindowKeyEvent(WindowKey.Tab, Shift: true, Control: true),
             out _));
 
         Assert.IsFalse(ViewerKeyBindings.TryGetCommand(
             ViewerKeyBindings.Window,
-            new UiKeyEvent(UiKey.T, Shift: true, Control: true),
+            new WindowKeyEvent(WindowKey.T, Shift: true, Control: true),
             out _));
     }
 
@@ -71,10 +71,10 @@ public sealed class ViewerCommandCatalogTests
     [TestMethod]
     public void ShortcutLabelsAreDerivedFromTheirKeyChord()
     {
-        Assert.AreEqual("Ctrl+,", new ViewerCommandShortcut(UiKey.Comma, Control: true).DisplayText);
+        Assert.AreEqual("Ctrl+,", new ViewerCommandShortcut(WindowKey.Comma, Control: true).DisplayText);
         Assert.AreEqual(
             "Ctrl+Shift+P",
-            new ViewerCommandShortcut(UiKey.P, Control: true, Shift: true).DisplayText);
+            new ViewerCommandShortcut(WindowKey.P, Control: true, Shift: true).DisplayText);
         Assert.AreEqual(
             "1",
             ViewerKeyBindings.GetPrimaryShortcut(ViewerCommandId.ShowActualSize)?.DisplayText);

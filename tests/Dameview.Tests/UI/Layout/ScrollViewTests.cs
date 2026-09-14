@@ -16,8 +16,8 @@ public sealed class ScrollViewTests
         scrollView.Measure(new SizeF(200.0f, 120.0f));
         scrollView.Arrange(new RectangleF(0.0f, 0.0f, 200.0f, 120.0f));
 
-        scrollView.OnPointerEvent(new UiPointerEvent(
-            UiPointerEventKind.Wheel,
+        scrollView.OnPointerEvent(new WindowPointerEvent(
+            WindowPointerEventKind.Wheel,
             PointF.Empty,
             WheelDelta: -1200));
 
@@ -25,8 +25,8 @@ public sealed class ScrollViewTests
         Assert.AreEqual(380.0f, scrollView.ScrollOffset);
         Assert.AreEqual(-380.0f, content.Bounds.Y);
 
-        scrollView.OnPointerEvent(new UiPointerEvent(
-            UiPointerEventKind.Wheel,
+        scrollView.OnPointerEvent(new WindowPointerEvent(
+            WindowPointerEventKind.Wheel,
             PointF.Empty,
             WheelDelta: 1200));
         AdvanceScroll(scrollView);
@@ -41,8 +41,8 @@ public sealed class ScrollViewTests
         scrollView.Measure(new SizeF(200.0f, 120.0f));
         scrollView.Arrange(new RectangleF(0.0f, 0.0f, 200.0f, 120.0f));
 
-        scrollView.OnPointerEvent(new UiPointerEvent(
-            UiPointerEventKind.Wheel,
+        scrollView.OnPointerEvent(new WindowPointerEvent(
+            WindowPointerEventKind.Wheel,
             PointF.Empty,
             WheelDelta: -1200));
         scrollView.UpdateTree(new UiUpdateContext(0.0, AnimationsEnabled: false));
@@ -87,12 +87,12 @@ public sealed class ScrollViewTests
         RectangleF scrollbar = scrollView.Children[^1].Bounds;
         RectangleF thumb = scrollView.ScrollbarThumbBounds;
         PointF press = new(scrollbar.X + thumb.X + 4.0f, scrollbar.Y + thumb.Y + thumb.Height / 2.0f);
-        root.HandlePointer(new UiPointerEvent(UiPointerEventKind.Pressed, press, PointerButton.Primary));
-        root.HandlePointer(new UiPointerEvent(
-            UiPointerEventKind.Moved,
+        root.HandlePointer(new WindowPointerEvent(WindowPointerEventKind.Pressed, press, PointerButton.Primary));
+        root.HandlePointer(new WindowPointerEvent(
+            WindowPointerEventKind.Moved,
             new PointF(press.X, scrollbar.Bottom - 4.0f)));
-        root.HandlePointer(new UiPointerEvent(
-            UiPointerEventKind.Released,
+        root.HandlePointer(new WindowPointerEvent(
+            WindowPointerEventKind.Released,
             new PointF(press.X, scrollbar.Bottom - 4.0f),
             PointerButton.Primary));
 

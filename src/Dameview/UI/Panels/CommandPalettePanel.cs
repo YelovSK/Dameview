@@ -86,19 +86,19 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
         }
     }
 
-    internal override bool OnKeyEvent(UiKeyEvent input)
+    internal override bool OnKeyEvent(WindowKeyEvent input)
     {
         switch (input.Key)
         {
-            case UiKey.Up:
+            case WindowKey.Up:
                 MoveSelection(-1);
                 return true;
 
-            case UiKey.Down:
+            case WindowKey.Down:
                 MoveSelection(1);
                 return true;
 
-            case UiKey.Enter:
+            case WindowKey.Enter:
                 ExecuteSelectedCommand();
                 return true;
 

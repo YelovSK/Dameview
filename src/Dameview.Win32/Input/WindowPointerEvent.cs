@@ -2,13 +2,13 @@ using System.Drawing;
 
 namespace Dameview.Platform;
 
-internal readonly record struct UiPointerEvent(
-    UiPointerEventKind Kind,
+internal readonly record struct WindowPointerEvent(
+    WindowPointerEventKind Kind,
     PointF Position,
     PointerButton Button = PointerButton.None,
     int WheelDelta = 0);
 
-internal enum UiPointerEventKind
+internal enum WindowPointerEventKind
 {
     Moved,
     Pressed,

@@ -22,7 +22,7 @@ public sealed class ThumbnailCoordinatorTests
                 release.Wait();
                 return CreateImage();
             },
-            new UiSynchronizationContext(posted.Add));
+            new WindowSynchronizationContext(posted.Add));
         int completed = 0;
 
         using IDisposable gallery = coordinator.Request(
@@ -68,7 +68,7 @@ public sealed class ThumbnailCoordinatorTests
 
                 return CreateImage();
             },
-            new UiSynchronizationContext(posted.Add));
+            new WindowSynchronizationContext(posted.Add));
 
         using IDisposable blocker = coordinator.Request(
             "blocker.jpg",
@@ -111,7 +111,7 @@ public sealed class ThumbnailCoordinatorTests
                 Interlocked.Increment(ref loadCount);
                 return CreateImage();
             },
-            new UiSynchronizationContext(posted.Add));
+            new WindowSynchronizationContext(posted.Add));
 
         using IDisposable firstRequest = coordinator.Request(
             "cached.jpg",
@@ -135,7 +135,7 @@ public sealed class ThumbnailCoordinatorTests
         using var posted = new BlockingCollection<Action>();
         using var coordinator = new ThumbnailCoordinator(
             _ => CreateImage(),
-            new UiSynchronizationContext(posted.Add));
+            new WindowSynchronizationContext(posted.Add));
         bool delivered = false;
         IDisposable request = coordinator.Request(
             "cancelled.jpg",
@@ -154,7 +154,7 @@ public sealed class ThumbnailCoordinatorTests
         int loadCount = 0;
         using var coordinator = new ThumbnailCoordinator(
             _ => Interlocked.Increment(ref loadCount) == 1 ? null : CreateImage(),
-            new UiSynchronizationContext(posted.Add));
+            new WindowSynchronizationContext(posted.Add));
         using IDisposable firstRequest = coordinator.Request(
             "retry.jpg",
             ThumbnailPriority.Gallery,

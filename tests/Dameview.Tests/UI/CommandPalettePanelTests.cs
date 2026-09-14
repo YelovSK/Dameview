@@ -26,9 +26,9 @@ public sealed class CommandPalettePanelTests
         root.Arrange(new SizeF(540.0f, 580.0f));
         root.SetFocus(panel.InitialFocus);
 
-        root.HandleKey(new UiKeyEvent(UiKey.Down), panel, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new WindowKeyEvent(WindowKey.Down), panel, wrapFocus: true, directionalNavigation: true);
         Assert.AreSame(panel.InitialFocus, root.FocusedElement);
-        root.HandleKey(new UiKeyEvent(UiKey.Enter), panel, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new WindowKeyEvent(WindowKey.Enter), panel, wrapFocus: true, directionalNavigation: true);
 
         Assert.AreEqual(ViewerCommandId.CloseTab, executed);
     }
@@ -73,7 +73,7 @@ public sealed class CommandPalettePanelTests
         root.SetFocus(panel.InitialFocus);
 
         root.HandleTextInput("z");
-        root.HandleKey(new UiKeyEvent(UiKey.Enter), panel, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new WindowKeyEvent(WindowKey.Enter), panel, wrapFocus: true, directionalNavigation: true);
 
         Assert.AreEqual(0, panel.VisibleCommandCount);
         Assert.IsNull(panel.SelectedCommand);

@@ -2,6 +2,7 @@ using System.Drawing;
 using Dameview.Commands;
 using Dameview.Imaging;
 using Dameview.Navigation;
+using Dameview.Installation;
 using Dameview.Platform;
 using Dameview.Rendering;
 using Dameview.Settings;
@@ -34,9 +35,9 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     public DameviewApp()
     {
         _window = new AppWindow("Dameview", 1100, 720);
-        _uiContext = new UiSynchronizationContext(_window.Post);
+        _uiContext = new WindowSynchronizationContext(_window.Post);
         SynchronizationContext.SetSynchronizationContext(_uiContext);
-        _window.SetTitleBarTheme(dark: true, UiTheme.Default.Background, UiTheme.Default.PrimaryText);
+        _window.SetTitleBarTheme(dark: true, UiTheme.Default.WindowCaptionColor, UiTheme.Default.WindowTextColor);
         _pointerX = _window.ClientWidth / 2;
         _pointerY = _window.ClientHeight / 2;
         _renderer = new D2DRenderer(
@@ -86,7 +87,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _window.RenderFrame += HandleRenderFrame;
         _window.Resized += HandleResize;
         _window.DpiChanged += HandleDpiChanged;
-        _window.FileDropped += _workspace.OpenImage;
+        _window.FilesDropped += HandleFilesDropped;
         _window.KeyPressed += HandleKeyPress;
         _window.TextInput += HandleTextInput;
         _window.PointerInput += HandlePointerInput;
@@ -111,7 +112,29 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             _workspace.OpenImage(imagePath);
         }
 
-        return _window.Run(_renderer.FrameLatencyWaitHandle);
+        _window.Closed += NativeMethods.RequestMessageLoopExit;
+        try
+        {
+            return _window.Run(_renderer.FrameLatencyWaitHandle);
+        }
+        finally
+        {
+            _window.Closed -= NativeMethods.RequestMessageLoopExit;
+        }
+    }
+
+    private void HandleFilesDropped(IReadOnlyList<string> paths)
+    {
+        if (paths.Count == 0)
+        {
+            return;
+        }
+
+        _workspace.OpenImage(paths[0]);
+        for (int index = 1; index < paths.Count; index++)
+        {
+            _workspace.OpenImageInNewTab(paths[index]);
+        }
     }
 
     public void Dispose()
@@ -225,7 +248,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         CloseTabOrPane(pane, index);
     }
 
-    private void HandleKeyPress(UiKeyEvent input)
+    private void HandleKeyPress(WindowKeyEvent input)
     {
         if (ViewerKeyBindings.TryGetCommand(ViewerKeyBindings.Window, input, out ViewerCommandId command))
         {
@@ -344,7 +367,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
 
     private void ApplySettings(AppSettings previous, AppSettings current)
     {
-        if (current.Window is { IsUsable: true } windowPlacement && previous.Window != windowPlacement)
+        if (current.Window is { } windowPlacement && previous.Window != windowPlacement)
         {
             _window.RestorePlacement(windowPlacement);
         }
@@ -354,7 +377,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         {
             Theme theme = Themes.Get(current.Theme);
             _ui.Palette = theme.Palette;
-            _window.SetTitleBarTheme(theme.IsDark, theme.Palette.Background, theme.Palette.PrimaryText);
+            _window.SetTitleBarTheme(theme.IsDark, theme.Palette.WindowCaptionColor, theme.Palette.WindowTextColor);
         }
 
         if (previous.Sort != current.Sort)
@@ -476,9 +499,9 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _window.RequestRepaint();
     }
 
-    private void HandlePointerInput(UiPointerEvent input)
+    private void HandlePointerInput(WindowPointerEvent input)
     {
-        if (input.Kind != UiPointerEventKind.Cancelled)
+        if (input.Kind != WindowPointerEventKind.Cancelled)
         {
             _pointerX = (int)input.Position.X;
             _pointerY = (int)input.Position.Y;
@@ -502,7 +525,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         }
     }
 
-    private void SendPointerEvent(UiPointerEvent input)
+    private void SendPointerEvent(WindowPointerEvent input)
     {
         _ui.HandlePointer(input);
     }

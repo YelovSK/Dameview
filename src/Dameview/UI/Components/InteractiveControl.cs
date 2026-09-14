@@ -35,11 +35,11 @@ internal abstract class InteractiveControl : UiElement
     }
 
     internal override bool IsFocusable => IsEnabled;
-    internal override UiCursor Cursor => IsEnabled ? UiCursor.Pointer : UiCursor.Default;
+    internal override WindowCursor Cursor => IsEnabled ? WindowCursor.Pointer : WindowCursor.Default;
     protected float HoverAmount => _hoverAmount.Current;
     protected float PressedAmount => _pressedAmount.Current;
 
-    internal override UiPointerResult OnPointerEvent(in UiPointerEvent input)
+    internal override UiPointerResult OnPointerEvent(in WindowPointerEvent input)
     {
         if (!IsEnabled)
         {
@@ -49,7 +49,7 @@ internal abstract class InteractiveControl : UiElement
         bool isInside = new RectangleF(PointF.Empty, Bounds.Size).Contains(input.Position);
         switch (input.Kind)
         {
-            case UiPointerEventKind.Pressed
+            case WindowPointerEventKind.Pressed
                 when input.Button == PointerButton.Primary && isInside:
                 // We react on mouse down instead of mouse up,
                 // so that the UI feels more responsive.
@@ -59,13 +59,13 @@ internal abstract class InteractiveControl : UiElement
                     NeedsRepaint: true,
                     CapturePointer: Root is not null);
 
-            case UiPointerEventKind.Released when HasVisualState(UiVisualState.Pressed):
+            case WindowPointerEventKind.Released when HasVisualState(UiVisualState.Pressed):
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
-            case UiPointerEventKind.Cancelled when HasVisualState(UiVisualState.Pressed):
+            case WindowPointerEventKind.Cancelled when HasVisualState(UiVisualState.Pressed):
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
-            case UiPointerEventKind.DoubleClicked
+            case WindowPointerEventKind.DoubleClicked
                 when input.Button == PointerButton.Primary && isInside:
                 Activate();
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
@@ -75,9 +75,9 @@ internal abstract class InteractiveControl : UiElement
         }
     }
 
-    internal override bool OnKeyEvent(UiKeyEvent input)
+    internal override bool OnKeyEvent(WindowKeyEvent input)
     {
-        if (!IsEnabled || input.Key is not (UiKey.Space or UiKey.Enter))
+        if (!IsEnabled || input.Key is not (WindowKey.Space or WindowKey.Enter))
         {
             return false;
         }

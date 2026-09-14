@@ -20,10 +20,10 @@ public sealed class InteractiveControlsTests
         root.Arrange(new SizeF(100.0f, 36.0f));
         PointF center = new(50.0f, 18.0f);
 
-        root.HandlePointer(Pointer(UiPointerEventKind.Pressed, center));
+        root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, center));
         Assert.AreEqual(1, clicks);
 
-        root.HandlePointer(Pointer(UiPointerEventKind.Released, center));
+        root.HandlePointer(Pointer(WindowPointerEventKind.Released, center));
         Assert.AreEqual(1, clicks);
     }
 
@@ -34,12 +34,12 @@ public sealed class InteractiveControlsTests
         bool? changed = null;
         using var toggle = new Toggle(factory, "Gallery", false, value => changed = value);
 
-        Assert.IsTrue(toggle.OnKeyEvent(new UiKeyEvent(UiKey.Space)));
+        Assert.IsTrue(toggle.OnKeyEvent(new WindowKeyEvent(WindowKey.Space)));
         Assert.IsTrue(toggle.Value);
         Assert.AreEqual(true, changed);
 
         toggle.IsEnabled = false;
-        Assert.IsFalse(toggle.OnKeyEvent(new UiKeyEvent(UiKey.Enter)));
+        Assert.IsFalse(toggle.OnKeyEvent(new WindowKeyEvent(WindowKey.Enter)));
         Assert.IsTrue(toggle.Value);
     }
 
@@ -56,7 +56,7 @@ public sealed class InteractiveControlsTests
         root.SetFocus(first);
 
         Assert.IsTrue(root.HandleKey(
-            new UiKeyEvent(UiKey.Right),
+            new WindowKeyEvent(WindowKey.Right),
             tabs,
             wrapFocus: true,
             directionalNavigation: true));
@@ -85,7 +85,7 @@ public sealed class InteractiveControlsTests
         root.SetFocus(dropdown);
 
         Assert.IsTrue(root.HandleKey(
-            new UiKeyEvent(UiKey.Enter),
+            new WindowKeyEvent(WindowKey.Enter),
             scene,
             wrapFocus: true,
             directionalNavigation: true));
@@ -100,8 +100,8 @@ public sealed class InteractiveControlsTests
         UiElement secondOption = presenter.Children[0].Children[0].Children[1];
         RectangleF optionBounds = secondOption.GetBoundsRelativeTo(scene);
         PointF center = new(optionBounds.Left + optionBounds.Width / 2.0f, optionBounds.Top + optionBounds.Height / 2.0f);
-        root.HandlePointer(Pointer(UiPointerEventKind.Pressed, center));
-        root.HandlePointer(Pointer(UiPointerEventKind.Released, center));
+        root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, center));
+        root.HandlePointer(Pointer(WindowPointerEventKind.Released, center));
 
         Assert.AreEqual("modified", dropdown.SelectedValue);
         Assert.AreEqual("modified", changed);
@@ -130,12 +130,12 @@ public sealed class InteractiveControlsTests
         root.Arrange(size);
 
         PointF center = new(110.0f, 38.0f);
-        root.HandlePointer(Pointer(UiPointerEventKind.Pressed, center));
-        root.HandlePointer(Pointer(UiPointerEventKind.Released, center));
+        root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, center));
+        root.HandlePointer(Pointer(WindowPointerEventKind.Released, center));
         root.Arrange(size);
         Assert.IsTrue(popupHost.IsOpen);
 
-        root.HandlePointer(Pointer(UiPointerEventKind.DoubleClicked, center));
+        root.HandlePointer(Pointer(WindowPointerEventKind.DoubleClicked, center));
 
         Assert.IsFalse(popupHost.IsOpen);
     }
@@ -156,29 +156,29 @@ public sealed class InteractiveControlsTests
         var size = new SizeF(600.0f, 400.0f);
         root.Arrange(size);
         root.SetFocus(dropdown);
-        root.HandleKey(new UiKeyEvent(UiKey.Enter), scene, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new WindowKeyEvent(WindowKey.Enter), scene, wrapFocus: true, directionalNavigation: true);
         root.Arrange(size);
 
         Assert.IsTrue(root.HandleKey(
-            new UiKeyEvent(UiKey.Escape),
+            new WindowKeyEvent(WindowKey.Escape),
             scene,
             wrapFocus: true,
             directionalNavigation: true));
         Assert.IsFalse(dropdown.IsOpen);
-        root.HandleKey(new UiKeyEvent(UiKey.Enter), scene, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new WindowKeyEvent(WindowKey.Enter), scene, wrapFocus: true, directionalNavigation: true);
         root.Arrange(size);
 
-        bool pressed = root.HandlePointer(Pointer(UiPointerEventKind.Pressed, new PointF(500.0f, 350.0f)));
-        bool released = root.HandlePointer(Pointer(UiPointerEventKind.Released, new PointF(500.0f, 350.0f)));
+        bool pressed = root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, new PointF(500.0f, 350.0f)));
+        bool released = root.HandlePointer(Pointer(WindowPointerEventKind.Released, new PointF(500.0f, 350.0f)));
 
         Assert.IsTrue(pressed);
         Assert.IsTrue(released);
         Assert.IsFalse(dropdown.IsOpen);
     }
 
-    private static UiPointerEvent Pointer(UiPointerEventKind kind, PointF position)
+    private static WindowPointerEvent Pointer(WindowPointerEventKind kind, PointF position)
     {
-        return new UiPointerEvent(kind, position, PointerButton.Primary);
+        return new WindowPointerEvent(kind, position, PointerButton.Primary);
     }
 
     private static void AdvanceAnimation(UiRoot root, SizeF size)

@@ -67,7 +67,7 @@ internal sealed class ModalHost : UiElement
         }
         else
         {
-            Content.OnKeyEvent(new UiKeyEvent(UiKey.Escape));
+            Content.OnKeyEvent(new WindowKeyEvent(WindowKey.Escape));
         }
 
         return true;
@@ -113,15 +113,15 @@ internal sealed class ModalHost : UiElement
             new Color4(0.0f, 0.0f, 0.0f, 0.45f));
     }
 
-    internal override UiPointerResult OnPointerEvent(in UiPointerEvent input)
+    internal override UiPointerResult OnPointerEvent(in WindowPointerEvent input)
     {
         switch (input.Kind)
         {
-            case UiPointerEventKind.Pressed when input.Button == PointerButton.Primary:
+            case WindowPointerEventKind.Pressed when input.Button == PointerButton.Primary:
                 _backdropPressed = true;
                 return new UiPointerResult(Consumed: true, CapturePointer: true);
 
-            case UiPointerEventKind.Released when _backdropPressed:
+            case WindowPointerEventKind.Released when _backdropPressed:
                 _backdropPressed = false;
                 if (!_surface.Bounds.Contains(input.Position) && Content?.DismissOnBackdrop == true)
                 {
@@ -130,7 +130,7 @@ internal sealed class ModalHost : UiElement
 
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
-            case UiPointerEventKind.Cancelled:
+            case WindowPointerEventKind.Cancelled:
                 _backdropPressed = false;
                 return new UiPointerResult(Consumed: true);
 
@@ -195,7 +195,7 @@ internal sealed class ModalHost : UiElement
             context.DrawRoundedRectangle(panel, context.Palette.SurfaceBorder);
         }
 
-        internal override UiPointerResult OnPointerEvent(in UiPointerEvent input)
+        internal override UiPointerResult OnPointerEvent(in WindowPointerEvent input)
         {
             return new UiPointerResult(Consumed: true);
         }

@@ -65,22 +65,22 @@ internal sealed class Dropdown<T> : InteractiveControl, IDisposable
         }
     }
 
-    internal override bool OnKeyEvent(UiKeyEvent input)
+    internal override bool OnKeyEvent(WindowKeyEvent input)
     {
         if (!IsEnabled)
         {
             return false;
         }
 
-        if (input.Key == UiKey.Escape && IsOpen)
+        if (input.Key == WindowKey.Escape && IsOpen)
         {
             ClosePopup();
             return true;
         }
 
-        if (input.Key is UiKey.Up or UiKey.Down)
+        if (input.Key is WindowKey.Up or WindowKey.Down)
         {
-            int direction = input.Key == UiKey.Up ? -1 : 1;
+            int direction = input.Key == WindowKey.Up ? -1 : 1;
             int next = (SelectedIndex + direction + _options.Length) % _options.Length;
             Select(next, notify: true);
             return true;

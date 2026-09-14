@@ -1,5 +1,6 @@
 using Dameview.Settings;
 using Vortice.Mathematics;
+using Color = System.Drawing.Color;
 
 namespace Dameview.UI;
 
@@ -16,6 +17,14 @@ internal sealed record UiTheme(
     Color4 SecondaryText,
     Color4 ErrorText)
 {
+    internal Color WindowCaptionColor => ToWindowColor(Background);
+    internal Color WindowTextColor => ToWindowColor(PrimaryText);
+
+    private static Color ToWindowColor(Color4 color) => Color.FromArgb(
+        (byte)MathF.Round(color.R * 255f),
+        (byte)MathF.Round(color.G * 255f),
+        (byte)MathF.Round(color.B * 255f));
+
     internal static UiTheme Light { get; } = new(
         Background: FromHex("#EBEDF2"),
         Surface: FromHex("#FCFCFF"),

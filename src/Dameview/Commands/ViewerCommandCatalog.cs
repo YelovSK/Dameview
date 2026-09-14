@@ -21,22 +21,22 @@ internal enum ViewerCommandId
 }
 
 internal readonly record struct ViewerCommandShortcut(
-    UiKey Key,
+    WindowKey Key,
     bool Control = false,
     bool Shift = false)
 {
     internal string DisplayText =>
         $"{(Control ? "Ctrl+" : string.Empty)}{(Shift ? "Shift+" : string.Empty)}{GetKeyLabel(Key)}";
 
-    internal bool Matches(UiKeyEvent input) =>
+    internal bool Matches(WindowKeyEvent input) =>
         input.Key == Key
         && input.Control == Control
         && input.Shift == Shift;
 
-    private static string GetKeyLabel(UiKey key) => key switch
+    private static string GetKeyLabel(WindowKey key) => key switch
     {
-        UiKey.Number1 => "1",
-        UiKey.Comma => ",",
+        WindowKey.Number1 => "1",
+        WindowKey.Comma => ",",
         _ => key.ToString(),
     };
 }
@@ -72,28 +72,28 @@ internal static class ViewerKeyBindings
 {
     internal static IReadOnlyList<ViewerKeyBinding> Window { get; } =
     [
-        new(ViewerCommandId.NewTab, new(UiKey.T, Control: true)),
-        new(ViewerCommandId.CloseTab, new(UiKey.W, Control: true)),
-        new(ViewerCommandId.PreviousTab, new(UiKey.Tab, Control: true, Shift: true)),
-        new(ViewerCommandId.NextTab, new(UiKey.Tab, Control: true)),
-        new(ViewerCommandId.SplitDown, new(UiKey.S, Control: true)),
-        new(ViewerCommandId.SplitRight, new(UiKey.S, Control: true, Shift: true)),
-        new(ViewerCommandId.ShowSettings, new(UiKey.Comma, Control: true)),
-        new(ViewerCommandId.ShowCommandPalette, new(UiKey.P, Control: true, Shift: true)),
+        new(ViewerCommandId.NewTab, new(WindowKey.T, Control: true)),
+        new(ViewerCommandId.CloseTab, new(WindowKey.W, Control: true)),
+        new(ViewerCommandId.PreviousTab, new(WindowKey.Tab, Control: true, Shift: true)),
+        new(ViewerCommandId.NextTab, new(WindowKey.Tab, Control: true)),
+        new(ViewerCommandId.SplitDown, new(WindowKey.S, Control: true)),
+        new(ViewerCommandId.SplitRight, new(WindowKey.S, Control: true, Shift: true)),
+        new(ViewerCommandId.ShowSettings, new(WindowKey.Comma, Control: true)),
+        new(ViewerCommandId.ShowCommandPalette, new(WindowKey.P, Control: true, Shift: true)),
     ];
 
     internal static IReadOnlyList<ViewerKeyBinding> Viewer { get; } =
     [
-        new(ViewerCommandId.PreviousImage, new(UiKey.Left)),
-        new(ViewerCommandId.NextImage, new(UiKey.Right)),
-        new(ViewerCommandId.FitImage, new(UiKey.F)),
-        new(ViewerCommandId.ShowActualSize, new(UiKey.Number1)),
-        new(ViewerCommandId.ShowActualSize, new(UiKey.Numpad1)),
+        new(ViewerCommandId.PreviousImage, new(WindowKey.Left)),
+        new(ViewerCommandId.NextImage, new(WindowKey.Right)),
+        new(ViewerCommandId.FitImage, new(WindowKey.F)),
+        new(ViewerCommandId.ShowActualSize, new(WindowKey.Number1)),
+        new(ViewerCommandId.ShowActualSize, new(WindowKey.Numpad1)),
     ];
 
     internal static bool TryGetCommand(
         IReadOnlyList<ViewerKeyBinding> bindings,
-        UiKeyEvent input,
+        WindowKeyEvent input,
         out ViewerCommandId command)
     {
         foreach (ViewerKeyBinding binding in bindings)

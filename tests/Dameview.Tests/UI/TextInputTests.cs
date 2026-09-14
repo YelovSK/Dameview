@@ -36,13 +36,13 @@ public sealed class TextInputTests
         using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         using var input = new TextInput(factory) { Text = "A😀e\u0301" };
 
-        Assert.IsTrue(input.OnKeyEvent(new UiKeyEvent(UiKey.Backspace)));
+        Assert.IsTrue(input.OnKeyEvent(new WindowKeyEvent(WindowKey.Backspace)));
         Assert.AreEqual("A😀", input.Text);
-        Assert.IsTrue(input.OnKeyEvent(new UiKeyEvent(UiKey.Backspace)));
+        Assert.IsTrue(input.OnKeyEvent(new WindowKeyEvent(WindowKey.Backspace)));
         Assert.AreEqual("A", input.Text);
 
-        input.OnKeyEvent(new UiKeyEvent(UiKey.Home));
-        input.OnKeyEvent(new UiKeyEvent(UiKey.Delete));
+        input.OnKeyEvent(new WindowKeyEvent(WindowKey.Home));
+        input.OnKeyEvent(new WindowKeyEvent(WindowKey.Delete));
 
         Assert.AreEqual(string.Empty, input.Text);
         Assert.AreEqual(0, input.CaretIndex);
@@ -59,11 +59,11 @@ public sealed class TextInputTests
         root.SetFocus(input);
 
         Assert.IsTrue(root.HandleKey(
-            new UiKeyEvent(UiKey.Down),
+            new WindowKeyEvent(WindowKey.Down),
             parent,
             wrapFocus: false,
             directionalNavigation: false));
-        Assert.AreEqual(UiKey.Down, parent.LastKey);
+        Assert.AreEqual(WindowKey.Down, parent.LastKey);
     }
 
     private sealed class KeyContainer : UiElement
@@ -76,9 +76,9 @@ public sealed class TextInputTests
             AddChild(input);
         }
 
-        internal UiKey? LastKey { get; private set; }
+        internal WindowKey? LastKey { get; private set; }
 
-        internal override bool OnKeyEvent(UiKeyEvent input)
+        internal override bool OnKeyEvent(WindowKeyEvent input)
         {
             LastKey = input.Key;
             return true;

@@ -312,7 +312,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
             null);
     }
 
-    internal override UiPointerResult OnPointerEvent(in UiPointerEvent input)
+    internal override UiPointerResult OnPointerEvent(in WindowPointerEvent input)
     {
         if (_isPreview)
         {
@@ -321,14 +321,14 @@ internal sealed class ImagePanel : UiElement, IDisposable
 
         switch (input.Kind)
         {
-            case UiPointerEventKind.Pressed when input.Button == PointerButton.Primary:
+            case WindowPointerEventKind.Pressed when input.Button == PointerButton.Primary:
                 _pointerPressed = true;
                 _panStart = new PointF(
                     ToPixels(input.Position.X),
                     ToPixels(input.Position.Y));
                 return new UiPointerResult(Consumed: true, CapturePointer: true);
 
-            case UiPointerEventKind.Moved when _pointerPressed:
+            case WindowPointerEventKind.Moved when _pointerPressed:
                 PointF pointer = new(
                     ToPixels(input.Position.X),
                     ToPixels(input.Position.Y));
@@ -349,7 +349,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
                 _animator.PanTo(pointer.X, pointer.Y);
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
-            case UiPointerEventKind.Released when _pointerPressed:
+            case WindowPointerEventKind.Released when _pointerPressed:
                 _pointerPressed = false;
                 if (!_isPanning)
                 {
@@ -360,19 +360,19 @@ internal sealed class ImagePanel : UiElement, IDisposable
                 _animator.EndPan();
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
-            case UiPointerEventKind.Cancelled when _pointerPressed:
+            case WindowPointerEventKind.Cancelled when _pointerPressed:
                 _pointerPressed = false;
                 _isPanning = false;
                 _animator.Reset();
                 return new UiPointerResult(Consumed: true);
 
-            case UiPointerEventKind.DoubleClicked when input.Button == PointerButton.Primary:
+            case WindowPointerEventKind.DoubleClicked when input.Button == PointerButton.Primary:
                 _pointerPressed = false;
                 _isPanning = false;
                 _animator.ToggleFitAndActualSizeAt(ToPixels(input.Position.X), ToPixels(input.Position.Y));
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
-            case UiPointerEventKind.Wheel:
+            case WindowPointerEventKind.Wheel:
                 _animator.ZoomAt(ToPixels(input.Position.X), ToPixels(input.Position.Y), input.WheelDelta);
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 

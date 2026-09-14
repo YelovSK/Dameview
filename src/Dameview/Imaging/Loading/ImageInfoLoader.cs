@@ -11,11 +11,11 @@ internal interface IImageInfoLoader
 // decision never wait behind an in-flight pixel decode.
 internal sealed class ImageInfoLoader : IImageInfoLoader, IDisposable
 {
-    private readonly BackgroundQueue<IImageDecoder> _queue;
+    private readonly ComWorkerQueue<IImageDecoder> _queue;
 
     internal ImageInfoLoader(Func<IImageDecoder> decoderFactory)
     {
-        _queue = new BackgroundQueue<IImageDecoder>("Dameview image info", 1, decoderFactory);
+        _queue = new ComWorkerQueue<IImageDecoder>("Dameview image info", 1, decoderFactory);
     }
 
     public Task<ImageInfo> LoadAsync(string path, CancellationToken cancellationToken) =>

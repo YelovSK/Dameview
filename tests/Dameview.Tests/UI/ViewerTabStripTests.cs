@@ -24,8 +24,8 @@ public sealed class ViewerTabStripTests
         var root = new UiRoot(tabs, UiDpi.Default);
         root.Arrange(new SizeF(300.0f, ViewerTabStrip.HeightDips));
 
-        UiPointerResult result = tabs.OnPointerEvent(new UiPointerEvent(
-            UiPointerEventKind.Wheel,
+        UiPointerResult result = tabs.OnPointerEvent(new WindowPointerEvent(
+            WindowPointerEventKind.Wheel,
             PointF.Empty,
             WheelDelta: -120));
         root.Update(new UiUpdateContext(1.0 / 60.0));
@@ -62,8 +62,8 @@ public sealed class ViewerTabStripTests
             () => { });
         var root = new UiRoot(tabs, UiDpi.Default);
         root.Arrange(new SizeF(400.0f, ViewerTabStrip.HeightDips));
-        root.HandlePointer(new UiPointerEvent(
-            UiPointerEventKind.Pressed,
+        root.HandlePointer(new WindowPointerEvent(
+            WindowPointerEventKind.Pressed,
             new PointF(180.0f + UiDesign.SmallSpacing + 164.0f, ViewerTabStrip.HeightDips / 2.0f),
             PointerButton.Primary));
 
@@ -85,8 +85,8 @@ public sealed class ViewerTabStripTests
         var root = new UiRoot(tabs, UiDpi.Default);
         root.Arrange(new SizeF(400.0f, ViewerTabStrip.HeightDips));
 
-        root.HandlePointer(new UiPointerEvent(
-            UiPointerEventKind.Pressed,
+        root.HandlePointer(new WindowPointerEvent(
+            WindowPointerEventKind.Pressed,
             new PointF(164.0f, ViewerTabStrip.HeightDips / 2.0f),
             PointerButton.Primary));
 
@@ -108,8 +108,8 @@ public sealed class ViewerTabStripTests
         var root = new UiRoot(tabs, UiDpi.Default);
         root.Arrange(new SizeF(400.0f, ViewerTabStrip.HeightDips));
 
-        root.HandlePointer(new UiPointerEvent(
-            UiPointerEventKind.Pressed,
+        root.HandlePointer(new WindowPointerEvent(
+            WindowPointerEventKind.Pressed,
             new PointF(382.0f, ViewerTabStrip.HeightDips / 2.0f),
             PointerButton.Primary));
 
@@ -130,8 +130,8 @@ public sealed class ViewerTabStripTests
             () => { });
         var root = new UiRoot(tabs, UiDpi.Default);
         root.Arrange(new SizeF(400.0f, ViewerTabStrip.HeightDips));
-        root.HandlePointer(new UiPointerEvent(
-            UiPointerEventKind.Pressed,
+        root.HandlePointer(new WindowPointerEvent(
+            WindowPointerEventKind.Pressed,
             new PointF(180.0f + UiDesign.SmallSpacing + 60.0f, ViewerTabStrip.HeightDips / 2.0f),
             PointerButton.Middle));
 
@@ -154,14 +154,14 @@ public sealed class ViewerTabStripTests
         var root = new UiRoot(tabs, UiDpi.Default);
         root.Arrange(new SizeF(400.0f, ViewerTabStrip.HeightDips));
 
-        root.HandlePointer(new UiPointerEvent(
-            UiPointerEventKind.Moved,
+        root.HandlePointer(new WindowPointerEvent(
+            WindowPointerEventKind.Moved,
             new PointF(30.0f, ViewerTabStrip.HeightDips / 2.0f)));
-        root.HandlePointer(new UiPointerEvent(
-            UiPointerEventKind.Moved,
+        root.HandlePointer(new WindowPointerEvent(
+            WindowPointerEventKind.Moved,
             new PointF(210.0f, ViewerTabStrip.HeightDips / 2.0f)));
-        root.HandlePointer(new UiPointerEvent(
-            UiPointerEventKind.Moved,
+        root.HandlePointer(new WindowPointerEvent(
+            WindowPointerEventKind.Moved,
             new PointF(399.0f, ViewerTabStrip.HeightDips / 2.0f)));
 
         CollectionAssert.AreEqual(new string?[] { "One", "Two", null }, hovered);
@@ -183,18 +183,18 @@ public sealed class ViewerTabStripTests
         var root = new UiRoot(tabs, UiDpi.Default);
         root.Arrange(new SizeF(400.0f, ViewerTabStrip.HeightDips));
 
-        root.HandlePointer(new UiPointerEvent(
-            UiPointerEventKind.Pressed,
+        root.HandlePointer(new WindowPointerEvent(
+            WindowPointerEventKind.Pressed,
             new PointF(40.0f, 18.0f),
             PointerButton.Primary));
-        root.HandlePointer(new UiPointerEvent(
-            UiPointerEventKind.Moved,
+        root.HandlePointer(new WindowPointerEvent(
+            WindowPointerEventKind.Moved,
             new PointF(42.0f, 18.0f)));
-        root.HandlePointer(new UiPointerEvent(
-            UiPointerEventKind.Moved,
+        root.HandlePointer(new WindowPointerEvent(
+            WindowPointerEventKind.Moved,
             new PointF(48.0f, 18.0f)));
-        root.HandlePointer(new UiPointerEvent(
-            UiPointerEventKind.Released,
+        root.HandlePointer(new WindowPointerEvent(
+            WindowPointerEventKind.Released,
             new PointF(220.0f, 18.0f),
             PointerButton.Primary));
 

@@ -129,27 +129,27 @@ internal sealed class PopupHost : UiElement
         return continues;
     }
 
-    internal override UiPointerResult OnPointerEvent(in UiPointerEvent input)
+    internal override UiPointerResult OnPointerEvent(in WindowPointerEvent input)
     {
         bool insidePopup = IsOpen && _presenter.GetBoundsRelativeTo(this).Contains(input.Position);
         switch (input.Kind)
         {
-            case UiPointerEventKind.DoubleClicked
+            case WindowPointerEventKind.DoubleClicked
                 when input.Button == PointerButton.Primary && !insidePopup:
                 Close();
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
-            case UiPointerEventKind.Pressed
+            case WindowPointerEventKind.Pressed
                 when input.Button == PointerButton.Primary && !insidePopup:
                 _outsidePressed = true;
                 return new UiPointerResult(Consumed: true, CapturePointer: true);
 
-            case UiPointerEventKind.Released when _outsidePressed:
+            case WindowPointerEventKind.Released when _outsidePressed:
                 _outsidePressed = false;
                 Close();
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
-            case UiPointerEventKind.Cancelled:
+            case WindowPointerEventKind.Cancelled:
                 _outsidePressed = false;
                 return new UiPointerResult(Consumed: true);
 

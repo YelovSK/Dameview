@@ -80,9 +80,9 @@ public sealed class SplitPanelTests
         var root = new UiRoot(panel, UiDpi.Default);
         root.Arrange(new SizeF(1008.0f, 600.0f));
 
-        root.HandlePointer(Pointer(UiPointerEventKind.Pressed, 604.0f, 300.0f));
-        root.HandlePointer(Pointer(UiPointerEventKind.Moved, 704.0f, 300.0f));
-        root.HandlePointer(Pointer(UiPointerEventKind.Released, 704.0f, 300.0f));
+        root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, 604.0f, 300.0f));
+        root.HandlePointer(Pointer(WindowPointerEventKind.Moved, 704.0f, 300.0f));
+        root.HandlePointer(Pointer(WindowPointerEventKind.Released, 704.0f, 300.0f));
 
         Assert.AreEqual(0.7f, changedRatio, 0.0001f);
         Assert.AreEqual(700.0f, first.Bounds.Width);
@@ -98,9 +98,9 @@ public sealed class SplitPanelTests
         var root = new UiRoot(panel, UiDpi.Default);
         root.Arrange(new SizeF(400.0f, 408.0f));
 
-        root.HandlePointer(Pointer(UiPointerEventKind.Pressed, 200.0f, 204.0f));
-        root.HandlePointer(Pointer(UiPointerEventKind.Moved, 200.0f, 500.0f));
-        root.HandlePointer(Pointer(UiPointerEventKind.Released, 200.0f, 500.0f));
+        root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, 200.0f, 204.0f));
+        root.HandlePointer(Pointer(WindowPointerEventKind.Moved, 200.0f, 500.0f));
+        root.HandlePointer(Pointer(WindowPointerEventKind.Released, 200.0f, 500.0f));
 
         Assert.AreEqual(280.0f, first.Bounds.Height);
         Assert.AreEqual(SplitPanel.MinimumPaneSizeDips, second.Bounds.Height);
@@ -281,9 +281,9 @@ public sealed class SplitPanelTests
         }
     }
 
-    private static UiPointerEvent Pointer(UiPointerEventKind kind, float x, float y)
+    private static WindowPointerEvent Pointer(WindowPointerEventKind kind, float x, float y)
     {
-        return new UiPointerEvent(kind, new PointF(x, y), PointerButton.Primary);
+        return new WindowPointerEvent(kind, new PointF(x, y), PointerButton.Primary);
     }
 
     private sealed class FixedContent : UiElement

@@ -11,7 +11,7 @@ public sealed class BackgroundQueueTests
     {
         int callerThread = Environment.CurrentManagedThreadId;
         int workThread = 0;
-        using var queue = new BackgroundQueue<object?>("test", 1, () => null);
+        using var queue = new ComWorkerQueue<object?>("test", 1, () => null);
 
         int result = queue.Enqueue((_, _) =>
         {
@@ -27,7 +27,7 @@ public sealed class BackgroundQueueTests
     public void EachWorkerOwnsOneContextInstance()
     {
         int created = 0;
-        using var queue = new BackgroundQueue<int>("test", 2, () => Interlocked.Increment(ref created));
+        using var queue = new ComWorkerQueue<int>("test", 2, () => Interlocked.Increment(ref created));
         var contexts = new ConcurrentBag<int>();
         using var start = new ManualResetEventSlim();
         using var done = new CountdownEvent(2);
@@ -52,7 +52,7 @@ public sealed class BackgroundQueueTests
     [TestMethod]
     public void HigherPriorityWorkRunsFirst()
     {
-        using var queue = new BackgroundQueue<object?>("test", 1, () => null);
+        using var queue = new ComWorkerQueue<object?>("test", 1, () => null);
         using var gate = new ManualResetEventSlim();
         using var blockerStarted = new ManualResetEventSlim();
         using var done = new CountdownEvent(3);
@@ -78,7 +78,7 @@ public sealed class BackgroundQueueTests
     [TestMethod]
     public void CancelledQueuedWorkIsNotExecuted()
     {
-        using var queue = new BackgroundQueue<object?>("test", 1, () => null);
+        using var queue = new ComWorkerQueue<object?>("test", 1, () => null);
         using var gate = new ManualResetEventSlim();
         using var blockerStarted = new ManualResetEventSlim();
 
@@ -105,7 +105,7 @@ public sealed class BackgroundQueueTests
     [TestMethod]
     public void DisposeCancelsPendingWork()
     {
-        using var queue = new BackgroundQueue<object?>("test", 1, () => null);
+        using var queue = new ComWorkerQueue<object?>("test", 1, () => null);
         using var gate = new ManualResetEventSlim();
         using var blockerStarted = new ManualResetEventSlim();
 
@@ -126,7 +126,7 @@ public sealed class BackgroundQueueTests
     [TestMethod]
     public void WorkExceptionsSurfaceThroughTheTask()
     {
-        using var queue = new BackgroundQueue<object?>("test", 1, () => null);
+        using var queue = new ComWorkerQueue<object?>("test", 1, () => null);
 
         Task<int> task = queue.Enqueue<int>((_, _) => throw new InvalidOperationException("boom"));
 
@@ -136,7 +136,7 @@ public sealed class BackgroundQueueTests
     [TestMethod]
     public void ContextCreationFailureFaultsPendingWork()
     {
-        using var queue = new BackgroundQueue<object?>(
+        using var queue = new ComWorkerQueue<object?>(
             "test",
             1,
             () => throw new InvalidOperationException("no context"));

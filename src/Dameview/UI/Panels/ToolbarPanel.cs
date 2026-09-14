@@ -102,7 +102,7 @@ internal sealed class ToolbarPanel : UiElement, IDisposable
         context.DrawRoundedRectangle(panel, context.Palette.SurfaceBorder);
     }
 
-    protected override void ObservePointerMove(in UiPointerEvent input)
+    protected override void ObservePointerMove(in WindowPointerEvent input)
     {
         bool visible = HasFocusWithin || input.Position.Y <= Bounds.Height + 28.0f;
         if (_visibility.SetTarget(visible ? 1.0f : 0.0f))

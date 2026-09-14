@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using Dameview.Navigation;
 using Dameview.Platform;
+using Dameview.Serialization;
 using Dameview.Settings;
 
 namespace Dameview.Tests.Settings;
@@ -23,6 +24,7 @@ public sealed class SettingsServiceTests
             Sort = FolderSort.SizeLargest,
             GalleryThumbnailSize = GalleryThumbnailSize.Large,
             GalleryWidthDips = 240.0f,
+            Window = new WindowPlacementState { X = 20, Y = 30, Width = 320, Height = 240 },
         });
         Assert.IsNull(settings.Error);
 
@@ -30,6 +32,26 @@ public sealed class SettingsServiceTests
         reopened.Start();
         Assert.AreEqual(settings.Current, reopened.Current);
         StringAssert.Contains(File.ReadAllText(files.Path), "sizeLargest");
+    }
+
+    [TestMethod]
+    [DataRow(319, 240)]
+    [DataRow(320, 239)]
+    public void UndersizedWindowDoesNotReplaceOrPersistSettings(int width, int height)
+    {
+        using var files = new SettingsFiles();
+        using SettingsService settings = files.CreateService();
+        settings.Start();
+        AppSettings previous = settings.Current;
+        string saved = File.ReadAllText(files.Path);
+
+        Assert.ThrowsExactly<IniFormatException>(() => settings.Update(previous with
+        {
+            Window = new WindowPlacementState { Width = width, Height = height },
+        }));
+
+        Assert.AreEqual(previous, settings.Current);
+        Assert.AreEqual(saved, File.ReadAllText(files.Path));
     }
 
     [TestMethod]
@@ -200,7 +222,7 @@ public sealed class SettingsServiceTests
 
         internal SettingsService CreateService()
         {
-            return new SettingsService(Path, new UiSynchronizationContext(Posted.Enqueue));
+            return new SettingsService(Path, new WindowSynchronizationContext(Posted.Enqueue));
         }
 
         internal void Drain()

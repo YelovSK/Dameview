@@ -1,4 +1,5 @@
 using System.Drawing;
+using Dameview.Installation;
 using Dameview.Platform;
 using Dameview.UI.Animation;
 using Dameview.UI.Components;
@@ -111,7 +112,7 @@ internal sealed class InstallerUi : UiElement, IDisposable
         remove => _root.Invalidated -= value;
     }
 
-    internal event Action<UiCursor>? CursorChanged
+    internal event Action<WindowCursor>? CursorChanged
     {
         add => _root.CursorChanged += value;
         remove => _root.CursorChanged -= value;
@@ -170,7 +171,7 @@ internal sealed class InstallerUi : UiElement, IDisposable
         _root.InvalidateLayout();
     }
 
-    internal bool HandleKey(UiKeyEvent input) =>
+    internal bool HandleKey(WindowKeyEvent input) =>
         _root.HandleKey(input, this, wrapFocus: true, directionalNavigation: true);
 
     internal void SetDpi(float dpi) => _root.SetDpi(dpi);
@@ -193,7 +194,7 @@ internal sealed class InstallerUi : UiElement, IDisposable
         _root.Draw(context, pixelSize);
     }
 
-    internal bool HandlePointer(in UiPointerEvent input) => _root.HandlePointer(input);
+    internal bool HandlePointer(in WindowPointerEvent input) => _root.HandlePointer(input);
 
     protected override SizeF MeasureCore(SizeF availableSize)
     {

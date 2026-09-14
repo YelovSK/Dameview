@@ -78,7 +78,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     }
 
     internal override bool PreservesFocusOnPointerPress => true;
-    internal override UiCursor Cursor => _hoveredIndex >= 0 ? UiCursor.Pointer : UiCursor.Default;
+    internal override WindowCursor Cursor => _hoveredIndex >= 0 ? WindowCursor.Pointer : WindowCursor.Default;
 
     internal void Bind(GalleryPanelState state)
     {
@@ -190,7 +190,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         }
     }
 
-    internal override UiPointerResult OnPointerEvent(in UiPointerEvent input)
+    internal override UiPointerResult OnPointerEvent(in WindowPointerEvent input)
     {
         bool isInside = input.Position.X >= 0.0f
             && input.Position.X < Bounds.Width
@@ -208,7 +208,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             : -1;
         switch (input.Kind)
         {
-            case UiPointerEventKind.Moved:
+            case WindowPointerEventKind.Moved:
                 if (_pressedPath is not null)
                 {
                     if (!_dragging && HasCrossedDragThreshold(input.Position))
@@ -233,14 +233,14 @@ internal sealed class GalleryPanel : UiElement, IDisposable
                 _hoveredIndex = index;
                 return new UiPointerResult(Consumed: true, NeedsRepaint: changed);
 
-            case UiPointerEventKind.Pressed when input.Button == PointerButton.Primary:
+            case WindowPointerEventKind.Pressed when input.Button == PointerButton.Primary:
                 _pressedIndex = index;
                 _pressedPath = index >= 0 ? _state.Entries[index].FullName : null;
                 _pressPosition = input.Position;
                 _dragging = false;
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true, CapturePointer: index >= 0);
 
-            case UiPointerEventKind.Pressed when input.Button == PointerButton.Middle:
+            case WindowPointerEventKind.Pressed when input.Button == PointerButton.Middle:
                 if (index >= 0)
                 {
                     _openInNewTab(_state.Entries[index].FullName);
@@ -248,7 +248,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
                 return new UiPointerResult(Consumed: true);
 
-            case UiPointerEventKind.Released:
+            case WindowPointerEventKind.Released:
                 int pressed = _pressedIndex;
                 string? pressedPath = _pressedPath;
                 bool wasDragging = _dragging;
@@ -268,7 +268,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
                 return new UiPointerResult(Consumed: true, NeedsRepaint: pressed >= 0);
 
-            case UiPointerEventKind.Cancelled:
+            case WindowPointerEventKind.Cancelled:
                 bool wasPressed = _pressedIndex >= 0;
                 if (_dragging && _pressedPath is { } cancelledPath)
                 {
@@ -282,7 +282,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
                 _dragging = false;
                 return new UiPointerResult(Consumed: true, NeedsRepaint: wasPressed);
 
-            case UiPointerEventKind.Wheel:
+            case WindowPointerEventKind.Wheel:
                 bool scrollChanged = _state.ScrollOffset.ScrollBy(-input.WheelDelta / 120.0f * ItemHeight / 2.0f);
 
                 return new UiPointerResult(Consumed: true, NeedsRepaint: scrollChanged);
