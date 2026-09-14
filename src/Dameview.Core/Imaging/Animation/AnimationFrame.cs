@@ -1,4 +1,4 @@
-namespace Dameview.Imaging;
+namespace Dameview.Imaging.Animation;
 
 /// <summary>A decoded animation frame and the time it should remain displayed.</summary>
 internal sealed record AnimationFrame(DecodedImage Image, TimeSpan Duration);

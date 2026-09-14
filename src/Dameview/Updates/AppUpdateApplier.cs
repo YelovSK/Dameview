@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
-using Dameview.Imaging;
+using Dameview.Imaging.Decoding;
 using Dameview.Installation;
 
 namespace Dameview.Updates;

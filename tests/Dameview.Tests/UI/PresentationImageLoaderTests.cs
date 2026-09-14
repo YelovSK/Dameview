@@ -1,6 +1,9 @@
 using Dameview.Imaging;
-using Dameview.Platform;
-using Dameview.UI;
+using Dameview.Imaging.Animation;
+using Dameview.Imaging.Decoding;
+using Dameview.Imaging.Loading;
+using Dameview.UI.Presentation;
+using Dameview.Win32;
 
 namespace Dameview.Tests.UI;
 

@@ -3,7 +3,7 @@ using Windows.Win32.Foundation;
 using Windows.Win32.Networking.WinHttp;
 using static Windows.Win32.PInvoke;
 
-namespace Dameview.Platform.Networking;
+namespace Dameview.Win32.Networking;
 
 internal sealed unsafe class WinHttpRequest : IDisposable
 {

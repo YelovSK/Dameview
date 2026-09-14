@@ -1,8 +1,9 @@
+using Dameview.Imaging.Loading;
 using SharpGen.Runtime;
 using SharpGen.Runtime.Win32;
 using Vortice.WIC;
 
-namespace Dameview.Imaging;
+namespace Dameview.Imaging.Decoding;
 
 internal enum ExifOrientation : ushort
 {

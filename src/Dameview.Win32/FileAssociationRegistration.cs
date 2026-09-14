@@ -1,6 +1,6 @@
 using Microsoft.Win32;
 
-namespace Dameview.Platform;
+namespace Dameview.Win32;
 
 internal sealed class FileAssociationRegistration(string applicationId, string progId)
 {

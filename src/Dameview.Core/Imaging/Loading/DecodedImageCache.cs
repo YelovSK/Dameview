@@ -1,6 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 
-namespace Dameview.Imaging;
+namespace Dameview.Imaging.Loading;
 
 internal sealed class DecodedImageCache
 {

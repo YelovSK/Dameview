@@ -1,5 +1,5 @@
-using Dameview.Imaging;
 using System.Drawing;
+using Dameview.Imaging.Loading;
 using Dameview.Navigation;
 using Dameview.Viewing;
 

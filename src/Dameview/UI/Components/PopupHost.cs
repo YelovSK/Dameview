@@ -1,8 +1,9 @@
 using System.Drawing;
-using Dameview.Platform;
 using Dameview.UI.Animation;
+using Dameview.UI.Foundation;
+using Dameview.Win32.Input;
 
-namespace Dameview.UI;
+namespace Dameview.UI.Components;
 
 // Owns transient popup placement and outside-click dismissal. Popup content remains
 // owned by the control that created it.

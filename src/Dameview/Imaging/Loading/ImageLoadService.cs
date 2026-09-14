@@ -1,6 +1,8 @@
-using Dameview.Platform;
+using Dameview.Imaging.Animation;
+using Dameview.Imaging.Decoding;
+using Dameview.Win32;
 
-namespace Dameview.Imaging;
+namespace Dameview.Imaging.Loading;
 
 internal sealed class ImageLoadService : IDisposable
 {

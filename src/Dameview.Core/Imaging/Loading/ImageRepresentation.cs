@@ -1,4 +1,6 @@
-namespace Dameview.Imaging;
+using Dameview.Imaging.Animation;
+
+namespace Dameview.Imaging.Loading;
 
 // Owns the resources needed to present one accepted image. ViewerSession owns the
 // representation; presentation consumers borrow it and own their graphics resources.

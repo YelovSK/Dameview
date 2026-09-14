@@ -1,11 +1,13 @@
 using System.Drawing;
 using Dameview.Imaging;
+using Dameview.Imaging.Loading;
 using Dameview.Rendering;
+using Dameview.UI.Foundation;
 using Dameview.Viewing;
 using Vortice.Direct2D1;
 using Vortice.Mathematics;
 
-namespace Dameview.UI.Panels;
+namespace Dameview.UI.Presentation;
 
 // UI-thread owned. The source is borrowed from ImageLoaded; this class owns the
 // overview and tile GPU resources but never disposes the source itself.

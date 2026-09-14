@@ -1,6 +1,6 @@
 using System.Drawing;
 
-namespace Dameview.Platform;
+namespace Dameview.Win32.Input;
 
 internal readonly record struct WindowPointerEvent(
     WindowPointerEventKind Kind,

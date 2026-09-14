@@ -1,5 +1,5 @@
 using System.Drawing;
-using Dameview.UI;
+using Dameview.UI.Foundation;
 using Dameview.UI.Layout;
 
 namespace Dameview.Tests.UI.Layout;

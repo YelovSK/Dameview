@@ -1,14 +1,18 @@
 using System.Drawing;
 using Dameview.Commands;
-using Dameview.Imaging;
-using Dameview.Navigation;
+using Dameview.Imaging.Decoding;
+using Dameview.Imaging.Loading;
 using Dameview.Installation;
-using Dameview.Platform;
+using Dameview.Navigation;
 using Dameview.Rendering;
 using Dameview.Settings;
 using Dameview.UI;
+using Dameview.UI.Foundation;
+using Dameview.UI.Presentation;
 using Dameview.Updates;
 using Dameview.Viewing;
+using Dameview.Win32;
+using Dameview.Win32.Input;
 
 namespace Dameview;
 

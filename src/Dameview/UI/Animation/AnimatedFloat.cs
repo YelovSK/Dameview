@@ -1,3 +1,5 @@
+using Dameview.UI.Foundation;
+
 namespace Dameview.UI.Animation;
 
 internal sealed class AnimatedFloat

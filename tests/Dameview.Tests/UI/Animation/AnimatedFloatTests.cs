@@ -1,5 +1,5 @@
-using Dameview.UI;
 using Dameview.UI.Animation;
+using Dameview.UI.Foundation;
 
 namespace Dameview.Tests.UI.Animation;
 

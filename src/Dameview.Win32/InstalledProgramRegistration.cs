@@ -1,6 +1,6 @@
 using Microsoft.Win32;
 
-namespace Dameview.Platform;
+namespace Dameview.Win32;
 
 // Per-user installed-program metadata for an application with an uninstall command.
 internal sealed class InstalledProgramRegistration(string applicationId)

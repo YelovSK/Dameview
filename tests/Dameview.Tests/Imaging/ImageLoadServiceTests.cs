@@ -1,6 +1,9 @@
 using System.Collections.Concurrent;
 using Dameview.Imaging;
-using Dameview.Platform;
+using Dameview.Imaging.Animation;
+using Dameview.Imaging.Decoding;
+using Dameview.Imaging.Loading;
+using Dameview.Win32;
 
 namespace Dameview.Tests.Imaging;
 
@@ -795,7 +798,7 @@ public sealed class ImageLoadServiceTests
 
     private sealed class ManualImageInfoLoader : IImageInfoLoader
     {
-        private readonly object _sync = new();
+        private readonly Lock _sync = new();
         private readonly Queue<TaskCompletionSource<ImageInfo>> _pending = new();
 
         public Task<ImageInfo> LoadAsync(string path, CancellationToken cancellationToken)

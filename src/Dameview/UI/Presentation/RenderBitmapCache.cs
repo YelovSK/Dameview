@@ -1,8 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
-using Dameview.Imaging;
+using Dameview.Imaging.Loading;
 using Vortice.Direct2D1;
 
-namespace Dameview.UI;
+namespace Dameview.UI.Presentation;
 
 // UI-thread owned. The cache owns every bitmap; displayed images hold leases
 // that protect their entries from eviction.

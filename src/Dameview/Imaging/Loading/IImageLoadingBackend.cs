@@ -1,4 +1,7 @@
-namespace Dameview.Imaging;
+using Dameview.Imaging.Animation;
+using Dameview.Imaging.Decoding;
+
+namespace Dameview.Imaging.Loading;
 
 /// <summary>Platform-specific image operations used by the loading coordinator.</summary>
 internal interface IImageLoadingBackend

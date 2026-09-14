@@ -1,9 +1,13 @@
 using System.Drawing;
 using Dameview.Imaging;
-using Dameview.Platform;
+using Dameview.Imaging.Animation;
+using Dameview.Imaging.Loading;
 using Dameview.Rendering;
 using Dameview.UI.Animation;
+using Dameview.UI.Foundation;
+using Dameview.UI.Presentation;
 using Dameview.Viewing;
+using Dameview.Win32.Input;
 using Vortice.Direct2D1;
 using Vortice.Mathematics;
 

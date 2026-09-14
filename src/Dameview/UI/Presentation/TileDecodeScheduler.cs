@@ -1,6 +1,7 @@
 using Dameview.Imaging;
+using Dameview.Imaging.Loading;
 
-namespace Dameview.UI.Panels;
+namespace Dameview.UI.Presentation;
 
 internal sealed class TileDecodeScheduler : IDisposable
 {

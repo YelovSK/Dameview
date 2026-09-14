@@ -1,6 +1,6 @@
 using System.Drawing;
 
-namespace Dameview.UI;
+namespace Dameview.UI.Workspace;
 
 internal enum WorkspaceDragEventKind
 {

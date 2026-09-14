@@ -1,4 +1,6 @@
 using Dameview.Imaging;
+using Dameview.Imaging.Decoding;
+using Dameview.Imaging.Loading;
 
 namespace Dameview.Tests.Imaging;
 

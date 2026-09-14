@@ -1,4 +1,7 @@
-namespace Dameview.Imaging;
+using Dameview.Imaging.Animation;
+using Dameview.Imaging.Decoding;
+
+namespace Dameview.Imaging.Loading;
 
 internal sealed class WindowsImageLoadingBackend : IImageLoadingBackend, IDisposable
 {

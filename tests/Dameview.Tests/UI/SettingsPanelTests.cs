@@ -1,11 +1,12 @@
 using System.Drawing;
 using Dameview.Commands;
 using Dameview.Navigation;
-using Dameview.Platform;
 using Dameview.Settings;
-using Dameview.UI;
+using Dameview.UI.Components;
+using Dameview.UI.Foundation;
 using Dameview.UI.Panels;
 using Dameview.Updates;
+using Dameview.Win32.Input;
 using Vortice.DirectWrite;
 using static Vortice.DirectWrite.DWrite;
 

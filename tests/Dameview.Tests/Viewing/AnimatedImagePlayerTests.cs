@@ -1,4 +1,5 @@
 using Dameview.Imaging;
+using Dameview.Imaging.Animation;
 using Dameview.Viewing;
 
 namespace Dameview.Tests.Viewing;

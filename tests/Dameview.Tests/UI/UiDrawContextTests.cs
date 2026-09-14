@@ -1,5 +1,5 @@
 using System.Drawing;
-using Dameview.UI;
+using Dameview.UI.Foundation;
 using Vortice.Direct2D1;
 using Vortice.Mathematics;
 using Vortice.WIC;

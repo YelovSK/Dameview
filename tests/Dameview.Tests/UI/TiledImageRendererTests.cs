@@ -1,5 +1,5 @@
-using Dameview.Imaging;
-using Dameview.UI.Panels;
+using Dameview.Imaging.Loading;
+using Dameview.UI.Presentation;
 
 namespace Dameview.Tests.UI;
 

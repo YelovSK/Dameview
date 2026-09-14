@@ -1,9 +1,10 @@
 using System.Drawing;
+using Dameview.Imaging.Decoding;
 using SharpGen.Runtime;
 using Vortice.Mathematics;
 using Vortice.WIC;
 
-namespace Dameview.Imaging;
+namespace Dameview.Imaging.Loading;
 
 internal sealed class WicImageTileSource : IImageTileSource
 {

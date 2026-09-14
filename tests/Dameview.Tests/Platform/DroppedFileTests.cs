@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using System.Runtime.InteropServices;
 using System.Text;
-using Dameview.Platform;
+using Dameview.Win32;
 
 namespace Dameview.Tests.Platform;
 

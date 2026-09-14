@@ -1,5 +1,6 @@
 using System.Drawing;
 using Dameview.UI.Components;
+using Dameview.UI.Foundation;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
 using Vortice.Mathematics;

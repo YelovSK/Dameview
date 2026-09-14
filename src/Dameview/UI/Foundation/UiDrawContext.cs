@@ -4,7 +4,7 @@ using Vortice.Direct2D1;
 using Vortice.DirectWrite;
 using Vortice.Mathematics;
 
-namespace Dameview.UI;
+namespace Dameview.UI.Foundation;
 
 // Frame-local value. Copies share a UI-thread-owned scratch brush, which is
 // fully configured and consumed inside each drawing operation.

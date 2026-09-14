@@ -1,9 +1,9 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using Dameview.Navigation;
-using Dameview.Platform;
 using Dameview.Serialization;
 using Dameview.Settings;
+using Dameview.Win32;
 
 namespace Dameview.Tests.Settings;
 

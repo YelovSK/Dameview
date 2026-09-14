@@ -1,4 +1,4 @@
-namespace Dameview.Platform;
+namespace Dameview.Win32.Input;
 
 internal enum WindowCursor
 {

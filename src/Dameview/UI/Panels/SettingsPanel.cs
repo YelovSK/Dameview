@@ -3,6 +3,7 @@ using Dameview.Commands;
 using Dameview.Navigation;
 using Dameview.Settings;
 using Dameview.UI.Components;
+using Dameview.UI.Foundation;
 using Dameview.UI.Layout;
 using Dameview.Updates;
 using Vortice.DirectWrite;

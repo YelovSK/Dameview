@@ -1,6 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 
-namespace Dameview.Platform;
+namespace Dameview.Win32;
 
 // Runs work on dedicated MTA threads. Each thread builds one context instance from
 // <paramref name="createContext"/> (for example a decoder) and reuses it across work items.

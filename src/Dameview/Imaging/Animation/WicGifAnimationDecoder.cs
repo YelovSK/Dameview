@@ -1,9 +1,9 @@
 using System.Collections.Concurrent;
-using Dameview.Platform;
+using Dameview.Win32;
 using SharpGen.Runtime;
 using Vortice.WIC;
 
-namespace Dameview.Imaging;
+namespace Dameview.Imaging.Animation;
 
 internal sealed class WicGifAnimationDecoder : IAnimatedImageDecoder
 {

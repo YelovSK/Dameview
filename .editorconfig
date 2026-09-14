@@ -17,6 +17,7 @@ csharp_new_line_before_finally = true
 csharp_new_line_before_while = true
 
 dotnet_diagnostic.IDE0005.severity = warning
+dotnet_diagnostic.IDE0130.severity = warning
 dotnet_diagnostic.IDE0330.severity = warning
 
 dotnet_sort_system_directives_first = true

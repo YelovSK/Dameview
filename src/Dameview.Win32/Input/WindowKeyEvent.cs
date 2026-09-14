@@ -1,4 +1,4 @@
-namespace Dameview.Platform;
+namespace Dameview.Win32.Input;
 
 // Values match Win32 virtual-key codes so AppWindow can pass through keys
 // that are not named in this enum yet.

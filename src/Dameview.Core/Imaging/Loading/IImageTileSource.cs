@@ -1,4 +1,4 @@
-namespace Dameview.Imaging;
+namespace Dameview.Imaging.Loading;
 
 internal interface IImageTileSource : IDisposable
 {

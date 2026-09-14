@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using Dameview.Platform;
+using Dameview.Win32;
 
 namespace Dameview.Installation;
 

@@ -8,7 +8,7 @@ using Windows.Win32.UI.Shell;
 using Windows.Win32.UI.WindowsAndMessaging;
 using static Windows.Win32.PInvoke;
 
-namespace Dameview.Platform;
+namespace Dameview.Win32;
 
 internal static unsafe partial class NativeMethods
 {

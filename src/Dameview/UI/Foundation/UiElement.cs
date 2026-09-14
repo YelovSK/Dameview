@@ -1,7 +1,7 @@
 using System.Drawing;
-using Dameview.Platform;
+using Dameview.Win32.Input;
 
-namespace Dameview.UI;
+namespace Dameview.UI.Foundation;
 
 /// <summary>Base class for an element in the custom UI tree.</summary>
 /// <remarks>

@@ -1,11 +1,14 @@
 using System.Drawing;
 using System.Numerics;
 using Dameview.Imaging;
+using Dameview.Imaging.Loading;
 using Dameview.Navigation;
-using Dameview.Platform;
 using Dameview.Rendering;
 using Dameview.Settings;
+using Dameview.UI.Foundation;
 using Dameview.UI.Layout;
+using Dameview.UI.Workspace;
+using Dameview.Win32.Input;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
 using Vortice.Mathematics;

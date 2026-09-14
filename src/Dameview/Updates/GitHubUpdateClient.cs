@@ -1,5 +1,5 @@
 using Dameview.Installation;
-using Dameview.Platform.Networking;
+using Dameview.Win32.Networking;
 
 namespace Dameview.Updates;
 

@@ -1,10 +1,11 @@
 using System.Drawing;
 using Dameview.Commands;
 using Dameview.UI.Components;
+using Dameview.UI.Foundation;
 using Dameview.UI.Panels;
 using Dameview.Viewing;
 
-namespace Dameview.UI;
+namespace Dameview.UI.Workspace;
 
 internal sealed class WorkspaceDragController
 {

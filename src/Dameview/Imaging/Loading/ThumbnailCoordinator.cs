@@ -1,6 +1,6 @@
-using Dameview.Platform;
+using Dameview.Win32;
 
-namespace Dameview.Imaging;
+namespace Dameview.Imaging.Loading;
 
 internal enum ThumbnailPriority
 {

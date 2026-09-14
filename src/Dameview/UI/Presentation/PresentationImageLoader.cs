@@ -1,8 +1,9 @@
 using Dameview.Imaging;
+using Dameview.Imaging.Loading;
 using Dameview.Rendering;
 using Vortice.Direct2D1;
 
-namespace Dameview.UI;
+namespace Dameview.UI.Presentation;
 
 // UI-thread facade: checks render resources before asking the background pixel
 // producer, and converts temporary uploads into cache-owned Direct2D bitmaps.

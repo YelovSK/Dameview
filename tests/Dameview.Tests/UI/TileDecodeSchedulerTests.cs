@@ -1,7 +1,8 @@
 using System.Collections.Concurrent;
 using Dameview.Imaging;
-using Dameview.Platform;
-using Dameview.UI.Panels;
+using Dameview.Imaging.Loading;
+using Dameview.UI.Presentation;
+using Dameview.Win32;
 
 namespace Dameview.Tests.UI;
 

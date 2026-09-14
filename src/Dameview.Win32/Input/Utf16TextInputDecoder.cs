@@ -1,4 +1,4 @@
-namespace Dameview.Platform;
+namespace Dameview.Win32.Input;
 
 internal sealed class Utf16TextInputDecoder
 {

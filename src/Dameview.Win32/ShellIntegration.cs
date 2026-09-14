@@ -4,7 +4,7 @@ using Windows.Win32.System.Com;
 using Windows.Win32.UI.Shell;
 using static Windows.Win32.PInvoke;
 
-namespace Dameview.Platform;
+namespace Dameview.Win32;
 
 internal static class ShellIntegration
 {

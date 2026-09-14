@@ -1,6 +1,6 @@
 using System.Drawing;
-using Dameview.Platform;
-using Dameview.UI;
+using Dameview.UI.Foundation;
+using Dameview.Win32.Input;
 
 namespace Dameview.Tests.UI;
 

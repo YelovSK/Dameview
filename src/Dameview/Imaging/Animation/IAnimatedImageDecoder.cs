@@ -1,4 +1,4 @@
-namespace Dameview.Imaging;
+namespace Dameview.Imaging.Animation;
 
 /// <summary>Decodes image formats that may contain animated frames.</summary>
 internal interface IAnimatedImageDecoder

@@ -1,7 +1,7 @@
 using System.Drawing;
-using Dameview.Platform;
+using Dameview.Win32.Input;
 
-namespace Dameview.UI;
+namespace Dameview.UI.Foundation;
 
 /// <summary>Owns layout, focus, hover, capture, and event routing for a UI tree.</summary>
 internal sealed class UiRoot

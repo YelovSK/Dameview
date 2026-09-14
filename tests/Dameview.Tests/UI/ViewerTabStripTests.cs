@@ -1,7 +1,9 @@
 using System.Drawing;
-using Dameview.Platform;
 using Dameview.UI;
 using Dameview.UI.Components;
+using Dameview.UI.Foundation;
+using Dameview.UI.Workspace;
+using Dameview.Win32.Input;
 using Vortice.DirectWrite;
 using static Vortice.DirectWrite.DWrite;
 

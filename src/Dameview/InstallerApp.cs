@@ -1,8 +1,10 @@
-using Dameview.Imaging;
+using Dameview.Imaging.Decoding;
 using Dameview.Installation;
-using Dameview.Platform;
 using Dameview.Rendering;
 using Dameview.UI;
+using Dameview.UI.Foundation;
+using Dameview.Win32;
+using Dameview.Win32.Input;
 
 namespace Dameview;
 

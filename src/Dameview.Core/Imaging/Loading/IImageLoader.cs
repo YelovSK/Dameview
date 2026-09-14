@@ -1,4 +1,4 @@
-namespace Dameview.Imaging;
+namespace Dameview.Imaging.Loading;
 
 /// <summary>Loads foreground images and optionally warms neighboring images.</summary>
 /// <remarks>An <see cref="ImageLoaded"/> preview may precede the final result. Results are delivered on the loader's owning thread, and superseded requests are suppressed.</remarks>

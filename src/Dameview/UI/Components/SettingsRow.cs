@@ -1,4 +1,5 @@
 using System.Drawing;
+using Dameview.UI.Foundation;
 using Dameview.UI.Layout;
 using Vortice.DirectWrite;
 

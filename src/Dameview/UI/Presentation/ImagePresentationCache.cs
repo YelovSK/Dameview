@@ -1,9 +1,10 @@
 using System.Drawing;
 using Dameview.Rendering;
+using Dameview.UI.Foundation;
 using Vortice.Direct2D1;
 using Vortice.Mathematics;
 
-namespace Dameview.UI.Panels;
+namespace Dameview.UI.Presentation;
 
 // Retains the expensive high-quality rasterization for an unchanged static viewport.
 internal sealed class ImagePresentationCache : IDisposable

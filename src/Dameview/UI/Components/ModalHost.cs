@@ -1,9 +1,10 @@
 using System.Drawing;
-using Dameview.Platform;
+using Dameview.UI.Foundation;
+using Dameview.Win32.Input;
 using Vortice.Direct2D1;
 using Vortice.Mathematics;
 
-namespace Dameview.UI;
+namespace Dameview.UI.Components;
 
 internal abstract class ModalContent : UiElement
 {

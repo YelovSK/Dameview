@@ -1,4 +1,4 @@
-using Dameview.Imaging;
+using Dameview.Imaging.Decoding;
 using Vortice.WIC;
 
 namespace Dameview.Tests.Imaging;

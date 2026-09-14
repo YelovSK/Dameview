@@ -1,6 +1,7 @@
 using System.Drawing;
-using Dameview.Platform;
 using Dameview.UI.Animation;
+using Dameview.UI.Foundation;
+using Dameview.Win32.Input;
 
 namespace Dameview.UI.Components;
 

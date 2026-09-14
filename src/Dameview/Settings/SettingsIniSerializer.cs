@@ -1,7 +1,7 @@
 using System.Globalization;
 using Dameview.Navigation;
-using Dameview.Platform;
 using Dameview.Serialization;
+using Dameview.Win32;
 
 namespace Dameview.Settings;
 

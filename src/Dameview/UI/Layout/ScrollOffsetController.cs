@@ -1,3 +1,5 @@
+using Dameview.UI.Foundation;
+
 namespace Dameview.UI.Layout;
 
 /// <summary>Clamps and animates a scroll position toward a requested target.</summary>

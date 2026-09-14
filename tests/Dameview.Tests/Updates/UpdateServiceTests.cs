@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
-using Dameview.Platform;
 using Dameview.Updates;
+using Dameview.Win32;
 
 namespace Dameview.Tests.Updates;
 

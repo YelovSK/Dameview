@@ -1,4 +1,6 @@
-namespace Dameview.Imaging;
+using Dameview.Imaging.Loading;
+
+namespace Dameview.Imaging.Decoding;
 
 /// <summary>Reads metadata and decodes still images into CPU-backed pixel data.</summary>
 internal interface IImageDecoder : IDisposable

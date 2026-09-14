@@ -1,6 +1,7 @@
 using System.Drawing;
+using Dameview.UI.Foundation;
 
-namespace Dameview.UI;
+namespace Dameview.UI.Workspace;
 
 internal readonly record struct ViewerLayout(
     RectangleF Content,

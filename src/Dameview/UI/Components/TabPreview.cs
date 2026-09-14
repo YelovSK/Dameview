@@ -1,7 +1,9 @@
 using System.Drawing;
 using Dameview.Imaging;
+using Dameview.Imaging.Loading;
 using Dameview.Rendering;
 using Dameview.UI.Animation;
+using Dameview.UI.Foundation;
 using Vortice.Direct2D1;
 using Vortice.Mathematics;
 

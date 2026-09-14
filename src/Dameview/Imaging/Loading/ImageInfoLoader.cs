@@ -1,6 +1,7 @@
-using Dameview.Platform;
+using Dameview.Imaging.Decoding;
+using Dameview.Win32;
 
-namespace Dameview.Imaging;
+namespace Dameview.Imaging.Loading;
 
 internal interface IImageInfoLoader
 {

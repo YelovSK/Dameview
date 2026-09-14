@@ -1,4 +1,4 @@
-namespace Dameview.UI;
+namespace Dameview.UI.Foundation;
 
 [Flags]
 internal enum UiVisualState

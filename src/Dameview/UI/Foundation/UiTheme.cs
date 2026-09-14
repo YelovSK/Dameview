@@ -2,7 +2,7 @@ using Dameview.Settings;
 using Vortice.Mathematics;
 using Color = System.Drawing.Color;
 
-namespace Dameview.UI;
+namespace Dameview.UI.Foundation;
 
 internal sealed record UiTheme(
     Color4 Background,

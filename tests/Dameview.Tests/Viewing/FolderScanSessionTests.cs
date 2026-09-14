@@ -1,8 +1,9 @@
 using System.Collections.Concurrent;
 using Dameview.Imaging;
+using Dameview.Imaging.Loading;
 using Dameview.Navigation;
-using Dameview.Platform;
 using Dameview.Viewing;
+using Dameview.Win32;
 
 namespace Dameview.Tests.Viewing;
 

@@ -1,6 +1,5 @@
 using System.Numerics;
 using Dameview.Imaging;
-using SharpGen.Runtime;
 using Vortice.DCommon;
 using Vortice.Direct2D1;
 using Vortice.Direct2D1.Effects;

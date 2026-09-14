@@ -1,14 +1,16 @@
 using System.Drawing;
-using Dameview.Imaging;
+using Dameview.Imaging.Decoding;
+using Dameview.Imaging.Loading;
 using Dameview.Rendering;
 using Dameview.UI.Components;
+using Dameview.UI.Foundation;
 using Dameview.UI.Layout;
 using Dameview.UI.Panels;
 using Dameview.Viewing;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
 
-namespace Dameview.UI;
+namespace Dameview.UI.Workspace;
 
 // Presents the active tab of one viewer pane. Shared application chrome remains in ViewerUi.
 internal sealed class ViewerPaneView : UiElement, IDisposable

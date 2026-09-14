@@ -1,4 +1,4 @@
-namespace Dameview.Imaging;
+namespace Dameview.Imaging.Loading;
 
 internal abstract record ImageLoadResult(string Path);
 

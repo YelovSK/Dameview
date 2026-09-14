@@ -1,8 +1,9 @@
 using System.Drawing;
+using Dameview.UI.Foundation;
 using Dameview.UI.Layout;
 using Dameview.Viewing;
 
-namespace Dameview.UI;
+namespace Dameview.UI.Workspace;
 
 // Mirrors the workspace model while retaining views for panes that survive a layout change.
 internal sealed class WorkspaceView : UiElement, IDisposable

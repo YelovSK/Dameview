@@ -1,4 +1,4 @@
-using Dameview.Platform;
+using Dameview.Win32.Input;
 
 namespace Dameview.Tests.Platform;
 
