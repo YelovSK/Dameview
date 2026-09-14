@@ -43,12 +43,19 @@ public sealed class SettingsPanelTests
     }
 
     [TestMethod]
-    public void AppearanceTabCanChangeGalleryThumbnailSize()
+    public void LayoutTabCanConfigureTheGallery()
     {
         using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         var popupHost = new PopupHost();
+        bool? galleryEnabled = null;
+        GalleryPlacement? selectedPlacement = null;
         GalleryThumbnailSize? selectedSize = null;
-        var commands = new TestSettingsCommands { GalleryThumbnailSize = value => selectedSize = value };
+        var commands = new TestSettingsCommands
+        {
+            GalleryEnabled = value => galleryEnabled = value,
+            GalleryPlacement = value => selectedPlacement = value,
+            GalleryThumbnailSize = value => selectedSize = value,
+        };
         using var settings = new SettingsPanel(
             factory,
             popupHost,
@@ -59,12 +66,18 @@ public sealed class SettingsPanelTests
         root.Arrange(new SizeF(440.0f, 460.0f));
         root.SetFocus(settings.InitialFocus);
 
+        root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new WindowKeyEvent(WindowKey.Space), settings, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new WindowKeyEvent(WindowKey.Down), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Down), settings, wrapFocus: true, directionalNavigation: true);
 
+        Assert.AreEqual(false, galleryEnabled);
+        Assert.AreEqual(GalleryPlacement.Left, selectedPlacement);
         Assert.AreEqual(GalleryThumbnailSize.Large, selectedSize);
     }
 
@@ -86,9 +99,10 @@ public sealed class SettingsPanelTests
         root.SetFocus(settings.InitialFocus);
 
         root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
         UiElement pages = settings.Children[3];
         Assert.IsFalse(pages.Children[0].IsVisible);
-        Assert.IsTrue(pages.Children[1].IsVisible);
+        Assert.IsTrue(pages.Children[2].IsVisible);
 
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
@@ -116,6 +130,7 @@ public sealed class SettingsPanelTests
         root.Arrange(size);
         root.SetFocus(settings.InitialFocus);
         root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Enter), settings, wrapFocus: true, directionalNavigation: true);
@@ -126,7 +141,7 @@ public sealed class SettingsPanelTests
             root.Arrange(size);
         }
 
-        UiElement sortingScrollView = settings.Children[3].Children[1];
+        UiElement sortingScrollView = settings.Children[3].Children[2];
         RectangleF scrollBounds = sortingScrollView.GetBoundsRelativeTo(scene);
         RectangleF popupBounds = popupHost.Children[0].GetBoundsRelativeTo(scene);
 
@@ -157,6 +172,7 @@ public sealed class SettingsPanelTests
 
         root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Enter), settings, wrapFocus: true, directionalNavigation: true);
 
@@ -167,12 +183,16 @@ public sealed class SettingsPanelTests
     {
         internal Action<ThemeId>? Theme { get; init; }
         internal Action<bool>? Animations { get; init; }
+        internal Action<bool>? GalleryEnabled { get; init; }
+        internal Action<GalleryPlacement>? GalleryPlacement { get; init; }
         internal Action<GalleryThumbnailSize>? GalleryThumbnailSize { get; init; }
         internal Action<FolderSort>? Sort { get; init; }
         internal Action? Activate { get; init; }
 
         public void SetTheme(ThemeId theme) => Theme?.Invoke(theme);
         public void SetAnimationsEnabled(bool enabled) => Animations?.Invoke(enabled);
+        public void SetGalleryEnabled(bool enabled) => GalleryEnabled?.Invoke(enabled);
+        public void SetGalleryPlacement(GalleryPlacement placement) => GalleryPlacement?.Invoke(placement);
         public void SetGalleryThumbnailSize(GalleryThumbnailSize size) => GalleryThumbnailSize?.Invoke(size);
         public void SetSort(FolderSort sort) => Sort?.Invoke(sort);
         public void ActivateUpdate() => Activate?.Invoke();

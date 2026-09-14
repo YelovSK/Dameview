@@ -6,8 +6,7 @@ namespace Dameview.UI.Workspace;
 internal readonly record struct ViewerLayout(
     RectangleF Content,
     RectangleF Status,
-    RectangleF Toolbar,
-    RectangleF Gallery)
+    RectangleF Toolbar)
 {
     internal static ViewerLayout Calculate(
         SizeF size,
@@ -15,30 +14,10 @@ internal readonly record struct ViewerLayout(
         bool showToolbar,
         float statusWidthDips = float.PositiveInfinity,
         float statusHeightDips = UiDesign.StatusHeight,
-        float toolbarWidthDips = UiDesign.ToolbarWidth,
-        bool showGallery = false,
-        float galleryWidthDips = 184.0f)
+        float toolbarWidthDips = UiDesign.ToolbarWidth)
     {
         float margin = UiDesign.WindowMargin;
-        RectangleF gallery = RectangleF.Empty;
         float contentWidth = size.Width;
-        if (showGallery)
-        {
-            const float minimumContentWidth = 120.0f;
-            float galleryWidth = MathF.Min(
-                galleryWidthDips,
-                MathF.Max(0.0f, size.Width - 2.0f * margin - UiDesign.PanelGap - minimumContentWidth));
-            if (galleryWidth > 0.0f)
-            {
-                gallery = new RectangleF(
-                    size.Width - margin - galleryWidth,
-                    margin,
-                    galleryWidth,
-                    MathF.Max(0.0f, size.Height - 2.0f * margin));
-                contentWidth = MathF.Max(0.0f, gallery.X - UiDesign.PanelGap);
-            }
-        }
-
         var content = new RectangleF(0.0f, 0.0f, contentWidth, size.Height);
         float availableWidth = MathF.Max(0.0f, contentWidth - (2.0f * margin));
         float availableHeight = MathF.Max(0.0f, size.Height - (2.0f * margin));
@@ -63,6 +42,6 @@ internal readonly record struct ViewerLayout(
                 toolbarHeight);
         }
 
-        return new ViewerLayout(content, status, toolbar, gallery);
+        return new ViewerLayout(content, status, toolbar);
     }
 }

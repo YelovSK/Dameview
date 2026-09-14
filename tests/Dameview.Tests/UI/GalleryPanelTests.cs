@@ -1,3 +1,5 @@
+using System.Drawing;
+using Dameview.UI.Layout;
 using Dameview.UI.Panels;
 
 namespace Dameview.Tests.UI;
@@ -68,6 +70,19 @@ public sealed class GalleryPanelTests
             itemHeight: GalleryPanel.ItemHeightDips,
             columnCount: 2,
             itemGap: 8.0f));
+    }
+
+    [TestMethod]
+    public void HorizontalLayoutTransposesPointsAndBounds()
+    {
+        Assert.AreEqual(
+            new PointF(20.0f, 10.0f),
+            GalleryPanel.ToLayoutPoint(new PointF(10.0f, 20.0f), UiOrientation.Horizontal));
+        Assert.AreEqual(
+            new RectangleF(20.0f, 10.0f, 40.0f, 30.0f),
+            GalleryPanel.FromLayoutBounds(
+                new RectangleF(10.0f, 20.0f, 30.0f, 40.0f),
+                UiOrientation.Horizontal));
     }
 
     [TestMethod]

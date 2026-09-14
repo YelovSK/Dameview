@@ -15,11 +15,16 @@ internal static class SettingsIniSerializer
             document.Get(string.Empty, "animations"),
             defaultValue: true);
         FolderSort sort = ReadSort(document.Get(string.Empty, "sort"));
+        bool galleryEnabled = ReadOptionalBoolean(
+            document.Get(string.Empty, "galleryEnabled"),
+            defaultValue: true);
+        GalleryPlacement galleryPlacement = ReadGalleryPlacement(
+            document.Get(string.Empty, "galleryPlacement"));
         GalleryThumbnailSize galleryThumbnailSize = ReadGalleryThumbnailSize(
             document.Get(string.Empty, "galleryThumbnailSize"));
-        float galleryWidth = ReadOptionalFloat(
-            document.Get(string.Empty, "galleryWidth"),
-            AppSettings.DefaultGalleryWidthDips);
+        float gallerySize = ReadOptionalFloat(
+            document.Get(string.Empty, "gallerySize"),
+            AppSettings.DefaultGallerySizeDips);
         WindowPlacementState? window = !document.HasSection("window") ? null : new WindowPlacementState
         {
             X = ReadRequiredInt(document.Get("window", "x")),
@@ -34,8 +39,10 @@ internal static class SettingsIniSerializer
             Theme = theme,
             AnimationsEnabled = animationsEnabled,
             Sort = sort,
+            GalleryEnabled = galleryEnabled,
+            GalleryPlacement = galleryPlacement,
             GalleryThumbnailSize = galleryThumbnailSize,
-            GalleryWidthDips = galleryWidth,
+            GallerySizeDips = gallerySize,
             Window = window,
         };
     }
@@ -46,8 +53,10 @@ internal static class SettingsIniSerializer
         document.Set(string.Empty, "theme", WriteTheme(settings.Theme));
         document.Set(string.Empty, "animations", settings.AnimationsEnabled ? "true" : "false");
         document.Set(string.Empty, "sort", WriteSort(settings.Sort));
+        document.Set(string.Empty, "galleryEnabled", settings.GalleryEnabled ? "true" : "false");
+        document.Set(string.Empty, "galleryPlacement", WriteGalleryPlacement(settings.GalleryPlacement));
         document.Set(string.Empty, "galleryThumbnailSize", WriteGalleryThumbnailSize(settings.GalleryThumbnailSize));
-        document.Set(string.Empty, "galleryWidth", settings.GalleryWidthDips.ToString(CultureInfo.InvariantCulture));
+        document.Set(string.Empty, "gallerySize", settings.GallerySizeDips.ToString(CultureInfo.InvariantCulture));
         if (settings.Window is { } window)
         {
             document.Set("window", "x", window.X.ToString(CultureInfo.InvariantCulture));
@@ -95,6 +104,15 @@ internal static class SettingsIniSerializer
         "medium" => GalleryThumbnailSize.Medium,
         "large" => GalleryThumbnailSize.Large,
         _ => throw new IniFormatException("Unknown gallery thumbnail size."),
+    };
+
+    private static GalleryPlacement ReadGalleryPlacement(string? value) => value switch
+    {
+        null or "right" => GalleryPlacement.Right,
+        "left" => GalleryPlacement.Left,
+        "top" => GalleryPlacement.Top,
+        "bottom" => GalleryPlacement.Bottom,
+        _ => throw new IniFormatException("Unknown gallery placement."),
     };
 
     private static int ReadRequiredInt(string? value)
@@ -151,6 +169,15 @@ internal static class SettingsIniSerializer
         GalleryThumbnailSize.Small => "small",
         GalleryThumbnailSize.Medium => "medium",
         GalleryThumbnailSize.Large => "large",
+        _ => throw new ArgumentOutOfRangeException(nameof(value)),
+    };
+
+    private static string WriteGalleryPlacement(GalleryPlacement value) => value switch
+    {
+        GalleryPlacement.Right => "right",
+        GalleryPlacement.Left => "left",
+        GalleryPlacement.Top => "top",
+        GalleryPlacement.Bottom => "bottom",
         _ => throw new ArgumentOutOfRangeException(nameof(value)),
     };
 

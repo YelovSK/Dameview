@@ -147,7 +147,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         // so this also remembers the size that will be restored after unmaximizing.
         _settings.Update(_settings.Current with
         {
-            GalleryWidthDips = _ui.GalleryWidthDips,
+            GallerySizeDips = _ui.GallerySizeDips,
             Window = _window.CapturePlacement(),
         });
         _updates.Changed -= HandleUpdateChanged;
@@ -373,6 +373,12 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
 
     public void SetAnimationsEnabled(bool enabled) =>
         _settings.Update(_settings.Current with { AnimationsEnabled = enabled });
+
+    public void SetGalleryEnabled(bool enabled) =>
+        _settings.Update(_settings.Current with { GalleryEnabled = enabled });
+
+    public void SetGalleryPlacement(GalleryPlacement placement) =>
+        _settings.Update(_settings.Current with { GalleryPlacement = placement });
 
     public void SetGalleryThumbnailSize(GalleryThumbnailSize size) =>
         _settings.Update(_settings.Current with { GalleryThumbnailSize = size });

@@ -42,6 +42,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private ViewerPane _activePane;
     private ViewerPaneView _activePaneView;
     private bool _animationsEnabled = true;
+    private bool _galleryEnabled = true;
     private bool _chromeVisible = true;
 
     internal ViewerUi(
@@ -92,7 +93,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _splitView = new SplitView(
             _mainOverlay,
             _galleryPanel,
-            initialDividerOffsetDips: GalleryPanel.DefaultWidthDips);
+            initialDividerOffsetDips: GalleryPanel.DefaultSizeDips);
         _modalHost = new ModalHost();
         _popupHost = new PopupHost();
         _settingsPanel = new SettingsPanel(
@@ -163,7 +164,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     internal TimeSpan? NextAnimationFrameDelay => _workspaceView.NextAnimationFrameDelay;
     internal bool IsClosingPane => _workspaceView.IsClosingPane;
-    internal float GalleryWidthDips => _splitView.DividerOffsetDips;
+    internal float GallerySizeDips => _splitView.DividerOffsetDips;
     internal PaneLayoutArea PaneLayoutArea => new(
         MathF.Max(1.0f, _root.DipsToPixels(_workspaceView.Bounds.Width)),
         MathF.Max(1.0f, _root.DipsToPixels(_workspaceView.Bounds.Height)),
@@ -260,9 +261,15 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     internal void ApplySettings(AppSettings settings)
     {
-        _splitView.SetDividerOffset(settings.GalleryWidthDips);
+        _galleryEnabled = settings.GalleryEnabled;
+        _splitView.SetEdge(GetGalleryEdge(settings.GalleryPlacement));
+        _galleryPanel.SetOrientation(_splitView.IsHorizontal
+            ? UiOrientation.Vertical
+            : UiOrientation.Horizontal);
+        _splitView.SetDividerOffset(settings.GallerySizeDips);
         _galleryPanel.SetThumbnailSize(settings.GalleryThumbnailSize);
         _settingsPanel.ApplySettings(settings);
+        ApplyActivePaneState(_activePane.ActiveSession.State, showToolbar: false);
         if (_animationsEnabled == settings.AnimationsEnabled)
         {
             return;
@@ -529,7 +536,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
             _toolbarPanel.Show();
         }
 
-        _galleryPanel.IsVisible = _chromeVisible && ShouldShowGallery(state);
+        _galleryPanel.IsVisible = _chromeVisible && _galleryEnabled && ShouldShowGallery(state);
         _splitView.SecondPaneVisible = _galleryPanel.IsVisible;
         _galleryPanel.ApplyState(state.FolderEntries, state.RequestedPath);
     }
@@ -540,6 +547,15 @@ internal sealed class ViewerUi : UiElement, IDisposable
             && !state.IsError
             && state.FolderError is null;
     }
+
+    private static SplitViewEdge GetGalleryEdge(GalleryPlacement placement) => placement switch
+    {
+        GalleryPlacement.Right => SplitViewEdge.Right,
+        GalleryPlacement.Left => SplitViewEdge.Left,
+        GalleryPlacement.Top => SplitViewEdge.Top,
+        GalleryPlacement.Bottom => SplitViewEdge.Bottom,
+        _ => throw new ArgumentOutOfRangeException(nameof(placement), placement, null),
+    };
 
     private ViewerPaneView? FindPaneView(ViewerPane pane)
     {

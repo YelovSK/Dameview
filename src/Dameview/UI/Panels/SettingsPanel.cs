@@ -15,6 +15,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
     private enum SettingsTab
     {
         Appearance,
+        Layout,
         Sorting,
         Updates,
     }
@@ -43,16 +44,20 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
 
     private readonly Button _closeButton;
     private readonly Dropdown<ThemeId> _themeDropdown;
+    private readonly Toggle _galleryEnabledToggle;
+    private readonly Dropdown<GalleryPlacement> _galleryPlacementDropdown;
     private readonly Dropdown<GalleryThumbnailSize> _galleryThumbnailSizeDropdown;
     private readonly Toggle _animationsToggle;
     private readonly Dropdown<SortField> _sortField;
     private readonly Dropdown<SortDirection> _sortDirection;
     private readonly SettingsRow _themeRow;
+    private readonly SettingsRow _galleryPlacementRow;
     private readonly SettingsRow _galleryThumbnailSizeRow;
     private readonly SettingsRow _sortFieldRow;
     private readonly SettingsRow _sortDirectionRow;
     private readonly TabStrip _tabs;
     private readonly ScrollView _appearancePage;
+    private readonly ScrollView _layoutPage;
     private readonly ScrollView _sortingPage;
     private readonly ScrollView _updatesPage;
     private readonly Overlay _pages;
@@ -99,6 +104,23 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
             ThemeId.Dark,
             _commands.SetTheme);
         _themeRow = new SettingsRow(factory, "Theme", _themeDropdown);
+        _galleryEnabledToggle = new Toggle(
+            factory,
+            "Show gallery",
+            value: true,
+            _commands.SetGalleryEnabled);
+        _galleryPlacementDropdown = new Dropdown<GalleryPlacement>(
+            factory,
+            popupHost,
+            [
+                new("Right", GalleryPlacement.Right),
+                new("Left", GalleryPlacement.Left),
+                new("Top", GalleryPlacement.Top),
+                new("Bottom", GalleryPlacement.Bottom),
+            ],
+            GalleryPlacement.Right,
+            _commands.SetGalleryPlacement);
+        _galleryPlacementRow = new SettingsRow(factory, "Gallery position", _galleryPlacementDropdown);
         _galleryThumbnailSizeDropdown = new Dropdown<GalleryThumbnailSize>(
             factory,
             popupHost,
@@ -155,8 +177,14 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
             UiDesign.LargeSpacing,
             StackPanelDistribution.Natural,
             _themeRow,
-            _galleryThumbnailSizeRow,
             _animationsToggle);
+        var layoutContent = new StackPanel(
+            UiOrientation.Vertical,
+            UiDesign.LargeSpacing,
+            StackPanelDistribution.Natural,
+            _galleryEnabledToggle,
+            _galleryPlacementRow,
+            _galleryThumbnailSizeRow);
         var sortingContent = new StackPanel(
             UiOrientation.Vertical,
             UiDesign.LargeSpacing,
@@ -170,12 +198,13 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
             _updateStatus,
             _updateButton);
         _appearancePage = new ScrollView(appearanceContent);
+        _layoutPage = new ScrollView(layoutContent);
         _sortingPage = new ScrollView(sortingContent);
         _updatesPage = new ScrollView(updatesContent);
-        _pages = new Overlay(_appearancePage, _sortingPage, _updatesPage);
+        _pages = new Overlay(_appearancePage, _layoutPage, _sortingPage, _updatesPage);
         _tabs = new TabStrip(
             factory,
-            ["Appearance", "Sorting", "Updates"],
+            ["Appearance", "Layout", "Sorting", "Updates"],
             (int)SettingsTab.Appearance,
             SelectTab);
 
@@ -206,6 +235,8 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
     internal void ApplySettings(AppSettings settings)
     {
         _themeDropdown.SelectedValue = settings.Theme;
+        _galleryEnabledToggle.Value = settings.GalleryEnabled;
+        _galleryPlacementDropdown.SelectedValue = settings.GalleryPlacement;
         _galleryThumbnailSizeDropdown.SelectedValue = settings.GalleryThumbnailSize;
         _animationsToggle.Value = settings.AnimationsEnabled;
 
@@ -278,11 +309,14 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
     {
         _closeButton.Dispose();
         _themeDropdown.Dispose();
+        _galleryEnabledToggle.Dispose();
+        _galleryPlacementDropdown.Dispose();
         _galleryThumbnailSizeDropdown.Dispose();
         _animationsToggle.Dispose();
         _sortField.Dispose();
         _sortDirection.Dispose();
         _themeRow.Dispose();
+        _galleryPlacementRow.Dispose();
         _galleryThumbnailSizeRow.Dispose();
         _sortFieldRow.Dispose();
         _sortDirectionRow.Dispose();
@@ -303,6 +337,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
     {
         _popupHost.Close();
         _appearancePage.IsVisible = index == (int)SettingsTab.Appearance;
+        _layoutPage.IsVisible = index == (int)SettingsTab.Layout;
         _sortingPage.IsVisible = index == (int)SettingsTab.Sorting;
         _updatesPage.IsVisible = index == (int)SettingsTab.Updates;
     }

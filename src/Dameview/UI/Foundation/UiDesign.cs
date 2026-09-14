@@ -3,7 +3,6 @@ namespace Dameview.UI.Foundation;
 internal static class UiDesign
 {
     internal const float WindowMargin = 12.0f;
-    internal const float PanelGap = 8.0f;
     internal const float StatusHeight = 42.0f;
     internal const float ToolbarHeight = 46.0f;
     internal const float ToolbarWidth = 476.0f;

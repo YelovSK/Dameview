@@ -22,8 +22,10 @@ public sealed class SettingsServiceTests
             Theme = ThemeId.Light,
             AnimationsEnabled = false,
             Sort = FolderSort.SizeLargest,
+            GalleryEnabled = false,
+            GalleryPlacement = GalleryPlacement.Bottom,
             GalleryThumbnailSize = GalleryThumbnailSize.Large,
-            GalleryWidthDips = 240.0f,
+            GallerySizeDips = 240.0f,
             Window = new WindowPlacementState { X = 20, Y = 30, Width = 320, Height = 240 },
         });
         Assert.IsNull(settings.Error);
@@ -64,8 +66,10 @@ public sealed class SettingsServiceTests
         Assert.AreEqual(ThemeId.Light, settings.Current.Theme);
         Assert.IsTrue(settings.Current.AnimationsEnabled);
         Assert.AreEqual(FolderSort.NameAscending, settings.Current.Sort);
+        Assert.IsTrue(settings.Current.GalleryEnabled);
+        Assert.AreEqual(GalleryPlacement.Right, settings.Current.GalleryPlacement);
         Assert.AreEqual(GalleryThumbnailSize.Medium, settings.Current.GalleryThumbnailSize);
-        Assert.AreEqual(AppSettings.DefaultGalleryWidthDips, settings.Current.GalleryWidthDips);
+        Assert.AreEqual(AppSettings.DefaultGallerySizeDips, settings.Current.GallerySizeDips);
     }
 
     [TestMethod]
@@ -78,6 +82,18 @@ public sealed class SettingsServiceTests
 
         Assert.AreEqual(ThemeId.Light, settings.Current.Theme);
         Assert.AreEqual(FolderSort.NameAscending, settings.Current.Sort);
+        Assert.IsNull(settings.Error);
+    }
+
+    [TestMethod]
+    public void PreviousGalleryWidthSettingIsIgnored()
+    {
+        using var files = new SettingsFiles();
+        File.WriteAllText(files.Path, "galleryWidth=240");
+        using SettingsService settings = files.CreateService();
+        settings.Start();
+
+        Assert.AreEqual(AppSettings.DefaultGallerySizeDips, settings.Current.GallerySizeDips);
         Assert.IsNull(settings.Error);
     }
 
@@ -146,10 +162,12 @@ public sealed class SettingsServiceTests
     [DataRow("theme=42")]
     [DataRow("animations=maybe")]
     [DataRow("sort=random")]
+    [DataRow("galleryEnabled=maybe")]
+    [DataRow("galleryPlacement=middle")]
     [DataRow("galleryThumbnailSize=huge")]
-    [DataRow("galleryWidth=small")]
-    [DataRow("galleryWidth=119")]
-    [DataRow("galleryWidth=NaN")]
+    [DataRow("gallerySize=small")]
+    [DataRow("gallerySize=119")]
+    [DataRow("gallerySize=NaN")]
     public void InvalidValuesDoNotReplaceCurrentSettings(string json)
     {
         using var files = new SettingsFiles();

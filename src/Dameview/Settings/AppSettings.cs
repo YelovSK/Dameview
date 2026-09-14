@@ -24,30 +24,41 @@ internal enum GalleryThumbnailSize
     Large,
 }
 
+internal enum GalleryPlacement
+{
+    Right,
+    Left,
+    Top,
+    Bottom,
+}
+
 internal sealed record AppSettings
 {
-    internal const float DefaultGalleryWidthDips = 184.0f;
-    internal const float MinimumGalleryWidthDips = 120.0f;
+    internal const float DefaultGallerySizeDips = 184.0f;
+    internal const float MinimumGallerySizeDips = 120.0f;
 
     public ThemeId Theme { get; init; } = ThemeId.Dark;
     public bool AnimationsEnabled { get; init; } = true;
     public FolderSort Sort { get; init; } = FolderSort.NameAscending;
+    public bool GalleryEnabled { get; init; } = true;
+    public GalleryPlacement GalleryPlacement { get; init; } = GalleryPlacement.Right;
     public GalleryThumbnailSize GalleryThumbnailSize { get; init; } = GalleryThumbnailSize.Medium;
-    public float GalleryWidthDips { get; init; } = DefaultGalleryWidthDips;
+    public float GallerySizeDips { get; init; } = DefaultGallerySizeDips;
     public WindowPlacementState? Window { get; init; }
 
     internal void Validate()
     {
         if (!Enum.IsDefined(Theme)
             || !Enum.IsDefined(Sort)
+            || !Enum.IsDefined(GalleryPlacement)
             || !Enum.IsDefined(GalleryThumbnailSize))
         {
             throw new IniFormatException("Unknown settings value.");
         }
 
-        if (!float.IsFinite(GalleryWidthDips) || GalleryWidthDips < MinimumGalleryWidthDips)
+        if (!float.IsFinite(GallerySizeDips) || GallerySizeDips < MinimumGallerySizeDips)
         {
-            throw new IniFormatException("Gallery width is invalid.");
+            throw new IniFormatException("Gallery size is invalid.");
         }
 
         if (Window is { } window && (window.Width < 320 || window.Height < 240))
