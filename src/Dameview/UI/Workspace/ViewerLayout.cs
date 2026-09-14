@@ -13,6 +13,8 @@ internal readonly record struct ViewerLayout(
         SizeF size,
         bool showStatus,
         bool showToolbar,
+        float statusWidthDips = float.PositiveInfinity,
+        float statusHeightDips = UiDesign.StatusHeight,
         float toolbarWidthDips = UiDesign.ToolbarWidth,
         bool showGallery = false,
         float galleryWidthDips = 184.0f)
@@ -40,11 +42,12 @@ internal readonly record struct ViewerLayout(
         var content = new RectangleF(0.0f, 0.0f, contentWidth, size.Height);
         float availableWidth = MathF.Max(0.0f, contentWidth - (2.0f * margin));
         float availableHeight = MathF.Max(0.0f, size.Height - (2.0f * margin));
-        float statusHeight = MathF.Min(UiDesign.StatusHeight, availableHeight);
+        float statusHeight = MathF.Min(statusHeightDips, availableHeight);
+        float statusWidth = MathF.Min(statusWidthDips, availableWidth);
         RectangleF status = showStatus ? new RectangleF(
-            margin,
+            MathF.Max(margin, (contentWidth - statusWidth) / 2.0f),
             MathF.Max(margin, size.Height - statusHeight - margin),
-            availableWidth,
+            statusWidth,
             statusHeight) : RectangleF.Empty;
 
         RectangleF toolbar = RectangleF.Empty;

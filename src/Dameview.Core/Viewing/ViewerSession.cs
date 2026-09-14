@@ -34,7 +34,11 @@ internal sealed class ViewerSession : IDisposable
     internal void SetSort(FolderSort sort)
     {
         _folderNavigator.SetSort(sort);
-        State = State with { FolderEntries = _folderNavigator.GetFiles() };
+        State = State with
+        {
+            FolderEntries = _folderNavigator.GetFiles(),
+            CurrentEntry = _folderNavigator.CurrentEntry,
+        };
         if (!State.IsLoading)
         {
             ApplyNavigationResult(navigationDirection: 0);
@@ -77,6 +81,7 @@ internal sealed class ViewerSession : IDisposable
                 Message = $"Could not open image: {exception.Message}",
                 IsError = true,
                 FolderEntries = [],
+                CurrentEntry = null,
                 FolderError = null,
             };
             StateChanged?.Invoke();
@@ -94,6 +99,7 @@ internal sealed class ViewerSession : IDisposable
         State = State with
         {
             FolderEntries = [],
+            CurrentEntry = null,
             FolderError = null,
         };
         BeginImageLoad(fullPath, navigationDirection: 0);
@@ -139,8 +145,13 @@ internal sealed class ViewerSession : IDisposable
         }
 
         State = update.Error is null
-            ? State with { FolderEntries = _folderNavigator.GetFiles(), FolderError = null }
-            : State with { FolderEntries = [], FolderError = update.Error };
+            ? State with
+            {
+                FolderEntries = _folderNavigator.GetFiles(),
+                CurrentEntry = _folderNavigator.CurrentEntry,
+                FolderError = null,
+            }
+            : State with { FolderEntries = [], CurrentEntry = null, FolderError = update.Error };
 
         if (!State.IsLoading)
         {
@@ -186,6 +197,7 @@ internal sealed class ViewerSession : IDisposable
         State = State with
         {
             RequestedPath = path,
+            CurrentEntry = _folderNavigator.CurrentEntry,
             IsLoading = true,
             Message = $"Loading {Path.GetFileName(path)}…",
             IsError = false,
@@ -270,4 +282,5 @@ internal sealed record ViewerSessionState(
     string? Message,
     bool IsError,
     FolderEntry[] FolderEntries,
+    FolderEntry? CurrentEntry = null,
     string? FolderError = null);

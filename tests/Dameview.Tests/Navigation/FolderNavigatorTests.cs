@@ -17,6 +17,7 @@ public sealed class FolderNavigatorTests
         var navigator = new FolderNavigator();
         navigator.SetFiles(directory.Files, middle);
 
+        Assert.AreEqual(middle, navigator.CurrentEntry!.FullName);
         Assert.AreEqual(last, navigator.GetNextPath());
         Assert.AreEqual(first, navigator.GetPreviousPath());
 
@@ -48,7 +49,12 @@ public sealed class FolderNavigatorTests
         var navigator = new FolderNavigator();
         navigator.SetFiles(directory.Files, loaded);
 
-        Assert.AreEqual(predicted, navigator.GetNextPath());
+        Assert.IsNull(navigator.CurrentEntry);
+        CollectionAssert.AreEqual(new[] { predicted }, navigator.GetFiles().Select(file => file.FullName).ToArray());
+        Assert.AreEqual(predicted, navigator.MoveToNextPath());
+        Assert.AreEqual(predicted, navigator.CurrentEntry!.FullName);
+        Assert.AreEqual(loaded, navigator.MoveToNextPath());
+        Assert.IsNull(navigator.CurrentEntry);
     }
 
     [TestMethod]

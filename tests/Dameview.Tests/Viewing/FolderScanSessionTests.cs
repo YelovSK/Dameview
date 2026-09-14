@@ -23,9 +23,11 @@ public sealed class FolderScanSessionTests
 
         fixture.Scanner.Complete(0, Fixture.First, Fixture.Second);
         fixture.DeliverScan();
+        Assert.AreEqual(Fixture.First, fixture.Session.State.CurrentEntry!.FullName);
         Assert.AreEqual(Fixture.Second, fixture.Loader.Preloads[0]);
         fixture.Session.ShowNextImage();
         Assert.AreEqual(Fixture.Second, fixture.Loader.Path);
+        Assert.AreEqual(Fixture.Second, fixture.Session.State.CurrentEntry!.FullName);
     }
 
     [TestMethod]

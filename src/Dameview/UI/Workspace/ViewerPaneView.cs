@@ -7,6 +7,7 @@ using Dameview.UI.Foundation;
 using Dameview.UI.Layout;
 using Dameview.UI.Panels;
 using Dameview.Viewing;
+using Dameview.Win32.Input;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
 
@@ -90,6 +91,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     internal UiElement EmptyStateSettingsButton => _emptyStatePanel.SettingsButton;
     internal TimeSpan? NextAnimationFrameDelay => _imagePanel.NextAnimationFrameDelay;
     internal RectangleF TabStripBounds => _viewerTabs.GetBoundsRelativeTo(this);
+    internal override bool ObservePointerMoves => true;
 
     internal void SetChromeVisible(bool visible)
     {
@@ -101,6 +103,10 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         _chromeVisible = visible;
         _viewerTabs.IsVisible = visible;
         _statusPanel.IsVisible = visible && HasStatus;
+        if (!visible)
+        {
+            _statusPanel.SetPointerNear(false);
+        }
     }
 
     internal bool ShowActivePaneIndicator
@@ -194,13 +200,14 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             message = $"Image opened, but its folder could not be read: {folderError}";
         }
 
-        _statusPanel.Status = new ViewerStatus(
+        _statusPanel.SetStatus(new ViewerStatus(
             Path.GetFileName(_state.RequestedPath) ?? string.Empty,
             _state.DisplayedImage?.Representation.Width ?? 0,
             _state.DisplayedImage?.Representation.Height ?? 0,
+            _state.CurrentEntry?.Length,
             _imagePanel.ZoomPercentage,
             message,
-            SettingsError is not null || animationError is not null || _state.IsError || _state.FolderError is not null);
+            SettingsError is not null || animationError is not null || _state.IsError || _state.FolderError is not null));
     }
 
     protected override SizeF MeasureCore(SizeF availableSize)
@@ -214,7 +221,9 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         _contentOverlay.Measure(contentSize);
         if (_statusPanel.IsVisible)
         {
-            _statusPanel.Measure(contentSize);
+            _statusPanel.Measure(new SizeF(
+                MathF.Max(0.0f, contentSize.Width - (2.0f * UiDesign.WindowMargin)),
+                StatusPanel.HeightDips));
         }
 
         return availableSize;
@@ -234,13 +243,25 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         RectangleF status = ViewerLayout.Calculate(
             ContentBounds.Size,
             showStatus: _chromeVisible && HasStatus,
-            showToolbar: false).Status;
+            showToolbar: false,
+            statusWidthDips: _statusPanel.DesiredSize.Width,
+            statusHeightDips: _statusPanel.DesiredSize.Height).Status;
         status.Offset(ContentBounds.Location);
         _statusPanel.Arrange(status);
         _activePaneIndicator.Arrange(new RectangleF(PointF.Empty, finalSize));
     }
 
     protected override bool HitTestCore(PointF position) => false;
+
+    protected override void ObservePointerMove(in WindowPointerEvent input)
+    {
+        bool insidePane = input.Position.X >= 0.0f
+            && input.Position.X < Bounds.Width
+            && input.Position.Y >= 0.0f
+            && input.Position.Y < Bounds.Height;
+        _statusPanel.SetPointerNear(
+            insidePane && input.Position.Y >= Bounds.Height - StatusPanel.HeightDips - 24.0f);
+    }
 
     public void Dispose()
     {

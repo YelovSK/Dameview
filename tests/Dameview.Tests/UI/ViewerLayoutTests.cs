@@ -7,15 +7,17 @@ namespace Dameview.Tests.UI;
 public sealed class ViewerLayoutTests
 {
     [TestMethod]
-    public void StatusPanelOverlaysTheFullSizeContentInDips()
+    public void StatusPanelCanUseCompactBounds()
     {
         var layout = ViewerLayout.Calculate(
             new SizeF(1000.0f, 800.0f),
             showStatus: true,
-            showToolbar: true);
+            showToolbar: true,
+            statusWidthDips: 240.0f,
+            statusHeightDips: 32.0f);
 
         Assert.AreEqual(new RectangleF(0.0f, 0.0f, 1000.0f, 800.0f), layout.Content);
-        Assert.AreEqual(new RectangleF(12.0f, 746.0f, 976.0f, 42.0f), layout.Status);
+        Assert.AreEqual(new RectangleF(380.0f, 756.0f, 240.0f, 32.0f), layout.Status);
         Assert.AreEqual(new RectangleF(262.0f, 12.0f, 476.0f, 46.0f), layout.Toolbar);
         Assert.AreEqual(RectangleF.Empty, layout.Gallery);
     }
@@ -52,10 +54,12 @@ public sealed class ViewerLayoutTests
             showStatus: true,
             showToolbar: true,
             showGallery: true,
-            galleryWidthDips: 184.0f);
+            galleryWidthDips: 184.0f,
+            statusWidthDips: 240.0f,
+            statusHeightDips: 32.0f);
 
         Assert.AreEqual(new RectangleF(0.0f, 0.0f, 796.0f, 800.0f), layout.Content);
-        Assert.AreEqual(new RectangleF(12.0f, 746.0f, 772.0f, 42.0f), layout.Status);
+        Assert.AreEqual(new RectangleF(278.0f, 756.0f, 240.0f, 32.0f), layout.Status);
         Assert.AreEqual(new RectangleF(160.0f, 12.0f, 476.0f, 46.0f), layout.Toolbar);
         Assert.AreEqual(new RectangleF(804.0f, 12.0f, 184.0f, 776.0f), layout.Gallery);
     }
