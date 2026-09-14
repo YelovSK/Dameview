@@ -94,6 +94,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
             _mainOverlay,
             _galleryPanel,
             initialDividerOffsetDips: GalleryPanel.DefaultSizeDips);
+        _splitView.ResizeStarted += _galleryPanel.BeginLiveResize;
+        _splitView.ResizeCompleted += _galleryPanel.EndLiveResize;
         _modalHost = new ModalHost();
         _popupHost = new PopupHost();
         _settingsPanel = new SettingsPanel(

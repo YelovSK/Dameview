@@ -33,11 +33,18 @@ internal sealed class SplitView : UiElement, ISplitResizerTarget
         DividerOffsetDips = initialDividerOffsetDips;
         Edge = edge;
         _resizer = new SplitResizer(this);
+        _resizer.ResizeStarted += () => ResizeStarted?.Invoke();
+        _resizer.ResizeCompleted += () => ResizeCompleted?.Invoke();
         _secondPane.IsVisible = false;
         AddChild(firstPane);
         AddChild(secondPane);
         AddChild(_resizer);
     }
+
+    /// <summary>Raised when the user begins dragging the splitter.</summary>
+    internal event Action? ResizeStarted;
+    /// <summary>Raised when the user finishes or cancels dragging the splitter.</summary>
+    internal event Action? ResizeCompleted;
 
     internal SplitViewEdge Edge { get; private set; }
     internal RectangleF FirstPaneBounds => _firstPaneBounds;

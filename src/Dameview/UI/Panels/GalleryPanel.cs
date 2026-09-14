@@ -48,6 +48,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private string? _pressedPath;
     private PointF _pressPosition;
     private bool _dragging;
+    private bool _liveResize;
 
     internal GalleryPanel(
         ID2D1DeviceContext deviceContext,
@@ -139,6 +140,26 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     {
         _pendingSelectionScroll = SelectionScrollAlignment.Center;
         RevealSelectionIfPending();
+    }
+
+    /// <summary>
+    /// Enters interactive-resize mode. While active, thumbnails are stretched
+    /// from their cached source bitmaps and labels are kept at their current
+    /// width so that each pointer move does not rebuild GPU bitmaps or text layouts.
+    /// </summary>
+    internal void BeginLiveResize() => _liveResize = true;
+
+    /// <summary>Leaves interactive-resize mode and rebuilds thumbnails and labels at the final size.</summary>
+    internal void EndLiveResize()
+    {
+        if (!_liveResize)
+        {
+            return;
+        }
+
+        _liveResize = false;
+        RefreshVisibleThumbnails();
+        InvalidateVisual();
     }
 
     internal void SetThumbnailSize(GalleryThumbnailSize size)
@@ -456,18 +477,32 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         _slots.TryGetValue(entry.FullName, out GalleryItemSlot? slot);
         if (slot?.SourceBitmap is { } sourceBitmap)
         {
-            float scale = MathF.Min(
-                imageBounds.Width / sourceBitmap.PixelSize.Width,
-                imageBounds.Height / sourceBitmap.PixelSize.Height);
-            float requestedWidth = sourceBitmap.PixelSize.Width * scale;
-            float requestedHeight = sourceBitmap.PixelSize.Height * scale;
-            ID2D1Bitmap1 bitmap = slot.GetDisplayBitmap(
-                _thumbnailScaleContext,
-                requestedWidth,
-                requestedHeight,
-                context.Dpi);
-            float width = bitmap.Size.Width;
-            float height = bitmap.Size.Height;
+            ID2D1Bitmap1 bitmap;
+            float width;
+            float height;
+            if (_liveResize)
+            {
+                bitmap = sourceBitmap;
+                float liveScale = MathF.Min(
+                    imageBounds.Width / sourceBitmap.Size.Width,
+                    imageBounds.Height / sourceBitmap.Size.Height);
+                width = sourceBitmap.Size.Width * liveScale;
+                height = sourceBitmap.Size.Height * liveScale;
+            }
+            else
+            {
+                float scale = MathF.Min(
+                    imageBounds.Width / sourceBitmap.PixelSize.Width,
+                    imageBounds.Height / sourceBitmap.PixelSize.Height);
+                bitmap = slot.GetDisplayBitmap(
+                    _thumbnailScaleContext,
+                    sourceBitmap.PixelSize.Width * scale,
+                    sourceBitmap.PixelSize.Height * scale,
+                    context.Dpi);
+                width = bitmap.Size.Width;
+                height = bitmap.Size.Height;
+            }
+
             var destination = new Rect(
                 imageBounds.X + (imageBounds.Width - width) / 2.0f,
                 imageBounds.Y + (imageBounds.Height - height) / 2.0f,
@@ -520,7 +555,11 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             visiblePaths.Add(path);
             if (_slots.TryGetValue(path, out GalleryItemSlot? existing))
             {
-                existing.SetLabelLayout(_directWriteFactory, _labelFormat, entry.Name, labelWidth);
+                if (!_liveResize)
+                {
+                    existing.SetLabelLayout(_directWriteFactory, _labelFormat, entry.Name, labelWidth);
+                }
+
                 continue;
             }
 
