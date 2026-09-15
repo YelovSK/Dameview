@@ -7,6 +7,8 @@
     <ApplicationIcon>Assets\dameview.ico</ApplicationIcon>
     <PublishAot>true</PublishAot>
     <OptimizationPreference>Size</OptimizationPreference>
+    <StackTraceSupport Condition="'$(Configuration)' == 'Release'">false</StackTraceSupport>
+    <InvariantGlobalization Condition="'$(Configuration)' == 'Release'">true</InvariantGlobalization>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
