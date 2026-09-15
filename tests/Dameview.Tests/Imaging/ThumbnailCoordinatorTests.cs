@@ -69,7 +69,8 @@ public sealed class ThumbnailCoordinatorTests
 
                 return CreateImage();
             },
-            new WindowSynchronizationContext(posted.Add));
+            new WindowSynchronizationContext(posted.Add),
+            workerCount: 1);
 
         using IDisposable blocker = coordinator.Request(
             "blocker.jpg",
@@ -91,7 +92,7 @@ public sealed class ThumbnailCoordinatorTests
         releaseBlocker.Set();
 
         Assert.IsTrue(loaded.Wait(TimeSpan.FromSeconds(5)));
-        for (int index = 0; index < 4; index++)
+        for (int index = 0; index < 3; index++)
         {
             Assert.IsTrue(posted.TryTake(out Action? delivery, TimeSpan.FromSeconds(5)));
             delivery();
@@ -138,7 +139,8 @@ public sealed class ThumbnailCoordinatorTests
                 loadedPaths.Enqueue(path);
                 return CreateImage();
             },
-            new WindowSynchronizationContext(posted.Add));
+            new WindowSynchronizationContext(posted.Add),
+            workerCount: 1);
 
         using IDisposable blocker = coordinator.Request(
             "blocker.jpg",

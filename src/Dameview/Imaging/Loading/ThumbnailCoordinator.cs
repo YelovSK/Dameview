@@ -34,11 +34,12 @@ internal sealed class ThumbnailCoordinator : IThumbnailLoader, IDisposable
 
     internal ThumbnailCoordinator(
         Func<string, DecodedImageUpload?> load,
-        SynchronizationContext uiContext)
+        SynchronizationContext uiContext,
+        int workerCount = 4)
     {
         _load = load;
         _uiContext = uiContext;
-        _queue = new ComWorkerQueue<object?>("Dameview thumbnails", 4, static () => null);
+        _queue = new ComWorkerQueue<object?>("Dameview thumbnails", workerCount, static () => null);
     }
 
     public IDisposable Request(
