@@ -44,6 +44,26 @@ internal sealed class SettingsService : IDisposable
     internal event Action<AppSettings, AppSettings>? Changed;
     internal event Action? ErrorChanged;
 
+    internal static AppSettings LoadForStartup()
+    {
+        try
+        {
+            if (!File.Exists(DefaultPath))
+            {
+                return new AppSettings();
+            }
+
+            AppSettings settings = SettingsIniSerializer.Read(File.ReadAllText(DefaultPath));
+            settings.Validate();
+            return settings;
+        }
+        catch (Exception exception) when (IsSettingsError(exception))
+        {
+            Log.Error("Settings", "Could not load startup settings.", exception);
+            return new AppSettings();
+        }
+    }
+
     internal void Start()
     {
         try

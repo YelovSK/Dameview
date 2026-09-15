@@ -500,6 +500,9 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     public void SetAnimationsEnabled(bool enabled) =>
         _settings.Update(_settings.Current with { AnimationsEnabled = enabled });
 
+    public void SetSingleInstance(bool enabled) =>
+        _settings.Update(_settings.Current with { SingleInstance = enabled });
+
     public void SetGalleryEnabled(bool enabled) =>
         _settings.Update(_settings.Current with { GalleryEnabled = enabled });
 

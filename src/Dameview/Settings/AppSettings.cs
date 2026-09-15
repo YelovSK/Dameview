@@ -40,6 +40,7 @@ internal sealed record AppSettings
 
     public ThemeId Theme { get; init; } = ThemeId.Dark;
     public bool AnimationsEnabled { get; init; } = true;
+    public bool SingleInstance { get; init; } = true;
     public FolderSort Sort { get; init; } = FolderSort.NameAscending;
     public bool GalleryEnabled { get; init; } = true;
     public GalleryPlacement GalleryPlacement { get; init; } = GalleryPlacement.Right;

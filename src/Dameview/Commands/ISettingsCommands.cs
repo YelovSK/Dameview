@@ -9,6 +9,8 @@ internal interface ISettingsCommands
 
     public void SetAnimationsEnabled(bool enabled);
 
+    public void SetSingleInstance(bool enabled);
+
     public void SetGalleryEnabled(bool enabled);
 
     public void SetGalleryPlacement(GalleryPlacement placement);

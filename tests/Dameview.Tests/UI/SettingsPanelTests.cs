@@ -37,6 +37,7 @@ public sealed class SettingsPanelTests
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Space), settings, wrapFocus: true, directionalNavigation: true);
 
         Assert.AreEqual(false, animationsEnabled);
@@ -67,6 +68,7 @@ public sealed class SettingsPanelTests
         root.SetFocus(settings.InitialFocus);
 
         root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
@@ -106,6 +108,7 @@ public sealed class SettingsPanelTests
 
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Down), settings, wrapFocus: true, directionalNavigation: true);
         Assert.AreEqual(FolderSort.DateModifiedNewest, selectedSorts[^1]);
 
@@ -131,6 +134,7 @@ public sealed class SettingsPanelTests
         root.SetFocus(settings.InitialFocus);
         root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Enter), settings, wrapFocus: true, directionalNavigation: true);
@@ -173,6 +177,7 @@ public sealed class SettingsPanelTests
         root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Enter), settings, wrapFocus: true, directionalNavigation: true);
 
@@ -183,6 +188,7 @@ public sealed class SettingsPanelTests
     {
         internal Action<ThemeId>? Theme { get; init; }
         internal Action<bool>? Animations { get; init; }
+        internal Action<bool>? SingleInstance { get; init; }
         internal Action<bool>? GalleryEnabled { get; init; }
         internal Action<GalleryPlacement>? GalleryPlacement { get; init; }
         internal Action<GalleryThumbnailSize>? GalleryThumbnailSize { get; init; }
@@ -191,6 +197,7 @@ public sealed class SettingsPanelTests
 
         public void SetTheme(ThemeId theme) => Theme?.Invoke(theme);
         public void SetAnimationsEnabled(bool enabled) => Animations?.Invoke(enabled);
+        public void SetSingleInstance(bool enabled) => SingleInstance?.Invoke(enabled);
         public void SetGalleryEnabled(bool enabled) => GalleryEnabled?.Invoke(enabled);
         public void SetGalleryPlacement(GalleryPlacement placement) => GalleryPlacement?.Invoke(placement);
         public void SetGalleryThumbnailSize(GalleryThumbnailSize size) => GalleryThumbnailSize?.Invoke(size);

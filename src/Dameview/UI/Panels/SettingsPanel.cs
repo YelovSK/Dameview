@@ -17,6 +17,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
         Appearance,
         Layout,
         Sorting,
+        Behavior,
         Updates,
     }
 
@@ -48,6 +49,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
     private readonly Dropdown<GalleryPlacement> _galleryPlacementDropdown;
     private readonly Dropdown<GalleryThumbnailSize> _galleryThumbnailSizeDropdown;
     private readonly Toggle _animationsToggle;
+    private readonly Toggle _singleInstanceToggle;
     private readonly Dropdown<SortField> _sortField;
     private readonly Dropdown<SortDirection> _sortDirection;
     private readonly SettingsRow _themeRow;
@@ -58,6 +60,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
     private readonly TabStrip _tabs;
     private readonly ScrollView _appearancePage;
     private readonly ScrollView _layoutPage;
+    private readonly ScrollView _behaviorPage;
     private readonly ScrollView _sortingPage;
     private readonly ScrollView _updatesPage;
     private readonly Overlay _pages;
@@ -140,6 +143,11 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
             "Animations",
             value: true,
             _commands.SetAnimationsEnabled);
+        _singleInstanceToggle = new Toggle(
+            factory,
+            "Open files in existing window (restart required)",
+            value: true,
+            _commands.SetSingleInstance);
 
         _sortField = new Dropdown<SortField>(
             factory,
@@ -185,6 +193,11 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
             _galleryEnabledToggle,
             _galleryPlacementRow,
             _galleryThumbnailSizeRow);
+        var behaviorContent = new StackPanel(
+            UiOrientation.Vertical,
+            UiDesign.LargeSpacing,
+            StackPanelDistribution.Natural,
+            _singleInstanceToggle);
         var sortingContent = new StackPanel(
             UiOrientation.Vertical,
             UiDesign.LargeSpacing,
@@ -199,12 +212,13 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
             _updateButton);
         _appearancePage = new ScrollView(appearanceContent);
         _layoutPage = new ScrollView(layoutContent);
+        _behaviorPage = new ScrollView(behaviorContent);
         _sortingPage = new ScrollView(sortingContent);
         _updatesPage = new ScrollView(updatesContent);
-        _pages = new Overlay(_appearancePage, _layoutPage, _sortingPage, _updatesPage);
+        _pages = new Overlay(_appearancePage, _layoutPage, _sortingPage, _behaviorPage, _updatesPage);
         _tabs = new TabStrip(
             factory,
-            ["Appearance", "Layout", "Sorting", "Updates"],
+            ["Appearance", "Layout", "Sorting", "Behavior", "Updates"],
             (int)SettingsTab.Appearance,
             SelectTab);
 
@@ -219,7 +233,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
         ApplyUpdateState(new UpdateState(UpdateStatus.Unavailable));
     }
 
-    internal override SizeF PreferredSize => new(440.0f, 460.0f);
+    internal override SizeF PreferredSize => new(500.0f, 460.0f);
     internal override UiElement InitialFocus => _tabs.SelectedTab;
     internal string? Error
     {
@@ -239,6 +253,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
         _galleryPlacementDropdown.SelectedValue = settings.GalleryPlacement;
         _galleryThumbnailSizeDropdown.SelectedValue = settings.GalleryThumbnailSize;
         _animationsToggle.Value = settings.AnimationsEnabled;
+        _singleInstanceToggle.Value = settings.SingleInstance;
 
         SortDefinition sort = Array.Find(
             Sorts,
@@ -338,6 +353,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
         _popupHost.Close();
         _appearancePage.IsVisible = index == (int)SettingsTab.Appearance;
         _layoutPage.IsVisible = index == (int)SettingsTab.Layout;
+        _behaviorPage.IsVisible = index == (int)SettingsTab.Behavior;
         _sortingPage.IsVisible = index == (int)SettingsTab.Sorting;
         _updatesPage.IsVisible = index == (int)SettingsTab.Updates;
     }
