@@ -10,7 +10,6 @@ internal sealed class ImageLoadService : IDisposable
     private readonly SynchronizationContext _uiContext;
     private readonly IImageLoadingBackend _backend;
     private readonly ImageRepresentationPolicy _representationPolicy;
-    private readonly IThumbnailLoader _thumbnailLoader;
     private readonly IImageInfoLoader _imageInfoLoader;
     private readonly ComWorkerQueue<IImageDecoder> _foregroundQueue;
     private readonly ComWorkerQueue<IImageDecoder> _preloadQueue;
@@ -23,13 +22,11 @@ internal sealed class ImageLoadService : IDisposable
         SynchronizationContext uiContext,
         IImageLoadingBackend backend,
         ImageRepresentationPolicy representationPolicy,
-        IThumbnailLoader thumbnailLoader,
         IImageInfoLoader imageInfoLoader)
     {
         _uiContext = uiContext;
         _backend = backend;
         _representationPolicy = representationPolicy;
-        _thumbnailLoader = thumbnailLoader;
         _imageInfoLoader = imageInfoLoader;
         _foregroundQueue = new ComWorkerQueue<IImageDecoder>(
             "Dameview image loader",
@@ -54,7 +51,6 @@ internal sealed class ImageLoadService : IDisposable
 
     public void Dispose()
     {
-        List<IDisposable> previews = [];
         lock (_sync)
         {
             if (_stopping)
@@ -66,42 +62,26 @@ internal sealed class ImageLoadService : IDisposable
             foreach (ClientState state in _clients.Values)
             {
                 CancelLoad(state);
-                if (state.PreviewRequest is { } preview)
-                {
-                    previews.Add(preview);
-                }
             }
 
             _clients.Clear();
-        }
-
-        foreach (IDisposable preview in previews)
-        {
-            preview.Dispose();
         }
 
         _foregroundQueue.Dispose();
         _preloadQueue.Dispose();
     }
 
-    // Must be called on the UI thread, serialized per client. The request, its preview
-    // subscription, and the scheduled work are swapped across two critical sections because the
-    // preview has to be registered before the decode can be started; a concurrent caller for the
-    // same client would break that ordering.
+    // Must be called on the UI thread, serialized per client.
     internal void Load(ImageLoadClient client, string path, Action<ImageLoadResult> completed)
     {
         bool supportsAnimation = _backend.SupportsAnimation(path);
-
-        LoadRequest request;
-        IDisposable? previousPreview;
+        LoadRequest? start = null;
         lock (_sync)
         {
             ClientState state = GetState(client);
             CancelLoad(state);
-            previousPreview = state.PreviewRequest;
-            state.PreviewRequest = null;
             var cancellation = new CancellationTokenSource();
-            request = supportsAnimation
+            LoadRequest request = supportsAnimation
                 ? new AnimatedLoadRequest(client, path, completed, cancellation)
                 : new StaticLoadRequest(
                     client,
@@ -111,42 +91,10 @@ internal sealed class ImageLoadService : IDisposable
                     _imageInfoLoader.LoadAsync(path, cancellation.Token));
             state.CurrentLoad = request;
             state.PendingLoad = request;
+            start = TakeActive(state);
         }
 
-        previousPreview?.Dispose();
-
-        // Both preview inputs are started here, off the decode workers, so fast navigation does
-        // not have to wait for a worker stuck on an in-flight (non-cancellable) decode.
-        IDisposable? previewRequest = null;
-        if (request is StaticLoadRequest staticRequest)
-        {
-            var thumbnail = new TaskCompletionSource<DecodedImage>(
-                TaskCreationOptions.RunContinuationsAsynchronously);
-            previewRequest = _thumbnailLoader.Request(
-                path,
-                ThumbnailPriority.Foreground,
-                image => thumbnail.TrySetResult(image));
-            _ = DeliverPreviewAsync(staticRequest, thumbnail.Task);
-        }
-
-        bool accepted;
-        LoadRequest? start = null;
-        lock (_sync)
-        {
-            accepted = IsCurrentUnsafe(request);
-            if (accepted)
-            {
-                ClientState state = _clients[request.Client];
-                state.PreviewRequest = previewRequest;
-                start = TakeActive(state);
-            }
-        }
-
-        if (!accepted)
-        {
-            previewRequest?.Dispose();
-        }
-        else if (start is not null)
+        if (start is not null)
         {
             StartForeground(start);
         }
@@ -180,33 +128,24 @@ internal sealed class ImageLoadService : IDisposable
 
     internal void CancelForeground(ImageLoadClient client)
     {
-        IDisposable? preview;
         lock (_sync)
         {
             ClientState state = GetState(client);
             CancelLoad(state);
             state.CurrentLoad = null;
             state.PendingLoad = null;
-            preview = state.PreviewRequest;
-            state.PreviewRequest = null;
         }
-
-        preview?.Dispose();
     }
 
     internal void RemoveClient(ImageLoadClient client)
     {
-        IDisposable? preview = null;
         lock (_sync)
         {
             if (_clients.Remove(client, out ClientState? state))
             {
                 CancelLoad(state);
-                preview = state.PreviewRequest;
             }
         }
-
-        preview?.Dispose();
     }
 
     private ClientState GetState(ImageLoadClient client)
@@ -397,41 +336,6 @@ internal sealed class ImageLoadService : IDisposable
         }
     }
 
-    private void DeliverPreview(StaticLoadRequest request, PreviewImage preview)
-    {
-        Deliver(request, new ImageLoaded(
-            request.Path,
-            new DecodedImageRepresentation(preview.Image, preview.SourceInfo),
-            IsPreview: true));
-    }
-
-    // A preview is the join of two independent async inputs: the thumbnail pixels and the
-    // source dimensions. It is best-effort, so either input failing simply yields no preview;
-    // a stale preview is dropped by Deliver's currency check.
-    private async Task DeliverPreviewAsync(StaticLoadRequest request, Task<DecodedImage> thumbnail)
-    {
-        try
-        {
-            await Task.WhenAll(thumbnail, request.SourceInfo).ConfigureAwait(false);
-            DecodedImage image = thumbnail.Result;
-            ImageInfo display = GetDisplayInfo(request.SourceInfo.Result, image);
-            var preview = new PreviewImage(image, display);
-            PostToUi(() => DeliverPreview(request, preview));
-        }
-        catch (Exception)
-        {
-        }
-    }
-
-    // GetInfo returns the stored (unrotated) dimensions while the thumbnail is orientation-applied.
-    // Infer a 90/270 swap when their aspect orientations disagree, so the preview matches the image.
-    private static ImageInfo GetDisplayInfo(ImageInfo source, DecodedImage thumbnail)
-    {
-        return (source.Width >= source.Height) == (thumbnail.Width >= thumbnail.Height)
-            ? source
-            : new ImageInfo(source.Height, source.Width);
-    }
-
     private DecodedImageUpload DecodeShared(
         string path,
         IImageDecoder decoder,
@@ -535,20 +439,15 @@ internal sealed class ImageLoadService : IDisposable
     private void Deliver(LoadRequest request, ImageLoadResult result)
     {
         bool accepted;
-        IDisposable? preview = null;
         lock (_sync)
         {
             accepted = IsCurrentUnsafe(request);
-            if (accepted && result is not ImageLoaded { IsPreview: true })
+            if (accepted)
             {
                 request.IsComplete = true;
-                ClientState state = _clients[request.Client];
-                preview = state.PreviewRequest;
-                state.PreviewRequest = null;
             }
         }
 
-        preview?.Dispose();
         if (accepted)
         {
             request.Completed(result);
@@ -591,7 +490,6 @@ internal sealed class ImageLoadService : IDisposable
     {
         internal LoadRequest? CurrentLoad { get; set; }
         internal LoadRequest? PendingLoad { get; set; }
-        internal IDisposable? PreviewRequest { get; set; }
         internal int PreloadGeneration { get; set; }
         internal bool LoadActive { get; set; }
     }
@@ -628,8 +526,6 @@ internal sealed class ImageLoadService : IDisposable
     {
         internal Task<ImageInfo> SourceInfo { get; } = sourceInfo;
     }
-
-    private readonly record struct PreviewImage(DecodedImage Image, ImageInfo SourceInfo);
 
     private sealed record PreloadRequest(
         ImageLoadClient Client,

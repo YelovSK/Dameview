@@ -19,6 +19,7 @@ namespace Dameview;
 internal sealed class DameviewApp : IAppCommands, IDisposable
 {
     private const long RenderBitmapCacheCapacityBytes = 256L * 1024L * 1024L;
+    private const long ThumbnailBitmapCacheCapacityBytes = 64L * 1024L * 1024L;
 
     private readonly AppWindow _window;
     private readonly SynchronizationContext _uiContext;
@@ -29,6 +30,8 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     private readonly ImageInfoLoader _imageInfoLoader;
     private readonly ImageLoadService _imageLoadService;
     private readonly RenderBitmapCache _renderBitmapCache;
+    private readonly RenderBitmapCache _thumbnailBitmapCache;
+    private readonly ThumbnailImageLoader _thumbnailImageLoader;
     private readonly IFolderScanner _folderScanner;
     private readonly ViewerWorkspace _workspace;
     private readonly SettingsService _settings;
@@ -58,9 +61,14 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             _uiContext,
             _imageBackend,
             new ImageRepresentationPolicy(checked((int)_renderer.DeviceContext.MaximumBitmapSize)),
-            _thumbnailCoordinator,
             _imageInfoLoader);
         _renderBitmapCache = new RenderBitmapCache(RenderBitmapCacheCapacityBytes);
+        _thumbnailBitmapCache = new RenderBitmapCache(ThumbnailBitmapCacheCapacityBytes);
+        _thumbnailImageLoader = new ThumbnailImageLoader(
+            _thumbnailCoordinator,
+            _thumbnailBitmapCache,
+            _renderer.DeviceContext,
+            _uiContext);
         using var imageDecoder = new ImageDecoder();
         HashSet<string> extensions = imageDecoder.GetProbablySupportedExtensions();
         _folderScanner = new FolderScanner(path => extensions.Contains(Path.GetExtension(path)));
@@ -77,7 +85,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             _window.Dpi,
             UiTheme.Default,
             this,
-            _thumbnailCoordinator);
+            _thumbnailImageLoader);
         _ui.Invalidated += _window.RequestRepaint;
         _ui.CursorChanged += _window.ApplyCursor;
         _workspace.ActivePaneChanged += HandleActivePaneChanged;
@@ -157,10 +165,10 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _ui.Dispose();
         _workspace.Dispose();
         _renderBitmapCache.Dispose();
+        _thumbnailBitmapCache.Dispose();
         _imageLoadService.Dispose();
         _imageInfoLoader.Dispose();
         _thumbnailCoordinator.Dispose();
-        _imageBackend.Dispose();
         _renderer.Dispose();
         _window.Dispose();
     }
@@ -501,7 +509,10 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         var imageLoader = new PresentationImageLoader(
             loadClient,
             _renderBitmapCache,
-            _renderer.DeviceContext);
+            _renderer.DeviceContext,
+            _thumbnailImageLoader,
+            _imageInfoLoader,
+            _uiContext);
         var folderMonitor = new FolderMonitor(
             _folderScanner,
             new FileSystemFolderWatcher(),

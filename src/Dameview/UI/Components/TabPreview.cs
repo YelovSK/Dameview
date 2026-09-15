@@ -1,9 +1,8 @@
 using System.Drawing;
-using Dameview.Imaging;
 using Dameview.Imaging.Loading;
-using Dameview.Rendering;
 using Dameview.UI.Animation;
 using Dameview.UI.Foundation;
+using Dameview.UI.Presentation;
 using Vortice.Direct2D1;
 using Vortice.Mathematics;
 
@@ -19,10 +18,9 @@ internal sealed class TabPreview : UiElement, IDisposable
     private const float PaddingDips = 8.0f;
     private const float InitialScale = 0.9f;
 
-    private readonly ID2D1DeviceContext _deviceContext;
-    private readonly IThumbnailLoader _thumbnailLoader;
+    private readonly IThumbnailImageLoader _thumbnailLoader;
     private IDisposable? _request;
-    private ID2D1Bitmap1? _bitmap;
+    private CachedBitmapLease? _lease;
     private string? _path;
     private RectangleF _anchor;
     private double _hoverSeconds;
@@ -30,9 +28,8 @@ internal sealed class TabPreview : UiElement, IDisposable
     private int _version;
     private AnimatedFloat _visibility = new(0.0f, 24.0);
 
-    internal TabPreview(ID2D1DeviceContext deviceContext, IThumbnailLoader thumbnailLoader)
+    internal TabPreview(IThumbnailImageLoader thumbnailLoader)
     {
-        _deviceContext = deviceContext;
         _thumbnailLoader = thumbnailLoader;
     }
 
@@ -69,10 +66,10 @@ internal sealed class TabPreview : UiElement, IDisposable
     protected override bool UpdateCore(in UiUpdateContext context)
     {
         bool continues = _visibility.Update(context);
-        if (_bitmap is not null && _path is null && _visibility.Current == 0.0f)
+        if (_lease is not null && _path is null && _visibility.Current == 0.0f)
         {
-            _bitmap.Dispose();
-            _bitmap = null;
+            _lease.Dispose();
+            _lease = null;
         }
 
         if (_waiting && _path is not null)
@@ -89,8 +86,8 @@ internal sealed class TabPreview : UiElement, IDisposable
             IDisposable request = _thumbnailLoader.Request(
                 path,
                 ThumbnailPriority.Foreground,
-                image => CompleteThumbnail(version, image));
-            if (_version == version && _bitmap is null)
+                lease => CompleteThumbnail(version, lease));
+            if (_version == version && _lease is null)
             {
                 _request = request;
             }
@@ -105,7 +102,8 @@ internal sealed class TabPreview : UiElement, IDisposable
 
     protected override void DrawCore(in UiDrawContext context)
     {
-        if (_bitmap is null)
+        ID2D1Bitmap1? bitmap = _lease?.Bitmap.Bitmap;
+        if (bitmap is null)
         {
             return;
         }
@@ -129,21 +127,21 @@ internal sealed class TabPreview : UiElement, IDisposable
         float availableWidth = panelBounds.Width - 2.0f * PaddingDips;
         float availableHeight = panelBounds.Height - 2.0f * PaddingDips;
         float scale = MathF.Min(
-            availableWidth / _bitmap.PixelSize.Width,
-            availableHeight / _bitmap.PixelSize.Height);
-        float width = _bitmap.PixelSize.Width * scale;
-        float height = _bitmap.PixelSize.Height * scale;
+            availableWidth / bitmap.PixelSize.Width,
+            availableHeight / bitmap.PixelSize.Height);
+        float width = bitmap.PixelSize.Width * scale;
+        float height = bitmap.PixelSize.Height * scale;
         var destination = new Rect(
             panelBounds.X + (panelBounds.Width - width) / 2.0f,
             panelBounds.Y + (panelBounds.Height - height) / 2.0f,
             width,
             height);
         previewContext.RenderTarget.DrawBitmap(
-            _bitmap,
+            bitmap,
             destination,
             previewContext.Opacity,
             BitmapInterpolationMode.Linear,
-            new Rect(0.0f, 0.0f, _bitmap.PixelSize.Width, _bitmap.PixelSize.Height));
+            new Rect(0.0f, 0.0f, bitmap.PixelSize.Width, bitmap.PixelSize.Height));
     }
 
     public void Dispose() => Reset();
@@ -172,16 +170,18 @@ internal sealed class TabPreview : UiElement, IDisposable
         return new RectangleF(x, anchor.Bottom + GapDips, width, height);
     }
 
-    private void CompleteThumbnail(int version, DecodedImage image)
+    private void CompleteThumbnail(int version, CachedBitmapLease lease)
     {
         if (_version != version || _path is null)
         {
+            lease.Dispose();
             return;
         }
 
         _request?.Dispose();
         _request = null;
-        _bitmap = D2DBitmapFactory.Create(_deviceContext, image);
+        _lease?.Dispose();
+        _lease = lease;
         _visibility.SetTarget(1.0f);
         InvalidateVisual();
     }
@@ -191,8 +191,8 @@ internal sealed class TabPreview : UiElement, IDisposable
         _version++;
         _request?.Dispose();
         _request = null;
-        _bitmap?.Dispose();
-        _bitmap = null;
+        _lease?.Dispose();
+        _lease = null;
         _path = null;
         _waiting = false;
         _visibility = new AnimatedFloat(0.0f, 24.0);

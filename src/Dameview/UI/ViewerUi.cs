@@ -1,12 +1,12 @@
 using System.Drawing;
 using Dameview.Commands;
-using Dameview.Imaging.Loading;
 using Dameview.Settings;
 using Dameview.UI.Animation;
 using Dameview.UI.Components;
 using Dameview.UI.Foundation;
 using Dameview.UI.Layout;
 using Dameview.UI.Panels;
+using Dameview.UI.Presentation;
 using Dameview.UI.Workspace;
 using Dameview.Updates;
 using Dameview.Viewing;
@@ -52,7 +52,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         float dpi,
         UiTheme theme,
         IAppCommands commands,
-        IThumbnailLoader thumbnailLoader,
+        IThumbnailImageLoader thumbnailLoader,
         TimeProvider? timeProvider = null)
     {
         _deviceContext = deviceContext;
@@ -61,7 +61,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         Palette = theme;
         _animationClock = new UiAnimationClock(timeProvider);
         _activePane = workspace.ActivePane;
-        _tabPreview = new TabPreview(deviceContext, thumbnailLoader);
+        _tabPreview = new TabPreview(thumbnailLoader);
         _workspaceView = new WorkspaceView(
             workspace.Root,
             pane => new ViewerPaneView(

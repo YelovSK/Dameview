@@ -1,12 +1,12 @@
 using System.Drawing;
 using System.Numerics;
-using Dameview.Imaging;
 using Dameview.Imaging.Loading;
 using Dameview.Navigation;
 using Dameview.Rendering;
 using Dameview.Settings;
 using Dameview.UI.Foundation;
 using Dameview.UI.Layout;
+using Dameview.UI.Presentation;
 using Dameview.UI.Workspace;
 using Dameview.Win32.Input;
 using Vortice.Direct2D1;
@@ -32,13 +32,16 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private readonly IDWriteFactory _directWriteFactory;
     private readonly IDWriteTextFormat _labelFormat;
     private readonly IDWriteInlineObject _ellipsisSign;
-    private readonly IThumbnailLoader _thumbnailLoader;
+    private readonly IThumbnailImageLoader _thumbnailLoader;
     private readonly Action<string> _openImage;
     private readonly Action<string> _openInNewTab;
     private readonly Action<string, WorkspaceDragEvent>? _dragPointer;
     private readonly Scrollbar _scrollbar;
     private readonly Dictionary<string, GalleryItemSlot> _slots =
         new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _visiblePaths =
+        new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<string> _stalePaths = [];
     private GalleryPanelState _state = new();
     private GalleryThumbnailSize _thumbnailSize = GalleryThumbnailSize.Medium;
     private UiOrientation _orientation = UiOrientation.Vertical;
@@ -53,7 +56,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     internal GalleryPanel(
         ID2D1DeviceContext deviceContext,
         IDWriteFactory directWriteFactory,
-        IThumbnailLoader thumbnailLoader,
+        IThumbnailImageLoader thumbnailLoader,
         Action<string> openImage,
         Action<string> openInNewTab,
         Action<string, WorkspaceDragEvent>? dragPointer = null)
@@ -536,6 +539,8 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     {
         if (!IsVisible)
         {
+            _visiblePaths.Clear();
+            _stalePaths.Clear();
             ClearSlots();
             return;
         }
@@ -546,13 +551,13 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             LayoutSize.Height,
             LayoutItemHeight,
             ColumnCount);
-        var visiblePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        _visiblePaths.Clear();
         float labelWidth = MathF.Max(0.0f, PhysicalItemWidth - 2.0f * ItemPadding);
         for (int index = first; index < lastExclusive; index++)
         {
             FolderEntry entry = _state.Entries[index];
             string path = entry.FullName;
-            visiblePaths.Add(path);
+            _visiblePaths.Add(path);
             if (_slots.TryGetValue(path, out GalleryItemSlot? existing))
             {
                 if (!_liveResize)
@@ -568,29 +573,41 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             slot.Request = _thumbnailLoader.Request(
                 path,
                 ThumbnailPriority.Gallery,
-                image => CompleteThumbnail(path, slot, image));
+                lease => CompleteThumbnail(path, slot, lease));
         }
 
-        foreach ((string path, GalleryItemSlot slot) in _slots.ToArray())
+        _stalePaths.Clear();
+        foreach ((string path, GalleryItemSlot slot) in _slots)
         {
-            if (!visiblePaths.Contains(path))
+            if (!_visiblePaths.Contains(path))
             {
-                _slots.Remove(path);
+                _stalePaths.Add(path);
+            }
+        }
+
+        foreach (string path in _stalePaths)
+        {
+            if (_slots.Remove(path, out GalleryItemSlot? slot))
+            {
                 slot.Dispose();
             }
         }
+
+        _stalePaths.Clear();
+        _visiblePaths.Clear();
     }
 
-    private void CompleteThumbnail(string path, GalleryItemSlot slot, DecodedImage image)
+    private void CompleteThumbnail(string path, GalleryItemSlot slot, CachedBitmapLease lease)
     {
         if (!_slots.TryGetValue(path, out GalleryItemSlot? current) || !ReferenceEquals(current, slot))
         {
+            lease.Dispose();
             return;
         }
 
         slot.Request?.Dispose();
         slot.Request = null;
-        slot.SetSourceBitmap(D2DBitmapFactory.Create(_deviceContext, image));
+        slot.SetSourceBitmap(lease);
 
         InvalidateVisual();
     }
@@ -766,6 +783,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         private SizeI _displayPixelSize;
         private float _displayDpi;
         private ID2D1Bitmap1? _displayBitmap;
+        private CachedBitmapLease? _sourceLease;
 
         internal GalleryItemSlot(
             IDWriteFactory directWriteFactory,
@@ -778,13 +796,13 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         }
 
         internal IDisposable? Request { get; set; }
-        internal ID2D1Bitmap1? SourceBitmap { get; private set; }
+        internal ID2D1Bitmap1? SourceBitmap => _sourceLease?.Bitmap.Bitmap;
         internal IDWriteTextLayout LabelLayout { get; private set; }
 
-        internal void SetSourceBitmap(ID2D1Bitmap1 bitmap)
+        internal void SetSourceBitmap(CachedBitmapLease lease)
         {
-            SourceBitmap?.Dispose();
-            SourceBitmap = bitmap;
+            _sourceLease?.Dispose();
+            _sourceLease = lease;
             ClearDisplayBitmap();
         }
 
@@ -839,7 +857,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         {
             Request?.Dispose();
             ClearDisplayBitmap();
-            SourceBitmap?.Dispose();
+            _sourceLease?.Dispose();
             LabelLayout.Dispose();
         }
 

@@ -199,10 +199,22 @@ internal sealed class CachedBitmapLease(
     }
 }
 
-internal sealed class CachedBitmapRepresentation(CachedBitmapLease lease)
-    : ImageRepresentation(lease.Bitmap.Width, lease.Bitmap.Height)
+internal sealed class CachedBitmapRepresentation : ImageRepresentation
 {
-    internal ID2D1Bitmap1 Bitmap => lease.Bitmap.Bitmap;
+    private readonly CachedBitmapLease _lease;
 
-    protected override void DisposeCore() => lease.Dispose();
+    internal CachedBitmapRepresentation(CachedBitmapLease lease)
+        : this(lease, lease.Bitmap.Width, lease.Bitmap.Height)
+    {
+    }
+
+    internal CachedBitmapRepresentation(CachedBitmapLease lease, int displayWidth, int displayHeight)
+        : base(displayWidth, displayHeight)
+    {
+        _lease = lease;
+    }
+
+    internal ID2D1Bitmap1 Bitmap => _lease.Bitmap.Bitmap;
+
+    protected override void DisposeCore() => _lease.Dispose();
 }

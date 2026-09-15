@@ -13,7 +13,7 @@ internal interface IImageLoadingBackend
     public IImageTileSource OpenTiledImage(string path);
 
     /// <summary>Loads a best-effort shell or reduced-size thumbnail; returns <see langword="null"/> when unavailable.</summary>
-    public DecodedImage? LoadThumbnail(string path);
+    public DecodedImageUpload? LoadThumbnail(string path);
 
     /// <summary>Determines whether an animation decoder is available for the path.</summary>
     /// <returns><see langword="true"/> when <see cref="OpenAnimation"/> can be used.</returns>

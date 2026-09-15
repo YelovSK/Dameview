@@ -5,7 +5,7 @@ namespace Dameview.Imaging;
 
 internal static unsafe partial class WindowsThumbnail
 {
-    internal static DecodedImage? Load(string path)
+    internal static DecodedImageUpload? Load(string path)
     {
         Guid iid = new("bcc18b79-ba16-442f-80c4-8a59c30c463b");
         int result = SHCreateItemFromParsingName(path, 0, in iid, out nint factory);
@@ -51,9 +51,17 @@ internal static unsafe partial class WindowsThumbnail
             int width = source.Size.Width;
             int height = source.Size.Height;
             int stride = checked(width * 4);
-            byte[] pixels = GC.AllocateUninitializedArray<byte>(checked(stride * height));
-            converter.CopyPixels((uint)stride, pixels);
-            return new DecodedImage(width, height, stride, pixels);
+            DecodedImageUpload pixels = DecodedImageUpload.Allocate(width, height, stride);
+            try
+            {
+                converter.CopyPixels((uint)stride, pixels.Span);
+                return pixels;
+            }
+            catch
+            {
+                pixels.Dispose();
+                throw;
+            }
         }
         finally
         {

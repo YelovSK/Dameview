@@ -102,35 +102,6 @@ public sealed class ThumbnailCoordinatorTests
     }
 
     [TestMethod]
-    public void CachedThumbnailDoesNotLoadAgain()
-    {
-        using var posted = new BlockingCollection<Action>();
-        int loadCount = 0;
-        using var coordinator = new ThumbnailCoordinator(
-            _ =>
-            {
-                Interlocked.Increment(ref loadCount);
-                return CreateImage();
-            },
-            new WindowSynchronizationContext(posted.Add));
-
-        using IDisposable firstRequest = coordinator.Request(
-            "cached.jpg",
-            ThumbnailPriority.Gallery,
-            _ => { });
-        Assert.IsTrue(posted.TryTake(out Action? first, TimeSpan.FromSeconds(5)));
-        first();
-        using IDisposable secondRequest = coordinator.Request(
-            "cached.jpg",
-            ThumbnailPriority.Foreground,
-            _ => { });
-        Assert.IsTrue(posted.TryTake(out Action? second, TimeSpan.FromSeconds(5)));
-        second();
-
-        Assert.AreEqual(1, Volatile.Read(ref loadCount));
-    }
-
-    [TestMethod]
     public void CancelledRequestIsNotDelivered()
     {
         using var posted = new BlockingCollection<Action>();
@@ -146,6 +117,51 @@ public sealed class ThumbnailCoordinatorTests
         request.Dispose();
         delivery();
         Assert.IsFalse(delivered);
+    }
+
+    [TestMethod]
+    public void CancelledQueuedRequestIsSkippedBeforeDecode()
+    {
+        using var blockerStarted = new ManualResetEventSlim();
+        using var releaseBlocker = new ManualResetEventSlim();
+        using var posted = new BlockingCollection<Action>();
+        var loadedPaths = new ConcurrentQueue<string>();
+        using var coordinator = new ThumbnailCoordinator(
+            path =>
+            {
+                if (path == "blocker.jpg")
+                {
+                    blockerStarted.Set();
+                    releaseBlocker.Wait();
+                }
+
+                loadedPaths.Enqueue(path);
+                return CreateImage();
+            },
+            new WindowSynchronizationContext(posted.Add));
+
+        using IDisposable blocker = coordinator.Request(
+            "blocker.jpg",
+            ThumbnailPriority.Foreground,
+            _ => { });
+        Assert.IsTrue(blockerStarted.Wait(TimeSpan.FromSeconds(5)));
+
+        IDisposable stale = coordinator.Request(
+            "stale.jpg",
+            ThumbnailPriority.Gallery,
+            _ => { });
+        stale.Dispose();
+
+        using IDisposable current = coordinator.Request(
+            "current.jpg",
+            ThumbnailPriority.Gallery,
+            _ => { });
+        releaseBlocker.Set();
+
+        Assert.IsTrue(SpinWait.SpinUntil(
+            () => loadedPaths.Contains("current.jpg"),
+            TimeSpan.FromSeconds(5)));
+        CollectionAssert.DoesNotContain(loadedPaths.ToArray(), "stale.jpg");
     }
 
     [TestMethod]
@@ -184,5 +200,5 @@ public sealed class ThumbnailCoordinatorTests
         Assert.AreEqual(2, Volatile.Read(ref loadCount));
     }
 
-    private static DecodedImage CreateImage() => new(1, 1, 4, new byte[4]);
+    private static DecodedImageUpload CreateImage() => DecodedImageUpload.Allocate(1, 1, 4);
 }

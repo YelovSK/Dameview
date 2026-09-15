@@ -6,24 +6,39 @@ using Vortice.Direct2D1;
 namespace Dameview.UI.Presentation;
 
 // UI-thread facade: checks render resources before asking the background pixel
-// producer, and converts temporary uploads into cache-owned Direct2D bitmaps.
+// producer, converts temporary uploads into cache-owned Direct2D bitmaps, and
+// joins a GPU thumbnail with the source dimensions for the blurred preview.
 internal sealed class PresentationImageLoader : IImageLoader
 {
     private readonly ImageLoadClient _producer;
     private readonly RenderBitmapCache _cache;
+    private readonly IThumbnailImageLoader _thumbnails;
+    private readonly IImageInfoLoader _imageInfo;
+    private readonly SynchronizationContext _uiContext;
     private readonly Func<DecodedImageUpload, ID2D1Bitmap1> _createUploadBitmap;
     private readonly Func<DecodedImage, ID2D1Bitmap1> _createDecodedBitmap;
+    private int _generation;
+    private IDisposable? _previewSubscription;
+    private TaskCompletionSource<CachedBitmapLease>? _previewLease;
+    private CancellationTokenSource? _previewInfoCancellation;
+    private bool _finalDelivered;
     private bool _disposed;
 
     internal PresentationImageLoader(
         ImageLoadClient producer,
         RenderBitmapCache cache,
-        ID2D1DeviceContext deviceContext)
+        ID2D1DeviceContext deviceContext,
+        IThumbnailImageLoader thumbnails,
+        IImageInfoLoader imageInfo,
+        SynchronizationContext uiContext)
         : this(
             producer,
             cache,
             upload => D2DBitmapFactory.Create(deviceContext, upload),
-            image => D2DBitmapFactory.Create(deviceContext, image))
+            image => D2DBitmapFactory.Create(deviceContext, image),
+            thumbnails,
+            imageInfo,
+            uiContext)
     {
     }
 
@@ -31,17 +46,24 @@ internal sealed class PresentationImageLoader : IImageLoader
         ImageLoadClient producer,
         RenderBitmapCache cache,
         Func<DecodedImageUpload, ID2D1Bitmap1> createUploadBitmap,
-        Func<DecodedImage, ID2D1Bitmap1> createDecodedBitmap)
+        Func<DecodedImage, ID2D1Bitmap1> createDecodedBitmap,
+        IThumbnailImageLoader thumbnails,
+        IImageInfoLoader imageInfo,
+        SynchronizationContext uiContext)
     {
         _producer = producer;
         _cache = cache;
         _createUploadBitmap = createUploadBitmap;
         _createDecodedBitmap = createDecodedBitmap;
+        _thumbnails = thumbnails;
+        _imageInfo = imageInfo;
+        _uiContext = uiContext;
     }
 
     public void Load(string path, Action<ImageLoadResult> completed)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        int generation = BeginLoad();
         if (_cache.TryAcquire(path, out CachedBitmapLease? lease))
         {
             _producer.CancelForeground();
@@ -50,7 +72,29 @@ internal sealed class PresentationImageLoader : IImageLoader
             return;
         }
 
-        _producer.Load(path, result => CompleteForeground(result, completed));
+        var leaseCompletion = new TaskCompletionSource<CachedBitmapLease>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        _previewLease = leaseCompletion;
+        var infoCancellation = new CancellationTokenSource();
+        _previewInfoCancellation = infoCancellation;
+        _previewSubscription = _thumbnails.Request(
+            path,
+            ThumbnailPriority.Foreground,
+            image =>
+            {
+                if (!leaseCompletion.TrySetResult(image))
+                {
+                    image.Dispose();
+                }
+            });
+        _ = JoinPreviewAsync(
+            generation,
+            path,
+            leaseCompletion.Task,
+            _imageInfo.LoadAsync(path, infoCancellation.Token),
+            completed);
+
+        _producer.Load(path, result => CompleteForeground(generation, result, completed));
     }
 
     public void Preload(IEnumerable<string?> paths)
@@ -67,17 +111,103 @@ internal sealed class PresentationImageLoader : IImageLoader
             CompletePreload);
     }
 
+    private int BeginLoad()
+    {
+        ResetPreview();
+        _finalDelivered = false;
+        return ++_generation;
+    }
+
+    private void ResetPreview()
+    {
+        _previewSubscription?.Dispose();
+        _previewSubscription = null;
+        _previewLease?.TrySetCanceled();
+        _previewLease = null;
+        _previewInfoCancellation?.Cancel();
+        _previewInfoCancellation?.Dispose();
+        _previewInfoCancellation = null;
+    }
+
+    // A preview is the join of two independent async inputs: the GPU thumbnail
+    // lease and the source dimensions. Either input failing yields no preview;
+    // a stale preview is dropped by DeliverPreview's generation check.
+    private async Task JoinPreviewAsync(
+        int generation,
+        string path,
+        Task<CachedBitmapLease> thumbnail,
+        Task<ImageInfo> info,
+        Action<ImageLoadResult> completed)
+    {
+        CachedBitmapLease? lease = null;
+        try
+        {
+            lease = await thumbnail.ConfigureAwait(false);
+            ImageInfo source = await info.ConfigureAwait(false);
+            ImageInfo display = GetDisplayInfo(source, lease.Bitmap.Width, lease.Bitmap.Height);
+            CachedBitmapLease toDeliver = lease;
+            lease = null;
+            try
+            {
+                _uiContext.Post(
+                    _ => DeliverPreview(generation, path, toDeliver, display, completed),
+                    null);
+            }
+            catch
+            {
+                // Posting failed before delivery; retain ownership locally and release it.
+                toDeliver.Dispose();
+            }
+        }
+        catch (Exception)
+        {
+            lease?.Dispose();
+        }
+    }
+
+    private void DeliverPreview(
+        int generation,
+        string path,
+        CachedBitmapLease lease,
+        ImageInfo display,
+        Action<ImageLoadResult> completed)
+    {
+        if (_disposed || generation != _generation || _finalDelivered)
+        {
+            lease.Dispose();
+            return;
+        }
+
+        completed(new ImageLoaded(
+            path,
+            new CachedBitmapRepresentation(lease, display.Width, display.Height),
+            IsPreview: true));
+    }
+
+    // GetInfo returns the stored (unrotated) dimensions while the thumbnail is orientation-applied.
+    // Infer a 90/270 swap when their aspect orientations disagree, so the preview matches the image.
+    private static ImageInfo GetDisplayInfo(ImageInfo source, int thumbnailWidth, int thumbnailHeight)
+    {
+        return (source.Width >= source.Height) == (thumbnailWidth >= thumbnailHeight)
+            ? source
+            : new ImageInfo(source.Height, source.Width);
+    }
+
     private void CompleteForeground(
+        int generation,
         ImageLoadResult result,
         Action<ImageLoadResult> completed)
     {
-        if (_disposed)
+        if (_disposed || generation != _generation)
         {
             DisposeResult(result);
             return;
         }
 
-        if (result is not ImageLoaded loaded || loaded.IsPreview)
+        _finalDelivered = true;
+        ResetPreview();
+
+        if (result is not ImageLoaded loaded)
         {
             completed(result);
             return;
@@ -235,6 +365,7 @@ internal sealed class PresentationImageLoader : IImageLoader
         }
 
         _disposed = true;
+        ResetPreview();
         _producer.Dispose();
     }
 }

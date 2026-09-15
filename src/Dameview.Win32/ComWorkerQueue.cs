@@ -77,6 +77,7 @@ internal sealed class ComWorkerQueue<TContext> : IDisposable
         foreach (WorkItem item in pending)
         {
             item.Cancel();
+            item.ClearCancellationRegistration();
         }
     }
 
@@ -96,7 +97,14 @@ internal sealed class ComWorkerQueue<TContext> : IDisposable
                 return;
             }
 
+            if (item.CancellationToken.IsCancellationRequested)
+            {
+                item.Cancel();
+                return;
+            }
+
             _pending.Enqueue(item, (-priority, _sequence++));
+            item.RegisterCancellation(() => CancelPending(item));
             Monitor.Pulse(_sync);
         }
     }
@@ -136,27 +144,37 @@ internal sealed class ComWorkerQueue<TContext> : IDisposable
 
     private bool TryTake([NotNullWhen(true)] out WorkItem? item)
     {
-        lock (_sync)
+        while (true)
         {
-            while (!_stopping)
+            WorkItem? candidate = null;
+            lock (_sync)
             {
-                if (_pending.TryDequeue(out WorkItem? candidate, out _))
+                while (!_stopping)
                 {
-                    if (candidate.CancellationToken.IsCancellationRequested)
+                    if (_pending.TryDequeue(out candidate, out _))
                     {
-                        candidate.Cancel();
-                        continue;
+                        break;
                     }
 
-                    item = candidate;
-                    return true;
+                    Monitor.Wait(_sync);
                 }
 
-                Monitor.Wait(_sync);
+                if (_stopping)
+                {
+                    item = null;
+                    return false;
+                }
             }
 
-            item = null;
-            return false;
+            candidate!.ClearCancellationRegistration();
+            if (candidate.CancellationToken.IsCancellationRequested)
+            {
+                candidate.Cancel();
+                continue;
+            }
+
+            item = candidate;
+            return true;
         }
     }
 
@@ -174,6 +192,18 @@ internal sealed class ComWorkerQueue<TContext> : IDisposable
         foreach (WorkItem item in pending)
         {
             item.Fail(exception);
+            item.ClearCancellationRegistration();
+        }
+    }
+
+    private void CancelPending(WorkItem item)
+    {
+        lock (_sync)
+        {
+            if (_pending.Remove(item, out _, out _))
+            {
+                item.Cancel();
+            }
         }
     }
 
@@ -192,6 +222,14 @@ internal sealed class ComWorkerQueue<TContext> : IDisposable
     private abstract class WorkItem(CancellationToken cancellationToken)
     {
         internal CancellationToken CancellationToken { get; } = cancellationToken;
+        private CancellationTokenRegistration _cancellationRegistration;
+
+        internal void RegisterCancellation(Action callback)
+        {
+            _cancellationRegistration = CancellationToken.Register(callback);
+        }
+
+        internal void ClearCancellationRegistration() => _cancellationRegistration.Dispose();
 
         internal abstract void Execute(TContext context);
         internal abstract void Cancel();

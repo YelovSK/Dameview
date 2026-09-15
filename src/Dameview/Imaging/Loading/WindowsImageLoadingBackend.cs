@@ -3,19 +3,17 @@ using Dameview.Imaging.Decoding;
 
 namespace Dameview.Imaging.Loading;
 
-internal sealed class WindowsImageLoadingBackend : IImageLoadingBackend, IDisposable
+internal sealed class WindowsImageLoadingBackend : IImageLoadingBackend
 {
     private static readonly IAnimatedImageDecoder[] AnimatedDecoders =
     [
         new WicGifAnimationDecoder(),
     ];
-    private readonly NativePixelBufferPool _uploadPool = new();
-
-    public IImageDecoder CreateDecoder() => new ImageDecoder(_uploadPool);
+    public IImageDecoder CreateDecoder() => new ImageDecoder();
 
     public IImageTileSource OpenTiledImage(string path) => WicImageTileSource.Open(path);
 
-    public DecodedImage? LoadThumbnail(string path) => WindowsThumbnail.Load(path);
+    public DecodedImageUpload? LoadThumbnail(string path) => WindowsThumbnail.Load(path);
 
     public bool SupportsAnimation(string path) => FindAnimationDecoder(path) is not null;
 
@@ -37,10 +35,5 @@ internal sealed class WindowsImageLoadingBackend : IImageLoadingBackend, IDispos
         }
 
         return null;
-    }
-
-    public void Dispose()
-    {
-        _uploadPool.Dispose();
     }
 }

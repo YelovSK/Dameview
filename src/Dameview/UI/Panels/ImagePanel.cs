@@ -91,7 +91,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
         switch (image)
         {
             case CachedBitmapRepresentation cached:
-                SetCachedImage(cached.Bitmap);
+                SetCachedImage(cached.Bitmap, isPreview);
                 break;
 
             case DecodedImageRepresentation decoded:
@@ -150,7 +150,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
         _ownedImage = newImage;
     }
 
-    private void SetCachedImage(ID2D1Bitmap1 image)
+    private void SetCachedImage(ID2D1Bitmap1 image, bool isPreview)
     {
         _imageAnimation = null;
         _presentationCache.Clear();
@@ -159,7 +159,11 @@ internal sealed class ImagePanel : UiElement, IDisposable
         _tiledImage?.Dispose();
         _tiledImage = null;
         _cachedImage = image;
-        _isPreview = false;
+        _isPreview = isPreview;
+        if (isPreview)
+        {
+            CreatePreviewImage(image);
+        }
     }
 
     private void ClearCachedImage()
