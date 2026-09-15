@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+using Dameview.Diagnostics;
 using Dameview.Installation;
 using Dameview.Updates;
 using Dameview.Win32;
@@ -9,6 +11,7 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        InitializeLogger();
         NativeMethods.EnablePerMonitorDpiAwareness();
         NativeMethods.InitializeComApartment(ComApartment.ApartmentThreaded);
 
@@ -38,10 +41,26 @@ internal static class Program
             using var app = new DameviewApp();
             return app.Run(args);
         }
+        catch (Exception exception)
+        {
+            Log.Error("App", "Unhandled application exception.", exception);
+            throw;
+        }
         finally
         {
+            Log.Shutdown();
             NativeMethods.UninitializeComApartment();
         }
+    }
+
+    private static void InitializeLogger()
+    {
+        Log.Initialize();
+        Log.Info("App", $"Dameview {AppInstallation.GetDisplayVersion(Environment.ProcessPath)}");
+        Version osVersion = Environment.OSVersion.Version;
+        string osName = osVersion.Build >= 22000 ? "Windows 11" : "Windows";
+        Log.Info("App", $"{osName} {osVersion.Major}.{osVersion.Minor}.{osVersion.Build}");
+        Log.Info("App", $"NativeAOT={!RuntimeFeature.IsDynamicCodeCompiled}");
     }
 }
 

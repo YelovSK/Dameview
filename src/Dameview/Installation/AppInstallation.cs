@@ -187,7 +187,7 @@ internal static class AppInstallation
             : null;
     }
 
-    private static string GetDisplayVersion(string? path)
+    internal static string GetDisplayVersion(string? path)
     {
         if (path is null || !File.Exists(path))
         {

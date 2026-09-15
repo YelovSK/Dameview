@@ -1,4 +1,5 @@
 using System.Globalization;
+using Dameview.Diagnostics;
 using Dameview.Navigation;
 using Dameview.Serialization;
 using Dameview.Win32;
@@ -33,6 +34,7 @@ internal static class SettingsIniSerializer
             Height = ReadRequiredInt(document.Get("window", "height")),
             Maximized = ReadRequiredBoolean(document.Get("window", "maximized")),
         };
+        LogLevel logLevel = ReadLogLevel(document.Get("logging", "level"));
 
         return new AppSettings
         {
@@ -44,6 +46,7 @@ internal static class SettingsIniSerializer
             GalleryThumbnailSize = galleryThumbnailSize,
             GallerySizeDips = gallerySize,
             Window = window,
+            Logging = new LoggingSettings { Level = logLevel },
         };
     }
 
@@ -65,6 +68,8 @@ internal static class SettingsIniSerializer
             document.Set("window", "height", window.Height.ToString(CultureInfo.InvariantCulture));
             document.Set("window", "maximized", window.Maximized ? "true" : "false");
         }
+
+        document.Set("logging", "level", WriteLogLevel(settings.Logging.Level));
 
         return document.Write();
     }
@@ -113,6 +118,15 @@ internal static class SettingsIniSerializer
         "top" => GalleryPlacement.Top,
         "bottom" => GalleryPlacement.Bottom,
         _ => throw new IniFormatException("Unknown gallery placement."),
+    };
+
+    private static LogLevel ReadLogLevel(string? value) => value switch
+    {
+        null or "info" => LogLevel.Info,
+        "debug" => LogLevel.Debug,
+        "warning" => LogLevel.Warning,
+        "error" => LogLevel.Error,
+        _ => throw new IniFormatException("Unknown log level."),
     };
 
     private static int ReadRequiredInt(string? value)
@@ -178,6 +192,15 @@ internal static class SettingsIniSerializer
         GalleryPlacement.Left => "left",
         GalleryPlacement.Top => "top",
         GalleryPlacement.Bottom => "bottom",
+        _ => throw new ArgumentOutOfRangeException(nameof(value)),
+    };
+
+    private static string WriteLogLevel(LogLevel value) => value switch
+    {
+        LogLevel.Debug => "debug",
+        LogLevel.Info => "info",
+        LogLevel.Warning => "warning",
+        LogLevel.Error => "error",
         _ => throw new ArgumentOutOfRangeException(nameof(value)),
     };
 

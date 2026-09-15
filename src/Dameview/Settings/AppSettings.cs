@@ -1,4 +1,5 @@
 using Dameview.Navigation;
+using Dameview.Diagnostics;
 using Dameview.Serialization;
 using Dameview.Win32;
 
@@ -45,6 +46,7 @@ internal sealed record AppSettings
     public GalleryThumbnailSize GalleryThumbnailSize { get; init; } = GalleryThumbnailSize.Medium;
     public float GallerySizeDips { get; init; } = DefaultGallerySizeDips;
     public WindowPlacementState? Window { get; init; }
+    public LoggingSettings Logging { get; init; } = new();
 
     internal void Validate()
     {
@@ -54,6 +56,11 @@ internal sealed record AppSettings
             || !Enum.IsDefined(GalleryThumbnailSize))
         {
             throw new IniFormatException("Unknown settings value.");
+        }
+
+        if (!Enum.IsDefined(Logging.Level))
+        {
+            throw new IniFormatException("Unknown log level.");
         }
 
         if (!float.IsFinite(GallerySizeDips) || GallerySizeDips < MinimumGallerySizeDips)
@@ -66,4 +73,9 @@ internal sealed record AppSettings
             throw new IniFormatException("Window dimensions are too small.");
         }
     }
+}
+
+internal sealed record LoggingSettings
+{
+    public LogLevel Level { get; init; } = LogLevel.Info;
 }

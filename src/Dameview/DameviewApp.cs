@@ -1,5 +1,6 @@
 using System.Drawing;
 using Dameview.Commands;
+using Dameview.Diagnostics;
 using Dameview.Imaging.Decoding;
 using Dameview.Imaging.Loading;
 using Dameview.Installation;
@@ -119,6 +120,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     public int Run(string[] args)
     {
         _settings.Start();
+        ApplyLogLevel(_settings.Current);
 
         if (args.FirstOrDefault() is string imagePath)
         {
@@ -462,6 +464,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
 
     private void ApplySettings(AppSettings previous, AppSettings current)
     {
+        ApplyLogLevel(current);
         if (current.Window is { } windowPlacement && previous.Window != windowPlacement)
         {
             _window.RestorePlacement(windowPlacement);
@@ -481,6 +484,11 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         }
 
         _window.RequestRepaint();
+    }
+
+    private static void ApplyLogLevel(AppSettings settings)
+    {
+        Log.SetMinimumLevel(settings.Logging.Level);
     }
 
     private void HandleUpdateChanged(UpdateState state)
