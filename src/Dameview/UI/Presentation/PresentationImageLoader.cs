@@ -1,3 +1,4 @@
+using Dameview.Diagnostics;
 using Dameview.Imaging;
 using Dameview.Imaging.Loading;
 using Dameview.Rendering;
@@ -267,6 +268,7 @@ internal sealed class PresentationImageLoader : IImageLoader
         }
         catch (Exception exception)
         {
+            Log.Error("Image", $"Could not upload '{Path.GetFileName(path)}' to the renderer.", exception);
             if (bitmap is not null)
             {
                 _cache.DisposeUncached(bitmap);
@@ -295,6 +297,7 @@ internal sealed class PresentationImageLoader : IImageLoader
         }
         catch (Exception exception)
         {
+            Log.Error("Image", $"Could not create a bitmap for '{Path.GetFileName(path)}'.", exception);
             if (bitmap is not null)
             {
                 _cache.DisposeUncached(bitmap);

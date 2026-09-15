@@ -51,6 +51,9 @@ public static class Log
 
     public static void Debug(string category, string message) => Write(LogLevel.Debug, category, message, null);
 
+    public static void Debug(string category, string message, Exception exception) =>
+        Write(LogLevel.Debug, category, message, exception);
+
     public static void Info(string category, string message) => Write(LogLevel.Info, category, message, null);
 
     public static void Warning(string category, string message) => Write(LogLevel.Warning, category, message, null);

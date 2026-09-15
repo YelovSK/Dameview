@@ -1,3 +1,4 @@
+using Dameview.Diagnostics;
 using Dameview.Serialization;
 
 namespace Dameview.Settings;
@@ -53,9 +54,14 @@ internal sealed class SettingsService : IDisposable
             }
 
             Reload();
+            if (Error is null)
+            {
+                Log.Info("Settings", "Settings loaded.");
+            }
         }
         catch (Exception exception) when (IsSettingsError(exception))
         {
+            Log.Error("Settings", "Could not initialize settings.", exception);
             SetError(exception.Message);
         }
     }
@@ -72,6 +78,7 @@ internal sealed class SettingsService : IDisposable
         }
         catch (Exception exception) when (IsSettingsError(exception))
         {
+            Log.Error("Settings", "Could not save settings.", exception);
             SetError($"Could not save settings: {exception.Message}");
         }
     }
@@ -108,6 +115,7 @@ internal sealed class SettingsService : IDisposable
 
             _fileSettings = settings;
             Apply(settings);
+            Log.Debug("Settings", "Settings reloaded.");
             SetError(null);
         }
         catch (Exception exception) when (IsSettingsError(exception))
@@ -120,6 +128,7 @@ internal sealed class SettingsService : IDisposable
             }
 
             _readAttempts = 0;
+            Log.Error("Settings", "Could not load settings.", exception);
             SetError($"Could not load settings: {exception.Message}");
         }
     }

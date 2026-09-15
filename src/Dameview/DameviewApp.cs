@@ -49,11 +49,19 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _window.SetTitleBarTheme(dark: true, UiTheme.Default.WindowCaptionColor, UiTheme.Default.WindowTextColor);
         _pointerX = _window.ClientWidth / 2;
         _pointerY = _window.ClientHeight / 2;
-        _renderer = new D2DRenderer(
-            _window.Handle,
-            _window.ClientWidth,
-            _window.ClientHeight,
-            _window.Dpi);
+        try
+        {
+            _renderer = new D2DRenderer(
+                _window.Handle,
+                _window.ClientWidth,
+                _window.ClientHeight,
+                _window.Dpi);
+        }
+        catch (Exception exception)
+        {
+            Log.Error("Native", "Renderer initialization failed.", exception);
+            throw;
+        }
         _imageBackend = new WindowsImageLoadingBackend();
         _thumbnailCoordinator = new ThumbnailCoordinator(
             _imageBackend.LoadThumbnail,
@@ -145,6 +153,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             return;
         }
 
+        Log.Debug("Workspace", $"Opened {paths.Count} dropped file(s).");
         _workspace.OpenImage(paths[0]);
         for (int index = 1; index < paths.Count; index++)
         {
@@ -227,11 +236,13 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
 
     public void OpenImage(string path)
     {
+        Log.Debug("Workspace", $"Opened image: '{path}'.");
         _workspace.SelectImage(path);
     }
 
     public void OpenImageInNewTab(string path)
     {
+        Log.Debug("Workspace", $"Opened image in new tab: '{path}'.");
         _workspace.OpenImageInNewTab(path);
     }
 
@@ -408,6 +419,10 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
 
                 if (error is not null)
                 {
+                    Log.Error(
+                        "Clipboard",
+                        $"Could not decode '{Path.GetFileName(path)}' for clipboard copy.",
+                        error);
                     return;
                 }
 
@@ -423,6 +438,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
                         image.Stride,
                         image.Span))
                 {
+                    Log.Warning("Clipboard", $"Could not copy '{Path.GetFileName(path)}' to the clipboard.");
                     return;
                 }
             }

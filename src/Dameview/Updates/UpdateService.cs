@@ -1,3 +1,5 @@
+using Dameview.Diagnostics;
+
 namespace Dameview.Updates;
 
 internal sealed class UpdateService
@@ -39,6 +41,7 @@ internal sealed class UpdateService
         }
 
         SetState(new UpdateState(UpdateStatus.Checking));
+        Log.Debug("Updates", "Checking for updates.");
         _ = Task.Run(() =>
         {
             try
@@ -47,6 +50,14 @@ internal sealed class UpdateService
                 UpdateStatus status = release.Version > _currentVersion
                     ? UpdateStatus.Available
                     : UpdateStatus.Current;
+                if (status == UpdateStatus.Available)
+                {
+                    Log.Info("Updates", $"Update available: {release.Version}.");
+                }
+                else
+                {
+                    Log.Debug("Updates", "No update available.");
+                }
                 PostToUi(() => SetState(new UpdateState(status, release)));
             }
             catch (Exception exception)
@@ -59,11 +70,13 @@ internal sealed class UpdateService
     private void Download(AppRelease release)
     {
         SetState(new UpdateState(UpdateStatus.Downloading, release));
+        Log.Info("Updates", $"Downloading update {release.Version}.");
         _ = Task.Run(() =>
         {
             try
             {
                 string path = _client.Download(release);
+                Log.Info("Updates", $"Update {release.Version} downloaded.");
                 PostToUi(() => Apply(path, release));
             }
             catch (Exception exception)
@@ -82,6 +95,7 @@ internal sealed class UpdateService
         }
         catch (Exception exception)
         {
+            Log.Error("Updates", "Could not start the update.", exception);
             SetState(new UpdateState(
                 UpdateStatus.Failed,
                 release,
@@ -91,6 +105,7 @@ internal sealed class UpdateService
 
     private void PostFailure(string operation, Exception exception, AppRelease? release = null)
     {
+        Log.Error("Updates", operation + ".", exception);
         PostToUi(() => SetState(new UpdateState(
             UpdateStatus.Failed,
             release,

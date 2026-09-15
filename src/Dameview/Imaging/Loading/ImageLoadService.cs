@@ -1,3 +1,4 @@
+using Dameview.Diagnostics;
 using Dameview.Imaging.Animation;
 using Dameview.Imaging.Decoding;
 using Dameview.Win32;
@@ -74,6 +75,7 @@ internal sealed class ImageLoadService : IDisposable
     // Must be called on the UI thread, serialized per client.
     internal void Load(ImageLoadClient client, string path, Action<ImageLoadResult> completed)
     {
+        Log.Debug("Image", $"Open requested: '{path}'.");
         bool supportsAnimation = _backend.SupportsAnimation(path);
         LoadRequest? start = null;
         lock (_sync)
@@ -243,6 +245,7 @@ internal sealed class ImageLoadService : IDisposable
         }
         catch (Exception exception)
         {
+            Log.Error("Image", $"Failed to load '{Path.GetFileName(request.Path)}'.", exception);
             result = new ImageLoadFailed(request.Path, exception);
         }
 
@@ -265,6 +268,7 @@ internal sealed class ImageLoadService : IDisposable
         }
         catch (Exception exception)
         {
+            Log.Error("Image", $"Failed to decode '{Path.GetFileName(request.Path)}'.", exception);
             return new ImageLoadFailed(request.Path, exception);
         }
     }
@@ -356,10 +360,12 @@ internal sealed class ImageLoadService : IDisposable
             cancellationToken.ThrowIfCancellationRequested();
             if (_representationPolicy.RequiresTiling(sourceInfo))
             {
+                Log.Debug("Image", $"Selected tiled representation for '{request.Path}'.");
                 IImageTileSource tiledImage = _backend.OpenTiledImage(request.Path);
                 return new ImageLoaded(request.Path, new TiledImageRepresentation(tiledImage));
             }
 
+            Log.Debug("Image", $"Selected static representation for '{request.Path}'.");
             return new ImageLoaded(
                 request.Path,
                 new UploadImageRepresentation(DecodeShared(request.Path, decoder, cancellationToken)));
@@ -370,12 +376,14 @@ internal sealed class ImageLoadService : IDisposable
         {
             if (!animation.IsAnimated)
             {
+                Log.Debug("Image", $"Selected static representation for '{request.Path}'.");
                 return new ImageLoaded(
                     request.Path,
                     new DecodedImageRepresentation(animation.FirstFrame.Image));
             }
 
             var result = new ImageLoaded(request.Path, new AnimatedImageRepresentation(animation));
+            Log.Debug("Image", $"Selected animated representation for '{request.Path}'.");
             animation = null;
             return result;
         }

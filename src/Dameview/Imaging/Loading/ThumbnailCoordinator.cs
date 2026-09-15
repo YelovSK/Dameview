@@ -1,3 +1,4 @@
+using Dameview.Diagnostics;
 using Dameview.Win32;
 
 namespace Dameview.Imaging.Loading;
@@ -118,9 +119,13 @@ internal sealed class ThumbnailCoordinator : IThumbnailLoader, IDisposable
                 (int)priority,
                 cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception)
+        catch (OperationCanceledException)
         {
-            // Missing or broken shell thumbnails are represented by null.
+            return;
+        }
+        catch (Exception exception)
+        {
+            Log.Debug("Thumbnail", $"Thumbnail decode failed for '{Path.GetFileName(path)}'.", exception);
         }
 
         List<ThumbnailSubscription> subscriptions;
@@ -213,8 +218,13 @@ internal sealed class ThumbnailCoordinator : IThumbnailLoader, IDisposable
         {
             return _load(path);
         }
-        catch (Exception)
+        catch (OperationCanceledException)
         {
+            return null;
+        }
+        catch (Exception exception)
+        {
+            Log.Debug("Thumbnail", $"Thumbnail decode failed for '{Path.GetFileName(path)}'.", exception);
             return null;
         }
     }
