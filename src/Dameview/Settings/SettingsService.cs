@@ -11,16 +11,28 @@ internal sealed class SettingsService : IDisposable
     private readonly SynchronizationContext _ownerContext;
     private readonly Lock _gate = new();
     private readonly Timer _reloadTimer;
+    private readonly TimeSpan _reloadDelay;
+    private readonly TimeSpan _retryDelay;
     private FileSystemWatcher? _watcher;
     private AppSettings? _fileSettings;
     private bool _disposed;
     private int _readAttempts;
 
-    internal SettingsService(string path, SynchronizationContext ownerContext)
+    internal SettingsService(
+        string path,
+        SynchronizationContext ownerContext,
+        SettingsServiceOptions? options = null)
     {
         _path = Path.GetFullPath(path);
         _ownerContext = ownerContext;
-        _reloadTimer = new Timer(_ => _ownerContext.Post(_ => Reload(), null), null, Timeout.Infinite, Timeout.Infinite);
+        options ??= new SettingsServiceOptions();
+        _reloadDelay = options.ReloadDelay;
+        _retryDelay = options.RetryDelay;
+        _reloadTimer = new Timer(
+            _ => _ownerContext.Post(_ => Reload(), null),
+            null,
+            Timeout.Infinite,
+            Timeout.Infinite);
     }
 
     internal static string DefaultPath => Path.Combine(
@@ -123,7 +135,7 @@ internal sealed class SettingsService : IDisposable
             // Editors may briefly truncate, lock, or replace the file while saving.
             if (++_readAttempts < 4)
             {
-                ScheduleReload();
+                ScheduleRetry();
                 return;
             }
 
@@ -176,11 +188,21 @@ internal sealed class SettingsService : IDisposable
 
     private void ScheduleReload()
     {
+        ScheduleReload(_reloadDelay);
+    }
+
+    private void ScheduleRetry()
+    {
+        ScheduleReload(_retryDelay);
+    }
+
+    private void ScheduleReload(TimeSpan delay)
+    {
         lock (_gate)
         {
             if (!_disposed)
             {
-                _reloadTimer.Change(150, Timeout.Infinite);
+                _reloadTimer.Change(delay, Timeout.InfiniteTimeSpan);
             }
         }
     }

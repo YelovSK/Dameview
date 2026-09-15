@@ -183,7 +183,12 @@ public sealed class SettingsServiceTests
     public void TemporaryReadLockRecoversWithoutAnError()
     {
         using var files = new SettingsFiles();
-        using SettingsService settings = files.CreateService();
+        using SettingsService settings = files.CreateService(
+            new SettingsServiceOptions
+            {
+                ReloadDelay = TimeSpan.FromMilliseconds(150),
+                RetryDelay = TimeSpan.FromMilliseconds(150),
+            });
         settings.Start();
         File.WriteAllText(files.Path, "theme=light");
         using (var locked = new FileStream(files.Path, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
@@ -238,9 +243,17 @@ public sealed class SettingsServiceTests
             Directory.CreateDirectory(_directory);
         }
 
-        internal SettingsService CreateService()
+        internal SettingsService CreateService(
+            SettingsServiceOptions? options = null)
         {
-            return new SettingsService(Path, new WindowSynchronizationContext(Posted.Enqueue));
+            return new SettingsService(
+                Path,
+                new WindowSynchronizationContext(Posted.Enqueue),
+                options ?? new SettingsServiceOptions
+                {
+                    ReloadDelay = TimeSpan.Zero,
+                    RetryDelay = TimeSpan.FromMilliseconds(10),
+                });
         }
 
         internal void Drain()
