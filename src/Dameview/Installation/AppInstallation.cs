@@ -139,6 +139,7 @@ internal static class AppInstallation
     private static void DeleteAfterExit(IReadOnlyList<string> paths, string? directory)
     {
         string command = "choice /C Y /N /D Y /T 1 > nul";
+
         foreach (string path in paths)
         {
             command += $" & del /F /Q \"{path}\"";
@@ -152,13 +153,12 @@ internal static class AppInstallation
         var startInfo = new ProcessStartInfo
         {
             FileName = Environment.GetEnvironmentVariable("ComSpec") ?? "cmd.exe",
+            Arguments = $"/D /C \"{command.Replace("\"", "\"\"")}\"",
             CreateNoWindow = true,
             UseShellExecute = false,
             WindowStyle = ProcessWindowStyle.Hidden,
         };
-        startInfo.ArgumentList.Add("/D");
-        startInfo.ArgumentList.Add("/C");
-        startInfo.ArgumentList.Add(command);
+
         Process.Start(startInfo);
     }
 
