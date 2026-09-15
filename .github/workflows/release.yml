@@ -12,14 +12,25 @@ jobs:
   publish:
     runs-on: windows-latest
 
+    env:
+      NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+
     steps:
       - name: Check out source
         uses: actions/checkout@v4
 
-      - name: Set up .NET
-        uses: actions/setup-dotnet@v4
+      - name: Show .NET SDK
+        run: dotnet --version
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
         with:
-          dotnet-version: '10.0.x'
+          path: ${{ env.NUGET_PACKAGES }}
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets', '**/NuGet.config', 'global.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
       - name: Restore
         run: dotnet restore Dameview.slnx
@@ -31,7 +42,13 @@ jobs:
         shell: pwsh
         run: |
           $version = $env:GITHUB_REF_NAME -replace '^v', ''
-          dotnet publish src/Dameview/Dameview.csproj --configuration Release --runtime win-x64 --self-contained true --no-restore --output publish -p:Version=$version
+          dotnet publish src/Dameview/Dameview.csproj `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained true `
+            --no-restore `
+            --output publish `
+            -p:Version=$version
 
       - name: Create GitHub release
         shell: pwsh
