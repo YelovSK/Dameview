@@ -37,7 +37,7 @@ internal sealed class ThumbnailCoordinator : IThumbnailLoader, IDisposable
     {
         _load = load;
         _uiContext = uiContext;
-        _queue = new ComWorkerQueue<object?>("Dameview thumbnails", 1, static () => null);
+        _queue = new ComWorkerQueue<object?>("Dameview thumbnails", 4, static () => null);
     }
 
     public IDisposable Request(
