@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using Dameview.App;
 using Dameview.Diagnostics;
 using Dameview.Installation;
 using Dameview.Updates;
@@ -36,6 +37,12 @@ internal static class Program
                 }
 
                 args = [];
+            }
+
+            using var instance = SingleInstanceHost.AcquireOrForward(args);
+            if (instance is null)
+            {
+                return 0;
             }
 
             using var app = new DameviewApp();

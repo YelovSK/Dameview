@@ -1,4 +1,5 @@
 using System.Drawing;
+using Dameview.App;
 using Dameview.Commands;
 using Dameview.Diagnostics;
 using Dameview.Imaging.Decoding;
@@ -110,6 +111,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _window.Resized += HandleResize;
         _window.DpiChanged += HandleDpiChanged;
         _window.FilesDropped += HandleFilesDropped;
+        _window.CopyDataReceived += HandleExternalInstanceMessage;
         _window.KeyPressed += HandleKeyPress;
         _window.TextInput += HandleTextInput;
         _window.PointerInput += HandlePointerInput;
@@ -244,6 +246,43 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     {
         Log.Debug("Workspace", $"Opened image in new tab: '{path}'.");
         _workspace.OpenImageInNewTab(path);
+    }
+
+    private void Activate()
+    {
+        if (!_window.Activate())
+        {
+            Log.Warning("Window", "Windows refused to bring Dameview to the foreground.");
+        }
+    }
+
+    private void HandleExternalInstanceMessage(nuint command, string message)
+    {
+        if (command == (nuint)SingleInstanceCommand.Activate)
+        {
+            Activate();
+            return;
+        }
+
+        if (command != (nuint)SingleInstanceCommand.Open)
+        {
+            return;
+        }
+
+        bool opened = false;
+        foreach (string path in message.Split('\n'))
+        {
+            if (!string.IsNullOrWhiteSpace(path))
+            {
+                OpenImageInNewTab(path);
+                opened = true;
+            }
+        }
+
+        if (opened)
+        {
+            Activate();
+        }
     }
 
     public void OpenImageInNewTab(string path, WorkspaceDropTarget target)

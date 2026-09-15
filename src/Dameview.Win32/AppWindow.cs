@@ -16,7 +16,7 @@ namespace Dameview.Win32;
 
 internal sealed unsafe class AppWindow : IDisposable
 {
-    private static readonly string WindowClassName = typeof(AppWindow).FullName!;
+    internal static readonly string WindowClassName = typeof(AppWindow).FullName!;
     private static bool _windowClassRegistered;
 
     private readonly ConcurrentQueue<Action> _postedActions = new();
@@ -67,6 +67,7 @@ internal sealed unsafe class AppWindow : IDisposable
     internal event Action<WindowKeyEvent>? KeyPressed;
     internal event Action<string>? TextInput;
     internal event Action<WindowPointerEvent>? PointerInput;
+    internal event Action<nuint, string>? CopyDataReceived;
 
     internal nint Handle { get; private set; }
     internal int ClientWidth { get; private set; }
@@ -145,6 +146,21 @@ internal sealed unsafe class AppWindow : IDisposable
         {
             DestroyWindow((HWND)Handle);
         }
+    }
+
+    internal bool Activate()
+    {
+        if (Handle != 0)
+        {
+            if (IsIconic((HWND)Handle))
+            {
+                ShowWindow((HWND)Handle, SHOW_WINDOW_CMD.SW_RESTORE);
+            }
+
+            return SetForegroundWindow((HWND)Handle);
+        }
+
+        return false;
     }
 
     internal void ToggleFullscreen()
@@ -625,6 +641,23 @@ internal sealed unsafe class AppWindow : IDisposable
                 }
 
                 return default;
+
+            case WM_COPYDATA:
+                var data = (WindowCopyData.Data*)(nint)lParam;
+                if (data is null
+                    || data->ByteCount % sizeof(char) != 0
+                    || data->ByteCount > (uint)int.MaxValue * sizeof(char)
+                    || (data->ByteCount > 0 && data->DataPointer == 0))
+                {
+                    return default;
+                }
+
+                int characterCount = checked((int)(data->ByteCount / sizeof(char)));
+                string copyDataText = characterCount == 0
+                    ? string.Empty
+                    : new string((char*)data->DataPointer, 0, characterCount);
+                CopyDataReceived?.Invoke(data->DataId, copyDataText);
+                return (LRESULT)1;
 
             case WM_DESTROY:
                 WindowPlacementState placement = CapturePlacement();

@@ -3,7 +3,13 @@ CreateWindowEx
 RegisterClassEx
 DefWindowProc
 DestroyWindow
+FindWindow
+SendMessage
 ShowWindow
+IsIconic
+SetForegroundWindow
+AllowSetForegroundWindow
+GetWindowThreadProcessId
 GetWindowPlacement
 SetWindowPlacement
 PostMessage
@@ -117,6 +123,7 @@ WM_DROPFILES
 WM_DPICHANGED
 WM_DESTROY
 WM_APP
+WM_COPYDATA
 CW_USEDEFAULT
 INFINITE
 IDI_APPLICATION

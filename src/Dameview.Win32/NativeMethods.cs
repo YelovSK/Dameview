@@ -100,6 +100,7 @@ internal static unsafe partial class NativeMethods
         // Unsupported attributes return an HRESULT on older Windows versions.
         _ = DwmSetWindowAttribute(window, attribute, &value, sizeof(int));
     }
+
 }
 
 internal enum ComApartment : uint
