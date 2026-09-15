@@ -16,6 +16,7 @@ internal enum WindowKey : uint
     Right = 0x27,
     Down = 0x28,
     Delete = 0x2E,
+    C = 0x43,
     Number1 = 0x31,
     F = 0x46,
     P = 0x50,

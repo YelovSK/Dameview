@@ -36,6 +36,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     private readonly ViewerWorkspace _workspace;
     private readonly SettingsService _settings;
     private readonly UpdateService _updates;
+    private CancellationTokenSource? _copyImageCancellation;
     private int _pointerX;
     private int _pointerY;
 
@@ -161,6 +162,8 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _updates.Changed -= HandleUpdateChanged;
         _updates.UpdateDownloaded -= HandleUpdateDownloaded;
         _settings.Dispose();
+        _copyImageCancellation?.Cancel();
+        _copyImageCancellation?.Dispose();
         _ui.Invalidated -= _window.RequestRepaint;
         _ui.Dispose();
         _workspace.Dispose();
@@ -338,6 +341,10 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
                 ShowActualSize();
                 break;
 
+            case ViewerCommandId.CopyImage:
+                CopyImage();
+                break;
+
             case ViewerCommandId.ToggleFullscreen:
                 ToggleFullscreen();
                 break;
@@ -373,6 +380,60 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             default:
                 throw new ArgumentOutOfRangeException(nameof(command), command, null);
         }
+    }
+
+    private void CopyImage()
+    {
+        string? path = _workspace.ActiveSession.State.DisplayedImage?.Path;
+        if (path is null)
+        {
+            return;
+        }
+
+        _copyImageCancellation?.Cancel();
+        _copyImageCancellation?.Dispose();
+        var cancellation = new CancellationTokenSource();
+        _copyImageCancellation = cancellation;
+
+        _imageLoadService.DecodeTemporary(path, (image, error) =>
+        {
+            try
+            {
+                if (cancellation.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                if (error is not null)
+                {
+                    return;
+                }
+
+                if (image is null)
+                {
+                    return;
+                }
+
+                if (!Win32Clipboard.TrySetImage(
+                        _window.Handle,
+                        image.Width,
+                        image.Height,
+                        image.Stride,
+                        image.Span))
+                {
+                    return;
+                }
+            }
+            finally
+            {
+                image?.Dispose();
+                if (ReferenceEquals(_copyImageCancellation, cancellation))
+                {
+                    _copyImageCancellation = null;
+                    cancellation.Dispose();
+                }
+            }
+        }, cancellation.Token);
     }
 
     public void ActivateUpdate() => _updates.Activate();

@@ -56,6 +56,12 @@ public sealed class ViewerCommandCatalogTests
             out ViewerCommandId previousImage));
         Assert.AreEqual(ViewerCommandId.PreviousImage, previousImage);
 
+        Assert.IsTrue(ViewerKeyBindings.TryGetCommand(
+            ViewerKeyBindings.Viewer,
+            new WindowKeyEvent(WindowKey.C, Control: true),
+            out ViewerCommandId copyImage));
+        Assert.AreEqual(ViewerCommandId.CopyImage, copyImage);
+
         Assert.IsFalse(ViewerKeyBindings.TryGetCommand(
             ViewerKeyBindings.Window,
             new WindowKeyEvent(WindowKey.Left),

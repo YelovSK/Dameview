@@ -32,6 +32,10 @@ LoadIcon
 SetWindowText
 GetKeyState
 SetProcessDpiAwarenessContext
+OpenClipboard
+EmptyClipboard
+SetClipboardData
+CloseClipboard
 
 // Gdi32
 
@@ -53,6 +57,10 @@ DwmSetWindowAttribute
 
 // Kernel32
 GetModuleHandle
+GlobalAlloc
+GlobalLock
+GlobalUnlock
+GlobalFree
 
 // WinHTTP
 WinHttpOpen
@@ -69,6 +77,7 @@ WINHTTP_OPTION_URL
 WINHTTP_QUERY_STATUS_CODE
 WINHTTP_QUERY_FLAG_NUMBER
 INTERNET_DEFAULT_HTTPS_PORT
+CLIPBOARD_FORMAT
 
 // Structs
 WNDCLASSEXW

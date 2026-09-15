@@ -12,6 +12,7 @@ internal enum ViewerCommandId
     NextImage,
     FitImage,
     ShowActualSize,
+    CopyImage,
     ToggleFullscreen,
     SplitRight,
     SplitDown,
@@ -60,6 +61,7 @@ internal static class ViewerCommandCatalog
         new(ViewerCommandId.NextImage, "Next image"),
         new(ViewerCommandId.FitImage, "Fit image"),
         new(ViewerCommandId.ShowActualSize, "Show actual size"),
+        new(ViewerCommandId.CopyImage, "Copy image"),
         new(ViewerCommandId.ToggleFullscreen, "Toggle fullscreen"),
         new(ViewerCommandId.SplitRight, "Split right"),
         new(ViewerCommandId.SplitDown, "Split down"),
@@ -93,6 +95,7 @@ internal static class ViewerKeyBindings
         new(ViewerCommandId.FitImage, new(WindowKey.F)),
         new(ViewerCommandId.ShowActualSize, new(WindowKey.Number1)),
         new(ViewerCommandId.ShowActualSize, new(WindowKey.Numpad1)),
+        new(ViewerCommandId.CopyImage, new(WindowKey.C, Control: true)),
     ];
 
     internal static bool TryGetCommand(
