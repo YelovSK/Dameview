@@ -1,5 +1,6 @@
 using System.Drawing;
 using Dameview.Commands;
+using Dameview.Diagnostics;
 using Dameview.Settings;
 using Dameview.UI.Animation;
 using Dameview.UI.Components;
@@ -25,6 +26,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private readonly TabPreview _tabPreview;
     private readonly WorkspaceDragOverlay _dragOverlay;
     private readonly WorkspaceDragController _dragController;
+    private readonly PerformanceOverlay _performanceOverlay;
     private readonly Overlay _mainOverlay;
     private readonly SplitView _splitView;
     private readonly ToolbarPanel _toolbarPanel;
@@ -53,6 +55,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         UiTheme theme,
         IAppCommands commands,
         IThumbnailImageLoader thumbnailLoader,
+        PerformanceMonitor performanceMonitor,
         TimeProvider? timeProvider = null)
     {
         _deviceContext = deviceContext;
@@ -81,6 +84,10 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _toolbarPanel = new ToolbarPanel(directWriteFactory, commands, ShowSettings);
         _dragOverlay = new WorkspaceDragOverlay(directWriteFactory);
         _dragController = new WorkspaceDragController(this, _workspaceView, _dragOverlay, commands);
+        _performanceOverlay = new PerformanceOverlay(directWriteFactory, performanceMonitor)
+        {
+            IsVisible = false,
+        };
         _galleryPanel = new GalleryPanel(
             deviceContext,
             directWriteFactory,
@@ -117,6 +124,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         AddChild(_dragOverlay);
         AddChild(_modalHost);
         AddChild(_popupHost);
+        AddChild(_performanceOverlay);
         _root = new UiRoot(this, dpi);
         _root.CursorChanged += cursor => _cursorChanged?.Invoke(cursor);
         _root.PointerPressed += HandlePointerPressed;
@@ -164,7 +172,9 @@ internal sealed class ViewerUi : UiElement, IDisposable
         }
     }
 
-    internal TimeSpan? NextAnimationFrameDelay => _workspaceView.NextAnimationFrameDelay;
+    internal TimeSpan? NextAnimationFrameDelay =>
+        _workspaceView.NextAnimationFrameDelay
+        ?? (_performanceOverlay.IsVisible ? PerformanceOverlay.HeartbeatInterval : null);
     internal bool IsClosingPane => _workspaceView.IsClosingPane;
     internal float GallerySizeDips => _splitView.DividerOffsetDips;
     internal PaneLayoutArea PaneLayoutArea => new(
@@ -302,6 +312,13 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     internal void CenterGallerySelection() => _galleryPanel.CenterSelection();
 
+    internal bool TogglePerformanceOverlay()
+    {
+        _performanceOverlay.IsVisible = !_performanceOverlay.IsVisible;
+        _root.InvalidateVisual();
+        return _performanceOverlay.IsVisible;
+    }
+
     internal bool HandleKey(WindowKeyEvent input)
     {
         if (input.Key == WindowKey.Escape && _dragController.IsActive)
@@ -376,6 +393,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _dragOverlay.Measure(availableSize);
         _modalHost.Measure(availableSize);
         _popupHost.Measure(availableSize);
+        _performanceOverlay.Measure(availableSize);
         return availableSize;
     }
 
@@ -397,6 +415,12 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _dragOverlay.Arrange(new RectangleF(PointF.Empty, finalSize));
         _modalHost.Arrange(new RectangleF(PointF.Empty, finalSize));
         _popupHost.Arrange(new RectangleF(PointF.Empty, finalSize));
+        SizeF performanceSize = _performanceOverlay.DesiredSize;
+        _performanceOverlay.Arrange(new RectangleF(
+            UiDesign.WindowMargin,
+            UiDesign.WindowMargin,
+            performanceSize.Width,
+            performanceSize.Height));
     }
 
     public void Dispose()
@@ -413,6 +437,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
         _galleryStates.Clear();
         _dragOverlay.Dispose();
+        _performanceOverlay.Dispose();
         _tabPreview.Dispose();
         _commandPalettePanel.Dispose();
         _settingsPanel.Dispose();

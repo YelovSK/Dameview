@@ -18,6 +18,7 @@ internal enum ViewerCommandId
     SplitDown,
     EqualizePanes,
     OptimizePaneLayout,
+    TogglePerformanceOverlay,
     ShowSettings,
     ShowCommandPalette,
 }
@@ -67,6 +68,7 @@ internal static class ViewerCommandCatalog
         new(ViewerCommandId.SplitDown, "Split down"),
         new(ViewerCommandId.EqualizePanes, "Equalize pane layout"),
         new(ViewerCommandId.OptimizePaneLayout, "Optimize pane layout"),
+        new(ViewerCommandId.TogglePerformanceOverlay, "Toggle performance overlay"),
         new(ViewerCommandId.ShowSettings, "Open settings"),
         new(ViewerCommandId.ShowCommandPalette, "Show command palette"),
     ];
@@ -84,6 +86,7 @@ internal static class ViewerKeyBindings
         new(ViewerCommandId.SplitRight, new(WindowKey.S, Control: true, Shift: true)),
         new(ViewerCommandId.ShowSettings, new(WindowKey.Comma, Control: true)),
         new(ViewerCommandId.ShowCommandPalette, new(WindowKey.P, Control: true, Shift: true)),
+        new(ViewerCommandId.TogglePerformanceOverlay, new(WindowKey.F3)),
         new(ViewerCommandId.ToggleFullscreen, new(WindowKey.F11)),
         new(ViewerCommandId.ToggleFullscreen, new(WindowKey.F, Control: true)),
     ];

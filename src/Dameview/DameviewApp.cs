@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Drawing;
 using Dameview.App;
 using Dameview.Commands;
@@ -26,6 +27,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     private readonly AppWindow _window;
     private readonly SynchronizationContext _uiContext;
     private readonly D2DRenderer _renderer;
+    private readonly PerformanceMonitor _performanceMonitor;
     private readonly ViewerUi _ui;
     private readonly WindowsImageLoadingBackend _imageBackend;
     private readonly ThumbnailCoordinator _thumbnailCoordinator;
@@ -62,6 +64,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             Log.Error("Native", "Renderer initialization failed.", exception);
             throw;
         }
+        _performanceMonitor = new PerformanceMonitor();
         _imageBackend = new WindowsImageLoadingBackend();
         _thumbnailCoordinator = new ThumbnailCoordinator(
             _imageBackend.LoadThumbnail,
@@ -93,7 +96,8 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             _window.Dpi,
             UiTheme.Default,
             this,
-            _thumbnailImageLoader);
+            _thumbnailImageLoader,
+            _performanceMonitor);
         _ui.Invalidated += _window.RequestRepaint;
         _ui.CursorChanged += _window.ApplyCursor;
         _workspace.ActivePaneChanged += HandleActivePaneChanged;
@@ -417,6 +421,10 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
 
                 break;
 
+            case ViewerCommandId.TogglePerformanceOverlay:
+                _performanceMonitor.Enabled = _ui.TogglePerformanceOverlay();
+                break;
+
             case ViewerCommandId.ShowSettings:
                 _ui.ShowSettings();
                 break;
@@ -671,8 +679,16 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
 
     private void HandleRenderFrame()
     {
+        long frameStarted = Stopwatch.GetTimestamp();
         bool animationContinues = _ui.Update();
-        _renderer.Render(_ui.DrawFrame, _ui.Palette.Background);
+        RenderTiming timing = _renderer.Render(
+            _ui.DrawFrame,
+            _ui.Palette.Background,
+            _performanceMonitor.Enabled);
+        _performanceMonitor.Record(new PerformanceFrameTiming(
+            frameStarted,
+            Stopwatch.GetElapsedTime(frameStarted, timing.SubmissionCompleted),
+            timing.GpuTime));
 
         if (animationContinues)
         {

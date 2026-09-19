@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Drawing;
 using Microsoft.Win32.SafeHandles;
 using Vortice.DCommon;
@@ -13,11 +14,15 @@ using static Vortice.DirectWrite.DWrite;
 
 namespace Dameview.Rendering;
 
+internal readonly record struct RenderTiming(TimeSpan? GpuTime, long SubmissionCompleted);
+
 internal sealed class D2DRenderer : IDisposable
 {
     private const uint BufferCount = 2;
 
     private readonly ID3D11Device _d3dDevice;
+    private readonly ID3D11DeviceContext _d3dContext;
+    private readonly GpuFrameTimer _gpuFrameTimer;
     private readonly IDXGIDevice _dxgiDevice;
     private readonly IDXGIFactory2 _dxgiFactory;
     private readonly IDXGISwapChain2 _swapChain;
@@ -26,6 +31,7 @@ internal sealed class D2DRenderer : IDisposable
     private readonly ID2D1Device _d2dDevice;
     private readonly IDWriteFactory1 _directWriteFactory;
     private ID2D1Bitmap1? _targetBitmap;
+    private ID3D11RenderTargetView? _targetView;
     private int _width;
     private int _height;
     private float _dpi;
@@ -48,6 +54,8 @@ internal sealed class D2DRenderer : IDisposable
             Vortice.Direct3D.FeatureLevel.Level_10_1,
             Vortice.Direct3D.FeatureLevel.Level_10_0);
         _dxgiDevice = _d3dDevice.QueryInterface<IDXGIDevice>();
+        _d3dContext = _d3dDevice.ImmediateContext;
+        _gpuFrameTimer = new GpuFrameTimer(_d3dDevice, _d3dContext);
         using IDXGIAdapter adapter = _dxgiDevice.GetAdapter();
         _dxgiFactory = adapter.GetParent<IDXGIFactory2>();
 
@@ -86,19 +94,33 @@ internal sealed class D2DRenderer : IDisposable
     internal ID2D1DeviceContext DeviceContext { get; }
     internal IDWriteFactory DirectWriteFactory => _directWriteFactory;
 
-    internal void Render(Action<SizeF> draw, Color4 background)
+    internal RenderTiming Render(Action<SizeF> draw, Color4 background, bool measureGpu = false)
     {
         if (_width <= 0 || _height <= 0)
         {
-            return;
+            return new RenderTiming(null, Stopwatch.GetTimestamp());
         }
 
+        // Clear before timing: the first backbuffer write can wait for presentation.
+        // Match the premultiplied Direct2D target without splitting its draw batch.
+        _d3dContext.ClearRenderTargetView(_targetView!, new Color4(
+            background.R * background.A,
+            background.G * background.A,
+            background.B * background.A,
+            background.A));
+        TimeSpan? gpuTime = measureGpu ? _gpuFrameTimer.BeginFrame() : null;
         DeviceContext.BeginDraw();
-        DeviceContext.Clear(background);
         draw(new SizeF(_width, _height));
 
         DeviceContext.EndDraw().CheckError();
+        if (measureGpu)
+        {
+            _gpuFrameTimer.EndFrame();
+        }
+
+        long submissionCompleted = Stopwatch.GetTimestamp();
         _swapChain.Present(1, PresentFlags.None).CheckError();
+        return new RenderTiming(gpuTime, submissionCompleted);
     }
 
     internal void Resize(int width, int height)
@@ -135,8 +157,7 @@ internal sealed class D2DRenderer : IDisposable
 
     public void Dispose()
     {
-        DeviceContext.Target = null;
-        _targetBitmap?.Dispose();
+        ReleaseTargetBitmap();
         DeviceContext.Dispose();
         _d2dDevice.Dispose();
         _directWriteFactory.Dispose();
@@ -145,12 +166,16 @@ internal sealed class D2DRenderer : IDisposable
         _swapChain.Dispose();
         _dxgiFactory.Dispose();
         _dxgiDevice.Dispose();
+        _gpuFrameTimer.Dispose();
+        _d3dContext.Dispose();
         _d3dDevice.Dispose();
     }
 
     private void CreateTargetBitmap()
     {
         using IDXGISurface surface = _swapChain.GetBuffer<IDXGISurface>(0);
+        using ID3D11Texture2D texture = surface.QueryInterface<ID3D11Texture2D>();
+        _targetView = _d3dDevice.CreateRenderTargetView(texture);
         BitmapProperties1 properties = new(
             new PixelFormat(
                 Format.B8G8R8A8_UNorm,
@@ -168,6 +193,8 @@ internal sealed class D2DRenderer : IDisposable
         DeviceContext.Target = null;
         _targetBitmap?.Dispose();
         _targetBitmap = null;
+        _targetView?.Dispose();
+        _targetView = null;
     }
 
 }
