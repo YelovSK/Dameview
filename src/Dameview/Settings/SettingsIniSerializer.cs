@@ -9,6 +9,9 @@ namespace Dameview.Settings;
 
 internal static class SettingsIniSerializer
 {
+    private const int MinimumWindowWidth = 320;
+    private const int MinimumWindowHeight = 240;
+
     internal static AppSettings Read(string text)
     {
         var document = IniDocument.Parse(text);
@@ -32,15 +35,9 @@ internal static class SettingsIniSerializer
             document.Get(string.Empty, "galleryThumbnailSize"));
         float gallerySize = ReadOptionalFloat(
             document.Get(string.Empty, "gallerySize"),
-            AppSettings.DefaultGallerySizeDips);
-        WindowPlacementState? window = !document.HasSection("window") ? null : new WindowPlacementState
-        {
-            X = ReadRequiredInt(document.Get("window", "x")),
-            Y = ReadRequiredInt(document.Get("window", "y")),
-            Width = ReadRequiredInt(document.Get("window", "width")),
-            Height = ReadRequiredInt(document.Get("window", "height")),
-            Maximized = ReadRequiredBoolean(document.Get("window", "maximized")),
-        };
+            AppSettings.DefaultGallerySizeDips,
+            AppSettings.MinimumGallerySizeDips);
+        WindowPlacementState? window = ReadWindow(document);
         LogLevel logLevel = ReadLogLevel(document.Get("logging", "level"));
         ViewerKeyBindings keyBindings = ReadKeyBindings(document);
 
@@ -91,6 +88,39 @@ internal static class SettingsIniSerializer
         return document.Write();
     }
 
+    // The placement only means anything complete, so any unreadable part discards it.
+    private static WindowPlacementState? ReadWindow(IniDocument document)
+    {
+        if (!document.HasSection("window"))
+        {
+            return null;
+        }
+
+        if (!TryReadInt(document.Get("window", "x"), out int x)
+            || !TryReadInt(document.Get("window", "y"), out int y)
+            || !TryReadInt(document.Get("window", "width"), out int width)
+            || !TryReadInt(document.Get("window", "height"), out int height))
+        {
+            Log.Warning("Settings", "Ignored an incomplete window placement.");
+            return null;
+        }
+
+        var placement = new WindowPlacementState
+        {
+            X = x,
+            Y = y,
+            Width = width,
+            Height = height,
+            Maximized = ReadOptionalBoolean(document.Get("window", "maximized"), defaultValue: false),
+        };
+        return placement.Width >= MinimumWindowWidth && placement.Height >= MinimumWindowHeight
+            ? placement
+            : Fallback<WindowPlacementState?>("window size", $"{width}x{height}", null);
+    }
+
+    private static bool TryReadInt(string? value, out int result) =>
+        int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out result);
+
     private static ViewerKeyBindings ReadKeyBindings(IniDocument document)
     {
         ViewerKeyBindings bindings = ViewerKeyBindings.Defaults;
@@ -107,21 +137,22 @@ internal static class SettingsIniSerializer
 
     private static ViewerCommandShortcut[] ReadShortcuts(string value)
     {
-        string[] parts = value.Split(
+        var shortcuts = new List<ViewerCommandShortcut>();
+        foreach (string part in value.Split(
             ' ',
-            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-        var shortcuts = new ViewerCommandShortcut[parts.Length];
-
-        for (int index = 0; index < parts.Length; index++)
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
-            if (!ViewerCommandShortcut.TryParse(parts[index], out shortcuts[index]))
+            if (ViewerCommandShortcut.TryParse(part, out ViewerCommandShortcut shortcut))
             {
-                throw new IniFormatException($"Unknown shortcut value: '{parts[index]}'.");
+                shortcuts.Add(shortcut);
+            }
+            else
+            {
+                Log.Warning("Settings", $"Ignored unknown shortcut '{part}'.");
             }
         }
 
-        return shortcuts;
+        return [.. shortcuts];
     }
 
     private static void WriteKeyBindings(IniDocument document, ViewerKeyBindings bindings)
@@ -152,7 +183,7 @@ internal static class SettingsIniSerializer
         "nord" => ThemeId.Nord,
         "dracula" => ThemeId.Dracula,
         "rosePine" => ThemeId.RosePine,
-        _ => throw new IniFormatException("Unknown theme value."),
+        _ => Fallback("theme", value, ThemeId.Dark),
     };
 
     private static FolderSort ReadSort(string? value) => value switch
@@ -166,7 +197,7 @@ internal static class SettingsIniSerializer
         "dateCreatedOldest" => FolderSort.DateCreatedOldest,
         "sizeLargest" => FolderSort.SizeLargest,
         "sizeSmallest" => FolderSort.SizeSmallest,
-        _ => throw new IniFormatException("Unknown sort value."),
+        _ => Fallback("sort", value, FolderSort.NameAscending),
     };
 
     private static GalleryThumbnailSize ReadGalleryThumbnailSize(string? value) => value switch
@@ -175,7 +206,7 @@ internal static class SettingsIniSerializer
         "small" => GalleryThumbnailSize.Small,
         "medium" => GalleryThumbnailSize.Medium,
         "large" => GalleryThumbnailSize.Large,
-        _ => throw new IniFormatException("Unknown gallery thumbnail size."),
+        _ => Fallback("gallery thumbnail size", value, GalleryThumbnailSize.Medium),
     };
 
     private static GalleryPlacement ReadGalleryPlacement(string? value) => value switch
@@ -184,7 +215,7 @@ internal static class SettingsIniSerializer
         "left" => GalleryPlacement.Left,
         "top" => GalleryPlacement.Top,
         "bottom" => GalleryPlacement.Bottom,
-        _ => throw new IniFormatException("Unknown gallery placement."),
+        _ => Fallback("gallery placement", value, GalleryPlacement.Right),
     };
 
     private static LogLevel ReadLogLevel(string? value) => value switch
@@ -193,42 +224,39 @@ internal static class SettingsIniSerializer
         "debug" => LogLevel.Debug,
         "warning" => LogLevel.Warning,
         "error" => LogLevel.Error,
-        _ => throw new IniFormatException("Unknown log level."),
+        _ => Fallback("log level", value, LogLevel.Info),
     };
 
-    private static int ReadRequiredInt(string? value)
+    private static bool ReadOptionalBoolean(string? value, bool defaultValue) => value switch
     {
-        if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int result))
-        {
-            return result;
-        }
-
-        throw new IniFormatException("Expected an integer.");
-    }
-
-    private static bool ReadRequiredBoolean(string? value) => value switch
-    {
+        null => defaultValue,
         "true" => true,
         "false" => false,
-        _ => throw new IniFormatException("Expected true or false."),
+        _ => Fallback("boolean", value, defaultValue),
     };
 
-    private static bool ReadOptionalBoolean(string? value, bool defaultValue) =>
-        value is null ? defaultValue : ReadRequiredBoolean(value);
-
-    private static float ReadOptionalFloat(string? value, float defaultValue)
+    private static float ReadOptionalFloat(string? value, float defaultValue, float minimum)
     {
         if (value is null)
         {
             return defaultValue;
         }
 
-        if (float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out float result))
+        if (float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out float result)
+            && float.IsFinite(result)
+            && result >= minimum)
         {
             return result;
         }
 
-        throw new IniFormatException("Expected a number.");
+        return Fallback("number", value, defaultValue);
+    }
+
+    // A malformed value costs that one setting, never the rest of the file.
+    private static T Fallback<T>(string name, string? value, T defaultValue)
+    {
+        Log.Warning("Settings", $"Ignored unknown {name} '{value}'.");
+        return defaultValue;
     }
 
     private static string WriteTheme(ThemeId value) => value switch

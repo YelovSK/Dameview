@@ -129,16 +129,17 @@ public sealed class SettingsServiceTests
     }
 
     [TestMethod]
-    public void InvalidStartupFileIsPreservedAndLaterEditsRecover()
+    public void UnknownStartupValuesLoadAsDefaultsWithoutTouchingTheFile()
     {
         using var files = new SettingsFiles();
-        const string broken = "theme=purple";
-        File.WriteAllText(files.Path, broken);
+        const string unknown = "theme=purple";
+        File.WriteAllText(files.Path, unknown);
         using SettingsService settings = files.CreateService();
         settings.Start();
-        files.PumpUntil(() => settings.Error is not null);
+
         Assert.AreEqual(new AppSettings(), settings.Current);
-        Assert.AreEqual(broken, File.ReadAllText(files.Path));
+        Assert.IsNull(settings.Error);
+        Assert.AreEqual(unknown, File.ReadAllText(files.Path));
         File.WriteAllText(files.Path, "sort=nameDescending");
         files.PumpUntil(() => settings.Current.Sort == FolderSort.NameDescending);
         Assert.IsNull(settings.Error);
@@ -172,15 +173,17 @@ public sealed class SettingsServiceTests
     [DataRow("gallerySize=small")]
     [DataRow("gallerySize=119")]
     [DataRow("gallerySize=NaN")]
-    public void InvalidValuesDoNotReplaceCurrentSettings(string json)
+    public void InvalidValuesFallBackToDefaults(string json)
     {
         using var files = new SettingsFiles();
         using SettingsService settings = files.CreateService();
         settings.Start();
         settings.Update(new AppSettings { Theme = ThemeId.Light });
         File.WriteAllText(files.Path, json);
-        files.PumpUntil(() => settings.Error is not null);
-        Assert.AreEqual(ThemeId.Light, settings.Current.Theme);
+
+        // The file holds nothing but the bad line, so every setting lands on its default.
+        files.PumpUntil(() => settings.Current == new AppSettings());
+        Assert.IsNull(settings.Error);
     }
 
     [TestMethod]
