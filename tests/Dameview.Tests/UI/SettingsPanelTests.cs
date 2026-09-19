@@ -189,6 +189,7 @@ public sealed class SettingsPanelTests
         internal Action<ThemeId>? Theme { get; init; }
         internal Action<bool>? Animations { get; init; }
         internal Action<bool>? SingleInstance { get; init; }
+        internal Action<bool>? EqualizePanesOnSplit { get; init; }
         internal Action<bool>? GalleryEnabled { get; init; }
         internal Action<GalleryPlacement>? GalleryPlacement { get; init; }
         internal Action<GalleryThumbnailSize>? GalleryThumbnailSize { get; init; }
@@ -198,6 +199,7 @@ public sealed class SettingsPanelTests
         public void SetTheme(ThemeId theme) => Theme?.Invoke(theme);
         public void SetAnimationsEnabled(bool enabled) => Animations?.Invoke(enabled);
         public void SetSingleInstance(bool enabled) => SingleInstance?.Invoke(enabled);
+        public void SetEqualizePanesOnSplit(bool enabled) => EqualizePanesOnSplit?.Invoke(enabled);
         public void SetGalleryEnabled(bool enabled) => GalleryEnabled?.Invoke(enabled);
         public void SetGalleryPlacement(GalleryPlacement placement) => GalleryPlacement?.Invoke(placement);
         public void SetGalleryThumbnailSize(GalleryThumbnailSize size) => GalleryThumbnailSize?.Invoke(size);

@@ -200,6 +200,58 @@ public sealed class ViewerWorkspaceTests
     }
 
     [TestMethod]
+    public void SplittingTheSamePaneRepeatedlyKeepsNestedRatiosByDefault()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane first = workspace.ActivePane;
+        workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
+        workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
+
+        WorkspaceSplit root = Assert.IsInstanceOfType<WorkspaceSplit>(workspace.Root);
+        WorkspaceSplit nested = Assert.IsInstanceOfType<WorkspaceSplit>(root.First);
+        Assert.AreEqual(0.5f, root.Ratio);
+        Assert.AreEqual(0.5f, nested.Ratio);
+    }
+
+    [TestMethod]
+    public void SplittingEqualizesEveryPaneWhenEqualizeOnSplitIsEnabled()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab) { EqualizePanesOnSplit = true };
+        ViewerPane first = workspace.ActivePane;
+        int ratioChanges = 0;
+        workspace.PaneRatiosChanged += () => ratioChanges++;
+        workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
+        workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
+
+        // Three panes in a right-leaning chain each take a third of the width.
+        WorkspaceSplit root = Assert.IsInstanceOfType<WorkspaceSplit>(workspace.Root);
+        WorkspaceSplit nested = Assert.IsInstanceOfType<WorkspaceSplit>(root.First);
+        Assert.AreEqual(2.0f / 3.0f, root.Ratio);
+        Assert.AreEqual(0.5f, nested.Ratio);
+
+        // LayoutChanged already rebuilds from the root, so the split does not
+        // additionally announce the ratios it just rewrote.
+        Assert.AreEqual(0, ratioChanges);
+    }
+
+    [TestMethod]
+    public void DroppingATabIntoANewPaneEqualizesWhenEqualizeOnSplitIsEnabled()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab) { EqualizePanesOnSplit = true };
+        ViewerPane first = workspace.ActivePane;
+        workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
+
+        workspace.OpenImageInNewTab(
+            @"C:\dropped\image.png",
+            new WorkspacePaneDropTarget(first, WorkspacePaneDropSide.Bottom));
+
+        WorkspaceSplit root = Assert.IsInstanceOfType<WorkspaceSplit>(workspace.Root);
+        WorkspaceSplit nested = Assert.IsInstanceOfType<WorkspaceSplit>(root.First);
+        Assert.AreEqual(2.0f / 3.0f, root.Ratio);
+        Assert.AreEqual(0.5f, nested.Ratio);
+    }
+
+    [TestMethod]
     public void OptimizingPaneLayoutCanChangeTheSplitOrientation()
     {
         using var workspace = new ViewerWorkspace(CreateTab);

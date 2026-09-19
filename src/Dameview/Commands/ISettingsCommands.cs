@@ -11,6 +11,8 @@ internal interface ISettingsCommands
 
     public void SetSingleInstance(bool enabled);
 
+    public void SetEqualizePanesOnSplit(bool enabled);
+
     public void SetGalleryEnabled(bool enabled);
 
     public void SetGalleryPlacement(GalleryPlacement placement);

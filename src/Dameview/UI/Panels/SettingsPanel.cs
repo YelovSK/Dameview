@@ -50,6 +50,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
     private readonly Dropdown<GalleryThumbnailSize> _galleryThumbnailSizeDropdown;
     private readonly Toggle _animationsToggle;
     private readonly Toggle _singleInstanceToggle;
+    private readonly Toggle _equalizePanesOnSplitToggle;
     private readonly Dropdown<SortField> _sortField;
     private readonly Dropdown<SortDirection> _sortDirection;
     private readonly SettingsRow _themeRow;
@@ -148,6 +149,11 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
             "Open files in existing window (restart required)",
             value: true,
             _commands.SetSingleInstance);
+        _equalizePanesOnSplitToggle = new Toggle(
+            factory,
+            "Equalize panes when splitting",
+            value: false,
+            _commands.SetEqualizePanesOnSplit);
 
         _sortField = new Dropdown<SortField>(
             factory,
@@ -192,7 +198,8 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
             StackPanelDistribution.Natural,
             _galleryEnabledToggle,
             _galleryPlacementRow,
-            _galleryThumbnailSizeRow);
+            _galleryThumbnailSizeRow,
+            _equalizePanesOnSplitToggle);
         var behaviorContent = new StackPanel(
             UiOrientation.Vertical,
             UiDesign.LargeSpacing,
@@ -254,6 +261,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
         _galleryThumbnailSizeDropdown.SelectedValue = settings.GalleryThumbnailSize;
         _animationsToggle.Value = settings.AnimationsEnabled;
         _singleInstanceToggle.Value = settings.SingleInstance;
+        _equalizePanesOnSplitToggle.Value = settings.EqualizePanesOnSplit;
 
         SortDefinition sort = Array.Find(
             Sorts,
@@ -328,6 +336,8 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
         _galleryPlacementDropdown.Dispose();
         _galleryThumbnailSizeDropdown.Dispose();
         _animationsToggle.Dispose();
+        _singleInstanceToggle.Dispose();
+        _equalizePanesOnSplitToggle.Dispose();
         _sortField.Dispose();
         _sortDirection.Dispose();
         _themeRow.Dispose();

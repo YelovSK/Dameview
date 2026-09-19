@@ -507,6 +507,9 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     public void SetSingleInstance(bool enabled) =>
         _settings.Update(_settings.Current with { SingleInstance = enabled });
 
+    public void SetEqualizePanesOnSplit(bool enabled) =>
+        _settings.Update(_settings.Current with { EqualizePanesOnSplit = enabled });
+
     public void SetGalleryEnabled(bool enabled) =>
         _settings.Update(_settings.Current with { GalleryEnabled = enabled });
 
@@ -533,6 +536,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         }
 
         _ui.ApplySettings(current);
+        _workspace.EqualizePanesOnSplit = current.EqualizePanesOnSplit;
         if (previous.Theme != current.Theme)
         {
             Theme theme = Themes.Get(current.Theme);
