@@ -94,9 +94,6 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         || _state.FolderError is not null;
     internal RectangleF ContentBounds { get; private set; }
     internal UiElement FocusScope => _toolbarPanel.IsVisible ? _toolbarPanel : _emptyStatePanel;
-    internal UiElement SettingsButton => _toolbarPanel.IsVisible
-        ? _toolbarPanel.SettingsButton
-        : _emptyStatePanel.SettingsButton;
 
     internal void ShowToolbar() => _toolbarPanel.Show();
     internal TimeSpan? NextAnimationFrameDelay => _imagePanel.NextAnimationFrameDelay;

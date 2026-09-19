@@ -107,7 +107,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _settingsPanel = new SettingsPanel(
             directWriteFactory,
             _popupHost,
-            CloseSettings,
+            CloseModal,
             commands);
         _commandPalettePanel = new CommandPalettePanel(
             directWriteFactory,
@@ -115,7 +115,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
             ViewerKeyBindings.Defaults,
             command =>
             {
-                CloseCommandPalette();
+                CloseModal();
                 commands.ExecuteCommand(command);
             },
             commands.SetKeyBindings);
@@ -518,28 +518,13 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     internal void ShowSettings()
     {
-        ShowModal(_settingsPanel, CloseSettings);
+        ShowModal(_settingsPanel, CloseModal);
     }
 
     internal void ShowCommandPalette()
     {
         _commandPalettePanel.Reset();
-        ShowModal(_commandPalettePanel, CloseCommandPalette);
-    }
-
-    private void CloseSettings()
-    {
-        if (!CloseModal())
-        {
-            return;
-        }
-
-        _root.SetFocus(_activePaneView.SettingsButton);
-    }
-
-    private void CloseCommandPalette()
-    {
-        CloseModal();
+        ShowModal(_commandPalettePanel, CloseModal);
     }
 
     private void ShowModal(ModalContent content, Action dismiss)
@@ -551,18 +536,17 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _root.SetFocus(content.InitialFocus);
     }
 
-    private bool CloseModal()
+    private void CloseModal()
     {
         if (!_modalHost.IsOpen)
         {
-            return false;
+            return;
         }
 
         _root.ClearPointer();
         _root.SetFocus(null);
         _popupHost.Close();
         _modalHost.Close();
-        return true;
     }
 
     private void ApplyActivePaneState(ViewerSessionState state, bool showToolbar)

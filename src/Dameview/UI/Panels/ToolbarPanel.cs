@@ -49,7 +49,6 @@ internal sealed class ToolbarPanel : UiElement, IDisposable
         AddChild(_buttonRow);
     }
 
-    internal Button SettingsButton => _buttons[^1];
     internal override float Opacity => _visibility.Current;
     internal override PointF VisualOffset => new(0.0f, (_visibility.Current - 1.0f) * Bounds.Height);
 

@@ -32,7 +32,7 @@ internal sealed class EmptyStatePanel : UiElement, IDisposable
         AddChild(SettingsButton);
     }
 
-    internal Button SettingsButton { get; }
+    private Button SettingsButton { get; }
 
     protected override SizeF MeasureCore(SizeF availableSize)
     {
