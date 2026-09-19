@@ -4,6 +4,7 @@ using Dameview.UI.Animation;
 using Dameview.UI.Components;
 using Dameview.UI.Foundation;
 using Dameview.UI.Layout;
+using Dameview.Viewing;
 using Dameview.Win32.Input;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
@@ -17,20 +18,22 @@ internal sealed class ToolbarPanel : UiElement, IDisposable
     private readonly Button[] _buttons;
     private readonly StackPanel _buttonRow;
     private readonly AnimatedFloat _visibility = new(0.0f, 14.0);
+    private bool _pointerNear;
 
     internal ToolbarPanel(
         IDWriteFactory directWriteFactory,
         IViewerCommands commands,
+        ViewerPane pane,
         Action showSettings)
     {
         _buttons =
         [
-            new Button(directWriteFactory, "←", commands.ShowPreviousImage),
-            new Button(directWriteFactory, "→", commands.ShowNextImage),
-            new Button(directWriteFactory, "Fit", commands.FitImage),
-            new Button(directWriteFactory, "1:1", commands.ShowActualSize),
-            new Button(directWriteFactory, "Split →", commands.SplitRight),
-            new Button(directWriteFactory, "Split ↓", commands.SplitDown),
+            new Button(directWriteFactory, "←", () => commands.ShowPreviousImage(pane)),
+            new Button(directWriteFactory, "→", () => commands.ShowNextImage(pane)),
+            new Button(directWriteFactory, "Fit", () => commands.FitImage(pane)),
+            new Button(directWriteFactory, "1:1", () => commands.ShowActualSize(pane)),
+            new Button(directWriteFactory, "Split →", () => commands.SplitRight(pane)),
+            new Button(directWriteFactory, "Split ↓", () => commands.SplitDown(pane)),
             new Button(
                 directWriteFactory,
                 UiTypography.SettingsIcon,
@@ -44,12 +47,9 @@ internal sealed class ToolbarPanel : UiElement, IDisposable
             StackPanelDistribution.Equal,
             _buttons);
         AddChild(_buttonRow);
-
-        Show();
     }
 
     internal Button SettingsButton => _buttons[^1];
-    internal override bool ObservePointerMoves => true;
     internal override float Opacity => _visibility.Current;
     internal override PointF VisualOffset => new(0.0f, (_visibility.Current - 1.0f) * Bounds.Height);
 
@@ -103,10 +103,10 @@ internal sealed class ToolbarPanel : UiElement, IDisposable
         context.DrawRoundedRectangle(panel, context.Palette.SurfaceBorder);
     }
 
-    protected override void ObservePointerMove(in WindowPointerEvent input)
+    internal void SetPointerNear(bool pointerNear)
     {
-        bool visible = HasFocusWithin || input.Position.Y <= Bounds.Height + 28.0f;
-        if (_visibility.SetTarget(visible ? 1.0f : 0.0f))
+        _pointerNear = pointerNear;
+        if (_visibility.SetTarget(HasFocusWithin || _pointerNear ? 1.0f : 0.0f))
         {
             InvalidateVisual();
         }

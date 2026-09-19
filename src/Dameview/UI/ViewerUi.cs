@@ -29,7 +29,6 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private readonly PerformanceOverlay _performanceOverlay;
     private readonly Overlay _mainOverlay;
     private readonly SplitView _splitView;
-    private readonly ToolbarPanel _toolbarPanel;
     private readonly GalleryPanel _galleryPanel;
     private readonly SettingsPanel _settingsPanel;
     private readonly CommandPalettePanel _commandPalettePanel;
@@ -71,6 +70,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
                 deviceContext,
                 directWriteFactory,
                 pane,
+                commands,
                 index => commands.SelectTab(pane, index),
                 index => commands.CloseTab(pane, index),
                 () => commands.DuplicateActiveTab(pane),
@@ -81,7 +81,6 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _activePaneView = FindPaneView(_activePane)
             ?? throw new InvalidOperationException("The active pane view was not created.");
         _workspaceView.SetActivePane(_activePane);
-        _toolbarPanel = new ToolbarPanel(directWriteFactory, commands, ShowSettings);
         _dragOverlay = new WorkspaceDragOverlay(directWriteFactory);
         _dragController = new WorkspaceDragController(this, _workspaceView, _dragOverlay, commands);
         _performanceOverlay = new PerformanceOverlay(directWriteFactory, performanceMonitor)
@@ -96,7 +95,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
             commands.OpenImageInNewTab,
             HandleGalleryDragPointer);
         _galleryPanel.Bind(GetGalleryState(_activePane.ActiveTab));
-        _mainOverlay = new Overlay(_workspaceView, _toolbarPanel);
+        _mainOverlay = new Overlay(_workspaceView);
         _splitView = new SplitView(
             _mainOverlay,
             _galleryPanel,
@@ -130,14 +129,12 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _root.PointerPressed += HandlePointerPressed;
 
         ViewerSessionState state = _activePane.ActiveSession.State;
-        bool hasImage = _activePaneView.HasImage;
-        _toolbarPanel.IsVisible = hasImage;
         _galleryPanel.IsVisible = ShouldShowGallery(state);
         _splitView.SecondPaneVisible = _galleryPanel.IsVisible;
         _galleryPanel.ApplyState(state.FolderEntries, state.RequestedPath);
-        if (hasImage)
+        if (_activePaneView.HasImage)
         {
-            _toolbarPanel.Show();
+            _activePaneView.ShowToolbar();
         }
     }
 
@@ -355,8 +352,11 @@ internal sealed class ViewerUi : UiElement, IDisposable
             return true;
         }
 
-        UiElement focusScope = _toolbarPanel.IsVisible ? _toolbarPanel : _activePaneView.EmptyStateFocusScope;
-        return _root.HandleKey(input, focusScope, wrapFocus: false, directionalNavigation: false);
+        return _root.HandleKey(
+            input,
+            _activePaneView.FocusScope,
+            wrapFocus: false,
+            directionalNavigation: false);
     }
 
     internal bool HandleTextInput(string text) => _root.HandleTextInput(text);
@@ -419,14 +419,6 @@ internal sealed class ViewerUi : UiElement, IDisposable
         RectangleF paneBounds = _activePaneView.GetBoundsRelativeTo(_mainOverlay);
         RectangleF contentBounds = _activePaneView.ContentBounds;
         contentBounds.Offset(paneBounds.Location);
-        var layout = ViewerLayout.Calculate(
-            contentBounds.Size,
-            showStatus: false,
-            showToolbar: _toolbarPanel.IsVisible,
-            toolbarWidthDips: ToolbarPanel.WidthDips);
-        RectangleF toolbarBounds = layout.Toolbar;
-        toolbarBounds.Offset(contentBounds.Location);
-        _toolbarPanel.Arrange(toolbarBounds);
         _tabPreview.Arrange(new RectangleF(PointF.Empty, finalSize));
         _dragOverlay.Arrange(new RectangleF(PointF.Empty, finalSize));
         _modalHost.Arrange(new RectangleF(PointF.Empty, finalSize));
@@ -457,7 +449,6 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _tabPreview.Dispose();
         _commandPalettePanel.Dispose();
         _settingsPanel.Dispose();
-        _toolbarPanel.Dispose();
         _galleryPanel.Dispose();
         _workspaceView.Dispose();
         _brush.Dispose();
@@ -531,15 +522,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
             return;
         }
 
-        if (_toolbarPanel.IsVisible)
-        {
-            _root.SetFocus(_toolbarPanel.SettingsButton);
-            _toolbarPanel.Show();
-        }
-        else
-        {
-            _root.SetFocus(_activePaneView.EmptyStateSettingsButton);
-        }
+        _root.SetFocus(_activePaneView.SettingsButton);
     }
 
     private void CloseCommandPalette()
@@ -572,11 +555,9 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     private void ApplyActivePaneState(ViewerSessionState state, bool showToolbar)
     {
-        bool hasImage = state.DisplayedImage is not null;
-        _toolbarPanel.IsVisible = _chromeVisible && hasImage;
         if (_chromeVisible && showToolbar)
         {
-            _toolbarPanel.Show();
+            _activePaneView.ShowToolbar();
         }
 
         _galleryPanel.IsVisible = _chromeVisible && _galleryEnabled && ShouldShowGallery(state);

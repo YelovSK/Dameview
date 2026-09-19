@@ -1,4 +1,5 @@
 using System.Drawing;
+using Dameview.Commands;
 using Dameview.Imaging.Decoding;
 using Dameview.Imaging.Loading;
 using Dameview.Rendering;
@@ -20,6 +21,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     private readonly ViewerTabStrip _viewerTabs;
     private readonly EmptyStatePanel _emptyStatePanel;
     private readonly Overlay _contentOverlay;
+    private readonly ToolbarPanel _toolbarPanel;
     private readonly StatusPanel _statusPanel;
     private readonly ActivePaneIndicator _activePaneIndicator;
     private readonly Action<ViewerPane, ViewerTabInfo?, RectangleF> _hoveredTabChanged;
@@ -30,6 +32,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         ID2D1DeviceContext deviceContext,
         IDWriteFactory directWriteFactory,
         ViewerPane pane,
+        IViewerCommands commands,
         Action<int> selectTab,
         Action<int> closeTab,
         Action addTab,
@@ -62,17 +65,20 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             LoadApplicationIcon(deviceContext),
             showSettings);
         _contentOverlay = new Overlay(_imagePanel, _emptyStatePanel);
+        _toolbarPanel = new ToolbarPanel(directWriteFactory, commands, pane, showSettings);
         _statusPanel = new StatusPanel(directWriteFactory);
         _activePaneIndicator = new ActivePaneIndicator { IsVisible = false };
 
         AddChild(_viewerTabs);
         AddChild(_contentOverlay);
+        AddChild(_toolbarPanel);
         AddChild(_statusPanel);
         AddChild(_activePaneIndicator);
 
         bool hasImage = HasImage;
         _imagePanel.IsVisible = hasImage;
         _emptyStatePanel.IsVisible = !hasImage;
+        _toolbarPanel.IsVisible = hasImage;
         _statusPanel.IsVisible = HasStatus;
         if (_state.DisplayedImage is { } displayed)
         {
@@ -87,8 +93,12 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         || _state.Message is not null
         || _state.FolderError is not null;
     internal RectangleF ContentBounds { get; private set; }
-    internal UiElement EmptyStateFocusScope => _emptyStatePanel;
-    internal UiElement EmptyStateSettingsButton => _emptyStatePanel.SettingsButton;
+    internal UiElement FocusScope => _toolbarPanel.IsVisible ? _toolbarPanel : _emptyStatePanel;
+    internal UiElement SettingsButton => _toolbarPanel.IsVisible
+        ? _toolbarPanel.SettingsButton
+        : _emptyStatePanel.SettingsButton;
+
+    internal void ShowToolbar() => _toolbarPanel.Show();
     internal TimeSpan? NextAnimationFrameDelay => _imagePanel.NextAnimationFrameDelay;
     internal RectangleF TabStripBounds => _viewerTabs.GetBoundsRelativeTo(this);
     internal override bool ObservePointerMoves => true;
@@ -102,6 +112,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
 
         _chromeVisible = visible;
         _viewerTabs.IsVisible = visible;
+        _toolbarPanel.IsVisible = visible && HasImage;
         _statusPanel.IsVisible = visible && HasStatus;
         if (!visible)
         {
@@ -162,6 +173,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         bool hasImage = HasImage;
         _imagePanel.IsVisible = hasImage;
         _emptyStatePanel.IsVisible = !hasImage;
+        _toolbarPanel.IsVisible = _chromeVisible && hasImage;
         _statusPanel.IsVisible = _chromeVisible && HasStatus;
         InvalidateVisual();
     }
@@ -240,14 +252,19 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             MathF.Max(0.0f, finalSize.Height - tabHeight));
         _contentOverlay.Arrange(ContentBounds);
 
-        RectangleF status = ViewerLayout.Calculate(
+        ViewerLayout layout = ViewerLayout.Calculate(
             ContentBounds.Size,
             showStatus: _chromeVisible && HasStatus,
-            showToolbar: false,
+            showToolbar: _toolbarPanel.IsVisible,
             statusWidthDips: _statusPanel.DesiredSize.Width,
-            statusHeightDips: _statusPanel.DesiredSize.Height).Status;
+            statusHeightDips: _statusPanel.DesiredSize.Height,
+            toolbarWidthDips: ToolbarPanel.WidthDips);
+        RectangleF status = layout.Status;
         status.Offset(ContentBounds.Location);
         _statusPanel.Arrange(status);
+        RectangleF toolbar = layout.Toolbar;
+        toolbar.Offset(ContentBounds.Location);
+        _toolbarPanel.Arrange(toolbar);
         _activePaneIndicator.Arrange(new RectangleF(PointF.Empty, finalSize));
     }
 
@@ -261,11 +278,18 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             && input.Position.Y < Bounds.Height;
         _statusPanel.SetPointerNear(
             insidePane && input.Position.Y >= Bounds.Height - StatusPanel.HeightDips - 24.0f);
+        _toolbarPanel.SetPointerNear(
+            insidePane
+            && input.Position.Y <= ContentBounds.Y
+                + UiDesign.WindowMargin
+                + UiDesign.ToolbarHeight
+                + 28.0f);
     }
 
     public void Dispose()
     {
         _viewerTabs.Dispose();
+        _toolbarPanel.Dispose();
         _statusPanel.Dispose();
         _emptyStatePanel.Dispose();
         _imagePanel.Dispose();

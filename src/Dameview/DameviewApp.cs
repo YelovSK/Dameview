@@ -185,50 +185,60 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _window.Dispose();
     }
 
-    public void ShowPreviousImage()
+    public void ShowPreviousImage() => ShowPreviousImage(_workspace.ActivePane);
+
+    public void ShowPreviousImage(ViewerPane pane)
     {
-        _workspace.ActiveSession.ShowPreviousImage();
+        pane.ActiveSession.ShowPreviousImage();
     }
 
-    public void ShowNextImage()
+    public void ShowNextImage() => ShowNextImage(_workspace.ActivePane);
+
+    public void ShowNextImage(ViewerPane pane)
     {
-        _workspace.ActiveSession.ShowNextImage();
+        pane.ActiveSession.ShowNextImage();
     }
 
-    public void FitImage()
+    public void FitImage() => FitImage(_workspace.ActivePane);
+
+    public void FitImage(ViewerPane pane)
     {
-        if (_workspace.ActiveSession.Animator.Fit())
+        if (pane.ActiveSession.Animator.Fit())
         {
             _window.RequestRepaint();
         }
     }
 
-    private void ShowActualSize(PointF anchor)
+    private void ShowActualSize(ViewerPane pane, PointF anchor)
     {
-        if (_workspace.ActiveSession.Animator.ShowActualSizeAt(anchor.X, anchor.Y))
+        if (pane.ActiveSession.Animator.ShowActualSizeAt(anchor.X, anchor.Y))
         {
             _window.RequestRepaint();
         }
     }
 
-    public void ShowActualSize()
-    {
-        ShowActualSize(_workspace.ActiveSession.Viewport.ViewportCenter);
-    }
+    public void ShowActualSize() => ShowActualSize(_workspace.ActivePane);
 
-    public void SplitRight()
+    public void ShowActualSize(ViewerPane pane) =>
+        ShowActualSize(pane, pane.ActiveSession.Viewport.ViewportCenter);
+
+    public void SplitRight() => SplitRight(_workspace.ActivePane);
+
+    public void SplitRight(ViewerPane pane)
     {
         if (!_ui.IsClosingPane)
         {
-            _workspace.SplitPane(_workspace.ActivePane, WorkspaceSplitOrientation.Horizontal);
+            _workspace.SplitPane(pane, WorkspaceSplitOrientation.Horizontal);
         }
     }
 
-    public void SplitDown()
+    public void SplitDown() => SplitDown(_workspace.ActivePane);
+
+    public void SplitDown(ViewerPane pane)
     {
         if (!_ui.IsClosingPane)
         {
-            _workspace.SplitPane(_workspace.ActivePane, WorkspaceSplitOrientation.Vertical);
+            _workspace.SplitPane(pane, WorkspaceSplitOrientation.Vertical);
         }
     }
 
@@ -344,7 +354,9 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         {
             if (command == ViewerCommandId.ShowActualSize)
             {
-                ShowActualSize(_ui.GetImageViewportPoint(new PointF(_pointerX, _pointerY)));
+                ShowActualSize(
+                    _workspace.ActivePane,
+                    _ui.GetImageViewportPoint(new PointF(_pointerX, _pointerY)));
                 return;
             }
 
