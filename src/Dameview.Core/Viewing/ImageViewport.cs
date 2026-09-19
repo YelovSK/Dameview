@@ -74,7 +74,7 @@ internal sealed class ImageViewport
         }
 
         float zoomFactor = (float)Math.Pow(ZoomStep, wheelDelta / 120.0);
-        return Math.Clamp(scale * zoomFactor, GetFitScale(), MaximumScale);
+        return Math.Clamp(scale * zoomFactor, GetMinimumScale(), MaximumScale);
     }
 
     internal void SetScaleAt(
@@ -89,7 +89,7 @@ internal sealed class ImageViewport
         }
 
         float fitScale = GetFitScale();
-        float newScale = Math.Clamp(scale, fitScale, MaximumScale);
+        float newScale = Math.Clamp(scale, GetMinimumScale(), MaximumScale);
 
         if (newScale == fitScale)
         {
@@ -119,7 +119,7 @@ internal sealed class ImageViewport
             return Center;
         }
 
-        float clampedScale = Math.Clamp(scale, GetFitScale(), MaximumScale);
+        float clampedScale = Math.Clamp(scale, GetMinimumScale(), MaximumScale);
         var center = new PointF(
             imagePosition.X - ((viewportX - (_viewportWidth / 2.0f)) / clampedScale),
             imagePosition.Y - ((viewportY - (_viewportHeight / 2.0f)) / clampedScale));
@@ -133,7 +133,7 @@ internal sealed class ImageViewport
             return;
         }
 
-        Scale = Math.Clamp(scale, GetFitScale(), MaximumScale);
+        Scale = Math.Clamp(scale, GetMinimumScale(), MaximumScale);
         _centerX = center.X;
         _centerY = center.Y;
         Mode = ViewportMode.Custom;
@@ -193,10 +193,10 @@ internal sealed class ImageViewport
             return 1.0f;
         }
 
-        return Math.Min(
-            1.0f,
-            Math.Min(_viewportWidth / _imageWidth, _viewportHeight / _imageHeight));
+        return Math.Min(_viewportWidth / _imageWidth, _viewportHeight / _imageHeight);
     }
+
+    private float GetMinimumScale() => Math.Min(1.0f, GetFitScale());
 
     private void CenterImage()
     {

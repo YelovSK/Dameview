@@ -34,9 +34,8 @@ internal sealed class ImageDecoder : IImageDecoder
         return Decode(decoder);
     }
 
-    // Reads the stored pixel dimensions from the file header. EXIF orientation is deliberately not
-    // applied: resolving it needs a metadata scan that is very slow for some formats (notably large
-    // PNGs), and the preview infers a 90/270 swap from the thumbnail aspect instead.
+    // Reads the stored pixel dimensions from the file header. EXIF orientation is unnecessary for
+    // choosing a tiled representation because rotation does not affect its size limits.
     internal ImageInfo GetInfo(string path)
     {
         using IWICBitmapDecoder decoder = CreateDecoder(path, DecodeOptions.CacheOnDemand);

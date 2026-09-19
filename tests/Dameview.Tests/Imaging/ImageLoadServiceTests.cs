@@ -31,8 +31,7 @@ public sealed class ImageLoadServiceTests
 
                 return CreateImage();
             })),
-            TestPolicy,
-            new FakeImageInfoLoader());
+            TestPolicy);
         using ImageLoadClient first = service.CreateClient();
         using ImageLoadClient second = service.CreateClient();
 
@@ -81,8 +80,7 @@ public sealed class ImageLoadServiceTests
 
                 return CreateImage();
             })),
-            TestPolicy,
-            new FakeImageInfoLoader());
+            TestPolicy);
         using ImageLoadClient first = service.CreateClient();
         using ImageLoadClient second = service.CreateClient();
 
@@ -288,30 +286,6 @@ public sealed class ImageLoadServiceTests
     }
 
     [TestMethod]
-    public void AnimatedLoadDoesNotRequestImageInfo()
-    {
-        using var completed = new ManualResetEventSlim();
-        var info = new FakeImageInfoLoader();
-        using var decoder = new FakeAnimatedImageDecoder(_ => new FakeAnimationSession());
-        using var coordinator = new TestClient(
-            action => action(),
-            new FakeImageLoadingBackend(
-                () => decoder,
-                decoder),
-            TestPolicy,
-            info);
-
-        coordinator.Load("animated.gif", result =>
-        {
-            ((ImageLoaded)result).Dispose();
-            completed.Set();
-        });
-
-        Assert.IsTrue(completed.Wait(TimeSpan.FromSeconds(5)));
-        Assert.AreEqual(0, info.Requests);
-    }
-
-    [TestMethod]
     public void ForegroundUsesTiledRepresentationWithoutFullDecode()
     {
         using var completed = new ManualResetEventSlim();
@@ -328,8 +302,7 @@ public sealed class ImageLoadServiceTests
                     },
                     _ => new ImageInfo(20_000, 10_000)),
                 openTiledImage: _ => tiles),
-            TestPolicy,
-            new FakeImageInfoLoader(_ => new ImageInfo(20_000, 10_000)));
+            TestPolicy);
         ImageLoaded? loaded = null;
 
         coordinator.Load("large.png", result =>
@@ -354,25 +327,26 @@ public sealed class ImageLoadServiceTests
         using var coordinator = new TestClient(
             action => action(),
             new FakeImageLoadingBackend(
-                () => new FakeImageDecoder(path =>
-                {
-                    decodedPaths.Enqueue(path);
-                    if (path == "sentinel")
+                () => new FakeImageDecoder(
+                    path =>
                     {
-                        sentinelDecoded.Set();
-                    }
+                        decodedPaths.Enqueue(path);
+                        if (path == "sentinel")
+                        {
+                            sentinelDecoded.Set();
+                        }
 
-                    return CreateImage();
-                }),
+                        return CreateImage();
+                    },
+                    path => path == "large"
+                        ? new ImageInfo(20_000, 10_000)
+                        : new ImageInfo(1, 1)),
                 openTiledImage: path =>
                 {
                     openedTilePaths.Enqueue(path);
                     return new FakeTileSource();
                 }),
-            TestPolicy,
-            new FakeImageInfoLoader(path => path == "large"
-                ? new ImageInfo(20_000, 10_000)
-                : new ImageInfo(1, 1)));
+            TestPolicy);
 
         coordinator.Preload(["large", "sentinel"], DisposeResult);
 
@@ -447,9 +421,10 @@ public sealed class ImageLoadServiceTests
         using var coordinator = new TestClient(
             action => action(),
             new FakeImageLoadingBackend(
-                () => new FakeImageDecoder(_ => CreateImage())),
-            TestPolicy,
-            new FaultingImageInfoLoader(new IOException("Broken header")));
+                () => new FakeImageDecoder(
+                    _ => CreateImage(),
+                    _ => throw new IOException("Broken header"))),
+            TestPolicy);
         ImageLoadResult? result = null;
 
         coordinator.Load("image", loaded =>
@@ -481,14 +456,12 @@ public sealed class ImageLoadServiceTests
         internal TestClient(
             Action<Action> postToUi,
             IImageLoadingBackend backend,
-            ImageRepresentationPolicy representationPolicy,
-            IImageInfoLoader? imageInfoLoader = null)
+            ImageRepresentationPolicy representationPolicy)
         {
             _service = new ImageLoadService(
                 new WindowSynchronizationContext(postToUi),
                 backend,
-                representationPolicy,
-                imageInfoLoader ?? new FakeImageInfoLoader());
+                representationPolicy);
             _client = _service.CreateClient();
         }
 
@@ -547,24 +520,6 @@ public sealed class ImageLoadServiceTests
         public void Dispose()
         {
         }
-    }
-
-    private sealed class FakeImageInfoLoader(Func<string, ImageInfo>? getInfo = null) : IImageInfoLoader
-    {
-        private readonly Func<string, ImageInfo> _getInfo = getInfo ?? (_ => new ImageInfo(1, 1));
-        internal int Requests;
-
-        public Task<ImageInfo> LoadAsync(string path, CancellationToken cancellationToken)
-        {
-            Interlocked.Increment(ref Requests);
-            return Task.FromResult(_getInfo(path));
-        }
-    }
-
-    private sealed class FaultingImageInfoLoader(Exception exception) : IImageInfoLoader
-    {
-        public Task<ImageInfo> LoadAsync(string path, CancellationToken cancellationToken) =>
-            Task.FromException<ImageInfo>(exception);
     }
 
     private sealed class FakeImageLoadingBackend : IImageLoadingBackend

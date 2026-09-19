@@ -27,20 +27,10 @@ internal abstract class ImageRepresentation(int width, int height) : IDisposable
     }
 }
 
-internal sealed class DecodedImageRepresentation : ImageRepresentation
+internal sealed class DecodedImageRepresentation(DecodedImage image)
+    : ImageRepresentation(image.Width, image.Height)
 {
-    internal DecodedImageRepresentation(DecodedImage image)
-        : this(image, new ImageInfo(image.Width, image.Height))
-    {
-    }
-
-    internal DecodedImageRepresentation(DecodedImage image, ImageInfo displayInfo)
-        : base(displayInfo.Width, displayInfo.Height)
-    {
-        Image = image;
-    }
-
-    internal DecodedImage Image { get; }
+    internal DecodedImage Image { get; } = image;
 }
 
 internal sealed class UploadImageRepresentation(DecodedImageUpload upload)

@@ -11,7 +11,6 @@ internal sealed class ImageLoadService : IDisposable
     private readonly SynchronizationContext _uiContext;
     private readonly IImageLoadingBackend _backend;
     private readonly ImageRepresentationPolicy _representationPolicy;
-    private readonly IImageInfoLoader _imageInfoLoader;
     private readonly ComWorkerQueue<IImageDecoder> _foregroundQueue;
     private readonly ComWorkerQueue<IImageDecoder> _preloadQueue;
     private readonly Dictionary<ImageLoadClient, ClientState> _clients = [];
@@ -22,13 +21,11 @@ internal sealed class ImageLoadService : IDisposable
     internal ImageLoadService(
         SynchronizationContext uiContext,
         IImageLoadingBackend backend,
-        ImageRepresentationPolicy representationPolicy,
-        IImageInfoLoader imageInfoLoader)
+        ImageRepresentationPolicy representationPolicy)
     {
         _uiContext = uiContext;
         _backend = backend;
         _representationPolicy = representationPolicy;
-        _imageInfoLoader = imageInfoLoader;
         _foregroundQueue = new ComWorkerQueue<IImageDecoder>(
             "Dameview image loader",
             2,
@@ -85,12 +82,7 @@ internal sealed class ImageLoadService : IDisposable
             var cancellation = new CancellationTokenSource();
             LoadRequest request = supportsAnimation
                 ? new AnimatedLoadRequest(client, path, completed, cancellation)
-                : new StaticLoadRequest(
-                    client,
-                    path,
-                    completed,
-                    cancellation,
-                    _imageInfoLoader.LoadAsync(path, cancellation.Token));
+                : new StaticLoadRequest(client, path, completed, cancellation);
             state.CurrentLoad = request;
             state.PendingLoad = request;
             start = TakeActive(state);
@@ -292,14 +284,8 @@ internal sealed class ImageLoadService : IDisposable
         {
             if (IsPreloadCurrent(request) && !_backend.SupportsAnimation(request.Path))
             {
-                ImageInfo info = await _imageInfoLoader
-                    .LoadAsync(request.Path, CancellationToken.None)
-                    .ConfigureAwait(false);
-                if (!_representationPolicy.RequiresTiling(info))
-                {
-                    result = await _preloadQueue.Enqueue(
-                        (decoder, _) => PreloadDecode(request, decoder)).ConfigureAwait(false);
-                }
+                result = await _preloadQueue.Enqueue(
+                    (decoder, _) => PreloadDecode(request, decoder)).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException)
@@ -326,6 +312,12 @@ internal sealed class ImageLoadService : IDisposable
 
         try
         {
+            if (_representationPolicy.RequiresTiling(decoder.GetInfo(request.Path))
+                || !IsPreloadCurrent(request))
+            {
+                return null;
+            }
+
             return new ImageLoaded(
                 request.Path,
                 new UploadImageRepresentation(DecodeShared(
@@ -354,9 +346,9 @@ internal sealed class ImageLoadService : IDisposable
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (request is StaticLoadRequest staticRequest)
+        if (request is StaticLoadRequest)
         {
-            ImageInfo sourceInfo = staticRequest.SourceInfo.GetAwaiter().GetResult();
+            ImageInfo sourceInfo = decoder.GetInfo(request.Path);
             cancellationToken.ThrowIfCancellationRequested();
             if (_representationPolicy.RequiresTiling(sourceInfo))
             {
@@ -577,11 +569,9 @@ internal sealed class ImageLoadService : IDisposable
         ImageLoadClient client,
         string path,
         Action<ImageLoadResult> completed,
-        CancellationTokenSource cancellation,
-        Task<ImageInfo> sourceInfo)
+        CancellationTokenSource cancellation)
         : LoadRequest(client, path, completed, cancellation)
     {
-        internal Task<ImageInfo> SourceInfo { get; } = sourceInfo;
     }
 
     private sealed record PreloadRequest(

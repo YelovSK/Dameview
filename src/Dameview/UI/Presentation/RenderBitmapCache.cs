@@ -204,12 +204,7 @@ internal sealed class CachedBitmapRepresentation : ImageRepresentation
     private readonly CachedBitmapLease _lease;
 
     internal CachedBitmapRepresentation(CachedBitmapLease lease)
-        : this(lease, lease.Bitmap.Width, lease.Bitmap.Height)
-    {
-    }
-
-    internal CachedBitmapRepresentation(CachedBitmapLease lease, int displayWidth, int displayHeight)
-        : base(displayWidth, displayHeight)
+        : base(lease.Bitmap.Width, lease.Bitmap.Height)
     {
         _lease = lease;
     }

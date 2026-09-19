@@ -19,6 +19,22 @@ public sealed class ImageViewportTests
     }
 
     [TestMethod]
+    public void FitUpscalesASmallImageWhileActualSizeRemainsAvailable()
+    {
+        var viewport = new ImageViewport(800, 600);
+        viewport.SetImageSize(400, 200);
+
+        Assert.AreEqual(2.0f, viewport.Scale);
+        AssertRectangle(new RectangleF(0.0f, 100.0f, 800.0f, 400.0f), viewport.GetDestinationRectangle());
+
+        viewport.SetActualSizeAt(viewport.ViewportCenter.X, viewport.ViewportCenter.Y, viewport.ImageCenter);
+
+        Assert.AreEqual(ViewportMode.ActualSize, viewport.Mode);
+        Assert.AreEqual(1.0f, viewport.Scale);
+        AssertRectangle(new RectangleF(200.0f, 200.0f, 400.0f, 200.0f), viewport.GetDestinationRectangle());
+    }
+
+    [TestMethod]
     public void ActualSizeUsesOneScreenPixelPerImagePixel()
     {
         var viewport = new ImageViewport(800, 600);

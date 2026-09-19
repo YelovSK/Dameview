@@ -25,8 +25,7 @@ public sealed class PresentationImageLoaderTests
                 Interlocked.Increment(ref decodeCount);
                 return CreateUpload();
             }),
-            TestPolicy,
-            NoImageInfoLoader.Instance);
+            TestPolicy);
         using ImageLoadClient producer = service.CreateClient();
         using var cache = new RenderBitmapCache(1024, _ => { });
         using var loader = CreateLoader(producer, cache);
@@ -61,8 +60,7 @@ public sealed class PresentationImageLoaderTests
                 Interlocked.Increment(ref decodeCount);
                 return CreateUpload();
             }),
-            TestPolicy,
-            NoImageInfoLoader.Instance);
+            TestPolicy);
         using ImageLoadClient producer = service.CreateClient();
         using var cache = new RenderBitmapCache(4, _ => { });
         using CachedBitmapLease current = cache.AddAndAcquire("current", null!, 1, 1);
@@ -93,8 +91,7 @@ public sealed class PresentationImageLoaderTests
                 release.Wait();
                 return CreateUpload(100, 100);
             }),
-            TestPolicy,
-            new FakeImageInfoLoader(_ => new ImageInfo(100, 100)));
+            TestPolicy);
         using ImageLoadClient producer = service.CreateClient();
         using var cache = new RenderBitmapCache(1024, _ => { });
         using var loader = new PresentationImageLoader(
@@ -103,7 +100,6 @@ public sealed class PresentationImageLoaderTests
             _ => null!,
             _ => null!,
             thumbnails,
-            new FakeImageInfoLoader(_ => new ImageInfo(100, 100)),
             new WindowSynchronizationContext(posted.Add));
         var results = new List<ImageLoaded>();
 
@@ -114,8 +110,8 @@ public sealed class PresentationImageLoaderTests
 
             Assert.HasCount(1, results);
             Assert.IsTrue(results[0].IsPreview);
-            Assert.AreEqual(100, results[0].Representation.Width);
-            Assert.AreEqual(100, results[0].Representation.Height);
+            Assert.AreEqual(512, results[0].Representation.Width);
+            Assert.AreEqual(512, results[0].Representation.Height);
             Assert.IsInstanceOfType<CachedBitmapRepresentation>(results[0].Representation);
             Assert.AreEqual(0, source.Requests);
 
@@ -138,11 +134,10 @@ public sealed class PresentationImageLoaderTests
     }
 
     [TestMethod]
-    public void PreviewWaitsForSourceInfoWhenThumbnailArrivesFirst()
+    public void PreviewArrivesBeforeFullDecode()
     {
         using var releaseDecode = new ManualResetEventSlim();
         using var posted = new BlockingCollection<Action>();
-        var info = new ManualImageInfoLoader();
         var source = new FakeThumbnailSource();
         using var thumbCache = new RenderBitmapCache(1024, _ => { });
         var thumbnails = new ThumbnailImageLoader(
@@ -157,8 +152,7 @@ public sealed class PresentationImageLoaderTests
                 releaseDecode.Wait();
                 return CreateUpload(9, 9);
             }),
-            TestPolicy,
-            new FakeImageInfoLoader(_ => new ImageInfo(9, 9)));
+            TestPolicy);
         using ImageLoadClient producer = service.CreateClient();
         using var cache = new RenderBitmapCache(1024, _ => { });
         using var loader = new PresentationImageLoader(
@@ -167,7 +161,6 @@ public sealed class PresentationImageLoaderTests
             _ => null!,
             _ => null!,
             thumbnails,
-            info,
             new WindowSynchronizationContext(posted.Add));
         var results = new List<ImageLoaded>();
 
@@ -176,14 +169,11 @@ public sealed class PresentationImageLoaderTests
             loader.Load("image", result => results.Add((ImageLoaded)result));
             Assert.IsNotNull(source.Pending);
             source.Pending(CreateUpload(512, 512));
-            Assert.AreEqual(0, results.Count);
-
-            info.Complete(new ImageInfo(40, 30));
             PumpUntil(posted, () => results.Count > 0);
 
             Assert.IsTrue(results[0].IsPreview);
-            Assert.AreEqual(40, results[0].Representation.Width);
-            Assert.AreEqual(30, results[0].Representation.Height);
+            Assert.AreEqual(512, results[0].Representation.Width);
+            Assert.AreEqual(512, results[0].Representation.Height);
             Assert.IsInstanceOfType<CachedBitmapRepresentation>(results[0].Representation);
         }
         finally
@@ -202,8 +192,7 @@ public sealed class PresentationImageLoaderTests
         using var service = new ImageLoadService(
             new WindowSynchronizationContext(action => action()),
             new FakeBackend(() => CreateUpload()),
-            TestPolicy,
-            NoImageInfoLoader.Instance);
+            TestPolicy);
         using ImageLoadClient producer = service.CreateClient();
         using var thumbnailCache = new RenderBitmapCache(1024, _ => { });
         using CachedBitmapLease previewLease = thumbnailCache.AddAndAcquire(
@@ -218,7 +207,6 @@ public sealed class PresentationImageLoaderTests
             _ => null!,
             _ => null!,
             new ImmediateThumbnailImageLoader(previewLease),
-            NoImageInfoLoader.Instance,
             new ThrowingSynchronizationContext());
 
         loader.Load("image", result => (result as ImageLoaded)?.Dispose());
@@ -229,7 +217,7 @@ public sealed class PresentationImageLoaderTests
     }
 
     [TestMethod]
-    public void PreviewSwapsDisplaySizeWhenThumbnailOrientationDiffers()
+    public void PreviewUsesThumbnailDisplaySize()
     {
         using var posted = new BlockingCollection<Action>();
         var source = new FakeThumbnailSource();
@@ -247,8 +235,7 @@ public sealed class PresentationImageLoaderTests
                 blocked.Wait();
                 return CreateUpload();
             }),
-            TestPolicy,
-            new FakeImageInfoLoader(_ => new ImageInfo(30, 40)));
+            TestPolicy);
         using ImageLoadClient producer = service.CreateClient();
         using var cache = new RenderBitmapCache(1024, _ => { });
         using var loader = new PresentationImageLoader(
@@ -257,7 +244,6 @@ public sealed class PresentationImageLoaderTests
             _ => null!,
             _ => null!,
             thumbnails,
-            new FakeImageInfoLoader(_ => new ImageInfo(30, 40)),
             new WindowSynchronizationContext(posted.Add));
         ImageLoaded? preview = null;
 
@@ -274,8 +260,8 @@ public sealed class PresentationImageLoaderTests
             source.Pending(CreateUpload(512, 256));
             PumpUntil(posted, () => preview is not null);
 
-            Assert.AreEqual(40, preview!.Representation.Width);
-            Assert.AreEqual(30, preview.Representation.Height);
+            Assert.AreEqual(512, preview!.Representation.Width);
+            Assert.AreEqual(256, preview.Representation.Height);
         }
         finally
         {
@@ -300,8 +286,7 @@ public sealed class PresentationImageLoaderTests
         using var service = new ImageLoadService(
             new WindowSynchronizationContext(posted.Add),
             new FakeBackend(() => CreateUpload()),
-            TestPolicy,
-            new FakeImageInfoLoader(_ => new ImageInfo(1, 1)));
+            TestPolicy);
         using ImageLoadClient producer = service.CreateClient();
         using var cache = new RenderBitmapCache(1024, _ => { });
         using var loader = new PresentationImageLoader(
@@ -310,7 +295,6 @@ public sealed class PresentationImageLoaderTests
             _ => null!,
             _ => null!,
             thumbnails,
-            new FakeImageInfoLoader(_ => new ImageInfo(1, 1)),
             new WindowSynchronizationContext(posted.Add));
         var results = new List<ImageLoaded>();
 
@@ -352,8 +336,7 @@ public sealed class PresentationImageLoaderTests
         using var service = new ImageLoadService(
             new WindowSynchronizationContext(posted.Add),
             new FakeBackend(() => CreateUpload()),
-            TestPolicy,
-            new FakeImageInfoLoader(_ => new ImageInfo(1, 1)));
+            TestPolicy);
         using ImageLoadClient producer = service.CreateClient();
         using var cache = new RenderBitmapCache(1024, _ => { });
         using var loader = new PresentationImageLoader(
@@ -362,7 +345,6 @@ public sealed class PresentationImageLoaderTests
             _ => null!,
             _ => null!,
             thumbnails,
-            new FakeImageInfoLoader(_ => new ImageInfo(1, 1)),
             new WindowSynchronizationContext(posted.Add));
         ImageLoadResult? result = null;
 
@@ -384,7 +366,6 @@ public sealed class PresentationImageLoaderTests
             _ => null!,
             _ => null!,
             NoThumbnailImageLoader.Instance,
-            NoImageInfoLoader.Instance,
             new WindowSynchronizationContext(action => action()));
     }
 
@@ -463,49 +444,6 @@ public sealed class PresentationImageLoaderTests
     {
         public override void Post(SendOrPostCallback d, object? state) =>
             throw new InvalidOperationException("Test UI post failure.");
-    }
-
-    private sealed class NoImageInfoLoader : IImageInfoLoader
-    {
-        internal static readonly NoImageInfoLoader Instance = new();
-
-        public Task<ImageInfo> LoadAsync(string path, CancellationToken cancellationToken) =>
-            Task.FromResult(new ImageInfo(1, 1));
-    }
-
-    private sealed class FakeImageInfoLoader(Func<string, ImageInfo> getInfo) : IImageInfoLoader
-    {
-        public Task<ImageInfo> LoadAsync(string path, CancellationToken cancellationToken) =>
-            Task.FromResult(getInfo(path));
-    }
-
-    private sealed class ManualImageInfoLoader : IImageInfoLoader
-    {
-        private readonly Lock _sync = new();
-        private readonly Queue<TaskCompletionSource<ImageInfo>> _pending = new();
-
-        public Task<ImageInfo> LoadAsync(string path, CancellationToken cancellationToken)
-        {
-            var completion = new TaskCompletionSource<ImageInfo>(
-                TaskCreationOptions.RunContinuationsAsynchronously);
-            lock (_sync)
-            {
-                _pending.Enqueue(completion);
-            }
-
-            return completion.Task;
-        }
-
-        internal void Complete(ImageInfo info)
-        {
-            TaskCompletionSource<ImageInfo> completion;
-            lock (_sync)
-            {
-                completion = _pending.Dequeue();
-            }
-
-            completion.SetResult(info);
-        }
     }
 
     private sealed class FakeThumbnailSource : IThumbnailLoader
