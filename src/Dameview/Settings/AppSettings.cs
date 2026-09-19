@@ -1,3 +1,4 @@
+using Dameview.Commands;
 using Dameview.Navigation;
 using Dameview.Diagnostics;
 using Dameview.Serialization;
@@ -43,6 +44,7 @@ internal sealed record AppSettings
     public bool SingleInstance { get; init; } = true;
     public FolderSort Sort { get; init; } = FolderSort.NameAscending;
     public bool BalancePanesOnSplit { get; init; }
+    public ViewerKeyBindings KeyBindings { get; init; } = ViewerKeyBindings.Defaults;
     public bool GalleryEnabled { get; init; } = true;
     public GalleryPlacement GalleryPlacement { get; init; } = GalleryPlacement.Right;
     public GalleryThumbnailSize GalleryThumbnailSize { get; init; } = GalleryThumbnailSize.Medium;

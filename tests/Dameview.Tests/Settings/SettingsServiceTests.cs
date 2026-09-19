@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using Dameview.Commands;
 using Dameview.Navigation;
 using Dameview.Serialization;
 using Dameview.Settings;
@@ -67,6 +68,7 @@ public sealed class SettingsServiceTests
         Assert.AreEqual(ThemeId.Light, settings.Current.Theme);
         Assert.IsTrue(settings.Current.AnimationsEnabled);
         Assert.IsFalse(settings.Current.BalancePanesOnSplit);
+        Assert.AreEqual(ViewerKeyBindings.Defaults, settings.Current.KeyBindings);
         Assert.AreEqual(FolderSort.NameAscending, settings.Current.Sort);
         Assert.IsTrue(settings.Current.GalleryEnabled);
         Assert.AreEqual(GalleryPlacement.Right, settings.Current.GalleryPlacement);

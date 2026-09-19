@@ -112,11 +112,13 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _commandPalettePanel = new CommandPalettePanel(
             directWriteFactory,
             ViewerCommandCatalog.Commands,
+            ViewerKeyBindings.Defaults,
             command =>
             {
                 CloseCommandPalette();
                 commands.ExecuteCommand(command);
-            });
+            },
+            commands.SetKeyBindings);
 
         AddChild(_splitView);
         AddChild(_tabPreview);
@@ -268,6 +270,9 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _root.InvalidateVisual();
     }
 
+    internal void ApplyKeyBindings(ViewerKeyBindings keyBindings) =>
+        _commandPalettePanel.ApplyKeyBindings(keyBindings);
+
     internal void ApplySettings(AppSettings settings)
     {
         _galleryEnabled = settings.GalleryEnabled;
@@ -316,8 +321,15 @@ internal sealed class ViewerUi : UiElement, IDisposable
         return _performanceOverlay.IsVisible;
     }
 
+    internal bool IsCapturingShortcut => _commandPalettePanel.IsCapturing;
+
     internal bool HandleKey(WindowKeyEvent input)
     {
+        if (_commandPalettePanel.HandleCaptureKey(input))
+        {
+            return true;
+        }
+
         if (input.Key == WindowKey.Escape && _dragController.IsActive)
         {
             _root.CancelPointer();

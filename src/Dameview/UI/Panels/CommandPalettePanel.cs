@@ -22,12 +22,17 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
     private readonly CommandItem[] _items;
     private readonly ScrollView _list;
     private readonly TextBlock _emptyMessage;
+    private readonly Action<ViewerKeyBindings> _applyKeyBindings;
+    private ViewerKeyBindings _keyBindings;
+    private (ViewerCommandId Command, int Slot)? _capture;
     private int _selectedIndex;
 
     internal CommandPalettePanel(
         IDWriteFactory factory,
         IReadOnlyList<ViewerCommand> commands,
-        Action<ViewerCommandId> execute)
+        ViewerKeyBindings keyBindings,
+        Action<ViewerCommandId> execute,
+        Action<ViewerKeyBindings> applyKeyBindings)
     {
         ArgumentOutOfRangeException.ThrowIfZero(commands.Count);
         _title = new TextBlock(
@@ -43,11 +48,12 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
             .. commands.Select(command => new CommandItem(
                 factory,
                 command,
-                string.Join(
-                    ", ",
-                    ViewerKeyBindings.GetShortcuts(command.Id).Select(shortcut => shortcut.DisplayText)),
-                () => execute(command.Id))),
+                () => execute(command.Id),
+                slot => BeginCapture(command.Id, slot),
+                slot => RemoveShortcut(command.Id, slot))),
         ];
+        _keyBindings = keyBindings;
+        _applyKeyBindings = applyKeyBindings;
         var itemList = new StackPanel(
             UiOrientation.Vertical,
             UiDesign.SmallSpacing,
@@ -68,6 +74,7 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
         AddChild(_filterInput);
         AddChild(_list);
         AddChild(_emptyMessage);
+        RefreshShortcuts();
         ApplyFilter(string.Empty);
     }
 
@@ -77,8 +84,58 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
     internal ViewerCommandId? SelectedCommand => GetVisibleItems().ElementAtOrDefault(_selectedIndex)?.Command.Id;
     internal string Query => _filterInput.Text;
 
+    internal bool IsCapturing => _capture is not null;
+
+    // Consumes every key while recording,
+    // so a shortcut cannot fire the command it is being bound to.
+    internal bool HandleCaptureKey(WindowKeyEvent input)
+    {
+        if (_capture is not (ViewerCommandId command, int slot))
+        {
+            return false;
+        }
+
+        if (input.Key is WindowKey.Escape)
+        {
+            CancelCapture();
+            return true;
+        }
+
+        if (input.Key is WindowKey.Delete or WindowKey.Backspace)
+        {
+            RemoveShortcut(command, slot);
+            CancelCapture();
+            return true;
+        }
+
+        // Keys WindowKey does not name, such as a bare modifier, have no text form and so
+        // could not be written to settings.
+        if (!Enum.IsDefined(input.Key))
+        {
+            return true;
+        }
+
+        var shortcut = new ViewerCommandShortcut(input.Key, input.Control, input.Shift);
+        Apply(_keyBindings
+            .WithShortcuts(command, Without(_keyBindings.GetShortcuts(command), slot))
+            .WithShortcut(command, shortcut));
+        return true;
+    }
+
+    internal void CancelCapture()
+    {
+        if (_capture is null)
+        {
+            return;
+        }
+
+        _capture = null;
+        RefreshShortcuts();
+    }
+
     internal void Reset()
     {
+        CancelCapture();
         if (_filterInput.Text.Length > 0)
         {
             _filterInput.Clear();
@@ -208,27 +265,91 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
 
     private CommandItem[] GetVisibleItems() => [.. _items.Where(item => item.IsVisible)];
 
+    internal void ApplyKeyBindings(ViewerKeyBindings keyBindings)
+    {
+        _keyBindings = keyBindings;
+        RefreshShortcuts();
+    }
+
+    private void BeginCapture(ViewerCommandId command, int slot)
+    {
+        _capture = (command, slot);
+        RefreshShortcuts();
+    }
+
+    private void RemoveShortcut(ViewerCommandId command, int slot)
+    {
+        IReadOnlyList<ViewerCommandShortcut> existing = _keyBindings.GetShortcuts(command);
+        if (slot >= 0 && slot < existing.Count)
+        {
+            Apply(_keyBindings.WithShortcuts(command, Without(existing, slot)));
+        }
+    }
+
+    // A slot outside the list is the pending one added by "+", which drops nothing.
+    private static IEnumerable<ViewerCommandShortcut> Without(
+        IReadOnlyList<ViewerCommandShortcut> shortcuts,
+        int slot) =>
+        shortcuts.Where((_, index) => index != slot);
+
+    private void Apply(ViewerKeyBindings bindings)
+    {
+        _capture = null;
+        _keyBindings = bindings;
+        RefreshShortcuts();
+        _applyKeyBindings(bindings);
+    }
+
+    private void RefreshShortcuts()
+    {
+        foreach (CommandItem item in _items)
+        {
+            item.SetShortcuts(
+                _keyBindings.GetShortcuts(item.Command.Id),
+                _capture is (ViewerCommandId command, int slot) && command == item.Command.Id
+                    ? slot
+                    : CommandItem.NoCaptureSlot);
+        }
+
+        InvalidateLayout();
+    }
+
     private sealed class CommandItem : InteractiveControl, IDisposable
     {
+        internal const int NoCaptureSlot = -1;
+
+        private const float ChipGap = 4.0f;
+        private const float AddButtonWidth = 26.0f;
+        private const float ChipPadding = 12.0f;
+        private const string CaptureLabel = "Press a key";
+
         private readonly Action _execute;
+        private readonly Action<int> _captureShortcut;
+        private readonly Action<int> _removeShortcut;
+        private readonly IDWriteFactory _factory;
         private readonly IDWriteTextFormat _labelFormat;
-        private readonly IDWriteTextFormat _shortcutFormat;
+        private readonly Button _addButton;
+        private readonly List<ShortcutChip> _chips = [];
 
         internal CommandItem(
             IDWriteFactory factory,
             ViewerCommand command,
-            string shortcutText,
-            Action execute)
+            Action execute,
+            Action<int> captureShortcut,
+            Action<int> removeShortcut)
         {
             Command = command;
-            ShortcutText = shortcutText;
+            _factory = factory;
             _execute = execute;
-            _labelFormat = CreateFormat(factory, TextAlignment.Leading, FontWeight.Medium);
-            _shortcutFormat = CreateFormat(factory, TextAlignment.Trailing, FontWeight.Normal);
+            _captureShortcut = captureShortcut;
+            _removeShortcut = removeShortcut;
+            _labelFormat = CreateFormat(factory);
+            _addButton = new Button(factory, "+", () => _captureShortcut(_chips.Count));
+            AddChild(_addButton);
         }
 
         internal ViewerCommand Command { get; }
-        internal string ShortcutText { get; }
+        private float ChipsLeft { get; set; }
         internal bool IsSelected
         {
             get => HasVisualState(UiVisualState.Selected);
@@ -239,10 +360,77 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
 
         internal void Execute() => _execute();
 
+        // A chip at index i always stands for slot i, so only the count ever changes and
+        // the callbacks are fixed when the chip is created.
+        internal void SetShortcuts(IReadOnlyList<ViewerCommandShortcut> shortcuts, int capturingSlot)
+        {
+            // The slot being added by "+" sits one past the bound ones.
+            int count = shortcuts.Count + (capturingSlot >= shortcuts.Count ? 1 : 0);
+            while (_chips.Count > count)
+            {
+                ShortcutChip removed = _chips[^1];
+                _chips.RemoveAt(_chips.Count - 1);
+                RemoveChild(removed);
+                removed.Dispose();
+            }
+
+            while (_chips.Count < count)
+            {
+                int slot = _chips.Count;
+                var chip = new ShortcutChip(
+                    _factory,
+                    CaptureLabel,
+                    () => _captureShortcut(slot),
+                    () => _removeShortcut(slot));
+                _chips.Add(chip);
+                AddChild(chip);
+            }
+
+            for (int slot = 0; slot < count; slot++)
+            {
+                bool pending = slot >= shortcuts.Count;
+                _chips[slot].Label = pending || slot == capturingSlot
+                    ? CaptureLabel
+                    : shortcuts[slot].Text;
+                _chips[slot].CanRemove = !pending && slot == capturingSlot;
+            }
+
+            _addButton.IsVisible = capturingSlot == NoCaptureSlot;
+            InvalidateLayout();
+        }
+
         protected override SizeF MeasureCore(SizeF availableSize)
         {
             float width = float.IsFinite(availableSize.Width) ? availableSize.Width : 320.0f;
+            foreach (ShortcutChip chip in _chips)
+            {
+                chip.Measure(new SizeF(width, ShortcutChip.Height));
+            }
+
+            _addButton.Measure(new SizeF(AddButtonWidth, ShortcutChip.Height));
             return new SizeF(MathF.Max(0.0f, width), 40.0f);
+        }
+
+        protected override void ArrangeCore(SizeF finalSize)
+        {
+            float top = (finalSize.Height - ShortcutChip.Height) / 2.0f;
+            float right = finalSize.Width - ChipPadding;
+            if (_addButton.IsVisible)
+            {
+                right -= AddButtonWidth;
+                _addButton.Arrange(new RectangleF(right, top, AddButtonWidth, ShortcutChip.Height));
+                right -= ChipGap;
+            }
+
+            for (int index = _chips.Count - 1; index >= 0; index--)
+            {
+                float width = _chips[index].DesiredSize.Width;
+                right -= width;
+                _chips[index].Arrange(new RectangleF(right, top, width, ShortcutChip.Height));
+                right -= ChipGap;
+            }
+
+            ChipsLeft = right;
         }
 
         protected override void DrawCore(in UiDrawContext context)
@@ -266,49 +454,39 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
                 context.FillRoundedRectangle(background, context.Palette.ControlPressed, PressedAmount);
             }
 
-            const float horizontalPadding = 12.0f;
-            const float shortcutWidth = 140.0f;
-            float labelRight = MathF.Max(horizontalPadding, Bounds.Width - shortcutWidth);
             context.DrawText(
                 Command.Label,
                 _labelFormat,
-                new Rect(horizontalPadding, 0.0f, labelRight, Bounds.Height),
+                new Rect(
+                    ChipPadding,
+                    0.0f,
+                    MathF.Max(ChipPadding, ChipsLeft - ChipGap),
+                    Bounds.Height),
                 context.Palette.PrimaryText,
                 DrawTextOptions.Clip);
-            if (ShortcutText.Length > 0)
-            {
-                context.DrawText(
-                    ShortcutText,
-                    _shortcutFormat,
-                    new Rect(
-                        labelRight,
-                        0.0f,
-                        MathF.Max(0.0f, Bounds.Width - horizontalPadding - labelRight),
-                        Bounds.Height),
-                    context.Palette.SecondaryText,
-                    DrawTextOptions.Clip);
-            }
         }
 
         public void Dispose()
         {
+            foreach (ShortcutChip chip in _chips)
+            {
+                chip.Dispose();
+            }
+
+            _addButton.Dispose();
             _labelFormat.Dispose();
-            _shortcutFormat.Dispose();
         }
 
         protected override void Activate() => Execute();
 
-        private static IDWriteTextFormat CreateFormat(
-            IDWriteFactory factory,
-            TextAlignment alignment,
-            FontWeight weight)
+        private static IDWriteTextFormat CreateFormat(IDWriteFactory factory)
         {
             IDWriteTextFormat format = factory.CreateTextFormat(
                 UiTypography.FontFamily,
-                weight,
+                FontWeight.Medium,
                 FontStyle.Normal,
                 UiDesign.BodyFontSize);
-            format.TextAlignment = alignment;
+            format.TextAlignment = TextAlignment.Leading;
             format.ParagraphAlignment = ParagraphAlignment.Center;
             format.WordWrapping = WordWrapping.NoWrap;
             return format;

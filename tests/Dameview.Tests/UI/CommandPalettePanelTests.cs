@@ -18,10 +18,10 @@ public sealed class CommandPalettePanelTests
         ViewerCommandId? executed = null;
         ViewerCommand[] commands =
         [
-            new(ViewerCommandId.NewTab, "New tab"),
-            new(ViewerCommandId.CloseTab, "Close tab"),
+            new(ViewerCommandId.NewTab, "New tab", ViewerCommandScope.Window),
+            new(ViewerCommandId.CloseTab, "Close tab", ViewerCommandScope.Window),
         ];
-        using var panel = new CommandPalettePanel(factory, commands, command => executed = command);
+        using var panel = new CommandPalettePanel(factory, commands, ViewerKeyBindings.Defaults, command => executed = command, _ => { });
         var root = new UiRoot(panel, UiDpi.Default);
         root.Arrange(new SizeF(540.0f, 580.0f));
         root.SetFocus(panel.InitialFocus);
@@ -39,11 +39,11 @@ public sealed class CommandPalettePanelTests
         using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         ViewerCommand[] commands =
         [
-            new(ViewerCommandId.NewTab, "Alpha"),
-            new(ViewerCommandId.CloseTab, "Alpine"),
-            new(ViewerCommandId.ShowSettings, "Beta"),
+            new(ViewerCommandId.NewTab, "Alpha", ViewerCommandScope.Window),
+            new(ViewerCommandId.CloseTab, "Alpine", ViewerCommandScope.Window),
+            new(ViewerCommandId.ShowSettings, "Beta", ViewerCommandScope.Window),
         ];
-        using var panel = new CommandPalettePanel(factory, commands, _ => { });
+        using var panel = new CommandPalettePanel(factory, commands, ViewerKeyBindings.Defaults, _ => { }, _ => { });
         var root = new UiRoot(panel, UiDpi.Default);
         root.Arrange(new SizeF(540.0f, 580.0f));
         root.SetFocus(panel.InitialFocus);
@@ -64,10 +64,10 @@ public sealed class CommandPalettePanelTests
         ViewerCommandId? executed = null;
         ViewerCommand[] commands =
         [
-            new(ViewerCommandId.NewTab, "New tab"),
-            new(ViewerCommandId.CloseTab, "Close tab"),
+            new(ViewerCommandId.NewTab, "New tab", ViewerCommandScope.Window),
+            new(ViewerCommandId.CloseTab, "Close tab", ViewerCommandScope.Window),
         ];
-        using var panel = new CommandPalettePanel(factory, commands, command => executed = command);
+        using var panel = new CommandPalettePanel(factory, commands, ViewerKeyBindings.Defaults, command => executed = command, _ => { });
         var root = new UiRoot(panel, UiDpi.Default);
         root.Arrange(new SizeF(540.0f, 580.0f));
         root.SetFocus(panel.InitialFocus);

@@ -200,6 +200,7 @@ public sealed class SettingsPanelTests
         public void SetAnimationsEnabled(bool enabled) => Animations?.Invoke(enabled);
         public void SetSingleInstance(bool enabled) => SingleInstance?.Invoke(enabled);
         public void SetBalancePanesOnSplit(bool enabled) => BalancePanesOnSplit?.Invoke(enabled);
+        public void SetKeyBindings(ViewerKeyBindings keyBindings) { }
         public void SetGalleryEnabled(bool enabled) => GalleryEnabled?.Invoke(enabled);
         public void SetGalleryPlacement(GalleryPlacement placement) => GalleryPlacement?.Invoke(placement);
         public void SetGalleryThumbnailSize(GalleryThumbnailSize size) => GalleryThumbnailSize?.Invoke(size);

@@ -332,7 +332,16 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
 
     private void HandleKeyPress(WindowKeyEvent input)
     {
-        if (ViewerKeyBindings.TryGetCommand(ViewerKeyBindings.Window, input, out ViewerCommandId command))
+        // Recording a shortcut has to beat the window bindings
+        if (_ui.IsCapturingShortcut)
+        {
+            _ui.HandleKey(input);
+            _window.RequestRepaint();
+            return;
+        }
+
+        ViewerKeyBindings keyBindings = _settings.Current.KeyBindings;
+        if (keyBindings.TryGetCommand(ViewerCommandScope.Window, input, out ViewerCommandId command))
         {
             ExecuteCommand(command);
             return;
@@ -350,7 +359,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             return;
         }
 
-        if (ViewerKeyBindings.TryGetCommand(ViewerKeyBindings.Viewer, input, out command))
+        if (keyBindings.TryGetCommand(ViewerCommandScope.Viewer, input, out command))
         {
             if (command == ViewerCommandId.ShowActualSize)
             {
@@ -366,6 +375,11 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
 
     private void HandleTextInput(string text)
     {
+        if (_ui.IsCapturingShortcut)
+        {
+            return;
+        }
+
         if (_ui.HandleTextInput(text))
         {
             _window.RequestRepaint();
@@ -524,6 +538,9 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     public void SetSingleInstance(bool enabled) =>
         _settings.Update(_settings.Current with { SingleInstance = enabled });
 
+    public void SetKeyBindings(ViewerKeyBindings keyBindings) =>
+        _settings.Update(_settings.Current with { KeyBindings = keyBindings });
+
     public void SetBalancePanesOnSplit(bool enabled) =>
         _settings.Update(_settings.Current with { BalancePanesOnSplit = enabled });
 
@@ -554,6 +571,11 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
 
         _ui.ApplySettings(current);
         _workspace.BalancePanesOnSplit = current.BalancePanesOnSplit;
+        if (!previous.KeyBindings.Equals(current.KeyBindings))
+        {
+            _ui.ApplyKeyBindings(current.KeyBindings);
+        }
+
         if (previous.Theme != current.Theme)
         {
             Theme theme = Themes.Get(current.Theme);

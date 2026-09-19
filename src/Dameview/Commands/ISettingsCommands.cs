@@ -13,6 +13,8 @@ internal interface ISettingsCommands
 
     public void SetBalancePanesOnSplit(bool enabled);
 
+    public void SetKeyBindings(ViewerKeyBindings keyBindings);
+
     public void SetGalleryEnabled(bool enabled);
 
     public void SetGalleryPlacement(GalleryPlacement placement);

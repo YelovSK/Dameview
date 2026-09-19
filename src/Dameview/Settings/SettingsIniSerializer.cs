@@ -1,4 +1,5 @@
 using System.Globalization;
+using Dameview.Commands;
 using Dameview.Diagnostics;
 using Dameview.Navigation;
 using Dameview.Serialization;
@@ -41,6 +42,7 @@ internal static class SettingsIniSerializer
             Maximized = ReadRequiredBoolean(document.Get("window", "maximized")),
         };
         LogLevel logLevel = ReadLogLevel(document.Get("logging", "level"));
+        ViewerKeyBindings keyBindings = ReadKeyBindings(document);
 
         return new AppSettings
         {
@@ -55,6 +57,7 @@ internal static class SettingsIniSerializer
             GallerySizeDips = gallerySize,
             Window = window,
             Logging = new LoggingSettings { Level = logLevel },
+            KeyBindings = keyBindings,
         };
     }
 
@@ -83,8 +86,59 @@ internal static class SettingsIniSerializer
         }
 
         document.Set("logging", "level", WriteLogLevel(settings.Logging.Level));
+        WriteKeyBindings(document, settings.KeyBindings);
 
         return document.Write();
+    }
+
+    private static ViewerKeyBindings ReadKeyBindings(IniDocument document)
+    {
+        ViewerKeyBindings bindings = ViewerKeyBindings.Defaults;
+        foreach (ViewerCommand command in ViewerCommandCatalog.Commands)
+        {
+            if (document.Get("keybindings", GetCommandKey(command.Id)) is string value)
+            {
+                bindings = bindings.WithShortcuts(command.Id, ReadShortcuts(value));
+            }
+        }
+
+        return bindings;
+    }
+
+    private static ViewerCommandShortcut[] ReadShortcuts(string value)
+    {
+        string[] parts = value.Split(
+            ' ',
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        var shortcuts = new ViewerCommandShortcut[parts.Length];
+
+        for (int index = 0; index < parts.Length; index++)
+        {
+            if (!ViewerCommandShortcut.TryParse(parts[index], out shortcuts[index]))
+            {
+                throw new IniFormatException($"Unknown shortcut value: '{parts[index]}'.");
+            }
+        }
+
+        return shortcuts;
+    }
+
+    private static void WriteKeyBindings(IniDocument document, ViewerKeyBindings bindings)
+    {
+        foreach (ViewerCommand command in ViewerCommandCatalog.Commands)
+        {
+            document.Set(
+                "keybindings",
+                GetCommandKey(command.Id),
+                string.Join(' ', bindings.GetShortcuts(command.Id).Select(shortcut => shortcut.Text)));
+        }
+    }
+
+    private static string GetCommandKey(ViewerCommandId command)
+    {
+        string name = command.ToString();
+        return char.ToLowerInvariant(name[0]) + name[1..];
     }
 
     private static ThemeId ReadTheme(string? value) => value switch
