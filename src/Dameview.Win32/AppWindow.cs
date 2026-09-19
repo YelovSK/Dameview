@@ -30,6 +30,8 @@ internal sealed unsafe class AppWindow : IDisposable
     private SHOW_WINDOW_CMD _initialShowCommand = SHOW_WINDOW_CMD.SW_SHOWNORMAL;
     private WindowPlacementState? _lastPlacement;
     private WindowCursor _cursor = WindowCursor.Default;
+    private FileDropTarget? _dropTarget;
+    private bool _oleInitialized;
 
     internal AppWindow(string title, int width, int height)
     {
@@ -56,14 +58,14 @@ internal sealed unsafe class AppWindow : IDisposable
 
         UpdateClientSize();
         Dpi = GetDpiForWindow((HWND)Handle);
-        DragAcceptFiles((HWND)Handle, true);
+        RegisterFileDropTarget();
     }
 
     internal event Action? RenderFrame;
     internal event Action? Closed;
     internal event Action<int, int>? Resized;
     internal event Action<float>? DpiChanged;
-    internal event Action<IReadOnlyList<string>>? FilesDropped;
+    internal event Action<WindowFileDragEvent>? FileDragInput;
     internal event Action<WindowKeyEvent>? KeyPressed;
     internal event Action<string>? TextInput;
     internal event Action<WindowPointerEvent>? PointerInput;
@@ -408,13 +410,34 @@ internal sealed unsafe class AppWindow : IDisposable
         _repaintTimer?.Dispose();
         if (Handle != 0)
         {
+            // Sends WM_DESTROY synchronously, which is where the drop target is revoked.
             DestroyWindow((HWND)Handle);
             Handle = 0;
+        }
+
+        if (_oleInitialized)
+        {
+            OleUninitialize();
+            _oleInitialized = false;
         }
 
         if (_selfHandle.IsAllocated)
         {
             _selfHandle.Free();
+        }
+    }
+
+    private void RegisterFileDropTarget()
+    {
+        // RegisterDragDrop requires OleInitialize. It returns S_FALSE here because COM is
+        // already initialized, which still needs a matching OleUninitialize.
+        _oleInitialized = OleInitialize().Succeeded;
+        var target = new FileDropTarget(Handle, input => FileDragInput?.Invoke(input));
+
+        // Failing here only costs drag-and-drop, so the window still opens.
+        if (RegisterDragDrop((HWND)Handle, target).Succeeded)
+        {
+            _dropTarget = target;
         }
     }
 
@@ -625,23 +648,6 @@ internal sealed unsafe class AppWindow : IDisposable
                 DpiChanged?.Invoke(Dpi);
                 return default;
 
-            case WM_DROPFILES:
-                nint dropHandle = (nint)(nuint)wParam;
-                try
-                {
-                    string[] paths = NativeMethods.GetDroppedFilePaths(dropHandle);
-                    if (paths.Length > 0)
-                    {
-                        FilesDropped?.Invoke(paths);
-                    }
-                }
-                finally
-                {
-                    DragFinish((HDROP)dropHandle);
-                }
-
-                return default;
-
             case WM_COPYDATA:
                 var data = (WindowCopyData.Data*)(nint)lParam;
                 if (data is null
@@ -664,6 +670,14 @@ internal sealed unsafe class AppWindow : IDisposable
                 if (placement.IsUsable)
                 {
                     _lastPlacement = placement;
+                }
+
+                // OLE holds a reference to the drop target until the window revokes it,
+                // and this is the last point where the handle is still valid.
+                if (_dropTarget is not null)
+                {
+                    RevokeDragDrop(window);
+                    _dropTarget = null;
                 }
 
                 Handle = 0;

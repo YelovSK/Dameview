@@ -92,7 +92,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
             deviceContext,
             directWriteFactory,
             thumbnailLoader,
-            commands.OpenImage,
+            commands.SelectImage,
             commands.OpenImageInNewTab,
             HandleGalleryDragPointer);
         _galleryPanel.Bind(GetGalleryState(_activePane.ActiveTab));
@@ -385,6 +385,22 @@ internal sealed class ViewerUi : UiElement, IDisposable
     }
 
     internal bool HandlePointer(in WindowPointerEvent input) => _root.HandlePointer(input);
+
+    internal void HandleFileDrag(in WindowFileDragEvent input)
+    {
+        WorkspaceDragEventKind kind = input.Kind switch
+        {
+            WindowFileDragKind.Entered => WorkspaceDragEventKind.Started,
+            WindowFileDragKind.Moved => WorkspaceDragEventKind.Moved,
+            WindowFileDragKind.Dropped => WorkspaceDragEventKind.Completed,
+            WindowFileDragKind.Left => WorkspaceDragEventKind.Cancelled,
+            _ => throw new ArgumentOutOfRangeException(nameof(input)),
+        };
+        var position = new PointF(
+            UiDpi.PixelsToDips(input.Position.X, _root.Dpi),
+            UiDpi.PixelsToDips(input.Position.Y, _root.Dpi));
+        _dragController.HandleExternalFiles(input.Paths, new WorkspaceDragEvent(kind, position));
+    }
 
     protected override SizeF MeasureCore(SizeF availableSize)
     {

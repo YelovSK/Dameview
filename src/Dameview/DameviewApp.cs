@@ -111,7 +111,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _window.RenderFrame += HandleRenderFrame;
         _window.Resized += HandleResize;
         _window.DpiChanged += HandleDpiChanged;
-        _window.FilesDropped += HandleFilesDropped;
+        _window.FileDragInput += HandleFileDragInput;
         _window.CopyDataReceived += HandleExternalInstanceMessage;
         _window.KeyPressed += HandleKeyPress;
         _window.TextInput += HandleTextInput;
@@ -149,19 +149,15 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         }
     }
 
-    private void HandleFilesDropped(IReadOnlyList<string> paths)
+    private void HandleFileDragInput(WindowFileDragEvent input)
     {
-        if (paths.Count == 0)
+        if (input.Kind == WindowFileDragKind.Dropped)
         {
-            return;
+            Log.Debug("Workspace", $"Opened {input.Paths.Count} dropped file(s).");
         }
 
-        Log.Debug("Workspace", $"Opened {paths.Count} dropped file(s).");
-        _workspace.OpenImage(paths[0]);
-        for (int index = 1; index < paths.Count; index++)
-        {
-            _workspace.OpenImageInNewTab(paths[index]);
-        }
+        _ui.HandleFileDrag(input);
+        _window.RequestRepaint();
     }
 
     public void Dispose()
@@ -239,6 +235,12 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     public void OpenImage(string path)
     {
         Log.Debug("Workspace", $"Opened image: '{path}'.");
+        _workspace.OpenImage(path);
+    }
+
+    public void SelectImage(string path)
+    {
+        Log.Debug("Workspace", $"Selected image: '{path}'.");
         _workspace.SelectImage(path);
     }
 

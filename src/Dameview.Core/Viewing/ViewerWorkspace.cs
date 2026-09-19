@@ -359,8 +359,7 @@ internal sealed class ViewerWorkspace : IDisposable
         ReplaceNode(pane, split);
         if (BalancePanesOnSplit)
         {
-            // Every caller raises LayoutChanged next, which rebuilds from Root,
-            // so the ratios do not need their own notification here.
+            // LayoutChanged rebuilds from Root, so no ratio notification is needed.
             BalanceSubtree(Root);
         }
 

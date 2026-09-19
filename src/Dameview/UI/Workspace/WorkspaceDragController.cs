@@ -76,6 +76,26 @@ internal sealed class WorkspaceDragController
         Continue(input.Kind, point);
     }
 
+    // External drops arrive in this controller's coordinate space already.
+    internal void HandleExternalFiles(IReadOnlyList<string> paths, WorkspaceDragEvent input)
+    {
+        if (input.Kind != WorkspaceDragEventKind.Started)
+        {
+            Continue(input.Kind, input.Position);
+            return;
+        }
+
+        if (paths.Count == 0)
+        {
+            return;
+        }
+
+        string label = paths.Count == 1
+            ? Path.GetFileName(paths[0])
+            : $"{paths.Count} files";
+        Start(new ExternalFilesDragPayload(paths, label), input.Position);
+    }
+
     internal void Cancel()
     {
         _payload = null;
@@ -112,6 +132,14 @@ internal sealed class WorkspaceDragController
         WorkspaceDragPayload payload = _payload;
         WorkspaceDropTarget? target = _target;
         Cancel();
+
+        // Dropping files on nothing still opens them.
+        if (payload is ExternalFilesDragPayload files)
+        {
+            OpenExternalFiles(files.Paths, target);
+            return;
+        }
+
         if (target is null)
         {
             return;
@@ -126,6 +154,24 @@ internal sealed class WorkspaceDragController
             case ImageDragPayload image:
                 _commands.OpenImageInNewTab(image.Path, target);
                 break;
+        }
+    }
+
+    private void OpenExternalFiles(IReadOnlyList<string> paths, WorkspaceDropTarget? target)
+    {
+        if (target is null)
+        {
+            _commands.OpenImage(paths[0]);
+        }
+        else
+        {
+            _commands.OpenImageInNewTab(paths[0], target);
+        }
+
+        // The first file selected the target pane, so the rest land in it.
+        for (int index = 1; index < paths.Count; index++)
+        {
+            _commands.OpenImageInNewTab(paths[index]);
         }
     }
 
@@ -213,4 +259,7 @@ internal sealed class WorkspaceDragController
 
     private sealed record ImageDragPayload(string Path, string ImageLabel)
         : WorkspaceDragPayload(ImageLabel);
+
+    private sealed record ExternalFilesDragPayload(IReadOnlyList<string> Paths, string FilesLabel)
+        : WorkspaceDragPayload(FilesLabel);
 }

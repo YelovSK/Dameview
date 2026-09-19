@@ -16,7 +16,10 @@ internal interface IViewerCommands
 
     public void SplitDown();
 
+    // Opens a path from outside the current folder, which rescans.
     public void OpenImage(string path);
+
+    public void SelectImage(string path);
 
     public void OpenImageInNewTab(string path);
 
