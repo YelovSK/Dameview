@@ -42,7 +42,7 @@ internal sealed record AppSettings
     public bool AnimationsEnabled { get; init; } = true;
     public bool SingleInstance { get; init; } = true;
     public FolderSort Sort { get; init; } = FolderSort.NameAscending;
-    public bool EqualizePanesOnSplit { get; init; }
+    public bool BalancePanesOnSplit { get; init; }
     public bool GalleryEnabled { get; init; } = true;
     public GalleryPlacement GalleryPlacement { get; init; } = GalleryPlacement.Right;
     public GalleryThumbnailSize GalleryThumbnailSize { get; init; } = GalleryThumbnailSize.Medium;

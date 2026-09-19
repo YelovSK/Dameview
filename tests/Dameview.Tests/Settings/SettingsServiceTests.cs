@@ -21,7 +21,7 @@ public sealed class SettingsServiceTests
         {
             Theme = ThemeId.Light,
             AnimationsEnabled = false,
-            EqualizePanesOnSplit = true,
+            BalancePanesOnSplit = true,
             Sort = FolderSort.SizeLargest,
             GalleryEnabled = false,
             GalleryPlacement = GalleryPlacement.Bottom,
@@ -66,7 +66,7 @@ public sealed class SettingsServiceTests
         settings.Start();
         Assert.AreEqual(ThemeId.Light, settings.Current.Theme);
         Assert.IsTrue(settings.Current.AnimationsEnabled);
-        Assert.IsFalse(settings.Current.EqualizePanesOnSplit);
+        Assert.IsFalse(settings.Current.BalancePanesOnSplit);
         Assert.AreEqual(FolderSort.NameAscending, settings.Current.Sort);
         Assert.IsTrue(settings.Current.GalleryEnabled);
         Assert.AreEqual(GalleryPlacement.Right, settings.Current.GalleryPlacement);

@@ -50,7 +50,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
     private readonly Dropdown<GalleryThumbnailSize> _galleryThumbnailSizeDropdown;
     private readonly Toggle _animationsToggle;
     private readonly Toggle _singleInstanceToggle;
-    private readonly Toggle _equalizePanesOnSplitToggle;
+    private readonly Toggle _balancePanesOnSplitToggle;
     private readonly Dropdown<SortField> _sortField;
     private readonly Dropdown<SortDirection> _sortDirection;
     private readonly SettingsRow _themeRow;
@@ -149,11 +149,11 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
             "Open files in existing window (restart required)",
             value: true,
             _commands.SetSingleInstance);
-        _equalizePanesOnSplitToggle = new Toggle(
+        _balancePanesOnSplitToggle = new Toggle(
             factory,
-            "Equalize panes when splitting",
+            "Balance panes when splitting",
             value: false,
-            _commands.SetEqualizePanesOnSplit);
+            _commands.SetBalancePanesOnSplit);
 
         _sortField = new Dropdown<SortField>(
             factory,
@@ -199,7 +199,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
             _galleryEnabledToggle,
             _galleryPlacementRow,
             _galleryThumbnailSizeRow,
-            _equalizePanesOnSplitToggle);
+            _balancePanesOnSplitToggle);
         var behaviorContent = new StackPanel(
             UiOrientation.Vertical,
             UiDesign.LargeSpacing,
@@ -261,7 +261,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
         _galleryThumbnailSizeDropdown.SelectedValue = settings.GalleryThumbnailSize;
         _animationsToggle.Value = settings.AnimationsEnabled;
         _singleInstanceToggle.Value = settings.SingleInstance;
-        _equalizePanesOnSplitToggle.Value = settings.EqualizePanesOnSplit;
+        _balancePanesOnSplitToggle.Value = settings.BalancePanesOnSplit;
 
         SortDefinition sort = Array.Find(
             Sorts,
@@ -337,7 +337,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
         _galleryThumbnailSizeDropdown.Dispose();
         _animationsToggle.Dispose();
         _singleInstanceToggle.Dispose();
-        _equalizePanesOnSplitToggle.Dispose();
+        _balancePanesOnSplitToggle.Dispose();
         _sortField.Dispose();
         _sortDirection.Dispose();
         _themeRow.Dispose();

@@ -164,7 +164,7 @@ public sealed class ViewerWorkspaceTests
     }
 
     [TestMethod]
-    public void EqualizingPanesWeightsEverySplitByItsDescendantPaneCount()
+    public void BalancingPanesWeightsEverySplitByItsDescendantPaneCount()
     {
         using var workspace = new ViewerWorkspace(CreateTab);
         ViewerPane first = workspace.ActivePane;
@@ -174,7 +174,7 @@ public sealed class ViewerWorkspaceTests
         int ratioChanges = 0;
         workspace.PaneRatiosChanged += () => ratioChanges++;
 
-        workspace.EqualizePanes();
+        workspace.BalancePanes();
 
         WorkspaceSplit root = Assert.IsInstanceOfType<WorkspaceSplit>(workspace.Root);
         WorkspaceSplit left = Assert.IsInstanceOfType<WorkspaceSplit>(root.First);
@@ -188,13 +188,13 @@ public sealed class ViewerWorkspaceTests
     }
 
     [TestMethod]
-    public void EqualizingOnePaneDoesNotRaiseALayoutChange()
+    public void BalancingOnePaneDoesNotRaiseALayoutChange()
     {
         using var workspace = new ViewerWorkspace(CreateTab);
         int changes = 0;
         workspace.PaneRatiosChanged += () => changes++;
 
-        workspace.EqualizePanes();
+        workspace.BalancePanes();
 
         Assert.AreEqual(0, changes);
     }
@@ -214,9 +214,9 @@ public sealed class ViewerWorkspaceTests
     }
 
     [TestMethod]
-    public void SplittingEqualizesEveryPaneWhenEqualizeOnSplitIsEnabled()
+    public void SplittingBalancesEveryPaneWhenBalanceOnSplitIsEnabled()
     {
-        using var workspace = new ViewerWorkspace(CreateTab) { EqualizePanesOnSplit = true };
+        using var workspace = new ViewerWorkspace(CreateTab) { BalancePanesOnSplit = true };
         ViewerPane first = workspace.ActivePane;
         int ratioChanges = 0;
         workspace.PaneRatiosChanged += () => ratioChanges++;
@@ -235,9 +235,9 @@ public sealed class ViewerWorkspaceTests
     }
 
     [TestMethod]
-    public void DroppingATabIntoANewPaneEqualizesWhenEqualizeOnSplitIsEnabled()
+    public void DroppingATabIntoANewPaneBalancesWhenBalanceOnSplitIsEnabled()
     {
-        using var workspace = new ViewerWorkspace(CreateTab) { EqualizePanesOnSplit = true };
+        using var workspace = new ViewerWorkspace(CreateTab) { BalancePanesOnSplit = true };
         ViewerPane first = workspace.ActivePane;
         workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
 

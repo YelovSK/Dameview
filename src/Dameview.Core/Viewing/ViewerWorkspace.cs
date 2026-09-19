@@ -25,7 +25,7 @@ internal sealed class ViewerWorkspace : IDisposable
 
     internal WorkspaceNode Root { get; private set; }
     internal ViewerPane ActivePane { get; private set; }
-    internal bool EqualizePanesOnSplit { get; set; }
+    internal bool BalancePanesOnSplit { get; set; }
     internal int Count => ActivePane.Count;
     internal int ActiveIndex => ActivePane.ActiveIndex;
     internal IReadOnlyList<ViewerTab> Tabs => ActivePane.Tabs;
@@ -156,9 +156,9 @@ internal sealed class ViewerWorkspace : IDisposable
         return newPane;
     }
 
-    internal void EqualizePanes()
+    internal void BalancePanes()
     {
-        (_, bool changed) = EqualizeSubtree(Root);
+        (_, bool changed) = BalanceSubtree(Root);
         if (changed)
         {
             PaneRatiosChanged?.Invoke();
@@ -209,15 +209,15 @@ internal sealed class ViewerWorkspace : IDisposable
         }
     }
 
-    private static (int PaneCount, bool Changed) EqualizeSubtree(WorkspaceNode node)
+    private static (int PaneCount, bool Changed) BalanceSubtree(WorkspaceNode node)
     {
         if (node is not WorkspaceSplit split)
         {
             return (1, false);
         }
 
-        (int firstPaneCount, bool firstChanged) = EqualizeSubtree(split.First);
-        (int secondPaneCount, bool secondChanged) = EqualizeSubtree(split.Second);
+        (int firstPaneCount, bool firstChanged) = BalanceSubtree(split.First);
+        (int secondPaneCount, bool secondChanged) = BalanceSubtree(split.Second);
         int paneCount = firstPaneCount + secondPaneCount;
         float ratio = (float)firstPaneCount / paneCount;
         bool changed = split.Ratio != ratio;
@@ -357,11 +357,11 @@ internal sealed class ViewerWorkspace : IDisposable
             newPaneFirst ? newPane : pane,
             newPaneFirst ? pane : newPane);
         ReplaceNode(pane, split);
-        if (EqualizePanesOnSplit)
+        if (BalancePanesOnSplit)
         {
             // Every caller raises LayoutChanged next, which rebuilds from Root,
             // so the ratios do not need their own notification here.
-            EqualizeSubtree(Root);
+            BalanceSubtree(Root);
         }
 
         return (newPane, split);

@@ -409,8 +409,8 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
                 SplitDown();
                 break;
 
-            case ViewerCommandId.EqualizePanes:
-                _workspace.EqualizePanes();
+            case ViewerCommandId.BalancePanes:
+                _workspace.BalancePanes();
                 break;
 
             case ViewerCommandId.OptimizePaneLayout:
@@ -507,8 +507,8 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     public void SetSingleInstance(bool enabled) =>
         _settings.Update(_settings.Current with { SingleInstance = enabled });
 
-    public void SetEqualizePanesOnSplit(bool enabled) =>
-        _settings.Update(_settings.Current with { EqualizePanesOnSplit = enabled });
+    public void SetBalancePanesOnSplit(bool enabled) =>
+        _settings.Update(_settings.Current with { BalancePanesOnSplit = enabled });
 
     public void SetGalleryEnabled(bool enabled) =>
         _settings.Update(_settings.Current with { GalleryEnabled = enabled });
@@ -536,7 +536,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         }
 
         _ui.ApplySettings(current);
-        _workspace.EqualizePanesOnSplit = current.EqualizePanesOnSplit;
+        _workspace.BalancePanesOnSplit = current.BalancePanesOnSplit;
         if (previous.Theme != current.Theme)
         {
             Theme theme = Themes.Get(current.Theme);
