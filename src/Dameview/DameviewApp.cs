@@ -271,6 +271,8 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             return;
         }
 
+        // New tabs are appended to the active pane, so this is the first one opened here.
+        int firstOpenedIndex = _workspace.Count;
         bool opened = false;
         foreach (string path in message.Split('\n'))
         {
@@ -283,6 +285,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
 
         if (opened)
         {
+            _workspace.SelectTab(firstOpenedIndex);
             Activate();
         }
     }
