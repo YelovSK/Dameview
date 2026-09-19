@@ -185,21 +185,15 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _window.Dispose();
     }
 
-    public void ShowPreviousImage() => ShowPreviousImage(_workspace.ActivePane);
-
     public void ShowPreviousImage(ViewerPane pane)
     {
         pane.ActiveSession.ShowPreviousImage();
     }
 
-    public void ShowNextImage() => ShowNextImage(_workspace.ActivePane);
-
     public void ShowNextImage(ViewerPane pane)
     {
         pane.ActiveSession.ShowNextImage();
     }
-
-    public void FitImage() => FitImage(_workspace.ActivePane);
 
     public void FitImage(ViewerPane pane)
     {
@@ -217,12 +211,8 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         }
     }
 
-    public void ShowActualSize() => ShowActualSize(_workspace.ActivePane);
-
     public void ShowActualSize(ViewerPane pane) =>
         ShowActualSize(pane, pane.ActiveSession.Viewport.ViewportCenter);
-
-    public void SplitRight() => SplitRight(_workspace.ActivePane);
 
     public void SplitRight(ViewerPane pane)
     {
@@ -231,8 +221,6 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             _workspace.SplitPane(pane, WorkspaceSplitOrientation.Horizontal);
         }
     }
-
-    public void SplitDown() => SplitDown(_workspace.ActivePane);
 
     public void SplitDown(ViewerPane pane)
     {
@@ -407,21 +395,21 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
                 break;
 
             case ViewerCommandId.PreviousImage:
-                ShowPreviousImage();
+                ShowPreviousImage(_workspace.ActivePane);
                 _ui.CenterGallerySelection();
                 break;
 
             case ViewerCommandId.NextImage:
-                ShowNextImage();
+                ShowNextImage(_workspace.ActivePane);
                 _ui.CenterGallerySelection();
                 break;
 
             case ViewerCommandId.FitImage:
-                FitImage();
+                FitImage(_workspace.ActivePane);
                 break;
 
             case ViewerCommandId.ShowActualSize:
-                ShowActualSize();
+                ShowActualSize(_workspace.ActivePane);
                 break;
 
             case ViewerCommandId.CopyImage:
@@ -433,11 +421,11 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
                 break;
 
             case ViewerCommandId.SplitRight:
-                SplitRight();
+                SplitRight(_workspace.ActivePane);
                 break;
 
             case ViewerCommandId.SplitDown:
-                SplitDown();
+                SplitDown(_workspace.ActivePane);
                 break;
 
             case ViewerCommandId.BalancePanes:
