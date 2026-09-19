@@ -73,7 +73,7 @@ public sealed class ViewerCommandCatalogTests
 
         Assert.IsFalse(ViewerKeyBindings.Defaults.TryGetCommand(
             ViewerCommandScope.Window,
-            new WindowKeyEvent(WindowKey.T, Shift: true, Control: true),
+            new WindowKeyEvent(WindowKey.W, Shift: true, Control: true),
             out _));
     }
 

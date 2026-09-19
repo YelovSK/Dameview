@@ -386,6 +386,10 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
                 CloseTabOrPane(_workspace.ActivePane, _workspace.ActiveIndex);
                 break;
 
+            case ViewerCommandId.ReopenClosedTab:
+                _workspace.ReopenClosedTab();
+                break;
+
             case ViewerCommandId.PreviousTab:
                 _workspace.SelectRelativeTab(-1);
                 break;
@@ -643,7 +647,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             return;
         }
 
-        if (_ui.BeginClosePane(pane, () => _workspace.RemovePane(pane)))
+        if (_ui.BeginClosePane(pane, () => _workspace.CloseTab(pane, index)))
         {
             _workspace.ActivatePaneAfterClosing(pane);
             _window.RequestRepaint();

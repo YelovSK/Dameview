@@ -5,7 +5,10 @@ namespace Dameview.Viewing;
 
 internal sealed class ViewerWorkspace : IDisposable
 {
+    private const int ClosedTabLimit = 10;
+
     private readonly Func<ViewerTab> _createTab;
+    private readonly List<ClosedTab> _closedTabs = [];
     private FolderSort _sort = FolderSort.NameAscending;
 
     internal ViewerWorkspace(Func<ViewerTab> createTab)
@@ -104,7 +107,7 @@ internal sealed class ViewerWorkspace : IDisposable
     internal void DuplicateActiveTab(ViewerPane pane)
     {
         EnsureContains(pane);
-        string? path = GetCurrentImagePath(pane);
+        string? path = GetCurrentImagePath(pane.ActiveTab);
         ViewerTab tab = CreateTab();
         pane.AddTab(tab);
         pane.SelectTab(pane.Count - 1);
@@ -134,18 +137,38 @@ internal sealed class ViewerWorkspace : IDisposable
     internal bool CloseTab(ViewerPane pane, int index)
     {
         EnsureContains(pane);
-        if (pane.CloseTab(index))
+        string? path = GetCurrentImagePath(pane.Tabs[index]);
+        // A pane refuses to close its last tab, so the pane goes instead and takes the tab with it.
+        bool closed = pane.CloseTab(index);
+        Remember(closed ? pane : null, index, path);
+
+        return closed || RemovePane(pane);
+    }
+
+    internal bool ReopenClosedTab()
+    {
+        if (_closedTabs.Count == 0)
         {
-            return true;
+            return false;
         }
 
-        return RemovePane(pane);
+        ClosedTab closed = _closedTabs[^1];
+        _closedTabs.RemoveAt(_closedTabs.Count - 1);
+
+        ViewerPane pane = closed.Pane is { } original && EnumeratePanes(Root).Contains(original)
+            ? original
+            : ActivePane;
+        ViewerTab tab = CreateTab();
+        pane.InsertTab(tab, Math.Min(closed.Index, pane.Count), select: true);
+        SelectPane(pane);
+        tab.Session.OpenImage(closed.Path);
+        return true;
     }
 
     internal ViewerPane SplitPane(ViewerPane pane, WorkspaceSplitOrientation orientation)
     {
         EnsureContains(pane);
-        string? path = GetCurrentImagePath(pane);
+        string? path = GetCurrentImagePath(pane.ActiveTab);
         ViewerTab tab = CreateTab();
         ViewerPane newPane = SplitPane(pane, orientation, tab);
         if (path is not null)
@@ -435,9 +458,24 @@ internal sealed class ViewerWorkspace : IDisposable
         };
     }
 
-    private static string? GetCurrentImagePath(ViewerPane pane)
+    // A null pane no longer exists, so that tab reopens in whichever pane is active by then.
+    private void Remember(ViewerPane? pane, int index, string? path)
     {
-        ViewerSessionState state = pane.ActiveSession.State;
+        if (path is null)
+        {
+            return;
+        }
+
+        _closedTabs.Add(new ClosedTab(pane, index, path));
+        if (_closedTabs.Count > ClosedTabLimit)
+        {
+            _closedTabs.RemoveAt(0);
+        }
+    }
+
+    private static string? GetCurrentImagePath(ViewerTab tab)
+    {
+        ViewerSessionState state = tab.Session.State;
         return state.DisplayedImage?.Path ?? state.RequestedPath;
     }
 
@@ -538,4 +576,6 @@ internal sealed class ViewerWorkspace : IDisposable
                 throw new InvalidOperationException($"Unsupported workspace node: {node.GetType().Name}.");
         }
     }
+
+    private readonly record struct ClosedTab(ViewerPane? Pane, int Index, string Path);
 }

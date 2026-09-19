@@ -4,6 +4,7 @@ internal enum ViewerCommandId
 {
     NewTab,
     CloseTab,
+    ReopenClosedTab,
     PreviousTab,
     NextTab,
     PreviousImage,
@@ -39,6 +40,7 @@ internal static class ViewerCommandCatalog
     [
         new(ViewerCommandId.NewTab, "New tab", ViewerCommandScope.Window),
         new(ViewerCommandId.CloseTab, "Close tab", ViewerCommandScope.Window),
+        new(ViewerCommandId.ReopenClosedTab, "Reopen closed tab", ViewerCommandScope.Window),
         new(ViewerCommandId.PreviousTab, "Select previous tab", ViewerCommandScope.Window),
         new(ViewerCommandId.NextTab, "Select next tab", ViewerCommandScope.Window),
         new(ViewerCommandId.PreviousImage, "Previous image", ViewerCommandScope.Viewer),

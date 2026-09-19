@@ -8,6 +8,7 @@ internal sealed class ViewerKeyBindings : IEquatable<ViewerKeyBindings>
     {
         [ViewerCommandId.NewTab] = [new(WindowKey.T, Control: true)],
         [ViewerCommandId.CloseTab] = [new(WindowKey.W, Control: true)],
+        [ViewerCommandId.ReopenClosedTab] = [new(WindowKey.T, Control: true, Shift: true)],
         [ViewerCommandId.PreviousTab] = [new(WindowKey.Tab, Control: true, Shift: true)],
         [ViewerCommandId.NextTab] = [new(WindowKey.Tab, Control: true)],
         [ViewerCommandId.PreviousImage] = [new(WindowKey.Left)],
