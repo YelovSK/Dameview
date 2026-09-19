@@ -9,7 +9,8 @@ namespace Dameview.UI.Presentation;
 // Retains the expensive high-quality rasterization for an unchanged static viewport.
 internal sealed class ImagePresentationCache : IDisposable
 {
-    private const float Sharpness = 0.7f;
+    private const float DownscaleSharpness = 0.7f;
+    private const float UpscaleSharpness = 0.25f;
 
     private readonly ID2D1DeviceContext _renderContext;
     private ID2D1Bitmap1? _bitmap;
@@ -50,6 +51,9 @@ internal sealed class ImagePresentationCache : IDisposable
             return null;
         }
 
+        // Cubic can produce halos when zoomed beyond 100%, so lower the sharpness in that case.
+        bool upscales = imageBounds.Width > source.PixelSize.Width;
+
         var pixelSize = new SizeI(right - left, bottom - top);
         ID2D1Bitmap1 bitmap = D2DBitmapFactory.CreateScaled(
             _renderContext,
@@ -61,7 +65,7 @@ internal sealed class ImagePresentationCache : IDisposable
                 UiDpi.PixelsToDips(imageBounds.Y - top, dpi),
                 UiDpi.PixelsToDips(imageBounds.Width, dpi),
                 UiDpi.PixelsToDips(imageBounds.Height, dpi)),
-            Sharpness);
+            upscales ? UpscaleSharpness : DownscaleSharpness);
         Clear();
         _bitmap = bitmap;
         _source = source;
