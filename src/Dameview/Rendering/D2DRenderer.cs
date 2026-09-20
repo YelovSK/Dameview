@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Dameview.Diagnostics;
 using System.Drawing;
 using Microsoft.Win32.SafeHandles;
 using Vortice.DCommon;
@@ -165,7 +166,7 @@ internal sealed class D2DRenderer : IDisposable
     }
 
     /// <summary>What this process currently has resident in video memory, and its allowance.</summary>
-    internal (long Used, long Budget)? QueryVideoMemory()
+    internal VideoMemoryUsage? QueryVideoMemory()
     {
         if (_videoMemoryAdapter is null)
         {
@@ -175,7 +176,7 @@ internal sealed class D2DRenderer : IDisposable
         QueryVideoMemoryInfo info = _videoMemoryAdapter.QueryVideoMemoryInfo(
             0,
             MemorySegmentGroup.Local);
-        return ((long)info.CurrentUsage, (long)info.Budget);
+        return new VideoMemoryUsage((long)info.CurrentUsage, (long)info.Budget);
     }
 
     public void Dispose()

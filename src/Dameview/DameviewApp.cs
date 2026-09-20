@@ -768,9 +768,11 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     {
         long frameStarted = Stopwatch.GetTimestamp();
         bool sampleMemory = ShouldSampleMemory(frameStarted);
-        (long Used, long Budget)? videoMemory = sampleMemory ? _renderer.QueryVideoMemory() : null;
-        (long WorkingSet, long ManagedHeap)? memory = sampleMemory
-            ? (Environment.WorkingSet, GC.GetTotalMemory(forceFullCollection: false))
+        VideoMemoryUsage? videoMemory = sampleMemory ? _renderer.QueryVideoMemory() : null;
+        ProcessMemoryUsage? memory = sampleMemory
+            ? new ProcessMemoryUsage(
+                Environment.WorkingSet,
+                GC.GetTotalMemory(forceFullCollection: false))
             : null;
         long allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
         int layoutPassesBefore = _ui.LayoutPasses;

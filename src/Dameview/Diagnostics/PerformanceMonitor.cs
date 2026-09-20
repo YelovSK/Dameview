@@ -2,6 +2,10 @@ using System.Diagnostics;
 
 namespace Dameview.Diagnostics;
 
+internal readonly record struct VideoMemoryUsage(long UsedBytes, long BudgetBytes);
+
+internal readonly record struct ProcessMemoryUsage(long WorkingSetBytes, long ManagedHeapBytes);
+
 internal readonly record struct PerformanceFrameTiming(
     long FrameStartedTimestamp,
     TimeSpan CpuTime,
@@ -14,29 +18,40 @@ internal readonly record struct PerformanceFrameTiming(
     int DrawOperations = 0,
     TimeSpan DrawTime = default,
     TimeSpan SubmitTime = default,
-    (long Used, long Budget)? VideoMemory = null,
-    (long WorkingSet, long ManagedHeap)? Memory = null);
+    VideoMemoryUsage? VideoMemory = null,
+    ProcessMemoryUsage? Memory = null);
+
+/// <summary>An average over the sample window and the worst frame behind it.</summary>
+internal readonly record struct Reading(double AverageMilliseconds, double MaximumMilliseconds);
+
+/// <summary>What a frame's CPU time went on. These account for the CPU reading between them.</summary>
+internal readonly record struct CpuPhases(
+    double UpdateMilliseconds,
+    double LayoutMilliseconds,
+    double DrawMilliseconds,
+    double SubmitMilliseconds,
+    double OtherMilliseconds);
+
+/// <summary>How much of a frame's cost is work it asked for rather than time it took.</summary>
+internal readonly record struct FrameWork(
+    double DrawnElements,
+    double DrawOperations,
+    double LayoutPassesPerSecond);
+
+internal readonly record struct MemoryUsage(
+    double AllocatedBytesPerSecond,
+    VideoMemoryUsage? Video,
+    ProcessMemoryUsage? Process);
 
 internal readonly record struct PerformanceSnapshot(
     int SampleCount,
     double FramesPerSecond,
-    double AverageFrameMilliseconds,
-    double MaximumFrameMilliseconds,
-    double AverageCpuMilliseconds,
-    double MaximumCpuMilliseconds,
-    double? AverageGpuMilliseconds,
-    double? MaximumGpuMilliseconds,
-    double AverageUpdateMilliseconds,
-    double AverageLayoutMilliseconds,
-    double AverageDrawMilliseconds,
-    double LayoutPassesPerSecond,
-    double AllocatedBytesPerSecond,
-    double AverageDrawnElements,
-    double AverageDrawOperations,
-    double AverageSubmitMilliseconds,
-    double AverageOtherMilliseconds,
-    (long Used, long Budget)? VideoMemory,
-    (long WorkingSet, long ManagedHeap)? Memory);
+    Reading Frame,
+    Reading Cpu,
+    Reading? Gpu,
+    CpuPhases Phases,
+    FrameWork Work,
+    MemoryUsage Memory);
 
 internal sealed class PerformanceMonitor
 {
@@ -47,8 +62,8 @@ internal sealed class PerformanceMonitor
     private readonly Sample[] _samples = new Sample[MaximumSamples];
     private int _nextSample;
     private int _sampleCount;
-    private (long Used, long Budget)? _videoMemory;
-    private (long WorkingSet, long ManagedHeap)? _memory;
+    private VideoMemoryUsage? _videoMemory;
+    private ProcessMemoryUsage? _memory;
     private long _previousFrameStarted;
     private bool _hasPreviousFrame;
 
@@ -188,25 +203,27 @@ internal sealed class PerformanceMonitor
         return new PerformanceSnapshot(
             _sampleCount,
             1000.0 / averageFrame,
-            averageFrame,
-            frameMaximum,
-            averageCpu,
-            cpuMaximum,
-            gpuSampleCount > 0 ? gpuTotal / gpuSampleCount : null,
-            gpuSampleCount > 0 ? gpuMaximum : null,
-            averageUpdate,
-            averageLayout,
-            averageDraw,
-            elapsedSeconds > 0.0 ? layoutPasses / elapsedSeconds : 0.0,
-            elapsedSeconds > 0.0 ? allocatedBytes / elapsedSeconds : 0.0,
-            (double)drawnElements / _sampleCount,
-            (double)drawOperations / _sampleCount,
-            averageSubmit,
-            // Everything the measured phases did not account for, shown rather than folded into
-            // one of them, so a phase can never quietly absorb work that is not its own.
-            Math.Max(0.0, averageCpu - averageUpdate - averageLayout - averageDraw - averageSubmit),
-            _videoMemory,
-            _memory);
+            new Reading(averageFrame, frameMaximum),
+            new Reading(averageCpu, cpuMaximum),
+            gpuSampleCount > 0 ? new Reading(gpuTotal / gpuSampleCount, gpuMaximum) : null,
+            new CpuPhases(
+                averageUpdate,
+                averageLayout,
+                averageDraw,
+                averageSubmit,
+                // Everything the measured phases did not account for, shown rather than folded
+                // into one of them, so a phase can never quietly absorb work that is not its own.
+                Math.Max(
+                    0.0,
+                    averageCpu - averageUpdate - averageLayout - averageDraw - averageSubmit)),
+            new FrameWork(
+                (double)drawnElements / _sampleCount,
+                (double)drawOperations / _sampleCount,
+                elapsedSeconds > 0.0 ? layoutPasses / elapsedSeconds : 0.0),
+            new MemoryUsage(
+                elapsedSeconds > 0.0 ? allocatedBytes / elapsedSeconds : 0.0,
+                _videoMemory,
+                _memory));
     }
 
     private void ClearSamples()

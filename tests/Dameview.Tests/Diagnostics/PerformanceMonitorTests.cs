@@ -18,12 +18,12 @@ public sealed class PerformanceMonitorTests
         PerformanceSnapshot snapshot = monitor.Snapshot;
         Assert.AreEqual(2, snapshot.SampleCount);
         Assert.AreEqual(500.0, snapshot.FramesPerSecond, 0.01);
-        Assert.AreEqual(2.0, snapshot.AverageFrameMilliseconds, 0.01);
-        Assert.AreEqual(2.0, snapshot.MaximumFrameMilliseconds, 0.01);
-        Assert.AreEqual(1.3, snapshot.AverageCpuMilliseconds, 0.01);
-        Assert.AreEqual(1.4, snapshot.MaximumCpuMilliseconds, 0.01);
-        Assert.AreEqual(0.6, snapshot.AverageGpuMilliseconds!.Value, 0.01);
-        Assert.AreEqual(0.7, snapshot.MaximumGpuMilliseconds!.Value, 0.01);
+        Assert.AreEqual(2.0, snapshot.Frame.AverageMilliseconds, 0.01);
+        Assert.AreEqual(2.0, snapshot.Frame.MaximumMilliseconds, 0.01);
+        Assert.AreEqual(1.3, snapshot.Cpu.AverageMilliseconds, 0.01);
+        Assert.AreEqual(1.4, snapshot.Cpu.MaximumMilliseconds, 0.01);
+        Assert.AreEqual(0.6, snapshot.Gpu!.Value.AverageMilliseconds, 0.01);
+        Assert.AreEqual(0.7, snapshot.Gpu!.Value.MaximumMilliseconds, 0.01);
     }
 
     [TestMethod]
@@ -58,8 +58,8 @@ public sealed class PerformanceMonitorTests
             GpuTime = TimeSpan.FromMilliseconds(2.4),
         });
 
-        Assert.AreEqual(2.2, monitor.Snapshot.AverageGpuMilliseconds!.Value, 0.001);
-        Assert.AreEqual(2.4, monitor.Snapshot.MaximumGpuMilliseconds!.Value, 0.001);
+        Assert.AreEqual(2.2, monitor.Snapshot.Gpu!.Value.AverageMilliseconds, 0.001);
+        Assert.AreEqual(2.4, monitor.Snapshot.Gpu!.Value.MaximumMilliseconds, 0.001);
     }
 
     // Each phase is measured, so none of them may absorb time belonging to another. Whatever
@@ -83,11 +83,11 @@ public sealed class PerformanceMonitorTests
 
         PerformanceSnapshot snapshot = monitor.Snapshot;
 
-        Assert.AreEqual(0.5, snapshot.AverageUpdateMilliseconds, 0.001);
-        Assert.AreEqual(3.0, snapshot.AverageLayoutMilliseconds, 0.001);
-        Assert.AreEqual(1.0, snapshot.AverageDrawMilliseconds, 0.001);
-        Assert.AreEqual(0.2, snapshot.AverageSubmitMilliseconds, 0.001);
-        Assert.AreEqual(0.3, snapshot.AverageOtherMilliseconds, 0.001);
+        Assert.AreEqual(0.5, snapshot.Phases.UpdateMilliseconds, 0.001);
+        Assert.AreEqual(3.0, snapshot.Phases.LayoutMilliseconds, 0.001);
+        Assert.AreEqual(1.0, snapshot.Phases.DrawMilliseconds, 0.001);
+        Assert.AreEqual(0.2, snapshot.Phases.SubmitMilliseconds, 0.001);
+        Assert.AreEqual(0.3, snapshot.Phases.OtherMilliseconds, 0.001);
     }
 
     // A frame whose phases somehow add up to more than the whole must not report a negative
@@ -99,7 +99,7 @@ public sealed class PerformanceMonitorTests
         monitor.Record(Timing(0.0, 1.0));
         monitor.Record(Timing(10.0, 1.0) with { LayoutTime = TimeSpan.FromMilliseconds(9.0) });
 
-        Assert.AreEqual(0.0, monitor.Snapshot.AverageOtherMilliseconds, 0.001);
+        Assert.AreEqual(0.0, monitor.Snapshot.Phases.OtherMilliseconds, 0.001);
     }
 
     private static PerformanceFrameTiming Timing(double startedMilliseconds, double cpuMilliseconds) =>
