@@ -214,9 +214,9 @@ public sealed class ViewerWorkspaceTests
     }
 
     [TestMethod]
-    public void SplittingBalancesEveryPaneWhenBalanceOnSplitIsEnabled()
+    public void SplittingBalancesEveryPaneWhenAutoBalanceIsEnabled()
     {
-        using var workspace = new ViewerWorkspace(CreateTab) { BalancePanesOnSplit = true };
+        using var workspace = new ViewerWorkspace(CreateTab) { AutoBalancePanes = true };
         ViewerPane first = workspace.ActivePane;
         int ratioChanges = 0;
         workspace.PaneRatiosChanged += () => ratioChanges++;
@@ -235,9 +235,9 @@ public sealed class ViewerWorkspaceTests
     }
 
     [TestMethod]
-    public void DroppingATabIntoANewPaneBalancesWhenBalanceOnSplitIsEnabled()
+    public void DroppingATabIntoANewPaneBalancesWhenAutoBalanceIsEnabled()
     {
-        using var workspace = new ViewerWorkspace(CreateTab) { BalancePanesOnSplit = true };
+        using var workspace = new ViewerWorkspace(CreateTab) { AutoBalancePanes = true };
         ViewerPane first = workspace.ActivePane;
         workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
 
@@ -249,6 +249,38 @@ public sealed class ViewerWorkspaceTests
         WorkspaceSplit nested = Assert.IsInstanceOfType<WorkspaceSplit>(root.First);
         Assert.AreEqual(2.0f / 3.0f, root.Ratio);
         Assert.AreEqual(0.5f, nested.Ratio);
+    }
+
+    [TestMethod]
+    public void ClosingAPaneRebalancesTheRestWhenAutoBalanceIsEnabled()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab) { AutoBalancePanes = true };
+        ViewerPane first = workspace.ActivePane;
+        ViewerPane second = workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
+        ViewerPane third = workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
+
+        Assert.IsTrue(workspace.RemovePane(third));
+
+        // The two survivors split the width evenly again.
+        WorkspaceSplit root = Assert.IsInstanceOfType<WorkspaceSplit>(workspace.Root);
+        Assert.AreEqual(0.5f, root.Ratio);
+        Assert.IsFalse(ReferenceEquals(second, third));
+    }
+
+    [TestMethod]
+    public void ClosingAPaneKeepsTheRatiosWhenAutoBalanceIsDisabled()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane first = workspace.ActivePane;
+        workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
+        ViewerPane third = workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
+        WorkspaceSplit outer = Assert.IsInstanceOfType<WorkspaceSplit>(workspace.Root);
+        outer.SetRatio(0.8f);
+
+        Assert.IsTrue(workspace.RemovePane(third));
+
+        WorkspaceSplit root = Assert.IsInstanceOfType<WorkspaceSplit>(workspace.Root);
+        Assert.AreEqual(0.8f, root.Ratio, "The chosen ratio outlives the pane that was closed.");
     }
 
     [TestMethod]

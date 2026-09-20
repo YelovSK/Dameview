@@ -22,7 +22,7 @@ public sealed class SettingsServiceTests
         {
             Theme = ThemeId.Light,
             AnimationsEnabled = false,
-            BalancePanesOnSplit = true,
+            AutoBalancePanes = true,
             Sort = FolderSort.SizeLargest,
             GalleryEnabled = false,
             GalleryPlacement = GalleryPlacement.Bottom,
@@ -67,7 +67,7 @@ public sealed class SettingsServiceTests
         settings.Start();
         Assert.AreEqual(ThemeId.Light, settings.Current.Theme);
         Assert.IsTrue(settings.Current.AnimationsEnabled);
-        Assert.IsFalse(settings.Current.BalancePanesOnSplit);
+        Assert.IsFalse(settings.Current.AutoBalancePanes);
         Assert.AreEqual(ViewerKeyBindings.Defaults, settings.Current.KeyBindings);
         Assert.AreEqual(FolderSort.NameAscending, settings.Current.Sort);
         Assert.IsTrue(settings.Current.GalleryEnabled);

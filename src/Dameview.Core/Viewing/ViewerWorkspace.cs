@@ -28,7 +28,7 @@ internal sealed class ViewerWorkspace : IDisposable
 
     internal WorkspaceNode Root { get; private set; }
     internal ViewerPane ActivePane { get; private set; }
-    internal bool BalancePanesOnSplit { get; set; }
+    internal bool AutoBalancePanes { get; set; }
     internal int Count => ActivePane.Count;
     internal int ActiveIndex => ActivePane.ActiveIndex;
     internal IReadOnlyList<ViewerTab> Tabs => ActivePane.Tabs;
@@ -380,11 +380,7 @@ internal sealed class ViewerWorkspace : IDisposable
             newPaneFirst ? newPane : pane,
             newPaneFirst ? pane : newPane);
         ReplaceNode(pane, split);
-        if (BalancePanesOnSplit)
-        {
-            // LayoutChanged rebuilds from Root, so no ratio notification is needed.
-            BalanceSubtree(Root);
-        }
+        Balance();
 
         return (newPane, split);
     }
@@ -442,7 +438,18 @@ internal sealed class ViewerWorkspace : IDisposable
         WorkspaceNode sibling = parent.GetSibling(pane);
         ReplaceNode(parent, sibling);
         pane.Dispose();
+        Balance();
         return sibling;
+    }
+
+    // Callers go on to raise LayoutChanged, which rebuilds from Root, so the new
+    // ratios need no notification of their own.
+    private void Balance()
+    {
+        if (AutoBalancePanes)
+        {
+            BalanceSubtree(Root);
+        }
     }
 
     private static (WorkspaceSplitOrientation Orientation, bool NewPaneFirst) GetSplitPlacement(

@@ -10,6 +10,8 @@ internal sealed class WorkspaceView : UiElement, IDisposable
 {
     private readonly Func<ViewerPane, ViewerPaneView> _createPaneView;
     private readonly Dictionary<ViewerPane, ViewerPaneView> _paneViews = [];
+    // Where each split was last drawn, so a rebuild can animate on from there.
+    private Dictionary<WorkspaceSplit, SplitPanel> _splitPanels = [];
     private UiElement? _content;
     private ViewerPane? _closingPane;
     private Action? _closeCompletion;
@@ -114,7 +116,9 @@ internal sealed class WorkspaceView : UiElement, IDisposable
         DetachLayout();
 
         HashSet<ViewerPane> retainedPanes = [];
-        _content = Build(root, retainedPanes, openingSplit);
+        Dictionary<WorkspaceSplit, SplitPanel> previousPanels = _splitPanels;
+        _splitPanels = [];
+        _content = Build(root, retainedPanes, openingSplit, previousPanels);
         foreach (ViewerPane removedPane in _paneViews.Keys.Where(pane => !retainedPanes.Contains(pane)).ToArray())
         {
             _paneViews.Remove(removedPane, out ViewerPaneView? removedView);
@@ -170,27 +174,39 @@ internal sealed class WorkspaceView : UiElement, IDisposable
         }
 
         _paneViews.Clear();
+        _splitPanels.Clear();
     }
 
     private UiElement Build(
         WorkspaceNode node,
         HashSet<ViewerPane> retainedPanes,
-        WorkspaceSplit? openingSplit)
+        WorkspaceSplit? openingSplit,
+        Dictionary<WorkspaceSplit, SplitPanel> previousPanels)
     {
-        return node switch
+        if (node is ViewerPane pane)
         {
-            ViewerPane pane => GetOrCreatePaneView(pane, retainedPanes),
-            WorkspaceSplit split => new SplitPanel(
-                Build(split.First, retainedPanes, openingSplit),
-                Build(split.Second, retainedPanes, openingSplit),
-                split.Orientation == WorkspaceSplitOrientation.Horizontal
-                    ? UiOrientation.Horizontal
-                    : UiOrientation.Vertical,
-                split.Ratio,
-                split.SetRatio,
-                animateOpening: ReferenceEquals(split, openingSplit)),
-            _ => throw new InvalidOperationException($"Unsupported workspace node: {node.GetType().Name}."),
-        };
+            return GetOrCreatePaneView(pane, retainedPanes);
+        }
+
+        if (node is not WorkspaceSplit split)
+        {
+            throw new InvalidOperationException($"Unsupported workspace node: {node.GetType().Name}.");
+        }
+
+        var panel = new SplitPanel(
+            Build(split.First, retainedPanes, openingSplit, previousPanels),
+            Build(split.Second, retainedPanes, openingSplit, previousPanels),
+            split.Orientation == WorkspaceSplitOrientation.Horizontal
+                ? UiOrientation.Horizontal
+                : UiOrientation.Vertical,
+            split.Ratio,
+            split.SetRatio,
+            animateOpening: ReferenceEquals(split, openingSplit),
+            startRatio: previousPanels.TryGetValue(split, out SplitPanel? previous)
+                ? previous.CurrentRatio
+                : null);
+        _splitPanels.Add(split, panel);
+        return panel;
     }
 
     private ViewerPaneView GetOrCreatePaneView(ViewerPane pane, HashSet<ViewerPane> retainedPanes)

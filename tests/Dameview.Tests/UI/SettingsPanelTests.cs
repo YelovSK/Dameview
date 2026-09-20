@@ -189,7 +189,7 @@ public sealed class SettingsPanelTests
         internal Action<ThemeId>? Theme { get; init; }
         internal Action<bool>? Animations { get; init; }
         internal Action<bool>? SingleInstance { get; init; }
-        internal Action<bool>? BalancePanesOnSplit { get; init; }
+        internal Action<bool>? AutoBalancePanes { get; init; }
         internal Action<bool>? GalleryEnabled { get; init; }
         internal Action<GalleryPlacement>? GalleryPlacement { get; init; }
         internal Action<GalleryThumbnailSize>? GalleryThumbnailSize { get; init; }
@@ -199,7 +199,7 @@ public sealed class SettingsPanelTests
         public void SetTheme(ThemeId theme) => Theme?.Invoke(theme);
         public void SetAnimationsEnabled(bool enabled) => Animations?.Invoke(enabled);
         public void SetSingleInstance(bool enabled) => SingleInstance?.Invoke(enabled);
-        public void SetBalancePanesOnSplit(bool enabled) => BalancePanesOnSplit?.Invoke(enabled);
+        public void SetAutoBalancePanes(bool enabled) => AutoBalancePanes?.Invoke(enabled);
         public void SetKeyBindings(ViewerKeyBindings keyBindings) { }
         public void SetGalleryEnabled(bool enabled) => GalleryEnabled?.Invoke(enabled);
         public void SetGalleryPlacement(GalleryPlacement placement) => GalleryPlacement?.Invoke(placement);

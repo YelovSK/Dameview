@@ -26,7 +26,8 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
         UiOrientation orientation,
         float ratio,
         Action<float>? ratioChanged = null,
-        bool animateOpening = false)
+        bool animateOpening = false,
+        float? startRatio = null)
     {
         ArgumentNullException.ThrowIfNull(firstPane);
         ArgumentNullException.ThrowIfNull(secondPane);
@@ -38,7 +39,10 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
         FirstPane = firstPane;
         SecondPane = secondPane;
         _orientation = orientation;
-        _ratio = new AnimatedFloat(ratio, TransitionResponse);
+        // Rebuilding the layout replaces this panel, so a split that already existed hands
+        // over where it was drawn and the new ratio is animated to rather than jumped to.
+        _ratio = new AnimatedFloat(startRatio ?? ratio, TransitionResponse);
+        _ratio.SetTarget(ratio);
         _ratioChanged = ratioChanged;
         _transition = new AnimatedFloat(
             animateOpening ? 0.0f : 1.0f,
@@ -51,6 +55,7 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
         AddChild(_resizer);
     }
 
+    internal float CurrentRatio => _ratio.Current;
     internal RectangleF FirstPaneBounds { get; private set; }
     internal RectangleF SecondPaneBounds { get; private set; }
     internal UiElement FirstPane { get; }

@@ -540,8 +540,8 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     public void SetKeyBindings(ViewerKeyBindings keyBindings) =>
         _settings.Update(_settings.Current with { KeyBindings = keyBindings });
 
-    public void SetBalancePanesOnSplit(bool enabled) =>
-        _settings.Update(_settings.Current with { BalancePanesOnSplit = enabled });
+    public void SetAutoBalancePanes(bool enabled) =>
+        _settings.Update(_settings.Current with { AutoBalancePanes = enabled });
 
     public void SetGalleryEnabled(bool enabled) =>
         _settings.Update(_settings.Current with { GalleryEnabled = enabled });
@@ -569,7 +569,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         }
 
         _ui.ApplySettings(current);
-        _workspace.BalancePanesOnSplit = current.BalancePanesOnSplit;
+        _workspace.AutoBalancePanes = current.AutoBalancePanes;
         if (!previous.KeyBindings.Equals(current.KeyBindings))
         {
             _ui.ApplyKeyBindings(current.KeyBindings);

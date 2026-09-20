@@ -22,8 +22,8 @@ internal static class SettingsIniSerializer
         bool singleInstance = ReadOptionalBoolean(
             document.Get(string.Empty, "singleInstance"),
             defaultValue: true);
-        bool balancePanesOnSplit = ReadOptionalBoolean(
-            document.Get(string.Empty, "balancePanesOnSplit"),
+        bool autoBalancePanes = ReadOptionalBoolean(
+            document.Get(string.Empty, "autoBalancePanes"),
             defaultValue: false);
         FolderSort sort = ReadSort(document.Get(string.Empty, "sort"));
         bool galleryEnabled = ReadOptionalBoolean(
@@ -46,7 +46,7 @@ internal static class SettingsIniSerializer
             Theme = theme,
             AnimationsEnabled = animationsEnabled,
             SingleInstance = singleInstance,
-            BalancePanesOnSplit = balancePanesOnSplit,
+            AutoBalancePanes = autoBalancePanes,
             Sort = sort,
             GalleryEnabled = galleryEnabled,
             GalleryPlacement = galleryPlacement,
@@ -66,8 +66,8 @@ internal static class SettingsIniSerializer
         document.Set(string.Empty, "singleInstance", settings.SingleInstance ? "true" : "false");
         document.Set(
             string.Empty,
-            "balancePanesOnSplit",
-            settings.BalancePanesOnSplit ? "true" : "false");
+            "autoBalancePanes",
+            settings.AutoBalancePanes ? "true" : "false");
         document.Set(string.Empty, "sort", WriteSort(settings.Sort));
         document.Set(string.Empty, "galleryEnabled", settings.GalleryEnabled ? "true" : "false");
         document.Set(string.Empty, "galleryPlacement", WriteGalleryPlacement(settings.GalleryPlacement));
