@@ -139,20 +139,36 @@ public sealed class ViewportAnimatorTests
     }
 
     [TestMethod]
-    public void ActualSizeMovesEveryDestinationEdgeWithTheSameProgress()
+    public void ZoomingMovesEveryDestinationEdgeWithTheSameProgress()
+    {
+        // Zooming in to actual size, and back out to fit. A transform that skewed the
+        // destination instead of scaling it would move one edge ahead of the others.
+        AssertEdgesMoveTogether(
+            _ => { },
+            animator => animator.ShowActualSizeAt(750.0f, 600.0f),
+            new RectangleF(-750.0f, -200.0f, 2000.0f, 1000.0f));
+        AssertEdgesMoveTogether(
+            viewport => viewport.SetActualSizeAt(750.0f, 600.0f, new PointF(1500.0f, 900.0f)),
+            animator => animator.Fit(),
+            new RectangleF(0.0f, 150.0f, 1000.0f, 500.0f));
+    }
+
+    private static void AssertEdgesMoveTogether(
+        Action<ImageViewport> arrange,
+        Func<ViewportAnimator, bool> begin,
+        RectangleF target)
     {
         var viewport = new ImageViewport(1000, 800);
         viewport.SetImageSize(2000, 1000);
+        arrange(viewport);
         var animator = new ViewportAnimator(viewport, new ManualTimeProvider());
         RectangleF start = viewport.GetDestinationRectangle();
 
-        Assert.IsTrue(animator.ShowActualSizeAt(750.0f, 600.0f));
+        Assert.IsTrue(begin(animator));
         Assert.IsTrue(animator.Update(0.016));
 
         RectangleF current = viewport.GetDestinationRectangle();
-        var target = new RectangleF(-750.0f, -200.0f, 2000.0f, 1000.0f);
         float widthProgress = GetProgress(start.Width, current.Width, target.Width);
-
         Assert.AreEqual(widthProgress, GetProgress(start.X, current.X, target.X), 0.001f);
         Assert.AreEqual(widthProgress, GetProgress(start.Y, current.Y, target.Y), 0.001f);
         Assert.AreEqual(widthProgress, GetProgress(start.Height, current.Height, target.Height), 0.001f);
@@ -175,27 +191,6 @@ public sealed class ViewportAnimatorTests
         Assert.AreEqual(0.5f, viewport.Scale);
         Assert.AreEqual(0.0f, viewport.GetDestinationRectangle().X, 0.001f);
         Assert.AreEqual(0.0f, viewport.GetDestinationRectangle().Y, 0.001f);
-    }
-
-    [TestMethod]
-    public void FitMovesEveryDestinationEdgeWithTheSameProgress()
-    {
-        var viewport = new ImageViewport(1000, 800);
-        viewport.SetImageSize(2000, 1000);
-        viewport.SetActualSizeAt(750.0f, 600.0f, new PointF(1500.0f, 900.0f));
-        var animator = new ViewportAnimator(viewport, new ManualTimeProvider());
-        RectangleF start = viewport.GetDestinationRectangle();
-
-        Assert.IsTrue(animator.Fit());
-        Assert.IsTrue(animator.Update(0.016));
-
-        RectangleF current = viewport.GetDestinationRectangle();
-        var target = new RectangleF(0.0f, 150.0f, 1000.0f, 500.0f);
-        float widthProgress = GetProgress(start.Width, current.Width, target.Width);
-
-        Assert.AreEqual(widthProgress, GetProgress(start.X, current.X, target.X), 0.001f);
-        Assert.AreEqual(widthProgress, GetProgress(start.Y, current.Y, target.Y), 0.001f);
-        Assert.AreEqual(widthProgress, GetProgress(start.Height, current.Height, target.Height), 0.001f);
     }
 
     [TestMethod]

@@ -12,16 +12,23 @@ public sealed class AnimatedImagePlayerTests
     {
         var session = new FakeSession(
             new AnimationFrame(Image(1), TimeSpan.FromMilliseconds(100)),
-            new AnimationFrame(Image(2), TimeSpan.FromMilliseconds(100)));
+            new AnimationFrame(Image(2), TimeSpan.FromMilliseconds(100)),
+            new AnimationFrame(Image(3), TimeSpan.FromMilliseconds(100)));
         var time = new ManualTimeProvider();
         var player = new AnimatedImagePlayer(session, time);
 
         time.Advance(TimeSpan.FromMilliseconds(99));
         Assert.IsFalse(player.Update());
         Assert.AreEqual(1, player.CurrentImage.Pixels[0]);
+
         time.Advance(TimeSpan.FromMilliseconds(3));
         Assert.IsTrue(player.Update());
         Assert.AreEqual(2, player.CurrentImage.Pixels[0]);
+
+        // Exactly one duration later, without the earlier overshoot carrying it further.
+        time.Advance(TimeSpan.FromMilliseconds(100));
+        Assert.IsTrue(player.Update());
+        Assert.AreEqual(3, player.CurrentImage.Pixels[0]);
     }
 
     [TestMethod]
@@ -39,21 +46,6 @@ public sealed class AnimatedImagePlayerTests
         time.Advance(TimeSpan.FromMilliseconds(10));
         Assert.IsFalse(player.Update());
         Assert.IsNull(player.NextFrameDelay);
-    }
-
-    [TestMethod]
-    public void UsesFullElapsedTimeBetweenScheduledFrames()
-    {
-        var session = new FakeSession(
-            new AnimationFrame(Image(1), TimeSpan.FromSeconds(1)),
-            new AnimationFrame(Image(2), TimeSpan.FromSeconds(1)));
-        var time = new ManualTimeProvider();
-        var player = new AnimatedImagePlayer(session, time);
-
-        time.Advance(TimeSpan.FromSeconds(1));
-
-        Assert.IsTrue(player.Update());
-        Assert.AreEqual(2, player.CurrentImage.Pixels[0]);
     }
 
     [TestMethod]

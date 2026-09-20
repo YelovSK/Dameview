@@ -139,34 +139,23 @@ public sealed class ViewerWorkspaceTests
         Assert.AreEqual(1, ratioChanges);
     }
 
+    // Without balancing every new split halves its own parent; with it, three panes in a
+    // right-leaning chain each take a third of the width.
     [TestMethod]
-    public void SplittingTheSamePaneRepeatedlyKeepsNestedRatiosByDefault()
+    [DataRow(false, 0.5f)]
+    [DataRow(true, 2.0f / 3.0f)]
+    public void SplittingTwiceDividesTheWidthAccordingToAutoBalance(bool autoBalance, float expectedRoot)
     {
-        using var workspace = new ViewerWorkspace(CreateTab);
-        ViewerPane first = workspace.ActivePane;
-        workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
-        workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
-
-        WorkspaceSplit root = Assert.IsInstanceOfType<WorkspaceSplit>(workspace.Root);
-        WorkspaceSplit nested = Assert.IsInstanceOfType<WorkspaceSplit>(root.First);
-        Assert.AreEqual(0.5f, root.Ratio);
-        Assert.AreEqual(0.5f, nested.Ratio);
-    }
-
-    [TestMethod]
-    public void SplittingBalancesEveryPaneWhenAutoBalanceIsEnabled()
-    {
-        using var workspace = new ViewerWorkspace(CreateTab) { AutoBalancePanes = true };
+        using var workspace = new ViewerWorkspace(CreateTab) { AutoBalancePanes = autoBalance };
         ViewerPane first = workspace.ActivePane;
         int ratioChanges = 0;
         workspace.PaneRatiosChanged += () => ratioChanges++;
         workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
         workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
 
-        // Three panes in a right-leaning chain each take a third of the width.
         WorkspaceSplit root = Assert.IsInstanceOfType<WorkspaceSplit>(workspace.Root);
         WorkspaceSplit nested = Assert.IsInstanceOfType<WorkspaceSplit>(root.First);
-        Assert.AreEqual(2.0f / 3.0f, root.Ratio);
+        Assert.AreEqual(expectedRoot, root.Ratio);
         Assert.AreEqual(0.5f, nested.Ratio);
 
         // LayoutChanged already rebuilds from the root, so the split does not
@@ -179,7 +168,7 @@ public sealed class ViewerWorkspaceTests
     {
         using var workspace = new ViewerWorkspace(CreateTab) { AutoBalancePanes = true };
         ViewerPane first = workspace.ActivePane;
-        ViewerPane second = workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
+        workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
         ViewerPane third = workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
 
         Assert.IsTrue(workspace.RemovePane(third));
@@ -546,8 +535,36 @@ public sealed class ViewerWorkspaceTests
         Assert.AreSame(second, workspace.ActivePane);
     }
 
+    // Left and Top put the dropped pane before the target, Right and Bottom after it.
     [TestMethod]
-    public void MovingATabToTheLeftPlacesTheNewPaneFirst()
+    // The enums are internal, so the rows carry their underlying values.
+    [DataRow((int)WorkspacePaneDropSide.Left, (int)WorkspaceSplitOrientation.Horizontal, true)]
+    [DataRow((int)WorkspacePaneDropSide.Right, (int)WorkspaceSplitOrientation.Horizontal, false)]
+    [DataRow((int)WorkspacePaneDropSide.Top, (int)WorkspaceSplitOrientation.Vertical, true)]
+    [DataRow((int)WorkspacePaneDropSide.Bottom, (int)WorkspaceSplitOrientation.Vertical, false)]
+    public void ADroppedSideDecidesTheOrientationAndWhichPaneComesFirst(
+        int rawSide,
+        int rawOrientation,
+        bool newPaneFirst)
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane target = workspace.ActivePane;
+
+        workspace.OpenImageInNewTab(
+            @"C:\gallery\image.png",
+            new WorkspacePaneDropTarget(target, (WorkspacePaneDropSide)rawSide));
+
+        WorkspaceSplit split = Assert.IsInstanceOfType<WorkspaceSplit>(workspace.Root);
+        Assert.AreEqual((WorkspaceSplitOrientation)rawOrientation, split.Orientation);
+        WorkspaceNode expectedNew = newPaneFirst ? split.First : split.Second;
+        WorkspaceNode expectedTarget = newPaneFirst ? split.Second : split.First;
+        ViewerPane newPane = Assert.IsInstanceOfType<ViewerPane>(expectedNew);
+        Assert.AreEqual(@"C:\gallery\image.png", newPane.ActiveSession.State.RequestedPath);
+        Assert.AreSame(target, expectedTarget);
+    }
+
+    [TestMethod]
+    public void MovingATabToASideCarriesTheTabIntoTheNewPane()
     {
         using var workspace = new ViewerWorkspace(CreateTab);
         ViewerPane source = workspace.ActivePane;
@@ -561,26 +578,8 @@ public sealed class ViewerWorkspaceTests
 
         WorkspaceSplit split = Assert.IsInstanceOfType<WorkspaceSplit>(workspace.Root);
         ViewerPane newPane = Assert.IsInstanceOfType<ViewerPane>(split.First);
-        Assert.AreEqual(WorkspaceSplitOrientation.Horizontal, split.Orientation);
         Assert.AreSame(moved, newPane.ActiveTab);
         Assert.AreSame(source, split.Second);
-    }
-
-    [TestMethod]
-    public void GalleryDropAboveAPanePlacesTheNewPaneFirst()
-    {
-        using var workspace = new ViewerWorkspace(CreateTab);
-        ViewerPane target = workspace.ActivePane;
-
-        workspace.OpenImageInNewTab(
-            @"C:\gallery\image.png",
-            new WorkspacePaneDropTarget(target, WorkspacePaneDropSide.Top));
-
-        WorkspaceSplit split = Assert.IsInstanceOfType<WorkspaceSplit>(workspace.Root);
-        ViewerPane newPane = Assert.IsInstanceOfType<ViewerPane>(split.First);
-        Assert.AreEqual(WorkspaceSplitOrientation.Vertical, split.Orientation);
-        Assert.AreEqual(@"C:\gallery\image.png", newPane.ActiveSession.State.RequestedPath);
-        Assert.AreSame(target, split.Second);
     }
 
     private static ViewerTab CreateTab()
