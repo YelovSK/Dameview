@@ -11,6 +11,7 @@ internal enum ViewerCommandId
     NextImage,
     FitImage,
     ShowActualSize,
+    ToggleFitActualSize,
     CopyImage,
     ToggleFullscreen,
     SplitRight,
@@ -47,6 +48,10 @@ internal static class ViewerCommandCatalog
         new(ViewerCommandId.NextImage, "Next image", ViewerCommandScope.Viewer),
         new(ViewerCommandId.FitImage, "Fit image", ViewerCommandScope.Viewer),
         new(ViewerCommandId.ShowActualSize, "Show actual size", ViewerCommandScope.Viewer),
+        new(
+            ViewerCommandId.ToggleFitActualSize,
+            "Toggle fit and actual size",
+            ViewerCommandScope.Viewer),
         new(ViewerCommandId.CopyImage, "Copy image", ViewerCommandScope.Viewer),
         new(ViewerCommandId.ToggleFullscreen, "Toggle fullscreen", ViewerCommandScope.Window),
         new(ViewerCommandId.SplitRight, "Split right", ViewerCommandScope.Window),

@@ -214,6 +214,14 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     public void ShowActualSize(ViewerPane pane) =>
         ShowActualSize(pane, pane.ActiveSession.Viewport.ViewportCenter);
 
+    private void ToggleFitActualSize(ViewerPane pane, PointF anchor)
+    {
+        if (pane.ActiveSession.Animator.ToggleFitAndActualSizeAt(anchor.X, anchor.Y))
+        {
+            _window.RequestRepaint();
+        }
+    }
+
     public void SplitRight(ViewerPane pane)
     {
         if (!_ui.IsClosingPane)
@@ -349,15 +357,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
 
         if (keyBindings.TryGetCommand(ViewerCommandScope.Viewer, input, out command))
         {
-            if (command == ViewerCommandId.ShowActualSize)
-            {
-                ShowActualSize(
-                    _workspace.ActivePane,
-                    _ui.GetImageViewportPoint(new PointF(_pointerX, _pointerY)));
-                return;
-            }
-
-            ExecuteCommand(command);
+            ExecuteCommand(command, _ui.GetImageViewportPoint(new PointF(_pointerX, _pointerY)));
         }
     }
 
@@ -374,7 +374,10 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         }
     }
 
-    public void ExecuteCommand(ViewerCommandId command)
+    public void ExecuteCommand(ViewerCommandId command) =>
+        ExecuteCommand(command, _workspace.ActivePane.ActiveSession.Viewport.ViewportCenter);
+
+    private void ExecuteCommand(ViewerCommandId command, PointF anchor)
     {
         switch (command)
         {
@@ -413,7 +416,11 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
                 break;
 
             case ViewerCommandId.ShowActualSize:
-                ShowActualSize(_workspace.ActivePane);
+                ShowActualSize(_workspace.ActivePane, anchor);
+                break;
+
+            case ViewerCommandId.ToggleFitActualSize:
+                ToggleFitActualSize(_workspace.ActivePane, anchor);
                 break;
 
             case ViewerCommandId.CopyImage:
