@@ -62,6 +62,41 @@ public sealed class PerformanceMonitorTests
         Assert.AreEqual(2.4, monitor.Snapshot.MaximumGpuMilliseconds!.Value, 0.001);
     }
 
+    // The overlay splits the frame into phases, and what it calls drawing is whatever the
+    // other two did not account for.
+    [TestMethod]
+    public void DrawingIsWhateverTheOtherPhasesDidNotAccountFor()
+    {
+        var monitor = new PerformanceMonitor { Enabled = true };
+        for (int frame = 0; frame < 3; frame++)
+        {
+            monitor.Record(Timing(frame * 10.0, 5.0) with
+            {
+                UpdateTime = TimeSpan.FromMilliseconds(0.5),
+                LayoutTime = TimeSpan.FromMilliseconds(3.0),
+                LayoutPasses = 1,
+                AllocatedBytes = 1024,
+            });
+        }
+
+        PerformanceSnapshot snapshot = monitor.Snapshot;
+
+        Assert.AreEqual(0.5, snapshot.AverageUpdateMilliseconds, 0.001);
+        Assert.AreEqual(3.0, snapshot.AverageLayoutMilliseconds, 0.001);
+        Assert.AreEqual(1.5, snapshot.AverageDrawMilliseconds, 0.001);
+    }
+
+    // A frame whose phases somehow add up to more than the whole must not report negative drawing.
+    [TestMethod]
+    public void PhasesThatOverrunTheFrameReportNoDrawingRatherThanNegative()
+    {
+        var monitor = new PerformanceMonitor { Enabled = true };
+        monitor.Record(Timing(0.0, 1.0));
+        monitor.Record(Timing(10.0, 1.0) with { LayoutTime = TimeSpan.FromMilliseconds(9.0) });
+
+        Assert.AreEqual(0.0, monitor.Snapshot.AverageDrawMilliseconds, 0.001);
+    }
+
     private static PerformanceFrameTiming Timing(double startedMilliseconds, double cpuMilliseconds) =>
         new(
             (long)(startedMilliseconds * Stopwatch.Frequency / 1000.0),

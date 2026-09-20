@@ -124,6 +124,10 @@ internal sealed class PerformanceOverlay : UiElement, IDisposable
             : $"FPS\t{snapshot.FramesPerSecond:0.0}{(idle ? "\tidle" : string.Empty)}\n"
             + $"Frame\t{snapshot.AverageFrameMilliseconds:0.00} ms\tmax {snapshot.MaximumFrameMilliseconds:0.00}\n"
             + $"CPU\t{snapshot.AverageCpuMilliseconds:0.00} ms\tmax {snapshot.MaximumCpuMilliseconds:0.00}\n"
+            + $"  update\t{snapshot.AverageUpdateMilliseconds:0.00} ms\n"
+            + $"  layout\t{snapshot.AverageLayoutMilliseconds:0.00} ms\t{snapshot.LayoutPassesPerSecond:0}/s\n"
+            + $"  draw\t{snapshot.AverageDrawMilliseconds:0.00} ms\n"
+            + $"Alloc\t{snapshot.AllocatedBytesPerSecond / (1024.0 * 1024.0):0.0} MB/s\n"
             + FormatGpuTime(snapshot);
 
         _textLayout?.Dispose();

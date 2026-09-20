@@ -25,6 +25,8 @@ internal sealed class UiRoot
     internal UiElement? CapturedElement { get; private set; }
     internal UiElement? FocusedElement { get; private set; }
     internal float Dpi { get; private set; }
+    /// <summary>How many times the tree has actually been measured and arranged.</summary>
+    internal int LayoutPasses { get; private set; }
 
     /// <summary>Updates the root DPI and invalidates layout when it changes.</summary>
     internal void SetDpi(float dpi)
@@ -248,6 +250,7 @@ internal sealed class UiRoot
         _content.Measure(size);
         _content.Arrange(new RectangleF(PointF.Empty, size));
         _layoutDirty = false;
+        LayoutPasses++;
     }
 
     private bool RoutePointer(UiElement? target, in WindowPointerEvent input)

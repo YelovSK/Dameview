@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Drawing;
 using Dameview.Commands;
 using Dameview.Diagnostics;
@@ -368,10 +369,19 @@ internal sealed class ViewerUi : UiElement, IDisposable
         return continues;
     }
 
+    /// <summary>What the last frame spent laying the tree out, for the performance overlay.</summary>
+    internal TimeSpan LastLayoutTime { get; private set; }
+    internal int LayoutPasses => _root.LayoutPasses;
+
     internal void DrawFrame(SizeF pixelSize)
     {
         _workspaceView.UpdateStatuses();
 
+        long layoutStarted = Stopwatch.GetTimestamp();
+        _root.Arrange(pixelSize);
+        LastLayoutTime = Stopwatch.GetElapsedTime(layoutStarted);
+
+        // The tree is arranged by now, so this only walks and draws it.
         var context = new UiDrawContext(_deviceContext, _brush, Palette, _root.Dpi);
         _root.Draw(context, pixelSize);
     }

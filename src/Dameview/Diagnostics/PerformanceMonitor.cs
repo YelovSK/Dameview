@@ -5,7 +5,11 @@ namespace Dameview.Diagnostics;
 internal readonly record struct PerformanceFrameTiming(
     long FrameStartedTimestamp,
     TimeSpan CpuTime,
-    TimeSpan? GpuTime);
+    TimeSpan? GpuTime,
+    TimeSpan UpdateTime = default,
+    TimeSpan LayoutTime = default,
+    int LayoutPasses = 0,
+    long AllocatedBytes = 0);
 
 internal readonly record struct PerformanceSnapshot(
     int SampleCount,
@@ -15,7 +19,12 @@ internal readonly record struct PerformanceSnapshot(
     double AverageCpuMilliseconds,
     double MaximumCpuMilliseconds,
     double? AverageGpuMilliseconds,
-    double? MaximumGpuMilliseconds);
+    double? MaximumGpuMilliseconds,
+    double AverageUpdateMilliseconds,
+    double AverageLayoutMilliseconds,
+    double AverageDrawMilliseconds,
+    double LayoutPassesPerSecond,
+    double AllocatedBytesPerSecond);
 
 internal sealed class PerformanceMonitor
 {
@@ -67,7 +76,11 @@ internal sealed class PerformanceMonitor
                     timing.FrameStartedTimestamp,
                     intervalTicks * 1000.0 / Stopwatch.Frequency,
                     timing.CpuTime.TotalMilliseconds,
-                    timing.GpuTime?.TotalMilliseconds));
+                    timing.GpuTime?.TotalMilliseconds,
+                    timing.UpdateTime.TotalMilliseconds,
+                    timing.LayoutTime.TotalMilliseconds,
+                    timing.LayoutPasses,
+                    timing.AllocatedBytes));
             }
         }
 
@@ -111,6 +124,10 @@ internal sealed class PerformanceMonitor
         double gpuTotal = 0.0;
         double gpuMaximum = 0.0;
         int gpuSampleCount = 0;
+        double updateTotal = 0.0;
+        double layoutTotal = 0.0;
+        long layoutPasses = 0;
+        long allocatedBytes = 0;
         int oldestIndex = (_nextSample - _sampleCount + MaximumSamples) % MaximumSamples;
         for (int offset = 0; offset < _sampleCount; offset++)
         {
@@ -119,6 +136,10 @@ internal sealed class PerformanceMonitor
             frameMaximum = Math.Max(frameMaximum, sample.FrameMilliseconds);
             cpuTotal += sample.CpuMilliseconds;
             cpuMaximum = Math.Max(cpuMaximum, sample.CpuMilliseconds);
+            updateTotal += sample.UpdateMilliseconds;
+            layoutTotal += sample.LayoutMilliseconds;
+            layoutPasses += sample.LayoutPasses;
+            allocatedBytes += sample.AllocatedBytes;
             if (sample.GpuMilliseconds is { } gpuMilliseconds)
             {
                 gpuTotal += gpuMilliseconds;
@@ -128,15 +149,25 @@ internal sealed class PerformanceMonitor
         }
 
         double averageFrame = frameTotal / _sampleCount;
+        double elapsedSeconds = _sampleCount * averageFrame / 1000.0;
+        double averageCpu = cpuTotal / _sampleCount;
+        double averageUpdate = updateTotal / _sampleCount;
+        double averageLayout = layoutTotal / _sampleCount;
         return new PerformanceSnapshot(
             _sampleCount,
             1000.0 / averageFrame,
             averageFrame,
             frameMaximum,
-            cpuTotal / _sampleCount,
+            averageCpu,
             cpuMaximum,
             gpuSampleCount > 0 ? gpuTotal / gpuSampleCount : null,
-            gpuSampleCount > 0 ? gpuMaximum : null);
+            gpuSampleCount > 0 ? gpuMaximum : null,
+            averageUpdate,
+            averageLayout,
+            // Whatever the frame spent that measuring the other phases did not account for.
+            Math.Max(0.0, averageCpu - averageUpdate - averageLayout),
+            elapsedSeconds > 0.0 ? layoutPasses / elapsedSeconds : 0.0,
+            elapsedSeconds > 0.0 ? allocatedBytes / elapsedSeconds : 0.0);
     }
 
     private void ClearSamples()
@@ -149,5 +180,9 @@ internal sealed class PerformanceMonitor
         long FrameStartedTimestamp,
         double FrameMilliseconds,
         double CpuMilliseconds,
-        double? GpuMilliseconds);
+        double? GpuMilliseconds,
+        double UpdateMilliseconds,
+        double LayoutMilliseconds,
+        int LayoutPasses,
+        long AllocatedBytes);
 }

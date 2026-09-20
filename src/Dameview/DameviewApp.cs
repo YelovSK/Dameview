@@ -775,7 +775,10 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     private void HandleRenderFrame()
     {
         long frameStarted = Stopwatch.GetTimestamp();
+        long allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        int layoutPassesBefore = _ui.LayoutPasses;
         bool animationContinues = _ui.Update();
+        TimeSpan updateTime = Stopwatch.GetElapsedTime(frameStarted);
         RenderTiming timing = _renderer.Render(
             _ui.DrawFrame,
             _ui.Palette.Background,
@@ -783,7 +786,11 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _performanceMonitor.Record(new PerformanceFrameTiming(
             frameStarted,
             Stopwatch.GetElapsedTime(frameStarted, timing.SubmissionCompleted),
-            timing.GpuTime));
+            timing.GpuTime,
+            updateTime,
+            _ui.LastLayoutTime,
+            _ui.LayoutPasses - layoutPassesBefore,
+            GC.GetAllocatedBytesForCurrentThread() - allocatedBefore));
 
         if (animationContinues)
         {
