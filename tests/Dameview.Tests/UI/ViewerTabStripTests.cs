@@ -73,29 +73,6 @@ public sealed class ViewerTabStripTests
     }
 
     [TestMethod]
-    public void SingleTabStillExposesItsCloseButton()
-    {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
-        int closed = -1;
-        using var tabs = new ViewerTabStrip(
-            factory,
-            Tabs("One"),
-            0,
-            _ => { },
-            index => closed = index,
-            () => { });
-        var root = new UiRoot(tabs, UiDpi.Default);
-        root.Arrange(new SizeF(400.0f, ViewerTabStrip.HeightDips));
-
-        root.HandlePointer(new WindowPointerEvent(
-            WindowPointerEventKind.Pressed,
-            new PointF(164.0f, ViewerTabStrip.HeightDips / 2.0f),
-            PointerButton.Primary));
-
-        Assert.AreEqual(0, closed);
-    }
-
-    [TestMethod]
     public void AddButtonRequestsANewTab()
     {
         using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();

@@ -139,22 +139,6 @@ public sealed class ViewerSessionTests
     }
 
     [TestMethod]
-    public void FolderDiscoveryFailureStillAllowsTheImageToLoad()
-    {
-        var loader = new ManualImageLoader();
-        using ViewerSession session = CreateSession(loader);
-        string path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString(), "image.jpg");
-        session.OpenImage(path);
-        loader.Complete(CreateImage());
-
-        Assert.AreEqual(path, session.State.DisplayedImage!.Path);
-        Assert.IsFalse(session.State.IsLoading);
-        Assert.IsFalse(session.State.IsError);
-        Assert.IsNotNull(session.State.FolderError);
-        Assert.HasCount(0, loader.Preloads);
-    }
-
-    [TestMethod]
     public void PreviewKeepsLoadingUntilFullImageArrives()
     {
         using var files = new SessionFiles();

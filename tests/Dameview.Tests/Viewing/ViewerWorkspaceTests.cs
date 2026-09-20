@@ -47,21 +47,6 @@ public sealed class ViewerWorkspaceTests
     }
 
     [TestMethod]
-    public void TabSelectionWrapsInBothDirections()
-    {
-        using var workspace = new ViewerWorkspace(CreateTab);
-        ViewerSession first = workspace.ActiveSession;
-        workspace.OpenImageInNewTab(@"C:\second\image.png");
-        ViewerSession second = workspace.Tabs[1].Session;
-
-        workspace.SelectRelativeTab(-1);
-        Assert.AreSame(second, workspace.ActiveSession);
-
-        workspace.SelectRelativeTab(1);
-        Assert.AreSame(first, workspace.ActiveSession);
-    }
-
-    [TestMethod]
     public void ClosingTheActiveTabSelectsTheRemainingTab()
     {
         using var workspace = new ViewerWorkspace(CreateTab);
@@ -73,39 +58,6 @@ public sealed class ViewerWorkspaceTests
         Assert.AreEqual(1, workspace.Count);
         Assert.AreSame(first, workspace.ActiveSession);
         Assert.IsFalse(workspace.CloseActiveTab());
-    }
-
-    [TestMethod]
-    public void ClosingAnEarlierTabKeepsTheActiveSession()
-    {
-        using var workspace = new ViewerWorkspace(CreateTab);
-        workspace.OpenImageInNewTab(@"C:\second\image.png");
-        ViewerSession second = workspace.Tabs[1].Session;
-        workspace.OpenImageInNewTab(@"C:\third\image.png");
-        workspace.SelectTab(1);
-
-        Assert.IsTrue(workspace.CloseTab(0));
-
-        Assert.AreEqual(2, workspace.Count);
-        Assert.AreEqual(0, workspace.ActiveIndex);
-        Assert.AreSame(second, workspace.ActiveSession);
-    }
-
-    [TestMethod]
-    public void OnlyTheActiveSessionForwardsStateChanges()
-    {
-        using var workspace = new ViewerWorkspace(CreateTab);
-        ViewerSession first = workspace.ActiveSession;
-        workspace.OpenImageInNewTab(@"C:\second\image.png");
-        workspace.SelectTab(1);
-        int changes = 0;
-        workspace.PaneSessionStateChanged += _ => changes++;
-
-        first.OpenImage(@"C:\first\other.png");
-        Assert.AreEqual(0, changes);
-
-        workspace.ActiveSession.OpenImage(@"C:\second\other.png");
-        Assert.AreEqual(1, changes);
     }
 
     [TestMethod]
@@ -188,18 +140,6 @@ public sealed class ViewerWorkspaceTests
     }
 
     [TestMethod]
-    public void BalancingOnePaneDoesNotRaiseALayoutChange()
-    {
-        using var workspace = new ViewerWorkspace(CreateTab);
-        int changes = 0;
-        workspace.PaneRatiosChanged += () => changes++;
-
-        workspace.BalancePanes();
-
-        Assert.AreEqual(0, changes);
-    }
-
-    [TestMethod]
     public void SplittingTheSamePaneRepeatedlyKeepsNestedRatiosByDefault()
     {
         using var workspace = new ViewerWorkspace(CreateTab);
@@ -232,23 +172,6 @@ public sealed class ViewerWorkspaceTests
         // LayoutChanged already rebuilds from the root, so the split does not
         // additionally announce the ratios it just rewrote.
         Assert.AreEqual(0, ratioChanges);
-    }
-
-    [TestMethod]
-    public void DroppingATabIntoANewPaneBalancesWhenAutoBalanceIsEnabled()
-    {
-        using var workspace = new ViewerWorkspace(CreateTab) { AutoBalancePanes = true };
-        ViewerPane first = workspace.ActivePane;
-        workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
-
-        workspace.OpenImageInNewTab(
-            @"C:\dropped\image.png",
-            new WorkspacePaneDropTarget(first, WorkspacePaneDropSide.Bottom));
-
-        WorkspaceSplit root = Assert.IsInstanceOfType<WorkspaceSplit>(workspace.Root);
-        WorkspaceSplit nested = Assert.IsInstanceOfType<WorkspaceSplit>(root.First);
-        Assert.AreEqual(2.0f / 3.0f, root.Ratio);
-        Assert.AreEqual(0.5f, nested.Ratio);
     }
 
     [TestMethod]

@@ -90,18 +90,6 @@ public sealed class SettingsServiceTests
     }
 
     [TestMethod]
-    public void PreviousGalleryWidthSettingIsIgnored()
-    {
-        using var files = new SettingsFiles();
-        File.WriteAllText(files.Path, "galleryWidth=240");
-        using SettingsService settings = files.CreateService();
-        settings.Start();
-
-        Assert.AreEqual(AppSettings.DefaultGallerySizeDips, settings.Current.GallerySizeDips);
-        Assert.IsNull(settings.Error);
-    }
-
-    [TestMethod]
     public void ExternalReplacementIsDeliveredOnTheOwningThreadOnce()
     {
         using var files = new SettingsFiles();

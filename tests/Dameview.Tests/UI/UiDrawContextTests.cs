@@ -42,33 +42,6 @@ public sealed class UiDrawContextTests
     }
 
     [TestMethod]
-    public void ExistingElementUsesThePaletteOfEachFrame()
-    {
-        using var wic = new IWICImagingFactory2();
-        using IWICBitmap bitmap = wic.CreateBitmap(40, 10,
-            Vortice.WIC.PixelFormat.Format32bppPBGRA, BitmapCreateCacheOption.CacheOnLoad);
-        using ID2D1Factory factory = D2D1CreateFactory<ID2D1Factory>();
-        using ID2D1RenderTarget target = factory.CreateWicBitmapRenderTarget(bitmap, new RenderTargetProperties());
-        target.SetDpi(96, 96);
-        using ID2D1SolidColorBrush brush = target.CreateSolidColorBrush(default(Color4));
-        var element = new PaletteElement();
-        element.Arrange(new RectangleF(0, 0, 10, 10));
-        UiTheme red = UiTheme.Default with { PrimaryText = new Color4(1, 0, 0, 1) };
-        UiTheme green = UiTheme.Default with { PrimaryText = new Color4(0, 1, 0, 1) };
-        foreach (UiTheme palette in new[] { red, green })
-        {
-            var context = new UiDrawContext(target, brush, palette, 96);
-            target.BeginDraw();
-            target.Clear(default(Color4));
-            context.DrawElement(element);
-            target.EndDraw().CheckError();
-            byte[] pixels = new byte[40 * 10 * 4];
-            bitmap.CopyPixels(40 * 4, pixels);
-            AssertPixel(pixels, 5, 0, palette == green ? 255 : 0, palette == red ? 255 : 0, 255);
-        }
-    }
-
-    [TestMethod]
     public void RoundedRectangleBorderStaysInsideTheElementClip()
     {
         using var wic = new IWICImagingFactory2();

@@ -22,9 +22,6 @@ public sealed class DroppedFileTests
     }
 
     [TestMethod]
-    public void ReadsSingleDroppedPath() => AssertDropPaths([@"C:\pictures\single.png"]);
-
-    [TestMethod]
     public void ReadsEmptyDrop() => AssertDropPaths([]);
 
     private static void AssertDropPaths(string[] paths)

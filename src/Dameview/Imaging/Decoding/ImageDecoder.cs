@@ -141,21 +141,6 @@ internal sealed class ImageDecoder : IImageDecoder
         return ExifOrientation.Normal;
     }
 
-    internal static BitmapTransformOptions MapExifOrientation(ExifOrientation orientation)
-    {
-        return orientation switch
-        {
-            ExifOrientation.MirrorHorizontal => BitmapTransformOptions.FlipHorizontal,
-            ExifOrientation.Rotate180 => BitmapTransformOptions.Rotate180,
-            ExifOrientation.MirrorVertical => BitmapTransformOptions.FlipVertical,
-            ExifOrientation.Transpose => BitmapTransformOptions.FlipHorizontal | BitmapTransformOptions.Rotate270,
-            ExifOrientation.Rotate90Clockwise => BitmapTransformOptions.Rotate90,
-            ExifOrientation.Transverse => BitmapTransformOptions.FlipHorizontal | BitmapTransformOptions.Rotate90,
-            ExifOrientation.Rotate270Clockwise => BitmapTransformOptions.Rotate270,
-            _ => BitmapTransformOptions.Rotate0,
-        };
-    }
-
     internal static DecodedImage ApplyExifOrientation(
         ExifOrientation orientation,
         int width,

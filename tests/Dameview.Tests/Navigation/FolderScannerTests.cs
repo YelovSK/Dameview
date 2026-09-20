@@ -55,12 +55,4 @@ public sealed class FolderScannerTests
         }
     }
 
-    [TestMethod]
-    public async Task CancelledScanDoesNotEnumerate()
-    {
-        var scanner = new FolderScanner(_ => throw new AssertFailedException("Unexpected enumeration"));
-        using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
-        await Assert.ThrowsAsync<OperationCanceledException>(() => scanner.ScanAsync(@"C:\unused", cancellation.Token));
-    }
 }

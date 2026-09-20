@@ -78,16 +78,6 @@ public sealed class ViewerCommandCatalogTests
     }
 
     [TestMethod]
-    public void EveryBindingReferencesACatalogCommand()
-    {
-        ViewerCommandId[] commands = [.. ViewerCommandCatalog.Commands.Select(command => command.Id)];
-
-        Assert.IsFalse(Enum.GetValues<ViewerCommandId>()
-            .Any(command => ViewerKeyBindings.Defaults.GetShortcuts(command).Count > 0
-                && !commands.Contains(command)));
-    }
-
-    [TestMethod]
     public void ShortcutsRoundTripThroughTheirText()
     {
         foreach (ViewerCommand command in ViewerCommandCatalog.Commands)

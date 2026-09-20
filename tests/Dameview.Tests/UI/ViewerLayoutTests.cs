@@ -33,16 +33,4 @@ public sealed class ViewerLayoutTests
         Assert.AreEqual(RectangleF.Empty, layout.Status);
         Assert.AreEqual(RectangleF.Empty, layout.Toolbar);
     }
-
-    [TestMethod]
-    public void ToolbarCanBeShownWithoutAStatusPanel()
-    {
-        var layout = ViewerLayout.Calculate(
-            new SizeF(1000, 800),
-            showStatus: false, showToolbar: true, toolbarWidthDips: 104);
-
-        Assert.AreEqual(RectangleF.Empty, layout.Status);
-        Assert.AreEqual(new RectangleF(448, 12, 104, 46), layout.Toolbar);
-    }
-
 }

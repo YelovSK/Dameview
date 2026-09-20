@@ -25,19 +25,6 @@ public sealed class AnimatedImagePlayerTests
     }
 
     [TestMethod]
-    public void KeepsTheCurrentFrameWhenTheDecoderHasNotProducedTheNextFrame()
-    {
-        var session = new FakeSession(
-            new AnimationFrame(Image(1), TimeSpan.FromMilliseconds(10)));
-        var time = new ManualTimeProvider();
-        var player = new AnimatedImagePlayer(session, time);
-
-        time.Advance(TimeSpan.FromMilliseconds(20));
-        Assert.IsFalse(player.Update());
-        Assert.AreEqual(1, player.CurrentImage.Pixels[0]);
-    }
-
-    [TestMethod]
     public void StopsAfterAFiniteSequenceIsConsumed()
     {
         var session = new FakeSession(

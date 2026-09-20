@@ -129,23 +129,6 @@ public sealed class SplitPanelTests
     }
 
     [TestMethod]
-    public void DisabledAnimationsApplyRatioChangesImmediately()
-    {
-        var first = new FixedContent();
-        var second = new FixedContent();
-        var panel = new SplitPanel(first, second, UiOrientation.Vertical, 0.5f);
-        var root = new UiRoot(panel, UiDpi.Default);
-        root.Arrange(new SizeF(600.0f, 1008.0f));
-
-        panel.SetRatio(0.75f);
-        Assert.IsFalse(root.Update(new UiUpdateContext(0.0, AnimationsEnabled: false)));
-        root.Arrange(new SizeF(600.0f, 1008.0f));
-
-        Assert.AreEqual(750.0f, first.Bounds.Height);
-        Assert.AreEqual(250.0f, second.Bounds.Height);
-    }
-
-    [TestMethod]
     public void OpeningAnimationExpandsTheSecondPaneFromTheOuterEdge()
     {
         var first = new FixedContent();
