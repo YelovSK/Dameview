@@ -172,4 +172,53 @@ public sealed class GalleryLayoutTests
         Assert.AreEqual(1, layout.ColumnCount);
         Assert.AreEqual(0.0f, layout.ItemSize.Width);
     }
+    // A sweep rather than a handful of sizes, because the arithmetic that places an item and
+    // the arithmetic that hit-tests one are written separately and must agree everywhere.
+    [TestMethod]
+    public void EveryVisibleItemIsFoundAtItsOwnCentre()
+    {
+        foreach (UiOrientation orientation in Enum.GetValues<UiOrientation>())
+        {
+            foreach (GalleryThumbnailSize size in Enum.GetValues<GalleryThumbnailSize>())
+            {
+                foreach (float width in new[] { 140.0f, 213.0f, 300.0f, 512.0f, 1000.0f })
+                {
+                    foreach (int count in new[] { 1, 7, 40 })
+                    {
+                        AssertCentresHitTheirOwnItem(orientation, size, width, count);
+                    }
+                }
+            }
+        }
+    }
+
+    private static void AssertCentresHitTheirOwnItem(
+        UiOrientation orientation,
+        GalleryThumbnailSize size,
+        float width,
+        int count)
+    {
+        SizeF panel = orientation == UiOrientation.Vertical
+            ? new SizeF(width, 600.0f)
+            : new SizeF(600.0f, width);
+        var layout = new GalleryLayout(panel, orientation, size, count);
+        const float scrollOffset = 37.0f;
+        (int first, int lastExclusive) = layout.GetVisibleRange(scrollOffset);
+
+        for (int index = first; index < lastExclusive; index++)
+        {
+            RectangleF item = layout.GetItemBounds(index, scrollOffset);
+            var centre = new PointF(item.X + (item.Width / 2.0f), item.Y + (item.Height / 2.0f));
+            if (!new RectangleF(PointF.Empty, panel).Contains(centre))
+            {
+                continue;
+            }
+
+            Assert.AreEqual(
+                index,
+                layout.HitTest(centre, scrollOffset),
+                $"{orientation} {size} width={width} count={count} index={index} centre={centre}");
+        }
+    }
+
 }

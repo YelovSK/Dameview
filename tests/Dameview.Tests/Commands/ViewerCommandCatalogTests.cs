@@ -52,19 +52,8 @@ public sealed class ViewerCommandCatalogTests
     }
 
     [TestMethod]
-    public void ShortcutsRoundTripThroughTheirText()
+    public void TextThatNamesNoKeyOrModifierIsRejected()
     {
-        foreach (ViewerCommand command in ViewerCommandCatalog.Commands)
-        {
-            foreach (ViewerCommandShortcut shortcut in ViewerKeyBindings.Defaults.GetShortcuts(command.Id))
-            {
-                Assert.IsTrue(
-                    ViewerCommandShortcut.TryParse(shortcut.Text, out ViewerCommandShortcut parsed),
-                    shortcut.Text);
-                Assert.AreEqual(shortcut, parsed);
-            }
-        }
-
         Assert.IsTrue(ViewerCommandShortcut.TryParse("Ctrl+,", out ViewerCommandShortcut settings));
         Assert.AreEqual(new ViewerCommandShortcut(WindowKey.Comma, Control: true), settings);
 
@@ -107,5 +96,28 @@ public sealed class ViewerCommandCatalogTests
         Assert.AreEqual("1", new ViewerCommandShortcut(WindowKey.Number1).Text);
         Assert.AreEqual("Numpad1", new ViewerCommandShortcut(WindowKey.Numpad1).Text);
         Assert.AreEqual("F11", new ViewerCommandShortcut(WindowKey.F11).Text);
+    }
+
+    // 89 keys times four modifier combinations is small enough to check outright, so no
+    // shortcut can reach settings in a form that cannot be read back.
+    [TestMethod]
+    public void EveryKeyAndModifierCombinationRoundTripsThroughItsText()
+    {
+        foreach (WindowKey key in Enum.GetValues<WindowKey>())
+        {
+            foreach (bool control in new[] { false, true })
+            {
+                foreach (bool shift in new[] { false, true })
+                {
+                    var shortcut = new ViewerCommandShortcut(key, control, shift);
+                    string text = shortcut.Text;
+
+                    Assert.IsTrue(
+                        ViewerCommandShortcut.TryParse(text, out ViewerCommandShortcut parsed),
+                        $"{key} control={control} shift={shift} produced unparsable '{text}'.");
+                    Assert.AreEqual(shortcut, parsed, text);
+                }
+            }
+        }
     }
 }
