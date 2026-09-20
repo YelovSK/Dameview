@@ -12,17 +12,20 @@ internal readonly record struct UiDrawContext
 {
     private readonly ID2D1SolidColorBrush _brush;
     private readonly UiTextLayoutCache _textLayouts;
+    private readonly UiDrawTally _tally;
 
     internal UiDrawContext(
         ID2D1RenderTarget renderTarget,
         ID2D1SolidColorBrush brush,
         UiTextLayoutCache textLayouts,
+        UiDrawTally tally,
         UiTheme palette,
         float dpi)
     {
         RenderTarget = renderTarget;
         _brush = brush;
         _textLayouts = textLayouts;
+        _tally = tally;
         Palette = palette;
         Dpi = dpi;
         Opacity = 1.0f;
@@ -74,6 +77,7 @@ internal readonly record struct UiDrawContext
 
     private ID2D1SolidColorBrush PrepareBrush(Color4 color, float opacity)
     {
+        _tally.Operations++;
         _brush.Color = color;
         _brush.Opacity = Opacity * Math.Clamp(opacity, 0.0f, 1.0f);
         return _brush;
@@ -83,6 +87,7 @@ internal readonly record struct UiDrawContext
 
     internal void DrawElement(UiElement element)
     {
+        _tally.Elements++;
         RectangleF bounds = element.Bounds;
         PointF offset = element.VisualOffset;
         Matrix3x2 previousTransform = RenderTarget.Transform;

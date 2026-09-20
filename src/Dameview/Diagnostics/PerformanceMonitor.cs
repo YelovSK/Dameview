@@ -9,7 +9,9 @@ internal readonly record struct PerformanceFrameTiming(
     TimeSpan UpdateTime = default,
     TimeSpan LayoutTime = default,
     int LayoutPasses = 0,
-    long AllocatedBytes = 0);
+    long AllocatedBytes = 0,
+    int DrawnElements = 0,
+    int DrawOperations = 0);
 
 internal readonly record struct PerformanceSnapshot(
     int SampleCount,
@@ -24,7 +26,9 @@ internal readonly record struct PerformanceSnapshot(
     double AverageLayoutMilliseconds,
     double AverageDrawMilliseconds,
     double LayoutPassesPerSecond,
-    double AllocatedBytesPerSecond);
+    double AllocatedBytesPerSecond,
+    double AverageDrawnElements,
+    double AverageDrawOperations);
 
 internal sealed class PerformanceMonitor
 {
@@ -80,7 +84,9 @@ internal sealed class PerformanceMonitor
                     timing.UpdateTime.TotalMilliseconds,
                     timing.LayoutTime.TotalMilliseconds,
                     timing.LayoutPasses,
-                    timing.AllocatedBytes));
+                    timing.AllocatedBytes,
+                    timing.DrawnElements,
+                    timing.DrawOperations));
             }
         }
 
@@ -128,6 +134,8 @@ internal sealed class PerformanceMonitor
         double layoutTotal = 0.0;
         long layoutPasses = 0;
         long allocatedBytes = 0;
+        long drawnElements = 0;
+        long drawOperations = 0;
         int oldestIndex = (_nextSample - _sampleCount + MaximumSamples) % MaximumSamples;
         for (int offset = 0; offset < _sampleCount; offset++)
         {
@@ -140,6 +148,8 @@ internal sealed class PerformanceMonitor
             layoutTotal += sample.LayoutMilliseconds;
             layoutPasses += sample.LayoutPasses;
             allocatedBytes += sample.AllocatedBytes;
+            drawnElements += sample.DrawnElements;
+            drawOperations += sample.DrawOperations;
             if (sample.GpuMilliseconds is { } gpuMilliseconds)
             {
                 gpuTotal += gpuMilliseconds;
@@ -167,7 +177,9 @@ internal sealed class PerformanceMonitor
             // Whatever the frame spent that measuring the other phases did not account for.
             Math.Max(0.0, averageCpu - averageUpdate - averageLayout),
             elapsedSeconds > 0.0 ? layoutPasses / elapsedSeconds : 0.0,
-            elapsedSeconds > 0.0 ? allocatedBytes / elapsedSeconds : 0.0);
+            elapsedSeconds > 0.0 ? allocatedBytes / elapsedSeconds : 0.0,
+            (double)drawnElements / _sampleCount,
+            (double)drawOperations / _sampleCount);
     }
 
     private void ClearSamples()
@@ -184,5 +196,7 @@ internal sealed class PerformanceMonitor
         double UpdateMilliseconds,
         double LayoutMilliseconds,
         int LayoutPasses,
-        long AllocatedBytes);
+        long AllocatedBytes,
+        int DrawnElements,
+        int DrawOperations);
 }

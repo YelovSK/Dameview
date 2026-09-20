@@ -25,7 +25,7 @@ public sealed class UiDrawContextTests
         using ID2D1RenderTarget target = factory.CreateWicBitmapRenderTarget(bitmap, new RenderTargetProperties());
         target.SetDpi(96, 96);
         using ID2D1SolidColorBrush brush = target.CreateSolidColorBrush(default(Color4));
-        var context = new UiDrawContext(target, brush, TextLayouts, UiTheme.Default, 96);
+        var context = new UiDrawContext(target, brush, TextLayouts, new UiDrawTally(), UiTheme.Default, 96);
         var red = new Color4(1, 0, 0, 1);
         var green = new Color4(0, 1, 0, 1);
         var blue = new Color4(0, 0, 1, 0.5f);
@@ -56,7 +56,7 @@ public sealed class UiDrawContextTests
         using ID2D1RenderTarget target = factory.CreateWicBitmapRenderTarget(bitmap, new RenderTargetProperties());
         target.SetDpi(96, 96);
         using ID2D1SolidColorBrush brush = target.CreateSolidColorBrush(default(Color4));
-        var context = new UiDrawContext(target, brush, TextLayouts, UiTheme.Default, 96);
+        var context = new UiDrawContext(target, brush, TextLayouts, new UiDrawTally(), UiTheme.Default, 96);
         var element = new BorderElement();
         element.Arrange(new RectangleF(0, 0, 10, 10));
 
@@ -82,7 +82,7 @@ public sealed class UiDrawContextTests
         using ID2D1RenderTarget target = factory.CreateWicBitmapRenderTarget(bitmap, new RenderTargetProperties());
         target.SetDpi(dpi, dpi);
         using ID2D1SolidColorBrush brush = target.CreateSolidColorBrush(default(Color4));
-        var context = new UiDrawContext(target, brush, TextLayouts, UiTheme.Default, dpi);
+        var context = new UiDrawContext(target, brush, TextLayouts, new UiDrawTally(), UiTheme.Default, dpi);
         var border = new RoundedRectangle(new RectangleF(0, 0, 8, 8), 0, 0);
 
         target.BeginDraw();

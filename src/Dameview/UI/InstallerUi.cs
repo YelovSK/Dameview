@@ -20,6 +20,8 @@ internal sealed class InstallerUi : UiElement, IDisposable
     private readonly ID2D1DeviceContext _deviceContext;
     private readonly ID2D1SolidColorBrush _brush;
     private readonly UiTextLayoutCache _textLayouts;
+    // Counted but never shown: the installer has no performance overlay to read it.
+    private readonly UiDrawTally _drawTally = new();
     private readonly AppInstallationRequest _request;
     private readonly TextBlock _title;
     private readonly TextBlock _description;
@@ -193,7 +195,8 @@ internal sealed class InstallerUi : UiElement, IDisposable
 
     internal void DrawFrame(SizeF pixelSize)
     {
-        var context = new UiDrawContext(_deviceContext, _brush, _textLayouts, Palette, _root.Dpi);
+        var context = new UiDrawContext(
+            _deviceContext, _brush, _textLayouts, _drawTally, Palette, _root.Dpi);
         _root.Draw(context, pixelSize);
     }
 

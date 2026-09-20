@@ -25,6 +25,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private readonly ID2D1DeviceContext _deviceContext;
     private readonly ID2D1SolidColorBrush _brush;
     private readonly UiTextLayoutCache _textLayouts;
+    private readonly UiDrawTally _drawTally = new();
     private readonly WorkspaceView _workspaceView;
     private readonly TabPreview _tabPreview;
     private readonly WorkspaceDragOverlay _dragOverlay;
@@ -374,6 +375,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
     /// <summary>What the last frame spent laying the tree out, for the performance overlay.</summary>
     internal TimeSpan LastLayoutTime { get; private set; }
     internal int LayoutPasses => _root.LayoutPasses;
+    internal int LastDrawnElements => _drawTally.Elements;
+    internal int LastDrawOperations => _drawTally.Operations;
 
     internal void DrawFrame(SizeF pixelSize)
     {
@@ -384,7 +387,9 @@ internal sealed class ViewerUi : UiElement, IDisposable
         LastLayoutTime = Stopwatch.GetElapsedTime(layoutStarted);
 
         // The tree is arranged by now, so this only walks and draws it.
-        var context = new UiDrawContext(_deviceContext, _brush, _textLayouts, Palette, _root.Dpi);
+        _drawTally.Reset();
+        var context = new UiDrawContext(
+            _deviceContext, _brush, _textLayouts, _drawTally, Palette, _root.Dpi);
         _root.Draw(context, pixelSize);
     }
 
