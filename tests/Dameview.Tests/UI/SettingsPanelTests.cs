@@ -28,7 +28,7 @@ public sealed class SettingsPanelTests
             () => { },
             commands);
         var scene = new TestScene(settings, popupHost);
-        var root = new UiRoot(scene, UiDpi.Default);
+        var root = new UiRoot(scene, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(440.0f, 460.0f));
         root.SetFocus(settings.InitialFocus);
 
@@ -63,7 +63,7 @@ public sealed class SettingsPanelTests
             () => { },
             commands);
         var scene = new TestScene(settings, popupHost);
-        var root = new UiRoot(scene, UiDpi.Default);
+        var root = new UiRoot(scene, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(440.0f, 460.0f));
         root.SetFocus(settings.InitialFocus);
 
@@ -96,7 +96,7 @@ public sealed class SettingsPanelTests
             () => { },
             commands);
         var scene = new TestScene(settings, popupHost);
-        var root = new UiRoot(scene, UiDpi.Default);
+        var root = new UiRoot(scene, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(440.0f, 220.0f));
         root.SetFocus(settings.InitialFocus);
 
@@ -124,7 +124,7 @@ public sealed class SettingsPanelTests
             () => { },
             new TestSettingsCommands());
         var scene = new TestScene(settings, popupHost);
-        var root = new UiRoot(scene, UiDpi.Default);
+        var root = new UiRoot(scene, UiDpi.Default, TestTextLayouts.Shared);
         var size = new SizeF(440.0f, 220.0f);
         root.Arrange(size);
         root.SetFocus(settings.InitialFocus);
@@ -163,7 +163,7 @@ public sealed class SettingsPanelTests
             () => { },
             commands);
         var scene = new TestScene(settings, popupHost);
-        var root = new UiRoot(scene, UiDpi.Default);
+        var root = new UiRoot(scene, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(440.0f, 460.0f));
         root.SetFocus(settings.InitialFocus);
         settings.ApplyUpdateState(new UpdateState(

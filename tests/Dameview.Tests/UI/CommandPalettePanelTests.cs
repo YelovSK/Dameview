@@ -23,7 +23,7 @@ public sealed class CommandPalettePanelTests
             new(ViewerCommandId.CloseTab, "Close tab", ViewerCommandScope.Window),
         ];
         using var panel = new CommandPalettePanel(factory, commands, ViewerKeyBindings.Defaults, command => executed = command, _ => { });
-        var root = new UiRoot(panel, UiDpi.Default);
+        var root = new UiRoot(panel, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(540.0f, 580.0f));
         root.SetFocus(panel.InitialFocus);
 
@@ -45,7 +45,7 @@ public sealed class CommandPalettePanelTests
             new(ViewerCommandId.ShowSettings, "Beta", ViewerCommandScope.Window),
         ];
         using var panel = new CommandPalettePanel(factory, commands, ViewerKeyBindings.Defaults, _ => { }, _ => { });
-        var root = new UiRoot(panel, UiDpi.Default);
+        var root = new UiRoot(panel, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(540.0f, 580.0f));
         root.SetFocus(panel.InitialFocus);
 
@@ -69,7 +69,7 @@ public sealed class CommandPalettePanelTests
             new(ViewerCommandId.CloseTab, "Close tab", ViewerCommandScope.Window),
         ];
         using var panel = new CommandPalettePanel(factory, commands, ViewerKeyBindings.Defaults, command => executed = command, _ => { });
-        var root = new UiRoot(panel, UiDpi.Default);
+        var root = new UiRoot(panel, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(540.0f, 580.0f));
         root.SetFocus(panel.InitialFocus);
 
@@ -171,7 +171,7 @@ public sealed class CommandPalettePanelTests
             ViewerKeyBindings.Defaults,
             _ => { },
             applyKeyBindings);
-        root = new UiRoot(panel, UiDpi.Default);
+        root = new UiRoot(panel, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(540.0f, 580.0f));
         return panel;
     }

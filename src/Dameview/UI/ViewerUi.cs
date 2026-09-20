@@ -24,6 +24,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
 {
     private readonly ID2D1DeviceContext _deviceContext;
     private readonly ID2D1SolidColorBrush _brush;
+    private readonly UiTextLayoutCache _textLayouts;
     private readonly WorkspaceView _workspaceView;
     private readonly TabPreview _tabPreview;
     private readonly WorkspaceDragOverlay _dragOverlay;
@@ -63,6 +64,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     {
         _deviceContext = deviceContext;
         _brush = deviceContext.CreateSolidColorBrush(default(Color4));
+        _textLayouts = new UiTextLayoutCache(directWriteFactory);
         _selectPane = commands.SelectPane;
         Palette = theme;
         _animationClock = new UiAnimationClock(timeProvider);
@@ -133,7 +135,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         AddChild(_popupHost);
         AddChild(_performanceOverlay);
         AddChild(_toastHost);
-        _root = new UiRoot(this, dpi);
+        _root = new UiRoot(this, dpi, _textLayouts);
         _root.CursorChanged += cursor => _cursorChanged?.Invoke(cursor);
         _root.PointerPressed += HandlePointerPressed;
 
@@ -382,7 +384,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         LastLayoutTime = Stopwatch.GetElapsedTime(layoutStarted);
 
         // The tree is arranged by now, so this only walks and draws it.
-        var context = new UiDrawContext(_deviceContext, _brush, Palette, _root.Dpi);
+        var context = new UiDrawContext(_deviceContext, _brush, _textLayouts, Palette, _root.Dpi);
         _root.Draw(context, pixelSize);
     }
 
@@ -456,6 +458,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _settingsPanel.Dispose();
         _galleryPanel.Dispose();
         _workspaceView.Dispose();
+        _textLayouts.Dispose();
         _brush.Dispose();
     }
 

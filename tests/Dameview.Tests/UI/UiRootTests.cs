@@ -12,7 +12,7 @@ public sealed class UiRootTests
     {
         var child = new TestElement(_ => new UiPointerResult(Consumed: true));
         var content = new TestContainer(child, new RectangleF(100, 200, 80, 40));
-        var root = new UiRoot(content, 144);
+        var root = new UiRoot(content, 144, TestTextLayouts.Shared);
         root.Arrange(new SizeF(900, 600));
 
         root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, 165.0f, 315.0f));
@@ -37,7 +37,7 @@ public sealed class UiRootTests
                 CapturePointer: input.Kind == WindowPointerEventKind.Pressed);
         });
         var content = new TestContainer(child, new RectangleF(100, 200, 80, 40));
-        root = new UiRoot(content, UiDpi.Default);
+        root = new UiRoot(content, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(800, 600));
         root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, 110, 210));
         Assert.AreSame(child, root.CapturedElement);
@@ -57,7 +57,7 @@ public sealed class UiRootTests
         int clicks = 0;
         var child = new CapturingElement(() => clicks++);
         var content = new TestContainer(child, new RectangleF(100, 200, 80, 40));
-        var root = new UiRoot(content, UiDpi.Default);
+        var root = new UiRoot(content, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(800, 600));
 
         root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, 110, 210));
@@ -74,7 +74,7 @@ public sealed class UiRootTests
     {
         var child = new FocusableElement();
         var content = new TestContainer(child, new RectangleF(100, 200, 80, 40));
-        var root = new UiRoot(content, UiDpi.Default);
+        var root = new UiRoot(content, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(800, 600));
 
         root.HandlePointer(Pointer(WindowPointerEventKind.Moved, 110, 210));
@@ -94,7 +94,7 @@ public sealed class UiRootTests
     public void VisualInvalidationDoesNotRepeatLayoutButLayoutInvalidationDoes()
     {
         var content = new TestContainer(new TestElement(), new RectangleF(0, 0, 10, 10));
-        var root = new UiRoot(content, UiDpi.Default);
+        var root = new UiRoot(content, UiDpi.Default, TestTextLayouts.Shared);
         var size = new SizeF(800, 600);
         root.Arrange(size);
         Assert.AreEqual(1, content.ArrangeCount);
@@ -116,7 +116,7 @@ public sealed class UiRootTests
         {
             ConsumeWheel = true,
         };
-        var root = new UiRoot(content, UiDpi.Default);
+        var root = new UiRoot(content, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(800, 600));
 
         bool consumed = root.HandlePointer(new WindowPointerEvent(
@@ -135,7 +135,7 @@ public sealed class UiRootTests
         var first = new FocusableElement();
         var second = new FocusableElement();
         var content = new FocusContainer(first, second);
-        var root = new UiRoot(content, UiDpi.Default);
+        var root = new UiRoot(content, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(800, 600));
 
         Assert.IsTrue(root.HandleKey(new WindowKeyEvent(WindowKey.Tab), content, wrapFocus: true,
@@ -154,7 +154,7 @@ public sealed class UiRootTests
     {
         var child = new FocusableElement();
         var content = new TestContainer(child, new RectangleF(100, 200, 80, 40));
-        var root = new UiRoot(content, UiDpi.Default);
+        var root = new UiRoot(content, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(800, 600));
         root.HandlePointer(Pointer(WindowPointerEventKind.Moved, 110, 210));
         root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, 110, 210));
@@ -179,7 +179,7 @@ public sealed class UiRootTests
             return new UiPointerResult(Consumed: true);
         });
         var content = new TestContainer(child, new RectangleF(100, 200, 80, 40));
-        var root = new UiRoot(content, UiDpi.Default);
+        var root = new UiRoot(content, UiDpi.Default, TestTextLayouts.Shared);
         UiElement? pressedTarget = null;
         root.PointerPressed += target =>
         {

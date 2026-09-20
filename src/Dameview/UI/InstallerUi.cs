@@ -19,6 +19,7 @@ internal sealed class InstallerUi : UiElement, IDisposable
 
     private readonly ID2D1DeviceContext _deviceContext;
     private readonly ID2D1SolidColorBrush _brush;
+    private readonly UiTextLayoutCache _textLayouts;
     private readonly AppInstallationRequest _request;
     private readonly TextBlock _title;
     private readonly TextBlock _description;
@@ -43,6 +44,7 @@ internal sealed class InstallerUi : UiElement, IDisposable
     {
         _deviceContext = deviceContext;
         _brush = deviceContext.CreateSolidColorBrush(default(Color4));
+        _textLayouts = new UiTextLayoutCache(directWriteFactory);
         _request = request;
         (string title, string description) = GetCopy(request);
         _title = new TextBlock(
@@ -103,7 +105,7 @@ internal sealed class InstallerUi : UiElement, IDisposable
         AddChild(_status);
         AddChild(_buttons);
         AddChild(_uninstallButton);
-        _root = new UiRoot(this, dpi);
+        _root = new UiRoot(this, dpi, _textLayouts);
         _root.SetFocus(_primaryButton);
     }
 
@@ -191,7 +193,7 @@ internal sealed class InstallerUi : UiElement, IDisposable
 
     internal void DrawFrame(SizeF pixelSize)
     {
-        var context = new UiDrawContext(_deviceContext, _brush, Palette, _root.Dpi);
+        var context = new UiDrawContext(_deviceContext, _brush, _textLayouts, Palette, _root.Dpi);
         _root.Draw(context, pixelSize);
     }
 
@@ -266,6 +268,7 @@ internal sealed class InstallerUi : UiElement, IDisposable
         _primaryButton.Dispose();
         _secondaryButton.Dispose();
         _uninstallButton.Dispose();
+        _textLayouts.Dispose();
         _brush.Dispose();
     }
 

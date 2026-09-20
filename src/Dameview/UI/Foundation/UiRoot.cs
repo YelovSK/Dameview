@@ -11,10 +11,12 @@ internal sealed class UiRoot
     private SizeF _pixelSize;
     private bool _layoutDirty = true;
 
-    internal UiRoot(UiElement content, float dpi)
+    internal UiRoot(UiElement content, float dpi, UiTextLayoutCache textLayouts)
     {
+        ArgumentNullException.ThrowIfNull(textLayouts);
         _content = content;
         Dpi = dpi;
+        TextLayouts = textLayouts;
         content.AttachToRoot(this);
     }
 
@@ -25,6 +27,8 @@ internal sealed class UiRoot
     internal UiElement? CapturedElement { get; private set; }
     internal UiElement? FocusedElement { get; private set; }
     internal float Dpi { get; private set; }
+    /// <summary>The shared text layouts, for elements that measure text to size themselves.</summary>
+    internal UiTextLayoutCache TextLayouts { get; }
     /// <summary>How many times the tree has actually been measured and arranged.</summary>
     internal int LayoutPasses { get; private set; }
 

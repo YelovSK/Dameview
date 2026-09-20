@@ -15,7 +15,7 @@ public sealed class TextInputTests
     {
         using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         using var input = new TextInput(factory, "Filter commands");
-        var root = new UiRoot(input, UiDpi.Default);
+        var root = new UiRoot(input, UiDpi.Default, TestTextLayouts.Shared);
         var changes = new List<string>();
         input.TextChanged += changes.Add;
         root.Arrange(new SizeF(300.0f, 38.0f));
@@ -54,7 +54,7 @@ public sealed class TextInputTests
         using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         using var input = new TextInput(factory);
         var parent = new KeyContainer(input);
-        var root = new UiRoot(parent, UiDpi.Default);
+        var root = new UiRoot(parent, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(300.0f, 100.0f));
         root.SetFocus(input);
 

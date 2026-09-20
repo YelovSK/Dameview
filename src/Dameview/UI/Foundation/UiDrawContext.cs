@@ -11,11 +11,18 @@ namespace Dameview.UI.Foundation;
 internal readonly record struct UiDrawContext
 {
     private readonly ID2D1SolidColorBrush _brush;
+    private readonly UiTextLayoutCache _textLayouts;
 
-    internal UiDrawContext(ID2D1RenderTarget renderTarget, ID2D1SolidColorBrush brush, UiTheme palette, float dpi)
+    internal UiDrawContext(
+        ID2D1RenderTarget renderTarget,
+        ID2D1SolidColorBrush brush,
+        UiTextLayoutCache textLayouts,
+        UiTheme palette,
+        float dpi)
     {
         RenderTarget = renderTarget;
         _brush = brush;
+        _textLayouts = textLayouts;
         Palette = palette;
         Dpi = dpi;
         Opacity = 1.0f;
@@ -50,7 +57,13 @@ internal readonly record struct UiDrawContext
     internal void DrawText(string text, IDWriteTextFormat format, Rect bounds, Color4 color,
         DrawTextOptions options = DrawTextOptions.None, float opacity = 1.0f)
     {
-        RenderTarget.DrawText(text, format, bounds, PrepareBrush(color, opacity), options);
+        IDWriteTextLayout layout = _textLayouts.Get(
+            text, format, new SizeF(bounds.Width, bounds.Height));
+        RenderTarget.DrawTextLayout(
+            new Vector2(bounds.Left, bounds.Top),
+            layout,
+            PrepareBrush(color, opacity),
+            options);
     }
 
     internal void DrawTextLayout(IDWriteTextLayout layout, Vector2 origin, Color4 color,

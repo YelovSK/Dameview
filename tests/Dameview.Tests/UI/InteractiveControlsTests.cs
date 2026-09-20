@@ -16,7 +16,7 @@ public sealed class InteractiveControlsTests
         using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         int clicks = 0;
         using var button = new Button(factory, "Test", () => clicks++);
-        var root = new UiRoot(button, UiDpi.Default);
+        var root = new UiRoot(button, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(100.0f, 36.0f));
         PointF center = new(50.0f, 18.0f);
 
@@ -49,7 +49,7 @@ public sealed class InteractiveControlsTests
         using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         int selected = -1;
         using var tabs = new TabStrip(factory, ["General", "Gallery"], 0, index => selected = index);
-        var root = new UiRoot(tabs, UiDpi.Default);
+        var root = new UiRoot(tabs, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(300.0f, 36.0f));
         UiElement first = tabs.Children[0].Children[0];
         UiElement second = tabs.Children[0].Children[1];
@@ -79,7 +79,7 @@ public sealed class InteractiveControlsTests
             "name",
             value => changed = value);
         var scene = new TestScene(dropdown, popupHost);
-        var root = new UiRoot(scene, UiDpi.Default);
+        var root = new UiRoot(scene, UiDpi.Default, TestTextLayouts.Shared);
         var size = new SizeF(600.0f, 400.0f);
         root.Arrange(size);
         root.SetFocus(dropdown);
@@ -126,7 +126,7 @@ public sealed class InteractiveControlsTests
             1,
             _ => { });
         var scene = new TestScene(dropdown, popupHost);
-        var root = new UiRoot(scene, UiDpi.Default);
+        var root = new UiRoot(scene, UiDpi.Default, TestTextLayouts.Shared);
         var size = new SizeF(600.0f, 400.0f);
         root.Arrange(size);
 
@@ -153,7 +153,7 @@ public sealed class InteractiveControlsTests
             1,
             _ => { });
         var scene = new TestScene(dropdown, popupHost);
-        var root = new UiRoot(scene, UiDpi.Default);
+        var root = new UiRoot(scene, UiDpi.Default, TestTextLayouts.Shared);
         var size = new SizeF(600.0f, 400.0f);
         root.Arrange(size);
         root.SetFocus(dropdown);

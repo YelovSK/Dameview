@@ -65,7 +65,7 @@ public sealed class ScrollViewTests
         var focus = new FocusTarget();
         var content = new ContentWithFocus(focus);
         var scrollView = new ScrollView(content);
-        var root = new UiRoot(scrollView, UiDpi.Default);
+        var root = new UiRoot(scrollView, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(200.0f, 120.0f));
 
         root.SetFocus(focus);
@@ -80,7 +80,7 @@ public sealed class ScrollViewTests
     {
         var content = new FixedContent(new SizeF(200.0f, 500.0f));
         var scrollView = new ScrollView(content);
-        var root = new UiRoot(scrollView, UiDpi.Default);
+        var root = new UiRoot(scrollView, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(200.0f, 120.0f));
 
         Assert.IsTrue(scrollView.IsScrollbarVisible);

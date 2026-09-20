@@ -21,7 +21,6 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private const float DragThresholdDips = 4.0f;
 
     private readonly ID2D1DeviceContext _thumbnailScaleContext;
-    private readonly IDWriteFactory _directWriteFactory;
     private readonly IDWriteTextFormat _labelFormat;
     private readonly IDWriteInlineObject _ellipsisSign;
     private readonly IThumbnailImageLoader _thumbnailLoader;
@@ -56,7 +55,6 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     {
         using ID2D1Device device = deviceContext.Device;
         _thumbnailScaleContext = device.CreateDeviceContext();
-        _directWriteFactory = directWriteFactory;
         _thumbnailLoader = thumbnailLoader;
         _openImage = openImage;
         _openInNewTab = openInNewTab;
@@ -380,15 +378,13 @@ internal sealed class GalleryPanel : UiElement, IDisposable
                 context.Palette.OverlaySurface);
         }
 
-        if (slot is not null)
-        {
-            PointF label = GalleryLayout.GetLabelOrigin(itemBounds, GalleryItemSlot.LabelHeight);
-            context.DrawTextLayout(
-                slot.LabelLayout,
-                new Vector2(label.X, label.Y),
-                context.Palette.PrimaryText,
-                DrawTextOptions.Clip);
-        }
+        RectangleF label = GalleryLayout.GetLabelBounds(itemBounds, GalleryItemSlot.LabelHeight);
+        context.DrawText(
+            entry.Name,
+            _labelFormat,
+            new Rect(label.X, label.Y, label.Width, label.Height),
+            context.Palette.PrimaryText,
+            DrawTextOptions.Clip);
     }
 
     private void DrawThumbnail(in UiDrawContext context, GalleryItemSlot slot, RectangleF bounds)
@@ -443,24 +439,18 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
         GalleryLayout layout = Layout;
         (int first, int lastExclusive) = layout.GetVisibleRange(_state.ScrollOffset.Offset);
-        float labelWidth = layout.LabelWidth;
         HashSet<string> visible = _visiblePaths;
         for (int index = first; index < lastExclusive; index++)
         {
             FolderEntry entry = _state.Entries[index];
             string path = entry.FullName;
             visible.Add(path);
-            if (_slots.TryGetValue(path, out GalleryItemSlot? existing))
+            if (_slots.ContainsKey(path))
             {
-                if (!_liveResize)
-                {
-                    existing.SetLabelLayout(_directWriteFactory, _labelFormat, entry.Name, labelWidth);
-                }
-
                 continue;
             }
 
-            var slot = new GalleryItemSlot(_directWriteFactory, _labelFormat, entry.Name, labelWidth);
+            var slot = new GalleryItemSlot();
             _slots.Add(path, slot);
             slot.Request = _thumbnailLoader.Request(
                 path,

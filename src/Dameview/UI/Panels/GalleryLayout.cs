@@ -71,8 +71,6 @@ internal readonly struct GalleryLayout
     internal SizeF ItemSize => Transpose(LayoutItemSize);
 
     /// <summary>The width a label is laid out at, which no amount of scrolling changes.</summary>
-    internal float LabelWidth => MathF.Max(0.0f, ItemSize.Width - (2.0f * ItemPadding));
-
     internal RectangleF ScrollbarBounds => Transpose(new RectangleF(
         MathF.Max(0.0f, _size.Width - ScrollbarThickness),
         0.0f,
@@ -99,8 +97,11 @@ internal readonly struct GalleryLayout
         MathF.Max(0.0f, item.Width - (2.0f * ItemPadding)),
         MathF.Max(0.0f, item.Height - labelHeight - (2.0f * ItemPadding)));
 
-    internal static PointF GetLabelOrigin(RectangleF item, float labelHeight) =>
-        new(item.X + ItemPadding, item.Bottom - labelHeight);
+    internal static RectangleF GetLabelBounds(RectangleF item, float labelHeight) => new(
+        item.X + ItemPadding,
+        item.Bottom - labelHeight,
+        MathF.Max(0.0f, item.Width - (2.0f * ItemPadding)),
+        labelHeight);
 
     /// <summary>
     /// The half-open range of items worth holding on to, padded by a row at each end so that

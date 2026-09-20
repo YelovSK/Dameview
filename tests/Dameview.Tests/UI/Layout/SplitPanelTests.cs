@@ -77,7 +77,7 @@ public sealed class SplitPanelTests
             UiOrientation.Horizontal,
             0.6f,
             ratio => changedRatio = ratio);
-        var root = new UiRoot(panel, UiDpi.Default);
+        var root = new UiRoot(panel, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(1008.0f, 600.0f));
 
         root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, 604.0f, 300.0f));
@@ -95,7 +95,7 @@ public sealed class SplitPanelTests
         var first = new FixedContent();
         var second = new FixedContent();
         var panel = new SplitPanel(first, second, UiOrientation.Vertical, 0.5f);
-        var root = new UiRoot(panel, UiDpi.Default);
+        var root = new UiRoot(panel, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(400.0f, 408.0f));
 
         root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, 200.0f, 204.0f));
@@ -112,7 +112,7 @@ public sealed class SplitPanelTests
         var first = new FixedContent();
         var second = new FixedContent();
         var panel = new SplitPanel(first, second, UiOrientation.Horizontal, 0.5f);
-        var root = new UiRoot(panel, UiDpi.Default);
+        var root = new UiRoot(panel, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(1008.0f, 600.0f));
 
         panel.SetRatio(0.75f);
@@ -139,7 +139,7 @@ public sealed class SplitPanelTests
             UiOrientation.Horizontal,
             0.6f,
             animateOpening: true);
-        var root = new UiRoot(panel, UiDpi.Default);
+        var root = new UiRoot(panel, UiDpi.Default, TestTextLayouts.Shared);
 
         root.Arrange(new SizeF(1008.0f, 600.0f));
         Assert.AreEqual(1008.0f, first.Bounds.Width);
@@ -170,7 +170,7 @@ public sealed class SplitPanelTests
         var first = new FixedContent();
         var second = new FixedContent();
         var panel = new SplitPanel(first, second, UiOrientation.Horizontal, 0.6f);
-        var root = new UiRoot(panel, UiDpi.Default);
+        var root = new UiRoot(panel, UiDpi.Default, TestTextLayouts.Shared);
         int completions = 0;
         root.Arrange(new SizeF(1008.0f, 600.0f));
 
@@ -196,7 +196,7 @@ public sealed class SplitPanelTests
         var first = new FixedContent();
         var second = new FixedContent();
         var panel = new SplitPanel(first, second, UiOrientation.Horizontal, 0.6f);
-        var root = new UiRoot(panel, UiDpi.Default);
+        var root = new UiRoot(panel, UiDpi.Default, TestTextLayouts.Shared);
         int completions = 0;
         root.Arrange(new SizeF(1008.0f, 600.0f));
 
@@ -215,7 +215,7 @@ public sealed class SplitPanelTests
         var first = new FixedContent();
         var second = new FixedContent();
         var panel = new SplitPanel(first, second, UiOrientation.Vertical, 0.25f);
-        var root = new UiRoot(panel, UiDpi.Default);
+        var root = new UiRoot(panel, UiDpi.Default, TestTextLayouts.Shared);
         int completions = 0;
         root.Arrange(new SizeF(500.0f, 408.0f));
 
@@ -240,7 +240,7 @@ public sealed class SplitPanelTests
             UiOrientation.Horizontal,
             0.5f,
             animateOpening: true);
-        var root = new UiRoot(panel, UiDpi.Default);
+        var root = new UiRoot(panel, UiDpi.Default, TestTextLayouts.Shared);
         int completions = 0;
         root.Arrange(new SizeF(1008.0f, 600.0f));
 

@@ -23,7 +23,7 @@ public sealed class ViewerTabStripTests
             _ => { },
             _ => { },
             () => { });
-        var root = new UiRoot(tabs, UiDpi.Default);
+        var root = new UiRoot(tabs, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(300.0f, ViewerTabStrip.HeightDips));
 
         UiPointerResult result = tabs.OnPointerEvent(new WindowPointerEvent(
@@ -42,7 +42,7 @@ public sealed class ViewerTabStripTests
         using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         ViewerTabInfo[] tabItems = Tabs("One", "Two", "Three", "Four");
         using var tabs = new ViewerTabStrip(factory, tabItems, 0, _ => { }, _ => { }, () => { });
-        var root = new UiRoot(tabs, UiDpi.Default);
+        var root = new UiRoot(tabs, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(300.0f, ViewerTabStrip.HeightDips));
 
         tabs.SetTabs(tabItems, 3);
@@ -62,7 +62,7 @@ public sealed class ViewerTabStripTests
             _ => { },
             index => closed = index,
             () => { });
-        var root = new UiRoot(tabs, UiDpi.Default);
+        var root = new UiRoot(tabs, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(400.0f, ViewerTabStrip.HeightDips));
         root.HandlePointer(new WindowPointerEvent(
             WindowPointerEventKind.Pressed,
@@ -84,7 +84,7 @@ public sealed class ViewerTabStripTests
             _ => { },
             _ => { },
             () => additions++);
-        var root = new UiRoot(tabs, UiDpi.Default);
+        var root = new UiRoot(tabs, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(400.0f, ViewerTabStrip.HeightDips));
 
         root.HandlePointer(new WindowPointerEvent(
@@ -107,7 +107,7 @@ public sealed class ViewerTabStripTests
             _ => { },
             index => closed = index,
             () => { });
-        var root = new UiRoot(tabs, UiDpi.Default);
+        var root = new UiRoot(tabs, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(400.0f, ViewerTabStrip.HeightDips));
         root.HandlePointer(new WindowPointerEvent(
             WindowPointerEventKind.Pressed,
@@ -130,7 +130,7 @@ public sealed class ViewerTabStripTests
             _ => { },
             () => { },
             (tab, _) => hovered.Add(tab?.Label));
-        var root = new UiRoot(tabs, UiDpi.Default);
+        var root = new UiRoot(tabs, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(400.0f, ViewerTabStrip.HeightDips));
 
         root.HandlePointer(new WindowPointerEvent(
@@ -159,7 +159,7 @@ public sealed class ViewerTabStripTests
             _ => { },
             () => { },
             dragPointer: (_, input) => events.Add(input.Kind));
-        var root = new UiRoot(tabs, UiDpi.Default);
+        var root = new UiRoot(tabs, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(400.0f, ViewerTabStrip.HeightDips));
 
         root.HandlePointer(new WindowPointerEvent(
@@ -198,7 +198,7 @@ public sealed class ViewerTabStripTests
             _ => { },
             _ => { },
             () => { });
-        var root = new UiRoot(tabs, UiDpi.Default);
+        var root = new UiRoot(tabs, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(500.0f, ViewerTabStrip.HeightDips));
 
         Assert.AreEqual(0, tabs.GetInsertionIndex(new PointF(20.0f, 18.0f)));

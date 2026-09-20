@@ -17,7 +17,7 @@ public sealed class SplitViewTests
         {
             SecondPaneVisible = true,
         };
-        var root = new UiRoot(splitView, UiDpi.Default);
+        var root = new UiRoot(splitView, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(1000.0f, 800.0f));
 
         Assert.AreEqual(new RectangleF(0.0f, 0.0f, 796.0f, 800.0f), splitView.FirstPaneBounds);
@@ -112,7 +112,7 @@ public sealed class SplitViewTests
             {
                 SecondPaneVisible = true,
             };
-            var root = new UiRoot(splitView, UiDpi.Default);
+            var root = new UiRoot(splitView, UiDpi.Default, TestTextLayouts.Shared);
             root.Arrange(new SizeF(1000.0f, 800.0f));
 
             root.HandlePointer(new WindowPointerEvent(WindowPointerEventKind.Pressed, start, PointerButton.Primary));
@@ -133,7 +133,7 @@ public sealed class SplitViewTests
         {
             SecondPaneVisible = true,
         };
-        var root = new UiRoot(splitView, UiDpi.Default);
+        var root = new UiRoot(splitView, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(1000.0f, 800.0f));
 
         int started = 0;

@@ -193,7 +193,7 @@ public sealed class ModalHostTests
 
     private static UiRoot CreateRoot(ModalHost host, float dpi = UiDpi.Default)
     {
-        return new UiRoot(new RootElement(host), dpi);
+        return new UiRoot(new RootElement(host), dpi, TestTextLayouts.Shared);
     }
 
     private static WindowPointerEvent Pointer(WindowPointerEventKind kind, float x, float y)

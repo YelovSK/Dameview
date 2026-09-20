@@ -2,37 +2,24 @@ using Dameview.Rendering;
 using Dameview.UI.Foundation;
 using Dameview.UI.Presentation;
 using Vortice.Direct2D1;
-using Vortice.DirectWrite;
 using Vortice.Mathematics;
 
 namespace Dameview.UI.Panels;
 
-/// <summary>Everything one visible gallery item owns: its thumbnail, a scaled copy of it, and its label.</summary>
+/// <summary>A visible gallery item's thumbnail and the scaled copy of it that gets drawn.</summary>
 internal sealed class GalleryItemSlot : IDisposable
 {
     internal const float LabelHeight = 24.0f;
 
     private const float ThumbnailSharpness = 1.0f;
 
-    private float _labelWidth;
     private SizeI _displayPixelSize;
     private float _displayDpi;
     private ID2D1Bitmap1? _displayBitmap;
     private CachedBitmapLease? _sourceLease;
 
-    internal GalleryItemSlot(
-        IDWriteFactory directWriteFactory,
-        IDWriteTextFormat labelFormat,
-        string label,
-        float labelWidth)
-    {
-        LabelLayout = directWriteFactory.CreateTextLayout(label, labelFormat, labelWidth, LabelHeight);
-        _labelWidth = labelWidth;
-    }
-
     internal IDisposable? Request { get; set; }
     internal ID2D1Bitmap1? SourceBitmap => _sourceLease?.Bitmap.Bitmap;
-    internal IDWriteTextLayout LabelLayout { get; private set; }
 
     internal void SetSourceBitmap(CachedBitmapLease lease)
     {
@@ -71,28 +58,11 @@ internal sealed class GalleryItemSlot : IDisposable
         return bitmap;
     }
 
-    internal void SetLabelLayout(
-        IDWriteFactory directWriteFactory,
-        IDWriteTextFormat labelFormat,
-        string label,
-        float labelWidth)
-    {
-        if (_labelWidth == labelWidth)
-        {
-            return;
-        }
-
-        LabelLayout.Dispose();
-        LabelLayout = directWriteFactory.CreateTextLayout(label, labelFormat, labelWidth, LabelHeight);
-        _labelWidth = labelWidth;
-    }
-
     public void Dispose()
     {
         Request?.Dispose();
         ClearDisplayBitmap();
         _sourceLease?.Dispose();
-        LabelLayout.Dispose();
     }
 
     private void ClearDisplayBitmap()
