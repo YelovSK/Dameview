@@ -358,7 +358,9 @@ internal sealed class ViewerUi : UiElement, IDisposable
         UiUpdateContext context = _animationClock.GetNextFrame(_animationsEnabled);
         bool continues = _root.Update(context);
         _workspaceView.CompletePendingClose();
-        if (!continues && NextAnimationFrameDelay is null)
+        // Only real animation work counts: a heartbeat that merely keeps the overlay ticking
+        // must not hold the clock open, or the next animation starts with a frame's backlog.
+        if (!continues && _workspaceView.NextAnimationFrameDelay is null)
         {
             _animationClock.Reset();
         }
