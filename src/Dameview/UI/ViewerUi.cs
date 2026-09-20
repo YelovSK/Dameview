@@ -74,6 +74,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
                 index => commands.SelectTab(pane, index),
                 index => commands.CloseTab(pane, index),
                 () => commands.DuplicateActiveTab(pane),
+                () => commands.ExecuteCommand(ViewerCommandId.OpenFile),
                 ShowSettings,
                 ShowTabPreview,
                 HandleTabDragPointer,

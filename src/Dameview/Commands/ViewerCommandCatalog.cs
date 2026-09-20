@@ -2,6 +2,7 @@ namespace Dameview.Commands;
 
 internal enum ViewerCommandId
 {
+    OpenFile,
     NewTab,
     CloseTab,
     ReopenClosedTab,
@@ -39,6 +40,7 @@ internal static class ViewerCommandCatalog
 {
     internal static IReadOnlyList<ViewerCommand> Commands { get; } =
     [
+        new(ViewerCommandId.OpenFile, "Open image…", ViewerCommandScope.Window),
         new(ViewerCommandId.NewTab, "New tab", ViewerCommandScope.Window),
         new(ViewerCommandId.CloseTab, "Close tab", ViewerCommandScope.Window),
         new(ViewerCommandId.ReopenClosedTab, "Reopen closed tab", ViewerCommandScope.Window),

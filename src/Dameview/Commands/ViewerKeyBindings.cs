@@ -6,6 +6,7 @@ internal sealed class ViewerKeyBindings : IEquatable<ViewerKeyBindings>
 {
     internal static ViewerKeyBindings Defaults { get; } = new(new Dictionary<ViewerCommandId, ViewerCommandShortcut[]>
     {
+        [ViewerCommandId.OpenFile] = [new(WindowKey.O, Control: true)],
         [ViewerCommandId.NewTab] = [new(WindowKey.T, Control: true)],
         [ViewerCommandId.CloseTab] = [new(WindowKey.W, Control: true)],
         [ViewerCommandId.ReopenClosedTab] = [new(WindowKey.T, Control: true, Shift: true)],

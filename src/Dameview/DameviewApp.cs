@@ -36,6 +36,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     private readonly RenderBitmapCache _thumbnailBitmapCache;
     private readonly ThumbnailImageLoader _thumbnailImageLoader;
     private readonly IFolderScanner _folderScanner;
+    private readonly HashSet<string> _decodableExtensions;
     private readonly ViewerWorkspace _workspace;
     private readonly SettingsService _settings;
     private readonly UpdateService _updates;
@@ -81,8 +82,9 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             _renderer.DeviceContext,
             _uiContext);
         using var imageDecoder = new ImageDecoder();
-        HashSet<string> extensions = imageDecoder.GetProbablySupportedExtensions();
-        _folderScanner = new FolderScanner(path => extensions.Contains(Path.GetExtension(path)));
+        _decodableExtensions = imageDecoder.GetProbablySupportedExtensions();
+        _folderScanner = new FolderScanner(
+            path => _decodableExtensions.Contains(Path.GetExtension(path)));
         _workspace = new ViewerWorkspace(CreateTab);
         _settings = new SettingsService(SettingsService.DefaultPath, _uiContext);
         _updates = new UpdateService(
@@ -381,6 +383,10 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     {
         switch (command)
         {
+            case ViewerCommandId.OpenFile:
+                OpenPickedFile();
+                break;
+
             case ViewerCommandId.NewTab:
                 _workspace.DuplicateActiveTab(_workspace.ActivePane);
                 break;
@@ -465,6 +471,14 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
 
             default:
                 throw new ArgumentOutOfRangeException(nameof(command), command, null);
+        }
+    }
+
+    private void OpenPickedFile()
+    {
+        if (FilePicker.PickFile(_window.Handle, "Images", _decodableExtensions) is string path)
+        {
+            OpenImage(path);
         }
     }
 

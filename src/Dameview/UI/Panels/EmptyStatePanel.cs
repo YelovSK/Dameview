@@ -11,6 +11,9 @@ namespace Dameview.UI.Panels;
 
 internal sealed class EmptyStatePanel : UiElement, IDisposable
 {
+    private const float ButtonWidth = 104.0f;
+    private const float ButtonHeight = 36.0f;
+
     private readonly IDWriteTextFormat _titleFormat;
     private readonly IDWriteTextFormat _bodyFormat;
     private readonly IDWriteTextFormat _captionFormat;
@@ -19,6 +22,7 @@ internal sealed class EmptyStatePanel : UiElement, IDisposable
     internal EmptyStatePanel(
         IDWriteFactory directWriteFactory,
         ID2D1DeviceContext deviceContext,
+        Action openFile,
         Action showSettings)
     {
         _icon = LoadApplicationIcon(deviceContext);
@@ -31,20 +35,26 @@ internal sealed class EmptyStatePanel : UiElement, IDisposable
             showSettings,
             fontFamily: UiTypography.IconFontFamily,
             fontSize: 16.0f);
+        OpenButton = new Button(directWriteFactory, "Open image", openFile);
+        AddChild(OpenButton);
         AddChild(SettingsButton);
     }
 
+    private Button OpenButton { get; }
     private Button SettingsButton { get; }
 
     protected override SizeF MeasureCore(SizeF availableSize)
     {
-        SettingsButton.Measure(new SizeF(104.0f, 36.0f));
+        OpenButton.Measure(new SizeF(ButtonWidth, ButtonHeight));
+        SettingsButton.Measure(new SizeF(ButtonWidth, ButtonHeight));
         return availableSize;
     }
 
     protected override void ArrangeCore(SizeF finalSize)
     {
-        SettingsButton.Arrange(CalculateLayout(finalSize).SettingsButton);
+        EmptyStateLayout layout = CalculateLayout(finalSize);
+        OpenButton.Arrange(layout.OpenButton);
+        SettingsButton.Arrange(layout.SettingsButton);
     }
 
     protected override void DrawCore(in UiDrawContext context)
@@ -99,6 +109,7 @@ internal sealed class EmptyStatePanel : UiElement, IDisposable
 
     public void Dispose()
     {
+        OpenButton.Dispose();
         SettingsButton.Dispose();
         _captionFormat.Dispose();
         _bodyFormat.Dispose();
@@ -139,12 +150,18 @@ internal sealed class EmptyStatePanel : UiElement, IDisposable
         float cardY = (size.Height - cardHeight) / 2.0f;
         var card = new RectangleF(cardX, cardY, cardWidth, cardHeight);
         var caption = new RectangleF((size.Width - 254.0f) / 2.0f, card.Bottom - 100.0f, 254.0f, 32.0f);
-        var settingsButton = new RectangleF((size.Width - 104.0f) / 2.0f, caption.Bottom + 12.0f, 104.0f, 36.0f);
-        return new EmptyStateLayout(card, caption, settingsButton);
+        float row = caption.Bottom + 12.0f;
+        float left = (size.Width - ((2.0f * ButtonWidth) + UiDesign.SmallSpacing)) / 2.0f;
+        return new EmptyStateLayout(
+            card,
+            caption,
+            new RectangleF(left, row, ButtonWidth, ButtonHeight),
+            new RectangleF(left + ButtonWidth + UiDesign.SmallSpacing, row, ButtonWidth, ButtonHeight));
     }
 
     private readonly record struct EmptyStateLayout(
         RectangleF Card,
         RectangleF Caption,
+        RectangleF OpenButton,
         RectangleF SettingsButton);
 }

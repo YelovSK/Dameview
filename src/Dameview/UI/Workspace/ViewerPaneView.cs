@@ -34,6 +34,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         Action<int> selectTab,
         Action<int> closeTab,
         Action addTab,
+        Action openFile,
         Action showSettings,
         Action<ViewerPane, ViewerTabInfo?, RectangleF> hoveredTabChanged,
         Action<ViewerPane, int, WorkspaceDragEvent> tabDragPointer,
@@ -58,7 +59,11 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             addTab,
             HandleHoveredTabChanged,
             (index, input) => tabDragPointer(Pane, index, TranslateTabStripEvent(input)));
-        _emptyStatePanel = new EmptyStatePanel(directWriteFactory, deviceContext, showSettings);
+        _emptyStatePanel = new EmptyStatePanel(
+            directWriteFactory,
+            deviceContext,
+            openFile,
+            showSettings);
         _contentOverlay = new Overlay(_imagePanel, _emptyStatePanel);
         _toolbarPanel = new ToolbarPanel(directWriteFactory, commands, pane, showSettings);
         _statusPanel = new StatusPanel(directWriteFactory);

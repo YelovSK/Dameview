@@ -46,6 +46,14 @@ CloseClipboard
 // Gdi32
 
 // Shell32
+IFileOpenDialog
+FileOpenDialog
+IShellItem
+SIGDN
+COMDLG_FILTERSPEC
+FILEOPENDIALOGOPTIONS
+WIN32_ERROR
+HRESULT_FROM_WIN32
 DragQueryFile
 SHGetKnownFolderPath
 SHChangeNotify
