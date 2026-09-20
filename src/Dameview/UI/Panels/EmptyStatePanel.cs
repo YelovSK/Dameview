@@ -1,4 +1,6 @@
 using System.Drawing;
+using Dameview.Imaging.Decoding;
+using Dameview.Rendering;
 using Dameview.UI.Components;
 using Dameview.UI.Foundation;
 using Vortice.Direct2D1;
@@ -16,10 +18,10 @@ internal sealed class EmptyStatePanel : UiElement, IDisposable
 
     internal EmptyStatePanel(
         IDWriteFactory directWriteFactory,
-        ID2D1Bitmap1 icon,
+        ID2D1DeviceContext deviceContext,
         Action showSettings)
     {
-        _icon = icon;
+        _icon = LoadApplicationIcon(deviceContext);
         _titleFormat = CreateCenteredFormat(directWriteFactory, 30.0f, FontWeight.SemiBold);
         _bodyFormat = CreateCenteredFormat(directWriteFactory, 15.0f, FontWeight.Normal);
         _captionFormat = CreateCenteredFormat(directWriteFactory, 12.0f, FontWeight.Medium);
@@ -95,8 +97,6 @@ internal sealed class EmptyStatePanel : UiElement, IDisposable
             context.Palette.SecondaryText);
     }
 
-    protected override bool HitTestCore(PointF position) => false;
-
     public void Dispose()
     {
         SettingsButton.Dispose();
@@ -104,6 +104,15 @@ internal sealed class EmptyStatePanel : UiElement, IDisposable
         _bodyFormat.Dispose();
         _titleFormat.Dispose();
         _icon.Dispose();
+    }
+
+    private static ID2D1Bitmap1 LoadApplicationIcon(ID2D1DeviceContext deviceContext)
+    {
+        using Stream stream = typeof(EmptyStatePanel).Assembly.GetManifestResourceStream(
+            "Dameview.Assets.dameview.png")
+            ?? throw new InvalidOperationException("The embedded application icon could not be found.");
+        using var decoder = new ImageDecoder();
+        return D2DBitmapFactory.Create(deviceContext, decoder.Decode(stream));
     }
 
     private static IDWriteTextFormat CreateCenteredFormat(

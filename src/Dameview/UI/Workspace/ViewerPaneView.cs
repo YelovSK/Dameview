@@ -1,8 +1,6 @@
 using System.Drawing;
 using Dameview.Commands;
-using Dameview.Imaging.Decoding;
 using Dameview.Imaging.Loading;
-using Dameview.Rendering;
 using Dameview.UI.Components;
 using Dameview.UI.Foundation;
 using Dameview.UI.Layout;
@@ -60,10 +58,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             addTab,
             HandleHoveredTabChanged,
             (index, input) => tabDragPointer(Pane, index, TranslateTabStripEvent(input)));
-        _emptyStatePanel = new EmptyStatePanel(
-            directWriteFactory,
-            LoadApplicationIcon(deviceContext),
-            showSettings);
+        _emptyStatePanel = new EmptyStatePanel(directWriteFactory, deviceContext, showSettings);
         _contentOverlay = new Overlay(_imagePanel, _emptyStatePanel);
         _toolbarPanel = new ToolbarPanel(directWriteFactory, commands, pane, showSettings);
         _statusPanel = new StatusPanel(directWriteFactory);
@@ -75,11 +70,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         AddChild(_statusPanel);
         AddChild(_activePaneIndicator);
 
-        bool hasImage = HasImage;
-        _imagePanel.IsVisible = hasImage;
-        _emptyStatePanel.IsVisible = !hasImage;
-        _toolbarPanel.IsVisible = hasImage;
-        _statusPanel.IsVisible = HasStatus;
+        UpdateChromeVisibility();
         if (_state.DisplayedImage is { } displayed)
         {
             ApplyDisplayedImage(displayed);
@@ -107,9 +98,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         }
 
         _chromeVisible = visible;
-        _viewerTabs.IsVisible = visible;
-        _toolbarPanel.IsVisible = visible && HasImage;
-        _statusPanel.IsVisible = visible && HasStatus;
+        UpdateChromeVisibility();
         if (!visible)
         {
             _statusPanel.SetPointerNear(false);
@@ -136,6 +125,17 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             _statusPanel.IsVisible = _chromeVisible && HasStatus;
             InvalidateVisual();
         }
+    }
+
+    private void UpdateChromeVisibility()
+    {
+        bool hasImage = HasImage;
+        _imagePanel.IsVisible = hasImage;
+        _emptyStatePanel.IsVisible = !hasImage;
+        // A single tab that holds nothing is not worth a strip to switch between.
+        _viewerTabs.IsVisible = _chromeVisible && (Pane.Count > 1 || hasImage);
+        _toolbarPanel.IsVisible = _chromeVisible && hasImage;
+        _statusPanel.IsVisible = _chromeVisible && HasStatus;
     }
 
     internal PointF GetImageViewportPoint(PointF panePoint, float dpi)
@@ -166,17 +166,15 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             ApplyDisplayedImage(displayed);
         }
 
-        bool hasImage = HasImage;
-        _imagePanel.IsVisible = hasImage;
-        _emptyStatePanel.IsVisible = !hasImage;
-        _toolbarPanel.IsVisible = _chromeVisible && hasImage;
-        _statusPanel.IsVisible = _chromeVisible && HasStatus;
+        UpdateChromeVisibility();
         InvalidateVisual();
     }
 
     internal void ApplyTabs(IReadOnlyList<ViewerTabInfo> tabs, int selectedIndex)
     {
         _viewerTabs.SetTabs(tabs, selectedIndex);
+        UpdateChromeVisibility();
+        InvalidateLayout();
     }
 
     internal int GetTabInsertionIndex(PointF panePoint)
@@ -314,15 +312,6 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     private void ApplyDisplayedImage(ImageLoaded displayed)
     {
         _imagePanel.SetImage(displayed.Representation, displayed.IsPreview);
-    }
-
-    private static ID2D1Bitmap1 LoadApplicationIcon(ID2D1DeviceContext deviceContext)
-    {
-        using Stream stream = typeof(ViewerPaneView).Assembly.GetManifestResourceStream(
-            "Dameview.Assets.dameview.png")
-            ?? throw new InvalidOperationException("The embedded application icon could not be found.");
-        using var decoder = new ImageDecoder();
-        return D2DBitmapFactory.Create(deviceContext, decoder.Decode(stream));
     }
 
     private sealed class ActivePaneIndicator : UiElement
