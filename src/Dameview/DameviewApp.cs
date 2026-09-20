@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Drawing;
+using System.Runtime.InteropServices;
 using Dameview.App;
 using Dameview.Commands;
 using Dameview.Diagnostics;
@@ -7,6 +8,7 @@ using Dameview.Imaging.Decoding;
 using Dameview.Imaging.Loading;
 using Dameview.Installation;
 using Dameview.Navigation;
+using Dameview.Notifications;
 using Dameview.Rendering;
 using Dameview.Settings;
 using Dameview.UI;
@@ -40,6 +42,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     private readonly ViewerWorkspace _workspace;
     private readonly SettingsService _settings;
     private readonly UpdateService _updates;
+    private readonly ToastService _toasts = new();
     private CancellationTokenSource? _copyImageCancellation;
     private int _pointerX;
     private int _pointerY;
@@ -99,7 +102,8 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             UiTheme.Default,
             this,
             _thumbnailImageLoader,
-            _performanceMonitor);
+            _performanceMonitor,
+            _toasts);
         _ui.Invalidated += _window.RequestRepaint;
         _ui.CursorChanged += _window.ApplyCursor;
         _workspace.ActivePaneChanged += HandleActivePaneChanged;
@@ -120,9 +124,14 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _window.PointerInput += HandlePointerInput;
 
         _settings.Changed += ApplySettings;
-        _settings.ErrorChanged += () =>
+        _settings.Failed += error =>
         {
-            _ui.SettingsError = _settings.Error;
+            _toasts.Notify(error, ToastSeverity.Error);
+            _window.RequestRepaint();
+        };
+        _settings.ValuesIgnored += ignored =>
+        {
+            _toasts.Notify(DescribeIgnored(ignored), ToastSeverity.Warning);
             _window.RequestRepaint();
         };
         _updates.Changed += HandleUpdateChanged;
@@ -474,11 +483,24 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         }
     }
 
+    // One bad value is worth naming; a mangled file is not worth four toasts.
+    private static string DescribeIgnored(IReadOnlyList<string> ignored) => ignored.Count == 1
+        ? $"Ignored unknown {ignored[0]} in the settings file."
+        : $"Ignored {ignored.Count} unreadable values in the settings file.";
+
     private void OpenPickedFile()
     {
-        if (FilePicker.PickFile(_window.Handle, "Images", _decodableExtensions) is string path)
+        try
         {
-            OpenImage(path);
+            if (FilePicker.PickFile(_window.Handle, "Images", _decodableExtensions) is string path)
+            {
+                OpenImage(path);
+            }
+        }
+        catch (Exception exception) when (exception is COMException or InvalidOperationException)
+        {
+            Log.Error("Window", "The file picker could not be opened.", exception);
+            _toasts.Notify("Could not open the file picker.", ToastSeverity.Error);
         }
     }
 
@@ -510,6 +532,9 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
                         "Clipboard",
                         $"Could not decode '{Path.GetFileName(path)}' for clipboard copy.",
                         error);
+                    _toasts.Notify(
+                        $"Could not read {Path.GetFileName(path)} to copy it.",
+                        ToastSeverity.Error);
                     return;
                 }
 
@@ -526,8 +551,15 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
                         image.Span))
                 {
                     Log.Warning("Clipboard", $"Could not copy '{Path.GetFileName(path)}' to the clipboard.");
+                    _toasts.Notify(
+                        $"Could not copy {Path.GetFileName(path)} to the clipboard.",
+                        ToastSeverity.Error);
                     return;
                 }
+
+                _toasts.Notify(
+                    $"Copied {Path.GetFileName(path)} to the clipboard.",
+                    ToastSeverity.Success);
             }
             finally
             {
@@ -611,6 +643,13 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
 
     private void HandleUpdateChanged(UpdateState state)
     {
+        // The settings panel shows the whole story, but a failure has to reach someone
+        // who asked for an update and then closed it.
+        if (state.Status == UpdateStatus.Failed)
+        {
+            _toasts.Notify(state.Error ?? "The update failed.", ToastSeverity.Error);
+        }
+
         _ui.ApplyUpdateState(state);
         _window.RequestRepaint();
     }

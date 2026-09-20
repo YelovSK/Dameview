@@ -15,7 +15,9 @@ internal sealed record UiTheme(
     Color4 ControlPressed,
     Color4 PrimaryText,
     Color4 SecondaryText,
-    Color4 ErrorText)
+    Color4 ErrorText,
+    Color4 WarningText,
+    Color4 SuccessText)
 {
     internal Color WindowCaptionColor => ToWindowColor(Background);
     internal Color WindowTextColor => ToWindowColor(PrimaryText);
@@ -36,7 +38,9 @@ internal sealed record UiTheme(
         ControlPressed: FromHex("#BAC9E0"),
         PrimaryText: FromHex("#171C26"),
         SecondaryText: FromHex("#525C6B"),
-        ErrorText: FromHex("#BF1A1F"));
+        ErrorText: FromHex("#BF1A1F"),
+        WarningText: FromHex("#9A6700"),
+        SuccessText: FromHex("#1A7F37"));
 
     internal static UiTheme Default { get; } = new(
         Background: FromHex("#090A0C"),
@@ -49,7 +53,9 @@ internal sealed record UiTheme(
         ControlPressed: FromHex("#3D4759"),
         PrimaryText: FromHex("#F0F2F7"),
         SecondaryText: FromHex("#919CAD"),
-        ErrorText: FromHex("#FF6E73"));
+        ErrorText: FromHex("#FF6E73"),
+        WarningText: FromHex("#E3B341"),
+        SuccessText: FromHex("#56D364"));
 
     // Source: https://github.com/catppuccin/palette/blob/main/palette.json
     internal static UiTheme CatppuccinFrappe { get; } = new(
@@ -63,7 +69,9 @@ internal sealed record UiTheme(
         ControlPressed: FromHex("#626880"), // Surface2
         PrimaryText: FromHex("#C6D0F5"), // Text
         SecondaryText: FromHex("#A5ADCE"), // Subtext0
-        ErrorText: FromHex("#E78284")); // Red
+        ErrorText: FromHex("#E78284"), // Red
+        WarningText: FromHex("#E5C890"), // Yellow
+        SuccessText: FromHex("#A6D189")); // Green
 
     internal static UiTheme CatppuccinMacchiato { get; } = new(
         Background: FromHex("#181926"), // Crust
@@ -76,7 +84,9 @@ internal sealed record UiTheme(
         ControlPressed: FromHex("#5B6078"), // Surface2
         PrimaryText: FromHex("#CAD3F5"), // Text
         SecondaryText: FromHex("#A5ADCB"), // Subtext0
-        ErrorText: FromHex("#ED8796")); // Red
+        ErrorText: FromHex("#ED8796"), // Red
+        WarningText: FromHex("#EED49F"), // Yellow
+        SuccessText: FromHex("#A6DA95")); // Green
 
     internal static UiTheme CatppuccinMocha { get; } = new(
         Background: FromHex("#11111B"), // Crust
@@ -89,7 +99,9 @@ internal sealed record UiTheme(
         ControlPressed: FromHex("#585B70"), // Surface2
         PrimaryText: FromHex("#CDD6F4"), // Text
         SecondaryText: FromHex("#A6ADC8"), // Subtext0
-        ErrorText: FromHex("#F38BA8")); // Red
+        ErrorText: FromHex("#F38BA8"), // Red
+        WarningText: FromHex("#F9E2AF"), // Yellow
+        SuccessText: FromHex("#A6E3A1")); // Green
 
     // Source: https://github.com/morhetz/gruvbox/blob/master/colors/gruvbox.vim
     internal static UiTheme GruvboxDark { get; } = new(
@@ -103,7 +115,9 @@ internal sealed record UiTheme(
         ControlPressed: FromHex("#7C6F64"), // dark4
         PrimaryText: FromHex("#EBDBB2"), // light1
         SecondaryText: FromHex("#BDAE93"), // light3
-        ErrorText: FromHex("#FB4934")); // bright_red
+        ErrorText: FromHex("#FB4934"), // bright_red
+        WarningText: FromHex("#FABD2F"), // bright_yellow
+        SuccessText: FromHex("#B8BB26")); // bright_green
 
     // Source: https://www.nordtheme.com/docs/colors-and-palettes
     internal static UiTheme Nord { get; } = new(
@@ -117,7 +131,9 @@ internal sealed record UiTheme(
         ControlPressed: FromHex("#596579"), // Dameview interaction shade beyond Polar Night
         PrimaryText: FromHex("#ECEFF4"), // nord6
         SecondaryText: FromHex("#D8DEE9"), // nord4
-        ErrorText: FromHex("#BF616A")); // nord11
+        ErrorText: FromHex("#BF616A"), // nord11
+        WarningText: FromHex("#EBCB8B"), // nord13
+        SuccessText: FromHex("#A3BE8C")); // nord14
 
     // Source: https://github.com/dracula/draculatheme.com/blob/main/content/spec.mdx
     internal static UiTheme Dracula { get; } = new(
@@ -131,7 +147,9 @@ internal sealed record UiTheme(
         ControlPressed: FromHex("#6272A4"), // Current Line / Comment
         PrimaryText: FromHex("#F8F8F2"), // Foreground
         SecondaryText: FromHex("#6272A4"), // Comment
-        ErrorText: FromHex("#FF5555")); // Red
+        ErrorText: FromHex("#FF5555"), // Red
+        WarningText: FromHex("#F1FA8C"), // Yellow
+        SuccessText: FromHex("#50FA7B")); // Green
 
     // Source: https://github.com/rose-pine/rose-pine-palette/blob/main/palette.json
     internal static UiTheme RosePine { get; } = new(
@@ -145,7 +163,9 @@ internal sealed record UiTheme(
         ControlPressed: FromHex("#524F67"), // Highlight High
         PrimaryText: FromHex("#E0DEF4"), // Text
         SecondaryText: FromHex("#6E6A86"), // Muted
-        ErrorText: FromHex("#EB6F92")); // Love
+        ErrorText: FromHex("#EB6F92"), // Love
+        WarningText: FromHex("#F6C177"), // Gold
+        SuccessText: FromHex("#31748F")); // Pine
 
     private static Color4 FromHex(string hex, float alpha = 1.0f)
     {

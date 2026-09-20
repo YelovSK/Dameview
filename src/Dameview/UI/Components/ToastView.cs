@@ -1,0 +1,184 @@
+using System.Drawing;
+using Dameview.Notifications;
+using Dameview.UI.Animation;
+using Dameview.UI.Foundation;
+using Dameview.Win32.Input;
+using Vortice.Direct2D1;
+using Vortice.DirectWrite;
+using Vortice.Mathematics;
+
+namespace Dameview.UI.Components;
+
+/// <summary>One message in the toast stack, which slides in and fades out on its way back.</summary>
+internal sealed class ToastView : UiElement, IDisposable
+{
+    internal const float Width = 320.0f;
+    internal const float VerticalPadding = 12.0f;
+
+    private const float HorizontalPadding = 14.0f;
+    private const float DismissWidth = 32.0f;
+    private const float FontSize = 13.0f;
+    private const double Response = 20.0;
+    private const float EntryOffset = 24.0f;
+
+    private readonly IDWriteFactory _factory;
+    private readonly IDWriteTextFormat _format;
+    private readonly DismissButton _dismiss;
+    private readonly AnimatedFloat _presence;
+    private readonly AnimatedFloat _shift = new(0.0f, Response, completionDistance: 0.25f);
+    private float? _top;
+    private IDWriteTextLayout _layout;
+
+    internal ToastView(IDWriteFactory factory, Toast toast, Action dismissed)
+    {
+        _factory = factory;
+        Toast = toast;
+        _format = factory.CreateTextFormat(
+            UiTypography.FontFamily,
+            FontWeight.Normal,
+            FontStyle.Normal,
+            FontSize);
+        // The layout is measured in a tall box, so the text has to start at its top.
+        _format.ParagraphAlignment = ParagraphAlignment.Near;
+        _format.WordWrapping = WordWrapping.Wrap;
+        _layout = CreateLayout();
+        _presence = new AnimatedFloat(0.0f, Response, completionDistance: 0.002f);
+        _presence.SetTarget(1.0f);
+        _dismiss = new DismissButton(factory, dismissed);
+        AddChild(_dismiss);
+    }
+
+    internal Toast Toast { get; }
+
+    /// <summary>Set once the message is gone from the service, to play the exit before removal.</summary>
+    internal bool IsLeaving
+    {
+        get;
+        set
+        {
+            if (field == value)
+            {
+                return;
+            }
+
+            field = value;
+            _presence.SetTarget(value ? 0.0f : 1.0f);
+        }
+    }
+
+    internal bool HasLeft => IsLeaving && _presence.Current <= 0.0f;
+
+    internal override float Opacity => _presence.Current;
+    internal override PointF VisualOffset =>
+        new((1.0f - _presence.Current) * EntryOffset, _shift.Current);
+
+    /// <summary>
+    /// Tells the toast where the stack now wants it, before it is arranged there.
+    /// </summary>
+    /// <remarks>
+    /// Arranging moves a toast the instant a neighbour appears or leaves. Holding the
+    /// difference as a visual offset and easing it away turns that jump into a slide.
+    /// </remarks>
+    internal void PlaceAt(float top)
+    {
+        if (_top is float previous && previous != top)
+        {
+            _shift.SetValue(_shift.Current + (previous - top));
+        }
+
+        _top = top;
+        _shift.SetTarget(0.0f);
+    }
+
+    protected override SizeF MeasureCore(SizeF availableSize)
+    {
+        _dismiss.Measure(new SizeF(DismissWidth, DismissWidth));
+        float height = MathF.Ceiling(_layout.Metrics.Height) + (2.0f * VerticalPadding);
+        return new SizeF(Width, MathF.Max(DismissWidth + VerticalPadding, height));
+    }
+
+    protected override void ArrangeCore(SizeF finalSize)
+    {
+        _dismiss.Arrange(new RectangleF(
+            finalSize.Width - DismissWidth,
+            (finalSize.Height - DismissWidth) / 2.0f,
+            DismissWidth,
+            DismissWidth));
+    }
+
+    protected override bool UpdateCore(in UiUpdateContext context) =>
+        _presence.Update(context) | _shift.Update(context);
+
+    protected override void DrawCore(in UiDrawContext context)
+    {
+        var bounds = new RectangleF(0.0f, 0.0f, Bounds.Width, Bounds.Height);
+        var surface = new RoundedRectangle(bounds, UiDesign.ControlCornerRadius, UiDesign.ControlCornerRadius);
+        context.FillRoundedRectangle(surface, context.Palette.OverlaySurface);
+
+        // The severity is carried by the border, which every other panel already draws.
+        context.DrawRoundedRectangle(surface, GetAccent(context.Palette));
+
+        context.DrawTextLayout(
+            _layout,
+            new System.Numerics.Vector2(HorizontalPadding, VerticalPadding),
+            context.Palette.PrimaryText,
+            DrawTextOptions.Clip);
+    }
+
+    public void Dispose()
+    {
+        _dismiss.Dispose();
+        _layout.Dispose();
+        _format.Dispose();
+    }
+
+    private Color4 GetAccent(UiTheme palette) => Toast.Severity switch
+    {
+        ToastSeverity.Success => palette.SuccessText,
+        ToastSeverity.Warning => palette.WarningText,
+        ToastSeverity.Error => palette.ErrorText,
+        _ => palette.SecondaryText,
+    };
+
+    private IDWriteTextLayout CreateLayout() => _factory.CreateTextLayout(
+        Toast.Message,
+        _format,
+        Width - HorizontalPadding - DismissWidth,
+        10_000.0f);
+
+    private sealed class DismissButton(IDWriteFactory factory, Action dismissed) : InteractiveControl, IDisposable
+    {
+        private const float GlyphSize = 15.0f;
+
+        private readonly IDWriteTextFormat _format = CreateFormat(factory);
+
+        protected override SizeF MeasureCore(SizeF availableSize) => availableSize;
+
+        protected override void DrawCore(in UiDrawContext context)
+        {
+            Color4 text = context.Palette.SecondaryText;
+            context.DrawText(
+                "×",
+                _format,
+                new Rect(0.0f, 0.0f, Bounds.Width, Bounds.Height),
+                HoverAmount > 0.0f ? context.Palette.PrimaryText : text);
+        }
+
+        public void Dispose() => _format.Dispose();
+
+        protected override void Activate() => dismissed();
+
+        private static IDWriteTextFormat CreateFormat(IDWriteFactory factory)
+        {
+            IDWriteTextFormat format = factory.CreateTextFormat(
+                UiTypography.FontFamily,
+                FontWeight.SemiBold,
+                FontStyle.Normal,
+                GlyphSize);
+            format.TextAlignment = TextAlignment.Center;
+            format.ParagraphAlignment = ParagraphAlignment.Center;
+            format.WordWrapping = WordWrapping.NoWrap;
+            return format;
+        }
+    }
+}

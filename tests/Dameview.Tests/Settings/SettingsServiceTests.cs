@@ -187,6 +187,39 @@ public sealed class SettingsServiceTests
     }
 
     [TestMethod]
+    public void ValuesThatFellBackAreReportedOnceTheFileLoads()
+    {
+        using var files = new SettingsFiles();
+        using SettingsService settings = files.CreateService();
+        settings.Start();
+        var reported = new List<IReadOnlyList<string>>();
+        settings.ValuesIgnored += reported.Add;
+
+        File.WriteAllText(files.Path, "theme=purple\nsort=random\n");
+        files.PumpUntil(() => reported.Count > 0);
+
+        CollectionAssert.AreEquivalent(
+            new[] { "theme 'purple'", "sort 'random'" },
+            reported.Single().ToArray());
+        Assert.IsNull(settings.Error, "A value falling back is not a failure to load.");
+    }
+
+    [TestMethod]
+    public void AFileWithNothingWrongReportsNothing()
+    {
+        using var files = new SettingsFiles();
+        using SettingsService settings = files.CreateService();
+        settings.Start();
+        int reports = 0;
+        settings.ValuesIgnored += _ => reports++;
+
+        File.WriteAllText(files.Path, "theme=light\n");
+        files.PumpUntil(() => settings.Current.Theme == ThemeId.Light);
+
+        Assert.AreEqual(0, reports);
+    }
+
+    [TestMethod]
     public void TemporaryReadLockRecoversWithoutAnError()
     {
         using var files = new SettingsFiles();

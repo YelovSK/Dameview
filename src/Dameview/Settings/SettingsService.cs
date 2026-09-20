@@ -17,6 +17,7 @@ internal sealed class SettingsService : IDisposable
     private AppSettings? _fileSettings;
     private bool _disposed;
     private int _readAttempts;
+    private string[] _reportedIgnored = [];
 
     internal SettingsService(
         string path,
@@ -42,7 +43,12 @@ internal sealed class SettingsService : IDisposable
     internal AppSettings Current { get; private set; } = new();
     internal string? Error { get; private set; }
     internal event Action<AppSettings, AppSettings>? Changed;
-    internal event Action? ErrorChanged;
+
+    /// <summary>Raised for every failed operation, including one that fails the same way twice.</summary>
+    internal event Action<string>? Failed;
+
+    /// <summary>Raised when a file loaded, but parts of it were unreadable and used defaults.</summary>
+    internal event Action<IReadOnlyList<string>>? ValuesIgnored;
 
     internal static AppSettings LoadForStartup()
     {
@@ -53,7 +59,8 @@ internal sealed class SettingsService : IDisposable
                 return new AppSettings();
             }
 
-            AppSettings settings = SettingsIniSerializer.Read(File.ReadAllText(DefaultPath));
+            // Nothing is listening this early, so a fallback here is only worth logging.
+            (AppSettings settings, _) = SettingsIniSerializer.Read(File.ReadAllText(DefaultPath));
             settings.Validate();
             return settings;
         }
@@ -94,7 +101,7 @@ internal sealed class SettingsService : IDisposable
         catch (Exception exception) when (IsSettingsError(exception))
         {
             Log.Error("Settings", "Could not initialize settings.", exception);
-            SetError(exception.Message);
+            Fail(exception.Message);
         }
     }
 
@@ -106,12 +113,12 @@ internal sealed class SettingsService : IDisposable
         try
         {
             Save(settings);
-            SetError(null);
+            Error = null;
         }
         catch (Exception exception) when (IsSettingsError(exception))
         {
             Log.Error("Settings", "Could not save settings.", exception);
-            SetError($"Could not save settings: {exception.Message}");
+            Fail($"Could not save settings: {exception.Message}");
         }
     }
 
@@ -135,9 +142,11 @@ internal sealed class SettingsService : IDisposable
 
         try
         {
-            AppSettings settings = SettingsIniSerializer.Read(File.ReadAllText(_path));
+            (AppSettings settings, IReadOnlyList<string> ignored) =
+                SettingsIniSerializer.Read(File.ReadAllText(_path));
             settings.Validate();
             _readAttempts = 0;
+
             // A delayed notification for our last save must not roll back a
             // newer live change whose save failed.
             if (settings == _fileSettings && settings != Current)
@@ -146,9 +155,18 @@ internal sealed class SettingsService : IDisposable
             }
 
             _fileSettings = settings;
+
+            // The watcher reports one edit more than once, and a file of nothing but bad
+            // values still parses to the defaults, so the complaints are what must differ.
+            if (ignored.Count > 0 && !ignored.SequenceEqual(_reportedIgnored))
+            {
+                ValuesIgnored?.Invoke(ignored);
+            }
+
+            _reportedIgnored = [.. ignored];
             Apply(settings);
             Log.Debug("Settings", "Settings reloaded.");
-            SetError(null);
+            Error = null;
         }
         catch (Exception exception) when (IsSettingsError(exception))
         {
@@ -161,7 +179,7 @@ internal sealed class SettingsService : IDisposable
 
             _readAttempts = 0;
             Log.Error("Settings", "Could not load settings.", exception);
-            SetError($"Could not load settings: {exception.Message}");
+            Fail($"Could not load settings: {exception.Message}");
         }
     }
 
@@ -192,13 +210,10 @@ internal sealed class SettingsService : IDisposable
         }
     }
 
-    private void SetError(string? message)
+    private void Fail(string message)
     {
-        if (message != Error)
-        {
-            Error = message;
-            ErrorChanged?.Invoke();
-        }
+        Error = message;
+        Failed?.Invoke(message);
     }
 
     private void ScheduleReload(object sender, FileSystemEventArgs args)

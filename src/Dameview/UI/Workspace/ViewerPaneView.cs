@@ -84,8 +84,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
 
     internal ViewerPane Pane { get; }
     internal bool HasImage => _state.DisplayedImage is not null;
-    internal bool HasStatus => SettingsError is not null
-        || HasImage
+    internal bool HasStatus => HasImage
         || _state.Message is not null
         || _state.FolderError is not null;
     internal RectangleF ContentBounds { get; private set; }
@@ -205,7 +204,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         string? animationError = _imagePanel.AnimationError is { } exception
             ? $"Animation stopped: {exception.Message}"
             : null;
-        string? message = SettingsError ?? animationError ?? _state.Message;
+        string? message = animationError ?? _state.Message;
         if (message is null && _state.FolderError is { } folderError)
         {
             message = $"Image opened, but its folder could not be read: {folderError}";
@@ -218,7 +217,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             _state.CurrentEntry?.Length,
             _imagePanel.ZoomPercentage,
             message,
-            SettingsError is not null || animationError is not null || _state.IsError || _state.FolderError is not null));
+            animationError is not null || _state.IsError || _state.FolderError is not null));
     }
 
     protected override SizeF MeasureCore(SizeF availableSize)

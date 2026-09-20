@@ -1,6 +1,7 @@
 using System.Drawing;
 using Dameview.Commands;
 using Dameview.Diagnostics;
+using Dameview.Notifications;
 using Dameview.Settings;
 using Dameview.UI.Animation;
 using Dameview.UI.Components;
@@ -33,6 +34,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private readonly SettingsPanel _settingsPanel;
     private readonly CommandPalettePanel _commandPalettePanel;
     private readonly ModalHost _modalHost;
+    private readonly ToastHost _toastHost;
     private readonly PopupHost _popupHost;
     private readonly UiAnimationClock _animationClock;
     private readonly UiRoot _root;
@@ -55,6 +57,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         IAppCommands commands,
         IThumbnailImageLoader thumbnailLoader,
         PerformanceMonitor performanceMonitor,
+        ToastService toasts,
         TimeProvider? timeProvider = null)
     {
         _deviceContext = deviceContext;
@@ -104,6 +107,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _splitView.ResizeStarted += _galleryPanel.BeginLiveResize;
         _splitView.ResizeCompleted += _galleryPanel.EndLiveResize;
         _modalHost = new ModalHost();
+        _toastHost = new ToastHost(directWriteFactory, toasts);
         _popupHost = new PopupHost();
         _settingsPanel = new SettingsPanel(
             directWriteFactory,
@@ -127,6 +131,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         AddChild(_modalHost);
         AddChild(_popupHost);
         AddChild(_performanceOverlay);
+        AddChild(_toastHost);
         _root = new UiRoot(this, dpi);
         _root.CursorChanged += cursor => _cursorChanged?.Invoke(cursor);
         _root.PointerPressed += HandlePointerPressed;
@@ -152,22 +157,6 @@ internal sealed class ViewerUi : UiElement, IDisposable
     }
 
     internal UiTheme Palette { get; set; }
-    internal string? SettingsError
-    {
-        get => _settingsPanel.Error;
-        set
-        {
-            if (_settingsPanel.Error == value)
-            {
-                return;
-            }
-
-            _settingsPanel.Error = value;
-            _activePaneView.SettingsError = value;
-            _root.InvalidateVisual();
-        }
-    }
-
     internal TimeSpan? NextAnimationFrameDelay =>
         _workspaceView.NextAnimationFrameDelay
         ?? (_performanceOverlay.IsVisible ? PerformanceOverlay.HeartbeatInterval : null);
@@ -197,13 +186,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _activePane = pane;
         if (FindPaneView(pane) is { } paneView)
         {
-            if (!ReferenceEquals(paneView, _activePaneView))
-            {
-                _activePaneView.SettingsError = null;
-            }
-
             _activePaneView = paneView;
-            paneView.SettingsError = _settingsPanel.Error;
         }
 
         _workspaceView.SetActivePane(pane);
@@ -225,7 +208,6 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
         _activePaneView = FindPaneView(_activePane)
             ?? throw new InvalidOperationException("The active pane view is not attached.");
-        _activePaneView.SettingsError = _settingsPanel.Error;
         _workspaceView.SetActivePane(_activePane);
     }
 
@@ -418,6 +400,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _modalHost.Measure(availableSize);
         _popupHost.Measure(availableSize);
         _performanceOverlay.Measure(availableSize);
+        _toastHost.Measure(availableSize);
         return availableSize;
     }
 
@@ -431,6 +414,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _dragOverlay.Arrange(new RectangleF(PointF.Empty, finalSize));
         _modalHost.Arrange(new RectangleF(PointF.Empty, finalSize));
         _popupHost.Arrange(new RectangleF(PointF.Empty, finalSize));
+        _toastHost.Arrange(new RectangleF(PointF.Empty, finalSize));
         SizeF performanceSize = _performanceOverlay.DesiredSize;
         _performanceOverlay.Arrange(new RectangleF(
             UiDesign.WindowMargin,
@@ -454,6 +438,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _galleryStates.Clear();
         _dragOverlay.Dispose();
         _performanceOverlay.Dispose();
+        _toastHost.Dispose();
         _tabPreview.Dispose();
         _commandPalettePanel.Dispose();
         _settingsPanel.Dispose();

@@ -242,16 +242,6 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
 
     internal override SizeF PreferredSize => new(500.0f, 460.0f);
     internal override UiElement InitialFocus => _tabs.SelectedTab;
-    internal string? Error
-    {
-        get;
-        set
-        {
-            field = value;
-            _message.Text = value ?? "Changes are saved automatically.";
-            _message.Tone = value is null ? UiTextTone.Secondary : UiTextTone.Error;
-        }
-    }
 
     internal void ApplySettings(AppSettings settings)
     {
