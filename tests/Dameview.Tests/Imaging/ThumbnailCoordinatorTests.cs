@@ -198,8 +198,10 @@ public sealed class ThumbnailCoordinatorTests
             request.Dispose();
         }
 
+        // A retry landing between the reload and its delivery can start a third load,
+        // so what matters is that the failure did not poison the path for good.
         Assert.IsNotNull(delivery);
-        Assert.AreEqual(2, Volatile.Read(ref loadCount));
+        Assert.IsTrue(Volatile.Read(ref loadCount) >= 2);
     }
 
     private static DecodedImageUpload CreateImage() => DecodedImageUpload.Allocate(1, 1, 4);

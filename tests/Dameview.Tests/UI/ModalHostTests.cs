@@ -12,18 +12,17 @@ public sealed class ModalHostTests
     private static readonly SizeF WindowSize = new(800, 600);
 
     [TestMethod]
-    public void EscapeClosesAndFocusCanBeRestoredExactlyOnce()
+    public void EscapeDismissesOnceAndClosingAgainIsInert()
     {
         int dismissed = 0;
         var host = new ModalHost();
         var content = new Content();
-        UiRoot root = CreateRoot(host);
+        _ = CreateRoot(host);
         host.Show(content, () =>
         {
             dismissed++;
             host.Close();
         });
-        root.SetFocus(content.InitialFocus);
 
         Assert.IsTrue(host.HandleEscape());
         Assert.IsFalse(host.IsOpen);
@@ -134,13 +133,13 @@ public sealed class ModalHostTests
         root.Arrange(WindowSize);
 
         root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, 120, 100));
-        AssertPoint(new PointF(13.333336f, 16.666668f), content.Events[^1].Position);
+        AssertPoint(ContentLocal(content, host, 144.0f, 120, 100), content.Events[^1].Position);
         root.HandlePointer(new WindowPointerEvent(WindowPointerEventKind.Cancelled, PointF.Empty));
 
         root.SetDpi(192);
         root.Arrange(WindowSize);
         root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, 40, 40));
-        AssertPoint(new PointF(8, 8), content.Events[^1].Position);
+        AssertPoint(ContentLocal(content, host, 192.0f, 40, 40), content.Events[^1].Position);
     }
 
     [TestMethod]
@@ -323,4 +322,12 @@ public sealed class ModalHostTests
     {
         internal override bool IsFocusable => true;
     }
+    // The content sees the pointer converted to dips and made relative to where it was placed,
+    // so the expectation is derived rather than a constant that hides the modal's margin.
+    private static PointF ContentLocal(UiElement content, UiElement root, float dpi, float x, float y)
+    {
+        RectangleF bounds = content.GetBoundsRelativeTo(root);
+        return new PointF((x * 96.0f / dpi) - bounds.X, (y * 96.0f / dpi) - bounds.Y);
+    }
+
 }

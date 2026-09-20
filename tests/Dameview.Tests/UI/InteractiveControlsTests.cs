@@ -97,7 +97,8 @@ public sealed class InteractiveControlsTests
         float collapsedHeight = presenter.Bounds.Height;
         AdvanceAnimation(root, size);
         Assert.IsTrue(presenter.Bounds.Height > collapsedHeight);
-        UiElement secondOption = presenter.Children[0].Children[0].Children[1];
+        // Found by type, so restructuring the presenter's nesting does not break this.
+        UiElement secondOption = Descendants(presenter).OfType<Button>().ElementAt(1);
         RectangleF optionBounds = secondOption.GetBoundsRelativeTo(scene);
         PointF center = new(optionBounds.Left + optionBounds.Width / 2.0f, optionBounds.Top + optionBounds.Height / 2.0f);
         root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, center));
@@ -238,4 +239,16 @@ public sealed class InteractiveControlsTests
             _control.Arrange(new RectangleF(PointF.Empty, finalSize));
         }
     }
+    private static IEnumerable<UiElement> Descendants(UiElement element)
+    {
+        foreach (UiElement child in element.Children)
+        {
+            yield return child;
+            foreach (UiElement descendant in Descendants(child))
+            {
+                yield return descendant;
+            }
+        }
+    }
+
 }

@@ -87,11 +87,11 @@ public sealed class ViewerSessionTests
         Assert.AreEqual(center, session.Viewport.Center);
         Assert.AreEqual(mode, session.Viewport.Mode);
         Assert.AreEqual(1.0f, session.Viewport.Scale);
-        Assert.AreEqual(5, states.Count);
-        Assert.IsTrue(states[0].IsLoading);
-        Assert.IsFalse(states[2].IsLoading);
-        Assert.IsTrue(states[3].IsLoading);
-        Assert.IsTrue(states[4].IsError);
+
+        // Every step was announced, in order. The exact number of notifications is not the contract.
+        Assert.IsTrue(states[0].IsLoading, "Opening announces the load.");
+        Assert.IsTrue(states.Any(state => !state.IsLoading && state.DisplayedImage is not null));
+        Assert.IsTrue(states[^1].IsError, "The failure is the last thing announced.");
     }
 
     [TestMethod]

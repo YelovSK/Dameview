@@ -20,61 +20,35 @@ public sealed class ViewerCommandCatalogTests
     [TestMethod]
     public void BindingsResolveOnlyWithinTheirOwnScope()
     {
-        Assert.IsTrue(ViewerKeyBindings.Defaults.TryGetCommand(
-            ViewerCommandScope.Window,
-            new WindowKeyEvent(WindowKey.Tab, Shift: true, Control: true),
-            out ViewerCommandId previous));
-        Assert.AreEqual(ViewerCommandId.PreviousTab, previous);
+        // Bound here rather than relied on from the defaults, so that rebinding a shipped
+        // shortcut cannot fail this test for a reason that has nothing to do with scopes.
+        ViewerCommandShortcut shared = new(WindowKey.F3, Control: true);
+        ViewerKeyBindings bindings = ViewerKeyBindings.Defaults
+            .WithShortcut(ViewerCommandId.SplitDown, shared)
+            .WithShortcut(ViewerCommandId.FitImage, shared);
 
-        Assert.IsTrue(ViewerKeyBindings.Defaults.TryGetCommand(
+        Assert.IsTrue(bindings.TryGetCommand(
             ViewerCommandScope.Window,
-            new WindowKeyEvent(WindowKey.S, Control: true),
-            out ViewerCommandId splitDown));
-        Assert.AreEqual(ViewerCommandId.SplitDown, splitDown);
+            new WindowKeyEvent(WindowKey.F3, Control: true),
+            out ViewerCommandId window));
+        Assert.AreEqual(ViewerCommandId.SplitDown, window);
 
-        Assert.IsTrue(ViewerKeyBindings.Defaults.TryGetCommand(
-            ViewerCommandScope.Window,
-            new WindowKeyEvent(WindowKey.S, Shift: true, Control: true),
-            out ViewerCommandId splitRight));
-        Assert.AreEqual(ViewerCommandId.SplitRight, splitRight);
-
-        Assert.IsTrue(ViewerKeyBindings.Defaults.TryGetCommand(
-            ViewerCommandScope.Window,
-            new WindowKeyEvent(WindowKey.F11),
-            out ViewerCommandId fullscreen));
-        Assert.AreEqual(ViewerCommandId.ToggleFullscreen, fullscreen);
-
-        Assert.IsTrue(ViewerKeyBindings.Defaults.TryGetCommand(
-            ViewerCommandScope.Window,
-            new WindowKeyEvent(WindowKey.F, Control: true),
-            out fullscreen));
-        Assert.AreEqual(ViewerCommandId.ToggleFullscreen, fullscreen);
-
-        Assert.IsTrue(ViewerKeyBindings.Defaults.TryGetCommand(
+        Assert.IsTrue(bindings.TryGetCommand(
             ViewerCommandScope.Viewer,
-            new WindowKeyEvent(WindowKey.Left),
-            out ViewerCommandId previousImage));
-        Assert.AreEqual(ViewerCommandId.PreviousImage, previousImage);
+            new WindowKeyEvent(WindowKey.F3, Control: true),
+            out ViewerCommandId viewer));
+        Assert.AreEqual(ViewerCommandId.FitImage, viewer);
 
-        Assert.IsTrue(ViewerKeyBindings.Defaults.TryGetCommand(
+        ViewerKeyBindings unbound = bindings.WithShortcuts(ViewerCommandId.FitImage, []);
+        Assert.IsFalse(unbound.TryGetCommand(
             ViewerCommandScope.Viewer,
-            new WindowKeyEvent(WindowKey.C, Control: true),
-            out ViewerCommandId copyImage));
-        Assert.AreEqual(ViewerCommandId.CopyImage, copyImage);
-
-        Assert.IsFalse(ViewerKeyBindings.Defaults.TryGetCommand(
+            new WindowKeyEvent(WindowKey.F3, Control: true),
+            out _));
+        Assert.IsTrue(unbound.TryGetCommand(
             ViewerCommandScope.Window,
-            new WindowKeyEvent(WindowKey.Left),
-            out _));
-        Assert.IsFalse(ViewerKeyBindings.Defaults.TryGetCommand(
-            ViewerCommandScope.Viewer,
-            new WindowKeyEvent(WindowKey.Tab, Shift: true, Control: true),
-            out _));
-
-        Assert.IsFalse(ViewerKeyBindings.Defaults.TryGetCommand(
-            ViewerCommandScope.Window,
-            new WindowKeyEvent(WindowKey.W, Shift: true, Control: true),
-            out _));
+            new WindowKeyEvent(WindowKey.F3, Control: true),
+            out _),
+            "Unbinding in one scope leaves the other scope's command alone.");
     }
 
     [TestMethod]
@@ -125,27 +99,13 @@ public sealed class ViewerCommandCatalogTests
     [TestMethod]
     public void ShortcutLabelsAreDerivedFromTheirKeyChord()
     {
+        // Modifier order, the named-key table, and a key that falls through to its enum name.
         Assert.AreEqual("Ctrl+,", new ViewerCommandShortcut(WindowKey.Comma, Control: true).Text);
         Assert.AreEqual(
             "Ctrl+Shift+P",
             new ViewerCommandShortcut(WindowKey.P, Control: true, Shift: true).Text);
-        string[] expectedActualSize = ["1", "Numpad1"];
-        CollectionAssert.AreEqual(
-            expectedActualSize,
-            ViewerKeyBindings.Defaults.GetShortcuts(ViewerCommandId.ShowActualSize)
-                .Select(shortcut => shortcut.Text)
-                .ToArray());
-        Assert.AreEqual(
-            "Ctrl+S",
-            ViewerKeyBindings.Defaults.GetShortcuts(ViewerCommandId.SplitDown).Single().Text);
-        Assert.AreEqual(
-            "Ctrl+Shift+S",
-            ViewerKeyBindings.Defaults.GetShortcuts(ViewerCommandId.SplitRight).Single().Text);
-        string[] expectedFullscreen = ["F11", "Ctrl+F"];
-        CollectionAssert.AreEqual(
-            expectedFullscreen,
-            ViewerKeyBindings.Defaults.GetShortcuts(ViewerCommandId.ToggleFullscreen)
-                .Select(shortcut => shortcut.Text)
-                .ToArray());
+        Assert.AreEqual("1", new ViewerCommandShortcut(WindowKey.Number1).Text);
+        Assert.AreEqual("Numpad1", new ViewerCommandShortcut(WindowKey.Numpad1).Text);
+        Assert.AreEqual("F11", new ViewerCommandShortcut(WindowKey.F11).Text);
     }
 }

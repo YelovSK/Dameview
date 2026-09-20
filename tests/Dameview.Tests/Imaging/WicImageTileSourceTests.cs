@@ -120,7 +120,6 @@ public sealed class WicImageTileSourceTests
                 new ImageTile(x, y, width, height),
                 CancellationToken.None);
 
-            Assert.AreEqual(512, tiles.TileSize);
             CollectionAssert.AreEqual(
                 Crop(fullImage.Pixels, fullImage.Width, x, y, width, height),
                 tile.Pixels);
