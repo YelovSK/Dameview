@@ -129,8 +129,10 @@ internal sealed class PerformanceOverlay : UiElement, IDisposable
             + $"  draw\t{snapshot.AverageDrawMilliseconds:0.00} ms\t{snapshot.AverageDrawnElements:0} el \u00b7 {snapshot.AverageDrawOperations:0} ops\n"
             + $"  submit\t{snapshot.AverageSubmitMilliseconds:0.00} ms\n"
             + $"  other\t{snapshot.AverageOtherMilliseconds:0.00} ms\n"
-            + $"Alloc\t{snapshot.AllocatedBytesPerSecond / (1024.0 * 1024.0):0.0} MB/s\n"
-            + FormatGpuTime(snapshot);
+            + FormatGpuTime(snapshot)
+            + FormatVideoMemory(snapshot)
+            + FormatMemory(snapshot)
+            + $"Alloc\t{snapshot.AllocatedBytesPerSecond / (1024.0 * 1024.0):0.0} MB/s\n";
 
         _textLayout?.Dispose();
         _textLayout = _directWriteFactory.CreateTextLayout(
@@ -143,8 +145,18 @@ internal sealed class PerformanceOverlay : UiElement, IDisposable
             MathF.Max(_textSize.Height, MathF.Ceiling(_textLayout.Metrics.Height)));
     }
 
+    private static string FormatMemory(PerformanceSnapshot snapshot) =>
+        snapshot.Memory is not ({ } workingSet, { } managedHeap)
+            ? string.Empty
+            : $"RAM\t{workingSet / (1024.0 * 1024.0):0} MB\theap {managedHeap / (1024.0 * 1024.0):0} MB\n";
+
+    private static string FormatVideoMemory(PerformanceSnapshot snapshot) =>
+        snapshot.VideoMemory is not ({ } used, { } budget)
+            ? string.Empty
+            : $"VRAM\t{used / (1024.0 * 1024.0):0} MB\tof {budget / (1024.0 * 1024.0 * 1024.0):0.0} GB\n";
+
     private static string FormatGpuTime(PerformanceSnapshot snapshot) =>
         snapshot.AverageGpuMilliseconds is { } average && snapshot.MaximumGpuMilliseconds is { } maximum
-            ? $"GPU\t{average:0.00} ms\tmax {maximum:0.00}"
-            : "GPU\t-- ms";
+            ? $"GPU\t{average:0.00} ms\tmax {maximum:0.00}\n"
+            : $"GPU\t-- ms\n";
 }

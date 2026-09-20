@@ -13,7 +13,9 @@ internal readonly record struct PerformanceFrameTiming(
     int DrawnElements = 0,
     int DrawOperations = 0,
     TimeSpan DrawTime = default,
-    TimeSpan SubmitTime = default);
+    TimeSpan SubmitTime = default,
+    (long Used, long Budget)? VideoMemory = null,
+    (long WorkingSet, long ManagedHeap)? Memory = null);
 
 internal readonly record struct PerformanceSnapshot(
     int SampleCount,
@@ -32,7 +34,9 @@ internal readonly record struct PerformanceSnapshot(
     double AverageDrawnElements,
     double AverageDrawOperations,
     double AverageSubmitMilliseconds,
-    double AverageOtherMilliseconds);
+    double AverageOtherMilliseconds,
+    (long Used, long Budget)? VideoMemory,
+    (long WorkingSet, long ManagedHeap)? Memory);
 
 internal sealed class PerformanceMonitor
 {
@@ -43,6 +47,8 @@ internal sealed class PerformanceMonitor
     private readonly Sample[] _samples = new Sample[MaximumSamples];
     private int _nextSample;
     private int _sampleCount;
+    private (long Used, long Budget)? _videoMemory;
+    private (long WorkingSet, long ManagedHeap)? _memory;
     private long _previousFrameStarted;
     private bool _hasPreviousFrame;
 
@@ -70,6 +76,10 @@ internal sealed class PerformanceMonitor
         {
             return;
         }
+
+        // Levels rather than rates, so the latest reading stands on its own.
+        _videoMemory = timing.VideoMemory ?? _videoMemory;
+        _memory = timing.Memory ?? _memory;
 
         if (_hasPreviousFrame)
         {
@@ -194,7 +204,9 @@ internal sealed class PerformanceMonitor
             averageSubmit,
             // Everything the measured phases did not account for, shown rather than folded into
             // one of them, so a phase can never quietly absorb work that is not its own.
-            Math.Max(0.0, averageCpu - averageUpdate - averageLayout - averageDraw - averageSubmit));
+            Math.Max(0.0, averageCpu - averageUpdate - averageLayout - averageDraw - averageSubmit),
+            _videoMemory,
+            _memory);
     }
 
     private void ClearSamples()

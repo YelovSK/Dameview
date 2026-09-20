@@ -28,6 +28,7 @@ internal sealed class D2DRenderer : IDisposable
     private readonly ID3D11DeviceContext _d3dContext;
     private readonly GpuFrameTimer _gpuFrameTimer;
     private readonly IDXGIDevice _dxgiDevice;
+    private readonly IDXGIAdapter3? _videoMemoryAdapter;
     private readonly IDXGIFactory2 _dxgiFactory;
     private readonly IDXGISwapChain2 _swapChain;
     private readonly SafeWaitHandle _frameLatencyWaitHandle;
@@ -62,6 +63,8 @@ internal sealed class D2DRenderer : IDisposable
         _gpuFrameTimer = new GpuFrameTimer(_d3dDevice, _d3dContext);
         using IDXGIAdapter adapter = _dxgiDevice.GetAdapter();
         _dxgiFactory = adapter.GetParent<IDXGIFactory2>();
+        // Kept for its video memory reporting, which the rest of the adapter is not needed for.
+        _videoMemoryAdapter = adapter.QueryInterfaceOrNull<IDXGIAdapter3>();
 
         _d2dFactory = D2D1CreateFactory<ID2D1Factory1>();
         _d2dDevice = _d2dFactory.CreateDevice(_dxgiDevice);
@@ -161,9 +164,24 @@ internal sealed class D2DRenderer : IDisposable
         }
     }
 
+    /// <summary>What this process currently has resident in video memory, and its allowance.</summary>
+    internal (long Used, long Budget)? QueryVideoMemory()
+    {
+        if (_videoMemoryAdapter is null)
+        {
+            return null;
+        }
+
+        QueryVideoMemoryInfo info = _videoMemoryAdapter.QueryVideoMemoryInfo(
+            0,
+            MemorySegmentGroup.Local);
+        return ((long)info.CurrentUsage, (long)info.Budget);
+    }
+
     public void Dispose()
     {
         ReleaseTargetBitmap();
+        _videoMemoryAdapter?.Dispose();
         DeviceContext.Dispose();
         _d2dDevice.Dispose();
         _directWriteFactory.Dispose();

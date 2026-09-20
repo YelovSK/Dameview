@@ -43,6 +43,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     private readonly SettingsService _settings;
     private readonly UpdateService _updates;
     private readonly ToastService _toasts = new();
+    private long _memorySampled;
     private CancellationTokenSource? _copyImageCancellation;
     private int _pointerX;
     private int _pointerY;
@@ -733,6 +734,19 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _ui.SetDpi(dpi);
     }
 
+    // Driver and runtime calls for figures that barely move, so a few times a second is plenty.
+    private bool ShouldSampleMemory(long frameStarted)
+    {
+        if (!_performanceMonitor.Enabled
+            || Stopwatch.GetElapsedTime(_memorySampled, frameStarted) < TimeSpan.FromSeconds(0.5))
+        {
+            return false;
+        }
+
+        _memorySampled = frameStarted;
+        return true;
+    }
+
     private void HandleResize(int width, int height)
     {
         _renderer.Resize(width, height);
@@ -753,6 +767,11 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     private void HandleRenderFrame()
     {
         long frameStarted = Stopwatch.GetTimestamp();
+        bool sampleMemory = ShouldSampleMemory(frameStarted);
+        (long Used, long Budget)? videoMemory = sampleMemory ? _renderer.QueryVideoMemory() : null;
+        (long WorkingSet, long ManagedHeap)? memory = sampleMemory
+            ? (Environment.WorkingSet, GC.GetTotalMemory(forceFullCollection: false))
+            : null;
         long allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
         int layoutPassesBefore = _ui.LayoutPasses;
         bool animationContinues = _ui.Update();
@@ -772,7 +791,9 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             _ui.LastDrawnElements,
             _ui.LastDrawOperations,
             _ui.LastDrawTime,
-            timing.SubmitTime));
+            timing.SubmitTime,
+            videoMemory,
+            memory));
 
         if (animationContinues)
         {
