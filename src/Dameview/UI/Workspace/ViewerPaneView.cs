@@ -95,7 +95,6 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     internal RectangleF ContentBounds { get; private set; }
     internal UiElement FocusScope => _toolbarPanel.IsVisible ? _toolbarPanel : _emptyStatePanel;
 
-    internal void ShowToolbar() => _toolbarPanel.Show();
     internal TimeSpan? NextAnimationFrameDelay => _imagePanel.NextAnimationFrameDelay;
     internal RectangleF TabStripBounds => _viewerTabs.GetBoundsRelativeTo(this);
     internal override bool ObservePointerMoves => true;

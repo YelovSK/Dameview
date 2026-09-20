@@ -134,10 +134,6 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _galleryPanel.IsVisible = ShouldShowGallery(state);
         _splitView.SecondPaneVisible = _galleryPanel.IsVisible;
         _galleryPanel.ApplyState(state.FolderEntries, state.RequestedPath);
-        if (_activePaneView.HasImage)
-        {
-            _activePaneView.ShowToolbar();
-        }
     }
 
     internal event Action? Invalidated
@@ -213,7 +209,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
         ViewerSessionState state = pane.ActiveSession.State;
         _galleryPanel.Bind(GetGalleryState(pane.ActiveTab));
-        ApplyActivePaneState(state, showToolbar: false);
+        ApplyActivePaneState(state);
     }
 
     internal void ApplyLayout(WorkspaceNode root, WorkspaceSplit? openingSplit)
@@ -259,12 +255,11 @@ internal sealed class ViewerUi : UiElement, IDisposable
     internal void ApplyState(ViewerPane pane, ViewerSessionState state)
     {
         ViewerPaneView? paneView = FindPaneView(pane);
-        bool hadDisplayedImage = paneView?.HasImage == true;
         bool isActivePane = ReferenceEquals(pane, _activePane);
         paneView?.ApplyState(state, clearPointer: isActivePane);
         if (isActivePane)
         {
-            ApplyActivePaneState(state, showToolbar: state.DisplayedImage is not null && !hadDisplayedImage);
+            ApplyActivePaneState(state);
         }
 
         _root.InvalidateVisual();
@@ -283,7 +278,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _splitView.SetDividerOffset(settings.GallerySizeDips);
         _galleryPanel.SetThumbnailSize(settings.GalleryThumbnailSize);
         _settingsPanel.ApplySettings(settings);
-        ApplyActivePaneState(_activePane.ActiveSession.State, showToolbar: false);
+        ApplyActivePaneState(_activePane.ActiveSession.State);
         if (_animationsEnabled == settings.AnimationsEnabled)
         {
             return;
@@ -304,7 +299,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
             paneView.SetChromeVisible(_chromeVisible);
         }
 
-        ApplyActivePaneState(_activePane.ActiveSession.State, showToolbar: false);
+        ApplyActivePaneState(_activePane.ActiveSession.State);
     }
 
     internal void ApplyTabs(ViewerPane pane, IReadOnlyList<ViewerTabInfo> tabs, int selectedIndex)
@@ -549,13 +544,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _modalHost.Close();
     }
 
-    private void ApplyActivePaneState(ViewerSessionState state, bool showToolbar)
+    private void ApplyActivePaneState(ViewerSessionState state)
     {
-        if (_chromeVisible && showToolbar)
-        {
-            _activePaneView.ShowToolbar();
-        }
-
         _galleryPanel.IsVisible = _chromeVisible && _galleryEnabled && ShouldShowGallery(state);
         _splitView.SecondPaneVisible = _galleryPanel.IsVisible;
         _galleryPanel.ApplyState(state.FolderEntries, state.RequestedPath);
