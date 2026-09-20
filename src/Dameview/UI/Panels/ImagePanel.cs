@@ -34,6 +34,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
     private readonly AnimatedFloat _previewFade = new(0.0f, 20.0);
     private const float PreviewBlurStandardDeviation = 0.75f;
     private System.Drawing.Size _viewportPixelSize;
+    private bool _resizedSinceLastFrame;
 
     internal ImagePanel(
         ID2D1DeviceContext deviceContext,
@@ -182,6 +183,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
         }
 
         _viewportPixelSize = pixelSize;
+        _resizedSinceLastFrame = true;
         _presentationCache.Clear();
         _animator.Reset();
         _viewport.SetViewportSize(pixelSize.Width, pixelSize.Height);
@@ -259,9 +261,14 @@ internal sealed class ImagePanel : UiElement, IDisposable
             return;
         }
 
+        // A pane that is still changing size would rebuild the high-quality rescale every
+        // frame and throw it away, so it settles at its final size before paying for one.
+        bool resizing = _resizedSinceLastFrame;
+        _resizedSinceLastFrame = false;
         if (_imageAnimation is not null
             || _animator.IsAnimating
             || _isPanning
+            || resizing
             || _viewport.Scale == 1.0f)
         {
             _presentationCache.Clear();
