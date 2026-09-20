@@ -143,6 +143,40 @@ public sealed class TileDecodeSchedulerTests
         Assert.IsTrue(canceled.Wait(TimeSpan.FromSeconds(5)));
     }
 
+    [TestMethod]
+    public void DecodingWaitsForTheUiToTakeEachFinishedTile()
+    {
+        var decoded = new ConcurrentQueue<ImageTile>();
+        using var decodeStarted = new SemaphoreSlim(0);
+        var source = new FakeTileSource((tile, _) =>
+        {
+            decoded.Enqueue(tile);
+            decodeStarted.Release();
+            return CreateImage();
+        });
+        var posted = new BlockingCollection<Action>();
+        using var scheduler = new TileDecodeScheduler(
+            source,
+            (_, _) => { },
+            maximumWorkers: 1,
+            new WindowSynchronizationContext(posted.Add));
+
+        scheduler.ReplaceRequests(CreateTiles(0, 5));
+
+        // Decoded buffers must not pile up behind a busy UI thread, so the worker holds
+        // still until the tile it published has actually been taken.
+        Assert.IsTrue(decodeStarted.Wait(TimeSpan.FromSeconds(5)));
+        Assert.IsFalse(
+            decodeStarted.Wait(TimeSpan.FromMilliseconds(250)),
+            "A second tile was decoded before the first one was collected.");
+        Assert.AreEqual(1, decoded.Count);
+
+        Assert.IsTrue(posted.TryTake(out Action? publish, TimeSpan.FromSeconds(5)));
+        publish();
+
+        Assert.IsTrue(decodeStarted.Wait(TimeSpan.FromSeconds(5)), "Collecting one tile frees the worker.");
+    }
+
     private static Action TakePostedAction(BlockingCollection<Action> posted)
     {
         Assert.IsTrue(posted.TryTake(out Action? action, TimeSpan.FromSeconds(5)));

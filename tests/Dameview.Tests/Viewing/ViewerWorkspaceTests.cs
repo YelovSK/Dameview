@@ -560,7 +560,7 @@ public sealed class ViewerWorkspaceTests
         WorkspaceNode expectedTarget = newPaneFirst ? split.Second : split.First;
         ViewerPane newPane = Assert.IsInstanceOfType<ViewerPane>(expectedNew);
         Assert.AreEqual(@"C:\gallery\image.png", newPane.ActiveSession.State.RequestedPath);
-        Assert.AreSame(target, expectedTarget);
+        Assert.AreSame(expectedTarget, target);
     }
 
     [TestMethod]
@@ -580,6 +580,97 @@ public sealed class ViewerWorkspaceTests
         ViewerPane newPane = Assert.IsInstanceOfType<ViewerPane>(split.First);
         Assert.AreSame(moved, newPane.ActiveTab);
         Assert.AreSame(source, split.Second);
+    }
+
+    [TestMethod]
+    public void ReopeningRestoresTheLastClosedTabWhereItWas()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane pane = workspace.ActivePane;
+        pane.ActiveSession.OpenImage(@"C:\folder\first.png");
+        workspace.OpenImageInNewTab(@"C:\folder\second.png");
+        workspace.OpenImageInNewTab(@"C:\folder\third.png");
+
+        Assert.IsTrue(workspace.CloseTab(pane, 1));
+        Assert.IsTrue(workspace.ReopenClosedTab());
+
+        Assert.AreEqual(3, pane.Count);
+        Assert.AreEqual(@"C:\folder\second.png", pane.Tabs[1].Session.State.RequestedPath);
+        Assert.AreEqual(1, pane.ActiveIndex, "The reopened tab is the one you are now looking at.");
+    }
+
+    [TestMethod]
+    public void ReopeningWorksBackwardsAndRunsOut()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane pane = workspace.ActivePane;
+        pane.ActiveSession.OpenImage(@"C:\folder\first.png");
+        workspace.OpenImageInNewTab(@"C:\folder\second.png");
+        workspace.OpenImageInNewTab(@"C:\folder\third.png");
+
+        Assert.IsTrue(workspace.CloseTab(pane, 2));
+        Assert.IsTrue(workspace.CloseTab(pane, 1));
+
+        Assert.IsTrue(workspace.ReopenClosedTab());
+        Assert.AreEqual(@"C:\folder\second.png", pane.ActiveSession.State.RequestedPath);
+        Assert.IsTrue(workspace.ReopenClosedTab());
+        Assert.AreEqual(@"C:\folder\third.png", pane.ActiveSession.State.RequestedPath);
+
+        Assert.IsFalse(workspace.ReopenClosedTab(), "Nothing is left to reopen.");
+    }
+
+    [TestMethod]
+    public void OnlyTheMostRecentClosedTabsAreRemembered()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane pane = workspace.ActivePane;
+        pane.ActiveSession.OpenImage(@"C:\folder\keep.png");
+        for (int index = 0; index < 12; index++)
+        {
+            workspace.OpenImageInNewTab($@"C:\folder\{index}.png");
+            Assert.IsTrue(workspace.CloseTab(pane, 1));
+        }
+
+        var reopened = new List<string?>();
+        while (workspace.ReopenClosedTab())
+        {
+            reopened.Add(workspace.ActiveSession.State.RequestedPath);
+        }
+
+        Assert.HasCount(10, reopened);
+        Assert.AreEqual(@"C:\folder\11.png", reopened[0], "Newest first.");
+        Assert.AreEqual(@"C:\folder\2.png", reopened[^1], "The two oldest fell off the end.");
+    }
+
+    [TestMethod]
+    public void AClosedTabWhosePaneIsGoneReopensInTheActivePane()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane first = workspace.ActivePane;
+        first.ActiveSession.OpenImage(@"C:\folder\first.png");
+        ViewerPane second = workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
+        second.ActiveSession.OpenImage(@"C:\second\only.png");
+
+        // Closing its last tab takes the pane with it.
+        Assert.IsTrue(workspace.CloseTab(second, 0));
+        Assert.IsInstanceOfType<ViewerPane>(workspace.Root);
+
+        Assert.IsTrue(workspace.ReopenClosedTab());
+        Assert.AreSame(first, workspace.ActivePane);
+        Assert.AreEqual(@"C:\second\only.png", first.ActiveSession.State.RequestedPath);
+    }
+
+    [TestMethod]
+    public void ATabThatNeverHeldAnImageIsNotWorthReopening()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane pane = workspace.ActivePane;
+        pane.ActiveSession.OpenImage(@"C:\folder\first.png");
+        pane.AddTab(CreateTab());
+
+        Assert.IsTrue(workspace.CloseTab(pane, 1));
+
+        Assert.IsFalse(workspace.ReopenClosedTab());
     }
 
     private static ViewerTab CreateTab()

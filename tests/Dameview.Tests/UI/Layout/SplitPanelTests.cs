@@ -269,6 +269,29 @@ public sealed class SplitPanelTests
         return new WindowPointerEvent(kind, new PointF(x, y), PointerButton.Primary);
     }
 
+    [TestMethod]
+    public void ARebuiltPanelAnimatesFromWhereTheOldOneWasDrawn()
+    {
+        // A layout rebuild replaces the panel object, so the new one is handed the ratio its
+        // predecessor was showing and eases to the real one instead of appearing at it.
+        var panel = new SplitPanel(
+            new FixedContent(),
+            new FixedContent(),
+            UiOrientation.Horizontal,
+            0.75f,
+            startRatio: 0.25f);
+
+        Assert.AreEqual(0.25f, panel.CurrentRatio);
+
+        var frame = new UiUpdateContext(1.0 / 60.0);
+        for (int index = 0; index < 120 && panel.CurrentRatio < 0.75f; index++)
+        {
+            panel.UpdateTree(frame);
+        }
+
+        Assert.AreEqual(0.75f, panel.CurrentRatio);
+    }
+
     private sealed class FixedContent : UiElement
     {
         protected override SizeF MeasureCore(SizeF availableSize) => availableSize;

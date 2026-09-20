@@ -153,6 +153,55 @@ public sealed class ViewportAnimatorTests
             new RectangleF(0.0f, 150.0f, 1000.0f, 500.0f));
     }
 
+    [TestMethod]
+    public void TogglingSwapsBetweenFitAndActualSize()
+    {
+        var viewport = new ImageViewport(1000, 800);
+        viewport.SetImageSize(2000, 1000);
+        var animator = new ViewportAnimator(viewport, new ManualTimeProvider());
+
+        Assert.IsTrue(animator.ToggleFitAndActualSizeAt(500.0f, 400.0f));
+        animator.Update(0.0, animationsEnabled: false);
+        Assert.AreEqual(ViewportMode.ActualSize, viewport.Mode);
+
+        Assert.IsTrue(animator.ToggleFitAndActualSizeAt(500.0f, 400.0f));
+        animator.Update(0.0, animationsEnabled: false);
+        Assert.AreEqual(ViewportMode.Fit, viewport.Mode);
+    }
+
+    [TestMethod]
+    public void TogglingMidAnimationReadsWhereTheViewportIsHeaded()
+    {
+        var viewport = new ImageViewport(1000, 800);
+        viewport.SetImageSize(2000, 1000);
+        var animator = new ViewportAnimator(viewport, new ManualTimeProvider());
+
+        // Still animating toward actual size, so a second toggle must turn back to fit
+        // rather than read the viewport's current mode and start over.
+        Assert.IsTrue(animator.ToggleFitAndActualSizeAt(500.0f, 400.0f));
+        Assert.IsTrue(animator.Update(0.016));
+        Assert.IsTrue(animator.ToggleFitAndActualSizeAt(500.0f, 400.0f));
+        animator.Update(0.0, animationsEnabled: false);
+
+        Assert.AreEqual(ViewportMode.Fit, viewport.Mode);
+    }
+
+    [TestMethod]
+    public void TogglingAPannedImageFitsItRatherThanZoomingFurther()
+    {
+        var viewport = new ImageViewport(1000, 800);
+        viewport.SetImageSize(2000, 1000);
+        viewport.SetActualSizeAt(500.0f, 400.0f, viewport.ImageCenter);
+        viewport.PanBy(50.0f, 20.0f);
+        Assert.AreEqual(ViewportMode.Custom, viewport.Mode);
+        var animator = new ViewportAnimator(viewport, new ManualTimeProvider());
+
+        Assert.IsTrue(animator.ToggleFitAndActualSizeAt(500.0f, 400.0f));
+        animator.Update(0.0, animationsEnabled: false);
+
+        Assert.AreEqual(ViewportMode.Fit, viewport.Mode);
+    }
+
     private static void AssertEdgesMoveTogether(
         Action<ImageViewport> arrange,
         Func<ViewportAnimator, bool> begin,

@@ -66,6 +66,66 @@ public sealed class ToastHostTests
         Assert.AreEqual(0.0f, first.VisualOffset.Y, "It ends up where layout put it.");
     }
 
+    [TestMethod]
+    public void ADismissedToastLeavesTheTreeOnceItHasFadedOut()
+    {
+        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
+        var service = new ToastService();
+        using var host = new ToastHost(factory, service);
+        service.Notify("Copied.", ToastSeverity.Success);
+        Arrange(host);
+
+        var frame = new UiUpdateContext(1.0 / 60.0);
+        for (int index = 0; index < 60 && host.Children.OfType<ToastView>().Single().Opacity < 1.0f; index++)
+        {
+            host.UpdateTree(frame);
+        }
+
+        service.Dismiss(service.Toasts.Single().Id);
+
+        // The view outlives its message so that it can animate away, then goes.
+        Assert.HasCount(1, host.Children.OfType<ToastView>().ToArray());
+        for (int index = 0; index < 120 && host.Children.OfType<ToastView>().Any(); index++)
+        {
+            host.UpdateTree(frame);
+        }
+
+        Assert.IsEmpty(host.Children.OfType<ToastView>().ToArray(), "The faded toast was never removed.");
+    }
+
+    [TestMethod]
+    public void AnExpiredToastLeavesWithoutBeingDismissed()
+    {
+        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
+        var time = new ManualTimeProvider();
+        var service = new ToastService(time);
+        using var host = new ToastHost(factory, service);
+        service.Notify("Saved.", ToastSeverity.Success);
+        Arrange(host);
+
+        time.Advance(ToastService.Lifetime + TimeSpan.FromSeconds(1));
+
+        var frame = new UiUpdateContext(1.0 / 60.0);
+        for (int index = 0; index < 120 && host.Children.OfType<ToastView>().Any(); index++)
+        {
+            host.UpdateTree(frame);
+        }
+
+        Assert.IsEmpty(service.Toasts.ToArray());
+        Assert.IsEmpty(host.Children.OfType<ToastView>().ToArray());
+    }
+
+    private sealed class ManualTimeProvider : TimeProvider
+    {
+        private long _timestamp;
+
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
+        public override long GetTimestamp() => _timestamp;
+
+        internal void Advance(TimeSpan elapsed) => _timestamp += elapsed.Ticks;
+    }
+
     private static void Arrange(ToastHost host)
     {
         host.Measure(new SizeF(800.0f, 600.0f));

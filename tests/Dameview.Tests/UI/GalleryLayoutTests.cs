@@ -85,6 +85,17 @@ public sealed class GalleryLayoutTests
     }
 
     [TestMethod]
+    public void HitTestMissesTheGapBetweenRows()
+    {
+        GalleryLayout layout = Create(10);
+        RectangleF first = layout.GetItemBounds(0, 0.0f);
+
+        // Two dips past the first row, inside the spacing before the second.
+        Assert.AreEqual(-1, layout.HitTest(new PointF(20.0f, first.Bottom + 2.0f), 0.0f));
+        Assert.AreEqual(1, layout.HitTest(new PointF(20.0f, first.Bottom + 6.0f), 0.0f));
+    }
+
+    [TestMethod]
     public void HitTestMissesTheScrollbarGutter()
     {
         GalleryLayout layout = Create(10);
