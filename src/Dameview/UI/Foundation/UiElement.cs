@@ -242,6 +242,15 @@ internal abstract class UiElement
         InvalidateLayout();
     }
 
+    /// <summary>The shared text layouts, for text an element measures itself against.</summary>
+    /// <remarks>
+    /// Any element invalidating layout re-measures the whole tree, so text that has not changed
+    /// must come back out of the cache rather than be shaped again.
+    /// </remarks>
+    protected UiTextLayoutCache TextLayouts => Root?.TextLayouts
+        ?? throw new InvalidOperationException(
+            "Text is measured only once the element is attached to a root.");
+
     /// <summary>Requests a redraw without forcing layout.</summary>
     protected void InvalidateVisual() => Root?.InvalidateVisual();
     /// <summary>Requests layout and a redraw from the owning root.</summary>

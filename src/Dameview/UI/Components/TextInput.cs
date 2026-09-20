@@ -302,9 +302,7 @@ internal sealed class TextInput : UiElement, IDisposable
 
     private void DrawClippedText(in UiDrawContext context, float contentWidth)
     {
-        context.RenderTarget.PushAxisAlignedClip(
-            new Rect(HorizontalPadding, 0.0f, HorizontalPadding + contentWidth, Bounds.Height),
-            AntialiasMode.Aliased);
+        context.PushClip(new RectangleF(HorizontalPadding, 0.0f, contentWidth, Bounds.Height));
         try
         {
             context.DrawTextLayout(
@@ -315,7 +313,7 @@ internal sealed class TextInput : UiElement, IDisposable
         }
         finally
         {
-            context.RenderTarget.PopAxisAlignedClip();
+            context.PopClip();
         }
     }
 }

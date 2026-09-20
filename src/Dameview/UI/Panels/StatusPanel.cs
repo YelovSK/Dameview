@@ -160,12 +160,7 @@ internal sealed class StatusPanel : UiElement, IDisposable
             return 0.0f;
         }
 
-        // Layout is invalidated as a whole, so one pane's status changing re-measures every
-        // other pane too. Text that did not change has to come back out of the cache.
-        UiTextLayoutCache layouts = Root?.TextLayouts
-            ?? throw new InvalidOperationException(
-                "The status panel measures text only once it is attached to a root.");
-        return layouts
+        return TextLayouts
             .Get(text, format, new SizeF(MaximumWidth, HeightDips))
             .Metrics.WidthIncludingTrailingWhitespace;
     }

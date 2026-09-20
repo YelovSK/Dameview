@@ -1,5 +1,6 @@
 using System.Drawing;
 using Dameview.UI.Components;
+using Dameview.UI.Foundation;
 using Vortice.DirectWrite;
 using static Vortice.DirectWrite.DWrite;
 
@@ -18,6 +19,7 @@ public sealed class TextBlockTests
             UiTextStyle.Body,
             UiTextTone.Secondary,
             UiTextWrapping.Wrap);
+        _ = new UiRoot(text, UiDpi.Default, TestTextLayouts.Shared);
 
         SizeF desiredSize = text.Measure(new SizeF(392.0f, float.PositiveInfinity));
 

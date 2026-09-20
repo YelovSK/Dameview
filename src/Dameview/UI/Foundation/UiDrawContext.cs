@@ -69,6 +69,16 @@ internal readonly record struct UiDrawContext
             options);
     }
 
+    /// <summary>Clips everything drawn until the matching <see cref="PopClip"/> to these bounds.</summary>
+    internal void PushClip(RectangleF bounds)
+    {
+        RenderTarget.PushAxisAlignedClip(
+            new Rect(bounds.X, bounds.Y, bounds.Width, bounds.Height),
+            AntialiasMode.Aliased);
+    }
+
+    internal void PopClip() => RenderTarget.PopAxisAlignedClip();
+
     internal void DrawBitmap(
         ID2D1Bitmap bitmap,
         Rect destination,
@@ -112,9 +122,7 @@ internal readonly record struct UiDrawContext
         Matrix3x2 previousTransform = RenderTarget.Transform;
         RenderTarget.Transform = Matrix3x2.CreateTranslation(bounds.X + offset.X, bounds.Y + offset.Y)
             * previousTransform;
-        RenderTarget.PushAxisAlignedClip(
-            new Rect(0.0f, 0.0f, bounds.Width, bounds.Height),
-            AntialiasMode.Aliased);
+        PushClip(new RectangleF(0.0f, 0.0f, bounds.Width, bounds.Height));
 
         try
         {
@@ -130,7 +138,7 @@ internal readonly record struct UiDrawContext
         }
         finally
         {
-            RenderTarget.PopAxisAlignedClip();
+            PopClip();
             RenderTarget.Transform = previousTransform;
         }
     }

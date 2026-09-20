@@ -27,7 +27,6 @@ internal enum UiTextWrapping
 
 internal sealed class TextBlock : UiElement, IDisposable
 {
-    private readonly IDWriteFactory _factory;
     private readonly IDWriteTextFormat _format;
     private readonly float _lineHeight;
     private readonly UiTextWrapping _wrapping;
@@ -41,7 +40,6 @@ internal sealed class TextBlock : UiElement, IDisposable
         UiTextTone tone,
         UiTextWrapping wrapping)
     {
-        _factory = factory;
         _text = text;
         _tone = tone;
         _wrapping = wrapping;
@@ -95,8 +93,8 @@ internal sealed class TextBlock : UiElement, IDisposable
             return new SizeF(width, _lineHeight);
         }
 
-        using IDWriteTextLayout layout = _factory.CreateTextLayout(Text, _format, width, 100_000.0f);
-        return new SizeF(width, MathF.Max(_lineHeight, layout.Metrics.Height));
+        float height = TextLayouts.Get(Text, _format, new SizeF(width, 100_000.0f)).Metrics.Height;
+        return new SizeF(width, MathF.Max(_lineHeight, height));
     }
 
     protected override void DrawCore(in UiDrawContext context)

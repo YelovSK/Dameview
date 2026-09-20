@@ -258,9 +258,7 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
 
     protected override void DrawCore(in UiDrawContext context)
     {
-        context.RenderTarget.PushAxisAlignedClip(
-            new Rect(0.0f, 0.0f, TabViewportWidth, Bounds.Height),
-            AntialiasMode.Aliased);
+        context.PushClip(new RectangleF(0.0f, 0.0f, TabViewportWidth, Bounds.Height));
         float x = -_scrollOffset.Offset;
         try
         {
@@ -272,7 +270,7 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
         }
         finally
         {
-            context.RenderTarget.PopAxisAlignedClip();
+            context.PopClip();
         }
     }
 

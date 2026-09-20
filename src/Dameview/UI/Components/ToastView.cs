@@ -21,17 +21,14 @@ internal sealed class ToastView : UiElement, IDisposable
     private const double Response = 20.0;
     private const float EntryOffset = 24.0f;
 
-    private readonly IDWriteFactory _factory;
     private readonly IDWriteTextFormat _format;
     private readonly DismissButton _dismiss;
     private readonly AnimatedFloat _presence;
     private readonly AnimatedFloat _shift = new(0.0f, Response, completionDistance: 0.25f);
     private float? _top;
-    private IDWriteTextLayout _layout;
 
     internal ToastView(IDWriteFactory factory, Toast toast, Action dismissed)
     {
-        _factory = factory;
         Toast = toast;
         _format = factory.CreateTextFormat(
             UiTypography.FontFamily,
@@ -41,7 +38,6 @@ internal sealed class ToastView : UiElement, IDisposable
         // The layout is measured in a tall box, so the text has to start at its top.
         _format.ParagraphAlignment = ParagraphAlignment.Near;
         _format.WordWrapping = WordWrapping.Wrap;
-        _layout = CreateLayout();
         _presence = new AnimatedFloat(0.0f, Response, completionDistance: 0.002f);
         _presence.SetTarget(1.0f);
         _dismiss = new DismissButton(factory, dismissed);
@@ -93,7 +89,7 @@ internal sealed class ToastView : UiElement, IDisposable
     protected override SizeF MeasureCore(SizeF availableSize)
     {
         _dismiss.Measure(new SizeF(DismissWidth, DismissWidth));
-        float height = MathF.Ceiling(_layout.Metrics.Height) + (2.0f * VerticalPadding);
+        float height = MathF.Ceiling(Layout.Metrics.Height) + (2.0f * VerticalPadding);
         return new SizeF(Width, MathF.Max(DismissWidth + VerticalPadding, height));
     }
 
@@ -119,7 +115,7 @@ internal sealed class ToastView : UiElement, IDisposable
         context.DrawRoundedRectangle(surface, GetAccent(context.Palette));
 
         context.DrawTextLayout(
-            _layout,
+            Layout,
             new System.Numerics.Vector2(HorizontalPadding, VerticalPadding),
             context.Palette.PrimaryText,
             DrawTextOptions.Clip);
@@ -128,7 +124,6 @@ internal sealed class ToastView : UiElement, IDisposable
     public void Dispose()
     {
         _dismiss.Dispose();
-        _layout.Dispose();
         _format.Dispose();
     }
 
@@ -140,11 +135,10 @@ internal sealed class ToastView : UiElement, IDisposable
         _ => palette.SecondaryText,
     };
 
-    private IDWriteTextLayout CreateLayout() => _factory.CreateTextLayout(
+    private IDWriteTextLayout Layout => TextLayouts.Get(
         Toast.Message,
         _format,
-        Width - HorizontalPadding - DismissWidth,
-        10_000.0f);
+        new SizeF(Width - HorizontalPadding - DismissWidth, 10_000.0f));
 
     private sealed class DismissButton(IDWriteFactory factory, Action dismissed) : InteractiveControl, IDisposable
     {

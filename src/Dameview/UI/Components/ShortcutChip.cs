@@ -17,7 +17,6 @@ internal sealed class ShortcutChip : InteractiveControl, IDisposable
     private const float RemoveFontSize = 15.0f;
     private const float MinimumWidth = 34.0f;
 
-    private readonly IDWriteFactory _factory;
     private readonly IDWriteTextFormat _format;
     private readonly IDWriteTextFormat _removeFormat;
     private readonly Action _clicked;
@@ -27,7 +26,6 @@ internal sealed class ShortcutChip : InteractiveControl, IDisposable
 
     internal ShortcutChip(IDWriteFactory factory, string label, Action clicked, Action removed)
     {
-        _factory = factory;
         _label = label;
         _clicked = clicked;
         _removed = removed;
@@ -84,8 +82,9 @@ internal sealed class ShortcutChip : InteractiveControl, IDisposable
 
     protected override SizeF MeasureCore(SizeF availableSize)
     {
-        using IDWriteTextLayout layout = _factory.CreateTextLayout(_label, _format, 10_000.0f, Height);
-        float textWidth = MathF.Ceiling(layout.Metrics.WidthIncludingTrailingWhitespace);
+        float textWidth = MathF.Ceiling(TextLayouts
+            .Get(_label, _format, new SizeF(10_000.0f, Height))
+            .Metrics.WidthIncludingTrailingWhitespace);
         float width = textWidth + (2.0f * HorizontalPadding) + (CanRemove ? RemoveWidth : 0.0f);
         return new SizeF(MathF.Max(MinimumWidth, width), Height);
     }
