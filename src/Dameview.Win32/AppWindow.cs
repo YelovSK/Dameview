@@ -505,7 +505,7 @@ internal sealed unsafe class AppWindow : IDisposable
         }
         catch (Exception exception)
         {
-            appWindow._unhandledException = exception;
+            appWindow._unhandledException ??= exception;
             DestroyWindow(window);
             // A failed native callback must unwind the message loop even when no
             // application close handler is attached, or that handler itself failed.
