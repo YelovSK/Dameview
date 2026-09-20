@@ -127,7 +127,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
                 CloseModal();
                 commands.ExecuteCommand(command);
             },
-            commands.SetKeyBindings);
+            keyBindings => commands.UpdateSettings(settings => settings with { KeyBindings = keyBindings }));
 
         AddChild(_splitView);
         AddChild(_tabPreview);

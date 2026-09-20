@@ -106,13 +106,13 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
                 .Select(theme => new DropdownOption<ThemeId>(theme.DisplayName, theme.Id))
                 .ToArray(),
             ThemeId.Dark,
-            _commands.SetTheme);
+            theme => Update(settings => settings with { Theme = theme }));
         _themeRow = new SettingsRow(factory, "Theme", _themeDropdown);
         _galleryEnabledToggle = new Toggle(
             factory,
             "Show gallery",
             value: true,
-            _commands.SetGalleryEnabled);
+            enabled => Update(settings => settings with { GalleryEnabled = enabled }));
         _galleryPlacementDropdown = new Dropdown<GalleryPlacement>(
             factory,
             popupHost,
@@ -123,7 +123,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
                 new("Bottom", GalleryPlacement.Bottom),
             ],
             GalleryPlacement.Right,
-            _commands.SetGalleryPlacement);
+            placement => Update(settings => settings with { GalleryPlacement = placement }));
         _galleryPlacementRow = new SettingsRow(factory, "Gallery position", _galleryPlacementDropdown);
         _galleryThumbnailSizeDropdown = new Dropdown<GalleryThumbnailSize>(
             factory,
@@ -134,7 +134,7 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
                 new("Large", GalleryThumbnailSize.Large),
             ],
             GalleryThumbnailSize.Medium,
-            _commands.SetGalleryThumbnailSize);
+            size => Update(settings => settings with { GalleryThumbnailSize = size }));
         _galleryThumbnailSizeRow = new SettingsRow(
             factory,
             "Gallery thumbnails",
@@ -143,17 +143,17 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
             factory,
             "Animations",
             value: true,
-            _commands.SetAnimationsEnabled);
+            enabled => Update(settings => settings with { AnimationsEnabled = enabled }));
         _singleInstanceToggle = new Toggle(
             factory,
             "Open files in existing window (restart required)",
             value: true,
-            _commands.SetSingleInstance);
+            enabled => Update(settings => settings with { SingleInstance = enabled }));
         _autoBalancePanesToggle = new Toggle(
             factory,
             "Balance panes automatically",
             value: false,
-            _commands.SetAutoBalancePanes);
+            enabled => Update(settings => settings with { AutoBalancePanes = enabled }));
 
         _sortField = new Dropdown<SortField>(
             factory,
@@ -362,14 +362,18 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
     {
         SortDefinition sort = Sorts[(int)field];
         UpdateDirectionLabels(sort);
-        _commands.SetSort(_sortDirection.SelectedValue == SortDirection.First ? sort.First : sort.Second);
+        SetSort(_sortDirection.SelectedValue == SortDirection.First ? sort.First : sort.Second);
     }
 
     private void SetSortDirection(SortDirection direction)
     {
         SortDefinition sort = Sorts[(int)_sortField.SelectedValue];
-        _commands.SetSort(direction == SortDirection.First ? sort.First : sort.Second);
+        SetSort(direction == SortDirection.First ? sort.First : sort.Second);
     }
+
+    private void SetSort(FolderSort sort) => Update(settings => settings with { Sort = sort });
+
+    private void Update(Func<AppSettings, AppSettings> change) => _commands.UpdateSettings(change);
 
     private void UpdateDirectionLabels(SortDefinition sort)
     {

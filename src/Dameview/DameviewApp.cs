@@ -575,30 +575,8 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
 
     public void ActivateUpdate() => _updates.Activate();
 
-    public void SetTheme(ThemeId theme) => _settings.Update(_settings.Current with { Theme = theme });
-
-    public void SetAnimationsEnabled(bool enabled) =>
-        _settings.Update(_settings.Current with { AnimationsEnabled = enabled });
-
-    public void SetSingleInstance(bool enabled) =>
-        _settings.Update(_settings.Current with { SingleInstance = enabled });
-
-    public void SetKeyBindings(ViewerKeyBindings keyBindings) =>
-        _settings.Update(_settings.Current with { KeyBindings = keyBindings });
-
-    public void SetAutoBalancePanes(bool enabled) =>
-        _settings.Update(_settings.Current with { AutoBalancePanes = enabled });
-
-    public void SetGalleryEnabled(bool enabled) =>
-        _settings.Update(_settings.Current with { GalleryEnabled = enabled });
-
-    public void SetGalleryPlacement(GalleryPlacement placement) =>
-        _settings.Update(_settings.Current with { GalleryPlacement = placement });
-
-    public void SetGalleryThumbnailSize(GalleryThumbnailSize size) =>
-        _settings.Update(_settings.Current with { GalleryThumbnailSize = size });
-
-    public void SetSort(FolderSort sort) => _settings.Update(_settings.Current with { Sort = sort });
+    public void UpdateSettings(Func<AppSettings, AppSettings> change) =>
+        _settings.Update(change(_settings.Current));
 
     private void ToggleFullscreen()
     {

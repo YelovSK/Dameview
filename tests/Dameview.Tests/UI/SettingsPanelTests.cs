@@ -20,8 +20,7 @@ public sealed class SettingsPanelTests
     {
         using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         var popupHost = new PopupHost();
-        bool? animationsEnabled = null;
-        var commands = new TestSettingsCommands { Animations = value => animationsEnabled = value };
+        var commands = new TestSettingsCommands();
         using var settings = new SettingsPanel(
             factory,
             popupHost,
@@ -40,7 +39,7 @@ public sealed class SettingsPanelTests
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Space), settings, wrapFocus: true, directionalNavigation: true);
 
-        Assert.AreEqual(false, animationsEnabled);
+        Assert.IsFalse(commands.Settings.AnimationsEnabled);
     }
 
     [TestMethod]
@@ -48,15 +47,7 @@ public sealed class SettingsPanelTests
     {
         using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         var popupHost = new PopupHost();
-        bool? galleryEnabled = null;
-        GalleryPlacement? selectedPlacement = null;
-        GalleryThumbnailSize? selectedSize = null;
-        var commands = new TestSettingsCommands
-        {
-            GalleryEnabled = value => galleryEnabled = value,
-            GalleryPlacement = value => selectedPlacement = value,
-            GalleryThumbnailSize = value => selectedSize = value,
-        };
+        var commands = new TestSettingsCommands();
         using var settings = new SettingsPanel(
             factory,
             popupHost,
@@ -78,9 +69,9 @@ public sealed class SettingsPanelTests
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Down), settings, wrapFocus: true, directionalNavigation: true);
 
-        Assert.AreEqual(false, galleryEnabled);
-        Assert.AreEqual(GalleryPlacement.Left, selectedPlacement);
-        Assert.AreEqual(GalleryThumbnailSize.Large, selectedSize);
+        Assert.IsFalse(commands.Settings.GalleryEnabled);
+        Assert.AreEqual(GalleryPlacement.Left, commands.Settings.GalleryPlacement);
+        Assert.AreEqual(GalleryThumbnailSize.Large, commands.Settings.GalleryThumbnailSize);
     }
 
     [TestMethod]
@@ -88,8 +79,7 @@ public sealed class SettingsPanelTests
     {
         using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         var popupHost = new PopupHost();
-        var selectedSorts = new List<FolderSort>();
-        var commands = new TestSettingsCommands { Sort = selectedSorts.Add };
+        var commands = new TestSettingsCommands();
         using var settings = new SettingsPanel(
             factory,
             popupHost,
@@ -106,11 +96,11 @@ public sealed class SettingsPanelTests
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Down), settings, wrapFocus: true, directionalNavigation: true);
-        Assert.AreEqual(FolderSort.DateModifiedNewest, selectedSorts[^1]);
+        Assert.AreEqual(FolderSort.DateModifiedNewest, commands.Settings.Sort);
 
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Down), settings, wrapFocus: true, directionalNavigation: true);
-        Assert.AreEqual(FolderSort.DateModifiedOldest, selectedSorts[^1]);
+        Assert.AreEqual(FolderSort.DateModifiedOldest, commands.Settings.Sort);
     }
 
     [TestMethod]
@@ -182,25 +172,13 @@ public sealed class SettingsPanelTests
 
     private sealed class TestSettingsCommands : ISettingsCommands
     {
-        internal Action<ThemeId>? Theme { get; init; }
-        internal Action<bool>? Animations { get; init; }
-        internal Action<bool>? SingleInstance { get; init; }
-        internal Action<bool>? AutoBalancePanes { get; init; }
-        internal Action<bool>? GalleryEnabled { get; init; }
-        internal Action<GalleryPlacement>? GalleryPlacement { get; init; }
-        internal Action<GalleryThumbnailSize>? GalleryThumbnailSize { get; init; }
-        internal Action<FolderSort>? Sort { get; init; }
         internal Action? Activate { get; init; }
 
-        public void SetTheme(ThemeId theme) => Theme?.Invoke(theme);
-        public void SetAnimationsEnabled(bool enabled) => Animations?.Invoke(enabled);
-        public void SetSingleInstance(bool enabled) => SingleInstance?.Invoke(enabled);
-        public void SetAutoBalancePanes(bool enabled) => AutoBalancePanes?.Invoke(enabled);
-        public void SetKeyBindings(ViewerKeyBindings keyBindings) { }
-        public void SetGalleryEnabled(bool enabled) => GalleryEnabled?.Invoke(enabled);
-        public void SetGalleryPlacement(GalleryPlacement placement) => GalleryPlacement?.Invoke(placement);
-        public void SetGalleryThumbnailSize(GalleryThumbnailSize size) => GalleryThumbnailSize?.Invoke(size);
-        public void SetSort(FolderSort sort) => Sort?.Invoke(sort);
+        /// <summary>The settings as the panel has left them.</summary>
+        internal AppSettings Settings { get; private set; } = new();
+
+        public void UpdateSettings(Func<AppSettings, AppSettings> change) => Settings = change(Settings);
+
         public void ActivateUpdate() => Activate?.Invoke();
     }
 

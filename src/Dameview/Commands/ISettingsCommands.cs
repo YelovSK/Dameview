@@ -1,27 +1,11 @@
-using Dameview.Navigation;
 using Dameview.Settings;
 
 namespace Dameview.Commands;
 
 internal interface ISettingsCommands
 {
-    public void SetTheme(ThemeId theme);
-
-    public void SetAnimationsEnabled(bool enabled);
-
-    public void SetSingleInstance(bool enabled);
-
-    public void SetAutoBalancePanes(bool enabled);
-
-    public void SetKeyBindings(ViewerKeyBindings keyBindings);
-
-    public void SetGalleryEnabled(bool enabled);
-
-    public void SetGalleryPlacement(GalleryPlacement placement);
-
-    public void SetGalleryThumbnailSize(GalleryThumbnailSize size);
-
-    public void SetSort(FolderSort sort);
+    /// <summary>Applies a change to the stored settings and saves them.</summary>
+    public void UpdateSettings(Func<AppSettings, AppSettings> change);
 
     public void ActivateUpdate();
 }
