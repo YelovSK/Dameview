@@ -69,6 +69,25 @@ internal readonly record struct UiDrawContext
             options);
     }
 
+    internal void DrawBitmap(
+        ID2D1Bitmap bitmap,
+        Rect destination,
+        Rect source,
+        BitmapInterpolationMode interpolationMode = BitmapInterpolationMode.Linear,
+        float opacity = 1.0f)
+    {
+        _tally.Operations++;
+        RenderTarget.DrawBitmap(
+            bitmap,
+            destination,
+            Opacity * Math.Clamp(opacity, 0.0f, 1.0f),
+            interpolationMode,
+            source);
+    }
+
+    /// <summary>Counts a draw an element issued against <see cref="RenderTarget"/> itself.</summary>
+    internal void CountOperation() => _tally.Operations++;
+
     internal void DrawTextLayout(IDWriteTextLayout layout, Vector2 origin, Color4 color,
         DrawTextOptions options = DrawTextOptions.None, float opacity = 1.0f)
     {

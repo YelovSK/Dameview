@@ -417,15 +417,13 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             height = bitmap.Size.Height;
         }
 
-        context.RenderTarget.DrawBitmap(
+        context.DrawBitmap(
             bitmap,
             new Rect(
                 bounds.X + ((bounds.Width - width) / 2.0f),
                 bounds.Y + ((bounds.Height - height) / 2.0f),
                 width,
                 height),
-            context.Opacity,
-            BitmapInterpolationMode.Linear,
             new Rect(0.0f, 0.0f, bitmap.Size.Width, bitmap.Size.Height));
     }
 

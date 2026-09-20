@@ -11,7 +11,9 @@ internal readonly record struct PerformanceFrameTiming(
     int LayoutPasses = 0,
     long AllocatedBytes = 0,
     int DrawnElements = 0,
-    int DrawOperations = 0);
+    int DrawOperations = 0,
+    TimeSpan DrawTime = default,
+    TimeSpan SubmitTime = default);
 
 internal readonly record struct PerformanceSnapshot(
     int SampleCount,
@@ -28,7 +30,9 @@ internal readonly record struct PerformanceSnapshot(
     double LayoutPassesPerSecond,
     double AllocatedBytesPerSecond,
     double AverageDrawnElements,
-    double AverageDrawOperations);
+    double AverageDrawOperations,
+    double AverageSubmitMilliseconds,
+    double AverageOtherMilliseconds);
 
 internal sealed class PerformanceMonitor
 {
@@ -86,7 +90,9 @@ internal sealed class PerformanceMonitor
                     timing.LayoutPasses,
                     timing.AllocatedBytes,
                     timing.DrawnElements,
-                    timing.DrawOperations));
+                    timing.DrawOperations,
+                    timing.DrawTime.TotalMilliseconds,
+                    timing.SubmitTime.TotalMilliseconds));
             }
         }
 
@@ -136,6 +142,8 @@ internal sealed class PerformanceMonitor
         long allocatedBytes = 0;
         long drawnElements = 0;
         long drawOperations = 0;
+        double drawTotal = 0.0;
+        double submitTotal = 0.0;
         int oldestIndex = (_nextSample - _sampleCount + MaximumSamples) % MaximumSamples;
         for (int offset = 0; offset < _sampleCount; offset++)
         {
@@ -150,6 +158,8 @@ internal sealed class PerformanceMonitor
             allocatedBytes += sample.AllocatedBytes;
             drawnElements += sample.DrawnElements;
             drawOperations += sample.DrawOperations;
+            drawTotal += sample.DrawMilliseconds;
+            submitTotal += sample.SubmitMilliseconds;
             if (sample.GpuMilliseconds is { } gpuMilliseconds)
             {
                 gpuTotal += gpuMilliseconds;
@@ -163,6 +173,8 @@ internal sealed class PerformanceMonitor
         double averageCpu = cpuTotal / _sampleCount;
         double averageUpdate = updateTotal / _sampleCount;
         double averageLayout = layoutTotal / _sampleCount;
+        double averageDraw = drawTotal / _sampleCount;
+        double averageSubmit = submitTotal / _sampleCount;
         return new PerformanceSnapshot(
             _sampleCount,
             1000.0 / averageFrame,
@@ -174,12 +186,15 @@ internal sealed class PerformanceMonitor
             gpuSampleCount > 0 ? gpuMaximum : null,
             averageUpdate,
             averageLayout,
-            // Whatever the frame spent that measuring the other phases did not account for.
-            Math.Max(0.0, averageCpu - averageUpdate - averageLayout),
+            averageDraw,
             elapsedSeconds > 0.0 ? layoutPasses / elapsedSeconds : 0.0,
             elapsedSeconds > 0.0 ? allocatedBytes / elapsedSeconds : 0.0,
             (double)drawnElements / _sampleCount,
-            (double)drawOperations / _sampleCount);
+            (double)drawOperations / _sampleCount,
+            averageSubmit,
+            // Everything the measured phases did not account for, shown rather than folded into
+            // one of them, so a phase can never quietly absorb work that is not its own.
+            Math.Max(0.0, averageCpu - averageUpdate - averageLayout - averageDraw - averageSubmit));
     }
 
     private void ClearSamples()
@@ -198,5 +213,7 @@ internal sealed class PerformanceMonitor
         int LayoutPasses,
         long AllocatedBytes,
         int DrawnElements,
-        int DrawOperations);
+        int DrawOperations,
+        double DrawMilliseconds,
+        double SubmitMilliseconds);
 }

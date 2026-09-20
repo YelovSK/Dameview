@@ -374,6 +374,13 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     /// <summary>What the last frame spent laying the tree out, for the performance overlay.</summary>
     internal TimeSpan LastLayoutTime { get; private set; }
+    /// <summary>What the last frame spent walking the tree and drawing it.</summary>
+    /// <remarks>
+    /// Wall time, not the cost of the drawing calls themselves: Direct2D processes a batch
+    /// whenever its internal buffer fills, so work belonging to one call can be billed to a
+    /// later one, and some of what a frame submits is paid here rather than in EndDraw.
+    /// </remarks>
+    internal TimeSpan LastDrawTime { get; private set; }
     internal int LayoutPasses => _root.LayoutPasses;
     internal int LastDrawnElements => _drawTally.Elements;
     internal int LastDrawOperations => _drawTally.Operations;
@@ -390,7 +397,9 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _drawTally.Reset();
         var context = new UiDrawContext(
             _deviceContext, _brush, _textLayouts, _drawTally, Palette, _root.Dpi);
+        long drawStarted = Stopwatch.GetTimestamp();
         _root.Draw(context, pixelSize);
+        LastDrawTime = Stopwatch.GetElapsedTime(drawStarted);
     }
 
     internal bool HandlePointer(in WindowPointerEvent input) => _root.HandlePointer(input);

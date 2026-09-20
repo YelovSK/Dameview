@@ -14,7 +14,11 @@ using static Vortice.DirectWrite.DWrite;
 
 namespace Dameview.Rendering;
 
-internal readonly record struct RenderTiming(TimeSpan? GpuTime, long SubmissionCompleted);
+/// <param name="SubmitTime">Time spent in <c>EndDraw</c>.</param>
+internal readonly record struct RenderTiming(
+    TimeSpan? GpuTime,
+    long SubmissionCompleted,
+    TimeSpan SubmitTime = default);
 
 internal sealed class D2DRenderer : IDisposable
 {
@@ -112,7 +116,9 @@ internal sealed class D2DRenderer : IDisposable
         DeviceContext.BeginDraw();
         draw(new SizeF(_width, _height));
 
+        long recordingCompleted = Stopwatch.GetTimestamp();
         DeviceContext.EndDraw().CheckError();
+        TimeSpan submitTime = Stopwatch.GetElapsedTime(recordingCompleted);
         if (measureGpu)
         {
             _gpuFrameTimer.EndFrame();
@@ -120,7 +126,7 @@ internal sealed class D2DRenderer : IDisposable
 
         long submissionCompleted = Stopwatch.GetTimestamp();
         _swapChain.Present(1, PresentFlags.None).CheckError();
-        return new RenderTiming(gpuTime, submissionCompleted);
+        return new RenderTiming(gpuTime, submissionCompleted, submitTime);
     }
 
     internal void Resize(int width, int height)

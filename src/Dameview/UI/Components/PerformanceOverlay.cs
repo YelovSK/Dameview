@@ -127,6 +127,8 @@ internal sealed class PerformanceOverlay : UiElement, IDisposable
             + $"  update\t{snapshot.AverageUpdateMilliseconds:0.00} ms\n"
             + $"  layout\t{snapshot.AverageLayoutMilliseconds:0.00} ms\t{snapshot.LayoutPassesPerSecond:0}/s\n"
             + $"  draw\t{snapshot.AverageDrawMilliseconds:0.00} ms\t{snapshot.AverageDrawnElements:0} el \u00b7 {snapshot.AverageDrawOperations:0} ops\n"
+            + $"  submit\t{snapshot.AverageSubmitMilliseconds:0.00} ms\n"
+            + $"  other\t{snapshot.AverageOtherMilliseconds:0.00} ms\n"
             + $"Alloc\t{snapshot.AllocatedBytesPerSecond / (1024.0 * 1024.0):0.0} MB/s\n"
             + FormatGpuTime(snapshot);
 

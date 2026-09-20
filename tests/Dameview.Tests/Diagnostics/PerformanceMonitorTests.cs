@@ -62,10 +62,10 @@ public sealed class PerformanceMonitorTests
         Assert.AreEqual(2.4, monitor.Snapshot.MaximumGpuMilliseconds!.Value, 0.001);
     }
 
-    // The overlay splits the frame into phases, and what it calls drawing is whatever the
-    // other two did not account for.
+    // Each phase is measured, so none of them may absorb time belonging to another. Whatever
+    // is left over is reported on its own rather than folded into the nearest phase.
     [TestMethod]
-    public void DrawingIsWhateverTheOtherPhasesDidNotAccountFor()
+    public void EveryPhaseIsReportedAsMeasuredAndTheRemainderShowsSeparately()
     {
         var monitor = new PerformanceMonitor { Enabled = true };
         for (int frame = 0; frame < 3; frame++)
@@ -74,6 +74,8 @@ public sealed class PerformanceMonitorTests
             {
                 UpdateTime = TimeSpan.FromMilliseconds(0.5),
                 LayoutTime = TimeSpan.FromMilliseconds(3.0),
+                DrawTime = TimeSpan.FromMilliseconds(1.0),
+                SubmitTime = TimeSpan.FromMilliseconds(0.2),
                 LayoutPasses = 1,
                 AllocatedBytes = 1024,
             });
@@ -83,18 +85,21 @@ public sealed class PerformanceMonitorTests
 
         Assert.AreEqual(0.5, snapshot.AverageUpdateMilliseconds, 0.001);
         Assert.AreEqual(3.0, snapshot.AverageLayoutMilliseconds, 0.001);
-        Assert.AreEqual(1.5, snapshot.AverageDrawMilliseconds, 0.001);
+        Assert.AreEqual(1.0, snapshot.AverageDrawMilliseconds, 0.001);
+        Assert.AreEqual(0.2, snapshot.AverageSubmitMilliseconds, 0.001);
+        Assert.AreEqual(0.3, snapshot.AverageOtherMilliseconds, 0.001);
     }
 
-    // A frame whose phases somehow add up to more than the whole must not report negative drawing.
+    // A frame whose phases somehow add up to more than the whole must not report a negative
+    // remainder.
     [TestMethod]
-    public void PhasesThatOverrunTheFrameReportNoDrawingRatherThanNegative()
+    public void PhasesThatOverrunTheFrameReportNoRemainderRatherThanNegative()
     {
         var monitor = new PerformanceMonitor { Enabled = true };
         monitor.Record(Timing(0.0, 1.0));
         monitor.Record(Timing(10.0, 1.0) with { LayoutTime = TimeSpan.FromMilliseconds(9.0) });
 
-        Assert.AreEqual(0.0, monitor.Snapshot.AverageDrawMilliseconds, 0.001);
+        Assert.AreEqual(0.0, monitor.Snapshot.AverageOtherMilliseconds, 0.001);
     }
 
     private static PerformanceFrameTiming Timing(double startedMilliseconds, double cpuMilliseconds) =>

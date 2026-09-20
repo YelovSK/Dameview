@@ -76,11 +76,9 @@ internal sealed class EmptyStatePanel : UiElement, IDisposable
             18.0f,
             18.0f);
         float iconSize = markSize - 8.0f;
-        context.RenderTarget.DrawBitmap(
+        context.DrawBitmap(
             _icon,
             new Rect(markX + 4.0f, markY + 4.0f, iconSize, iconSize),
-            context.Opacity,
-            BitmapInterpolationMode.Linear,
             new Rect(0.0f, 0.0f, _icon.PixelSize.Width, _icon.PixelSize.Height));
 
         context.DrawText(

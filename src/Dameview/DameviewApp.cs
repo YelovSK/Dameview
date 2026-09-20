@@ -792,7 +792,9 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             _ui.LayoutPasses - layoutPassesBefore,
             GC.GetAllocatedBytesForCurrentThread() - allocatedBefore,
             _ui.LastDrawnElements,
-            _ui.LastDrawOperations));
+            _ui.LastDrawOperations,
+            _ui.LastDrawTime,
+            timing.SubmitTime));
 
         if (animationContinues)
         {

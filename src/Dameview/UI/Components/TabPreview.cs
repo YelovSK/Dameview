@@ -136,11 +136,9 @@ internal sealed class TabPreview : UiElement, IDisposable
             panelBounds.Y + (panelBounds.Height - height) / 2.0f,
             width,
             height);
-        previewContext.RenderTarget.DrawBitmap(
+        previewContext.DrawBitmap(
             bitmap,
             destination,
-            previewContext.Opacity,
-            BitmapInterpolationMode.Linear,
             new Rect(0.0f, 0.0f, bitmap.PixelSize.Width, bitmap.PixelSize.Height));
     }
 

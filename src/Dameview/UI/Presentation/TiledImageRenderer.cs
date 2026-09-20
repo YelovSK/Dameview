@@ -290,15 +290,13 @@ internal sealed class TiledImageRenderer : IDisposable
         int sourceWidth,
         int sourceHeight)
     {
-        context.RenderTarget.DrawBitmap(
+        context.DrawBitmap(
             bitmap,
             new Rect(
                 context.PixelsToDips(destination.X),
                 context.PixelsToDips(destination.Y),
                 context.PixelsToDips(destination.Width),
                 context.PixelsToDips(destination.Height)),
-            context.Opacity,
-            BitmapInterpolationMode.Linear,
             new Rect(0.0f, 0.0f, sourceWidth, sourceHeight));
     }
 

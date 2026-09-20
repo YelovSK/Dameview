@@ -287,15 +287,13 @@ internal sealed class ImagePanel : UiElement, IDisposable
             return;
         }
 
-        context.RenderTarget.DrawBitmap(
+        context.DrawBitmap(
             cached.Bitmap,
             new Rect(
                 context.PixelsToDips(cached.OffsetPixels.X),
                 context.PixelsToDips(cached.OffsetPixels.Y),
                 cached.Bitmap.Size.Width,
                 cached.Bitmap.Size.Height),
-            context.Opacity,
-            BitmapInterpolationMode.Linear,
             new Rect(0.0f, 0.0f, cached.Bitmap.Size.Width, cached.Bitmap.Size.Height));
         DrawPreviewTransition(context);
     }
@@ -314,6 +312,8 @@ internal sealed class ImagePanel : UiElement, IDisposable
         RectangleF destinationPixels,
         float opacity = 1.0f)
     {
+        // Drawn against the device context for its interpolation modes, so it counts itself.
+        context.CountOperation();
         _deviceContext.DrawBitmap(
             image,
             new Rect(
