@@ -68,4 +68,33 @@ public sealed class RenderBitmapCacheTests
 
         secondLease.Dispose();
     }
+    [TestMethod]
+    public void APreloadMayUseFreeSpaceButNeverEvicts()
+    {
+        // 8 bytes per pixel-pair here: width * height * 4.
+        using var cache = new RenderBitmapCache(400, _ => { });
+        using CachedBitmapLease displayed = cache.AddAndAcquire("displayed", null!, 10, 5);
+
+        Assert.IsTrue(cache.CanPreload(10, 5), "200 alongside 200 still fits.");
+        cache.AddInactive("neighbour", null!, 10, 5);
+
+        // The cache is now full, so a third image must be refused rather than evicting one
+        // that would only be fetched again on the next navigation.
+        Assert.IsFalse(cache.CanPreload(1, 1));
+        Assert.IsFalse(cache.HasPreloadCapacity);
+        Assert.IsTrue(cache.Contains("displayed"));
+        Assert.IsTrue(cache.Contains("neighbour"));
+    }
+
+    [TestMethod]
+    public void AnImageTooLargeToShareTheCacheIsNeverPreloaded()
+    {
+        using var cache = new RenderBitmapCache(400, _ => { });
+        using CachedBitmapLease displayed = cache.AddAndAcquire("displayed", null!, 10, 5);
+
+        // Free space alone says yes; the incoming size says no.
+        Assert.IsTrue(cache.HasPreloadCapacity);
+        Assert.IsFalse(cache.CanPreload(20, 5));
+    }
+
 }

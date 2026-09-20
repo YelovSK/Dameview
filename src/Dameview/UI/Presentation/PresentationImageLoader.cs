@@ -299,7 +299,7 @@ internal sealed class PresentationImageLoader : IImageLoader
         ID2D1Bitmap1? bitmap = null;
         try
         {
-            if (_cache.Contains(loaded.Path) || !_cache.HasPreloadCapacity)
+            if (_cache.Contains(loaded.Path) || !_cache.CanPreload(upload.Width, upload.Height))
             {
                 return;
             }
