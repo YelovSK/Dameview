@@ -68,7 +68,12 @@ internal sealed class ViewerKeyBindings : IEquatable<ViewerKeyBindings>
             }
         }
 
-        shortcuts[command] = [.. GetShortcuts(command), shortcut];
+        // From the copy, not the original.
+        // The loop above has already taken this chord off
+        // whoever held it, and that can include the command being assigned it.
+        ViewerCommandShortcut[] existing =
+            shortcuts.TryGetValue(command, out ViewerCommandShortcut[]? current) ? current : [];
+        shortcuts[command] = [.. existing, shortcut];
         return new ViewerKeyBindings(shortcuts);
     }
 

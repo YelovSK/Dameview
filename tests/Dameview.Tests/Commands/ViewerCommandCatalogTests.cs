@@ -75,6 +75,16 @@ public sealed class ViewerCommandCatalogTests
     }
 
     [TestMethod]
+    public void AssigningAShortcutACommandAlreadyHasDoesNotRepeatIt()
+    {
+        ViewerCommandShortcut newTab = ViewerKeyBindings.Defaults.GetShortcuts(ViewerCommandId.NewTab)[0];
+        ViewerKeyBindings bindings = ViewerKeyBindings.Defaults
+            .WithShortcut(ViewerCommandId.NewTab, newTab);
+
+        Assert.HasCount(1, bindings.GetShortcuts(ViewerCommandId.NewTab).Where(s => s == newTab));
+    }
+
+    [TestMethod]
     public void TheSameShortcutInADifferentScopeIsNotAConflict()
     {
         // FitImage is a Viewer command and NewTab a Window one, so Ctrl+T can serve both.
