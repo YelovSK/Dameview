@@ -10,6 +10,7 @@ internal sealed class UiRoot
     private UiElement? _hoveredElement;
     private SizeF _pixelSize;
     private bool _layoutDirty = true;
+    private int _activeResizes;
 
     internal UiRoot(UiElement content, float dpi, UiTextLayoutCache textLayouts)
     {
@@ -222,6 +223,19 @@ internal sealed class UiRoot
         if (element is not null)
         {
             BringIntoView(element);
+        }
+    }
+
+    internal bool IsResizing => _activeResizes > 0;
+
+    internal void BeginResize() => _activeResizes++;
+
+    internal void EndResize()
+    {
+        if (_activeResizes > 0 && --_activeResizes == 0)
+        {
+            // Panels skipped work during the drag, so draw one more frame now that it is over.
+            InvalidateVisual();
         }
     }
 

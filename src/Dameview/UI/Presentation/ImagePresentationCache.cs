@@ -26,19 +26,31 @@ internal sealed class ImagePresentationCache : IDisposable
         _renderContext = device.CreateDeviceContext();
     }
 
+    /// <summary>The rescale already held for this exact presentation, if there is one.</summary>
+    internal ImagePresentation? TryGet(
+        ID2D1Bitmap1 source,
+        RectangleF imageBounds,
+        System.Drawing.Size viewportSize,
+        float dpi)
+    {
+        return _bitmap is not null
+            && ReferenceEquals(_source, source)
+            && _imageBounds == imageBounds
+            && _viewportSize == viewportSize
+            && _dpi == dpi
+                ? new ImagePresentation(_bitmap, _offsetPixels)
+                : null;
+    }
+
     internal ImagePresentation? GetOrCreate(
         ID2D1Bitmap1 source,
         RectangleF imageBounds,
         System.Drawing.Size viewportSize,
         float dpi)
     {
-        if (_bitmap is not null
-            && ReferenceEquals(_source, source)
-            && _imageBounds == imageBounds
-            && _viewportSize == viewportSize
-            && _dpi == dpi)
+        if (TryGet(source, imageBounds, viewportSize, dpi) is { } cached)
         {
-            return new ImagePresentation(_bitmap, _offsetPixels);
+            return cached;
         }
 
         int left = Math.Clamp((int)MathF.Floor(imageBounds.Left), 0, viewportSize.Width);

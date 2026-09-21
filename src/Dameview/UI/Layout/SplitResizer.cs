@@ -65,6 +65,7 @@ internal sealed class SplitResizer(ISplitResizerTarget target) : UiElement
                 _dragging = true;
                 _dragStartPointer = GetPointerCoordinate(input.Position);
                 _dragStartPosition = target.DividerPosition;
+                Root?.BeginResize();
                 ResizeStarted?.Invoke();
                 return new UiPointerResult(Consumed: true, CapturePointer: true, NeedsRepaint: true);
 
@@ -74,11 +75,13 @@ internal sealed class SplitResizer(ISplitResizerTarget target) : UiElement
 
             case WindowPointerEventKind.Released when _dragging:
                 _dragging = false;
+                Root?.EndResize();
                 ResizeCompleted?.Invoke();
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
             case WindowPointerEventKind.Cancelled when _dragging:
                 _dragging = false;
+                Root?.EndResize();
                 ResizeCompleted?.Invoke();
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 

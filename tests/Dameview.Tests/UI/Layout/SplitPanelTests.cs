@@ -90,6 +90,29 @@ public sealed class SplitPanelTests
     }
 
     [TestMethod]
+    public void DraggingADividerMarksTheRootAsResizingUntilThePointerGoes()
+    {
+        var panel = new SplitPanel(new FixedContent(), new FixedContent(), UiOrientation.Horizontal, 0.5f);
+        var root = new UiRoot(panel, UiDpi.Default, TestTextLayouts.Shared);
+        root.Arrange(new SizeF(1008.0f, 600.0f));
+
+        Assert.IsFalse(root.IsResizing);
+
+        root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, 504.0f, 300.0f));
+        Assert.IsTrue(root.IsResizing, "The drag has started.");
+
+        root.HandlePointer(Pointer(WindowPointerEventKind.Moved, 604.0f, 300.0f));
+        Assert.IsTrue(root.IsResizing, "A pause in the middle does not end the drag.");
+
+        root.HandlePointer(Pointer(WindowPointerEventKind.Released, 604.0f, 300.0f));
+        Assert.IsFalse(root.IsResizing, "Releasing ends it.");
+
+        root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, 604.0f, 300.0f));
+        root.CancelPointer();
+        Assert.IsFalse(root.IsResizing, "Losing the pointer ends it too.");
+    }
+
+    [TestMethod]
     public void DividerDraggingCannotShrinkEitherPaneBelowTheMinimum()
     {
         var first = new FixedContent();
