@@ -155,6 +155,20 @@ public sealed class GalleryLayoutTests
     }
 
     [TestMethod]
+    public void ItemScrollExtentFollowsTheScrollDirection()
+    {
+        GalleryLayout vertical = Create(10);
+        GalleryLayout horizontal = Create(10, orientation: UiOrientation.Horizontal);
+
+        Assert.AreEqual(vertical.ItemSize.Height, vertical.ItemScrollExtent);
+        Assert.AreEqual(horizontal.ItemSize.Width, horizontal.ItemScrollExtent);
+        Assert.AreNotEqual(
+            horizontal.ItemSize.Height,
+            horizontal.ItemScrollExtent,
+            "The across-the-strip size stretches with the panel and is not the scroll pitch.");
+    }
+
+    [TestMethod]
     public void ContentLengthGrowsWithRowsAndBoundsTheScrollOffset()
     {
         GalleryLayout layout = Create(10);

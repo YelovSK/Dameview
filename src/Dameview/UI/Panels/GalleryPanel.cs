@@ -294,7 +294,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
             case WindowPointerEventKind.Wheel:
                 // A notch scrolls half an item, which is small enough to stay readable.
-                float step = -input.WheelDelta / 120.0f * Layout.ItemSize.Height / 2.0f;
+                float step = -input.WheelDelta / 120.0f * Layout.ItemScrollExtent / 2.0f;
                 return new UiPointerResult(
                     Consumed: true,
                     NeedsRepaint: _state.ScrollOffset.ScrollBy(step));

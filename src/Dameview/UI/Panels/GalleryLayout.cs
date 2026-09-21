@@ -70,6 +70,9 @@ internal readonly struct GalleryLayout
     /// <summary>An item's size in the caller's coordinates.</summary>
     internal SizeF ItemSize => Transpose(LayoutItemSize);
 
+    /// <summary>How far one item reaches along the scroll direction, whichever way that runs.</summary>
+    internal float ItemScrollExtent => LayoutItemSize.Height;
+
     /// <summary>The width a label is laid out at, which no amount of scrolling changes.</summary>
     internal RectangleF ScrollbarBounds => Transpose(new RectangleF(
         MathF.Max(0.0f, _size.Width - ScrollbarThickness),
