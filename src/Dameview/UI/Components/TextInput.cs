@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Globalization;
 using System.Numerics;
+using Dameview.UI.Animation;
 using Dameview.UI.Foundation;
 using Dameview.Win32;
 using Dameview.Win32.Input;
@@ -17,9 +18,17 @@ internal sealed class TextInput : UiElement, IDisposable
     private const float CaretWidth = 1.5f;
     private const float CaretHeight = 20.0f;
     private const float SelectionOpacity = 0.35f;
+    private const double CaretHeadResponse = 80.0;
+    private const double CaretTailResponse = 25.0;
 
     private readonly IDWriteFactory _factory;
     private readonly IDWriteTextFormat _format;
+    // Both edges of the drawn caret glide toward the layout position of CaretIndex. The tail
+    // lags behind, so the caret stretches while it moves fast and shrinks back as it settles.
+    private readonly AnimatedFloat _caretHead = new(0.0f, CaretHeadResponse, completionDistance: 0.05f);
+    private readonly AnimatedFloat _caretTail = new(0.0f, CaretTailResponse, completionDistance: 0.05f);
+    // Only a caret that stayed on screen glides; one that just appeared jumps into place.
+    private bool _caretGlides;
     private IDWriteTextLayout? _textLayout;
     private string _text = string.Empty;
     // The fixed end of the selection; the caret is the end that moves.
@@ -55,6 +64,8 @@ internal sealed class TextInput : UiElement, IDisposable
 
             _text = value;
             _anchor = CaretIndex = value.Length;
+            // Replaced wholesale, e.g. reset while hidden, so there is no edit to animate.
+            _caretGlides = false;
             NotifyTextChanged();
         }
     }
@@ -159,6 +170,15 @@ internal sealed class TextInput : UiElement, IDisposable
         return new SizeF(MathF.Max(0.0f, width), 38.0f);
     }
 
+    protected override bool UpdateCore(in UiUpdateContext context)
+    {
+        float target = GetCaretPosition(CaretIndex);
+        bool headMoving = MoveCaretEdge(_caretHead, target, context);
+        bool tailMoving = MoveCaretEdge(_caretTail, target, context);
+        _caretGlides = HasVisualState(UiVisualState.Focused);
+        return headMoving || tailMoving;
+    }
+
     protected override void DrawCore(in UiDrawContext context)
     {
         var background = new RoundedRectangle(
@@ -172,7 +192,7 @@ internal sealed class TextInput : UiElement, IDisposable
             focused ? context.Palette.Accent : context.Palette.SurfaceBorder);
 
         float contentWidth = MathF.Max(0.0f, Bounds.Width - (2.0f * HorizontalPadding));
-        float caretPosition = GetCaretPosition(CaretIndex);
+        float caretPosition = _caretHead.Current;
         float caretTop = (Bounds.Height - CaretHeight) / 2.0f;
         if (_text.Length == 0)
         {
@@ -192,8 +212,10 @@ internal sealed class TextInput : UiElement, IDisposable
                 float textLeft = HorizontalPadding - _horizontalOffset;
                 if (focused && HasSelection)
                 {
-                    float selectionLeft = GetCaretPosition(SelectionStart);
-                    float selectionRight = GetCaretPosition(SelectionEnd);
+                    // Spans to the drawn caret rather than CaretIndex, so the highlight grows with the glide.
+                    float anchorPosition = GetCaretPosition(_anchor);
+                    float selectionLeft = MathF.Min(anchorPosition, caretPosition);
+                    float selectionRight = MathF.Max(anchorPosition, caretPosition);
                     context.FillRoundedRectangle(
                         new RoundedRectangle(
                             new RectangleF(
@@ -221,10 +243,12 @@ internal sealed class TextInput : UiElement, IDisposable
 
         if (focused)
         {
-            float caretX = HorizontalPadding + Math.Clamp(caretPosition - _horizontalOffset, 0.0f, contentWidth);
+            float headX = HorizontalPadding + Math.Clamp(caretPosition - _horizontalOffset, 0.0f, contentWidth);
+            float tailX = HorizontalPadding + Math.Clamp(_caretTail.Current - _horizontalOffset, 0.0f, contentWidth);
+            float caretLeft = MathF.Min(headX, tailX);
             context.FillRoundedRectangle(
                 new RoundedRectangle(
-                    new RectangleF(caretX, caretTop, CaretWidth, CaretHeight),
+                    new RectangleF(caretLeft, caretTop, MathF.Abs(headX - tailX) + CaretWidth, CaretHeight),
                     0.0f,
                     0.0f),
                 context.Palette.PrimaryText);
@@ -235,6 +259,20 @@ internal sealed class TextInput : UiElement, IDisposable
     {
         _textLayout?.Dispose();
         _format.Dispose();
+    }
+
+    private bool MoveCaretEdge(AnimatedFloat edge, float target, in UiUpdateContext context)
+    {
+        if (_caretGlides)
+        {
+            edge.SetTarget(target);
+        }
+        else
+        {
+            edge.SetValue(target);
+        }
+
+        return edge.Update(context);
     }
 
     private bool Insert(string text)
