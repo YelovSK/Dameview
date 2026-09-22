@@ -112,6 +112,8 @@ public sealed class InteractiveControlsTests
         Assert.AreSame(dropdown, scene.HitTest(new PointF(30.0f, 30.0f)));
         AdvanceAnimation(root, size);
         Assert.IsFalse(presenter.IsVisible);
+        Assert.IsFalse(popupHost.IsVisible);
+        Assert.IsEmpty(presenter.Children, "A closed popup lets go of its content.");
     }
 
     [TestMethod]

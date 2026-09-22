@@ -56,7 +56,6 @@ public sealed class ModalHostTests
         UiRoot root = CreateRoot(host);
         host.Show(content, host.Close);
         root.Arrange(WindowSize);
-        FinishAnimations(root);
 
         root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, 400, 300));
         root.HandlePointer(Pointer(WindowPointerEventKind.Released, 5, 5));
@@ -73,19 +72,18 @@ public sealed class ModalHostTests
         UiRoot root = CreateRoot(host);
         host.Show(content, host.Close);
         root.Arrange(WindowSize);
-        FinishAnimations(root);
         root.SetFocus(content.InitialFocus);
 
         host.Close();
 
         Assert.IsFalse(host.IsOpen);
-        Assert.IsFalse(host.IsHitTestVisible);
+        Assert.IsTrue(host.IsVisible);
         Assert.IsNull(root.FocusedElement);
-        Assert.AreSame(host, content.Parent?.Parent);
+        Assert.IsFalse(root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, 400, 300)));
+        Assert.HasCount(0, content.Events);
 
         FinishAnimations(root);
 
-        Assert.IsNull(content.Parent);
         Assert.IsFalse(host.IsVisible);
     }
 
@@ -98,7 +96,6 @@ public sealed class ModalHostTests
         UiRoot root = CreateRoot(host);
         host.Show(previous, () => { });
         root.Arrange(WindowSize);
-        FinishAnimations(root);
         root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, 400, 300));
 
         host.Show(next, () => { });
@@ -157,7 +154,6 @@ public sealed class ModalHostTests
         UiRoot root = CreateRoot(host, 144);
         host.Show(content, () => { });
         root.Arrange(WindowSize);
-        FinishAnimations(root);
 
         root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, 120, 100));
         AssertPoint(ContentLocal(content, host, 144.0f, 120, 100), content.Events[^1].Position);
@@ -223,7 +219,6 @@ public sealed class ModalHostTests
         return new UiRoot(new RootElement(host), dpi, TestTextLayouts.Shared);
     }
 
-    // Content that is still fading in cannot be clicked yet.
     private static void FinishAnimations(UiRoot root) =>
         root.Update(new UiUpdateContext(0.0, AnimationsEnabled: false));
 

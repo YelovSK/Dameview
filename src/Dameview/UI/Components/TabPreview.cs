@@ -4,7 +4,6 @@ using Dameview.UI.Animation;
 using Dameview.UI.Foundation;
 using Dameview.UI.Presentation;
 using Vortice.Direct2D1;
-using Vortice.Mathematics;
 
 namespace Dameview.UI.Components;
 
@@ -16,9 +15,9 @@ internal sealed class TabPreview : UiElement, IDisposable
     private const float MarginDips = 8.0f;
     private const float GapDips = 4.0f;
     private const float PaddingDips = 8.0f;
-    private const float InitialScale = 0.9f;
 
     private readonly IThumbnailImageLoader _thumbnailLoader;
+    private readonly PreviewPanel _panel;
     private IDisposable? _request;
     private CachedBitmapLease? _lease;
     private string? _path;
@@ -26,11 +25,12 @@ internal sealed class TabPreview : UiElement, IDisposable
     private double _hoverSeconds;
     private bool _waiting;
     private int _version;
-    private AnimatedFloat _visibility = new(0.0f, 24.0);
 
     internal TabPreview(IThumbnailImageLoader thumbnailLoader)
     {
         _thumbnailLoader = thumbnailLoader;
+        _panel = new PreviewPanel(this);
+        AddChild(_panel);
     }
 
     internal override bool IsHitTestVisible => false;
@@ -42,7 +42,7 @@ internal sealed class TabPreview : UiElement, IDisposable
         _anchor = anchor;
         _hoverSeconds = 0.0;
         _waiting = true;
-        InvalidateVisual();
+        InvalidateLayout();
     }
 
     internal void Hide()
@@ -57,90 +57,53 @@ internal sealed class TabPreview : UiElement, IDisposable
         _request = null;
         _path = null;
         _waiting = false;
-        _visibility.SetTarget(0.0f);
-        InvalidateVisual();
+        _panel.IsPresent = false;
     }
 
     protected override SizeF MeasureCore(SizeF availableSize) => availableSize;
 
+    protected override void ArrangeCore(SizeF finalSize) => _panel.Arrange(GetPanelBounds(finalSize, _anchor));
+
     protected override bool UpdateCore(in UiUpdateContext context)
     {
-        bool continues = _visibility.Update(context);
-        if (_lease is not null && _path is null && _visibility.Current == 0.0f)
+        // The panel draws the thumbnail until it has faded out, so it is released only after.
+        if (_lease is not null && _path is null && !_panel.IsVisible)
         {
             _lease.Dispose();
             _lease = null;
         }
 
-        if (_waiting && _path is not null)
+        if (!_waiting || _path is null)
         {
-            _hoverSeconds += context.ElapsedSeconds;
-            if (_hoverSeconds < HoverDelaySeconds)
-            {
-                return true;
-            }
-
-            _waiting = false;
-            int version = _version;
-            string path = _path;
-            IDisposable request = _thumbnailLoader.Request(
-                path,
-                ThumbnailPriority.Foreground,
-                lease => CompleteThumbnail(version, lease));
-            if (_version == version && _lease is null)
-            {
-                _request = request;
-            }
-            else
-            {
-                request.Dispose();
-            }
+            return false;
         }
 
-        return continues;
-    }
-
-    protected override void DrawCore(in UiDrawContext context)
-    {
-        ID2D1Bitmap1? bitmap = _lease?.Bitmap.Bitmap;
-        if (bitmap is null)
+        _hoverSeconds += context.ElapsedSeconds;
+        if (_hoverSeconds < HoverDelaySeconds)
         {
-            return;
+            return true;
         }
 
-        RectangleF panelBounds = AnimateBounds(
-            GetPanelBounds(Bounds.Size, _anchor),
-            InitialScale + (1.0f - InitialScale) * _visibility.Current);
-        if (panelBounds.Width <= 2.0f * PaddingDips || panelBounds.Height <= 2.0f * PaddingDips)
+        _waiting = false;
+        int version = _version;
+        string path = _path;
+        IDisposable request = _thumbnailLoader.Request(
+            path,
+            ThumbnailPriority.Foreground,
+            lease => CompleteThumbnail(version, lease));
+        if (_version == version && _lease is null)
         {
-            return;
+            _request = request;
+        }
+        else
+        {
+            request.Dispose();
         }
 
-        UiDrawContext previewContext = context.WithOpacity(_visibility.Current);
-        var panel = new RoundedRectangle(
-            panelBounds,
-            UiDesign.PanelCornerRadius,
-            UiDesign.PanelCornerRadius);
-        previewContext.FillRoundedRectangle(panel, context.Palette.OverlaySurface);
-        previewContext.DrawRoundedRectangle(panel, context.Palette.SurfaceBorder);
-
-        previewContext.DrawBitmapFitted(
-            bitmap,
-            RectangleF.Inflate(panelBounds, -PaddingDips, -PaddingDips));
+        return false;
     }
 
     public void Dispose() => Reset();
-
-    private static RectangleF AnimateBounds(RectangleF bounds, float scale)
-    {
-        float width = bounds.Width * scale;
-        float height = bounds.Height * scale;
-        return new RectangleF(
-            bounds.X + (bounds.Width - width) / 2.0f,
-            bounds.Y,
-            width,
-            height);
-    }
 
     private static RectangleF GetPanelBounds(SizeF availableSize, RectangleF anchor)
     {
@@ -167,8 +130,7 @@ internal sealed class TabPreview : UiElement, IDisposable
         _request = null;
         _lease?.Dispose();
         _lease = lease;
-        _visibility.SetTarget(1.0f);
-        InvalidateVisual();
+        _panel.IsPresent = true;
     }
 
     private void Reset()
@@ -180,7 +142,34 @@ internal sealed class TabPreview : UiElement, IDisposable
         _lease = null;
         _path = null;
         _waiting = false;
-        _visibility = new AnimatedFloat(0.0f, 24.0);
-        InvalidateVisual();
+        _panel.IsPresent = false;
+        _panel.FinishTransition();
+    }
+
+    private sealed class PreviewPanel : UiElement
+    {
+        private readonly TabPreview _owner;
+
+        internal PreviewPanel(TabPreview owner)
+        {
+            _owner = owner;
+            Transition = new UiTransition(Fade: true, HiddenScale: 0.9f, Response: 24.0);
+            IsPresent = false;
+        }
+
+        protected override void DrawCore(in UiDrawContext context)
+        {
+            ID2D1Bitmap1? bitmap = _owner._lease?.Bitmap.Bitmap;
+            if (bitmap is null || Bounds.Width <= 2.0f * PaddingDips || Bounds.Height <= 2.0f * PaddingDips)
+            {
+                return;
+            }
+
+            var bounds = new RectangleF(0.0f, 0.0f, Bounds.Width, Bounds.Height);
+            var panel = new RoundedRectangle(bounds, UiDesign.PanelCornerRadius, UiDesign.PanelCornerRadius);
+            context.FillRoundedRectangle(panel, context.Palette.OverlaySurface);
+            context.DrawRoundedRectangle(panel, context.Palette.SurfaceBorder);
+            context.DrawBitmapFitted(bitmap, RectangleF.Inflate(bounds, -PaddingDips, -PaddingDips));
+        }
     }
 }

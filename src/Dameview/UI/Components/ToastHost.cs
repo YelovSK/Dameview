@@ -100,7 +100,7 @@ internal sealed class ToastHost : UiElement, IDisposable
 
         foreach (ToastView view in _views)
         {
-            view.IsLeaving = !_toasts.Toasts.Any(toast => toast.Id == view.Toast.Id);
+            view.IsPresent = _toasts.Toasts.Any(toast => toast.Id == view.Toast.Id);
         }
 
         InvalidateLayout();

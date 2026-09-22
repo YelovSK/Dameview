@@ -55,10 +55,9 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
         ];
         _keyBindings = keyBindings;
         _applyKeyBindings = applyKeyBindings;
-        // Each item carries the gap below itself, so it can collapse away together with its row.
         var itemList = new StackPanel(
             UiOrientation.Vertical,
-            0.0f,
+            UiDesign.SmallSpacing,
             StackPanelDistribution.Natural,
             _items);
         _list = new ScrollView(itemList);
@@ -82,7 +81,7 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
 
     internal override SizeF PreferredSize => new(540.0f, 580.0f);
     internal override UiElement InitialFocus => _filterInput;
-    internal int MatchingCommandCount => _items.Count(item => item.Matches);
+    internal int MatchingCommandCount => _items.Count(item => item.IsPresent);
     internal ViewerCommandId? SelectedCommand => GetMatchingItems().ElementAtOrDefault(_selectedIndex)?.Command.Id;
     internal string Query => _filterInput.Text;
 
@@ -150,7 +149,7 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
         // The palette opens on the full list rather than animating it back in.
         foreach (CommandItem item in _items)
         {
-            item.FinishPresenceChange();
+            item.FinishTransition();
         }
     }
 
@@ -224,7 +223,7 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
     {
         foreach (CommandItem item in _items)
         {
-            item.Matches = item.Command.Label.Contains(query, StringComparison.OrdinalIgnoreCase);
+            item.IsPresent = item.Command.Label.Contains(query, StringComparison.OrdinalIgnoreCase);
         }
 
         _selectedIndex = 0;
@@ -271,7 +270,7 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
         }
     }
 
-    private CommandItem[] GetMatchingItems() => [.. _items.Where(item => item.Matches)];
+    private CommandItem[] GetMatchingItems() => [.. _items.Where(item => item.IsPresent)];
 
     internal void ApplyKeyBindings(ViewerKeyBindings keyBindings)
     {
@@ -331,10 +330,7 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
         private const float ChipPadding = 12.0f;
         private const string CaptureLabel = "Press a key";
         private const float RowHeight = 40.0f;
-        private const double PresenceResponse = 25.0;
 
-        // 1 while the item matches the filter; eases to 0 as it fades and collapses out of the list.
-        private readonly AnimatedFloat _presence = new(1.0f, PresenceResponse);
         private readonly Action _execute;
         private readonly Action<int> _captureShortcut;
         private readonly Action<int> _removeShortcut;
@@ -358,6 +354,8 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
             _labelFormat = CreateFormat(factory);
             _addButton = new Button(factory, "+", () => _captureShortcut(_chips.Count));
             AddChild(_addButton);
+            // Items that stop matching the filter fade and collapse out of the list.
+            Transition = new UiTransition(Fade: true, Collapse: true, Response: 25.0);
         }
 
         internal ViewerCommand Command { get; }
@@ -369,30 +367,6 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
         }
         internal override bool IsFocusable => false;
         internal override bool PreservesFocusOnPointerPress => true;
-        internal override bool IsHitTestVisible => Matches;
-        internal override float Opacity => _presence.Current;
-
-        internal bool Matches
-        {
-            get => _presence.Target == 1.0f;
-            set
-            {
-                if (!_presence.SetTarget(value ? 1.0f : 0.0f))
-                {
-                    return;
-                }
-
-                // A leaving item stays in the list until it has collapsed.
-                IsVisible = true;
-                InvalidateLayout();
-            }
-        }
-
-        internal void FinishPresenceChange()
-        {
-            _presence.SetValue(_presence.Target);
-            IsVisible = Matches;
-        }
 
         internal void Execute() => _execute();
 
@@ -444,9 +418,7 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
             }
 
             _addButton.Measure(new SizeF(AddButtonWidth, ShortcutChip.Height));
-            return new SizeF(
-                MathF.Max(0.0f, width),
-                _presence.Current * (RowHeight + UiDesign.SmallSpacing));
+            return new SizeF(MathF.Max(0.0f, width), RowHeight);
         }
 
         // The row keeps its full height while the item collapses, so the shrinking bounds clip it
@@ -472,23 +444,6 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
 
             ChipsLeft = right;
         }
-
-        protected override bool UpdateCore(in UiUpdateContext context)
-        {
-            bool continues = base.UpdateCore(context);
-            float previous = _presence.Current;
-            continues |= _presence.Update(context);
-            if (_presence.Current != previous)
-            {
-                IsVisible = _presence.Current > 0.0f;
-                InvalidateLayout();
-            }
-
-            return continues;
-        }
-
-        // The gap below the row belongs to the item but is not part of it.
-        protected override bool HitTestCore(PointF position) => position.Y < RowHeight;
 
         protected override void DrawCore(in UiDrawContext context)
         {

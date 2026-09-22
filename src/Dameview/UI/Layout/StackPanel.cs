@@ -59,7 +59,7 @@ internal sealed class StackPanel : UiElement
             SizeF desired = child.Measure(Size(itemConstraint, Cross(availableSize)));
             desiredMain = _distribution == StackPanelDistribution.Equal
                 ? MathF.Max(desiredMain, Main(desired))
-                : desiredMain + Main(desired);
+                : desiredMain + (Main(desired) * GetLayoutPresence(child));
             desiredCross = MathF.Max(desiredCross, Cross(desired));
         }
 
@@ -68,7 +68,7 @@ internal sealed class StackPanel : UiElement
             desiredMain *= visibleChildren.Length;
         }
 
-        desiredMain += spacing * (visibleChildren.Length - 1);
+        desiredMain += GetGapsAfter(visibleChildren, spacing).Sum();
         return Size(desiredMain, desiredCross);
     }
 
@@ -86,15 +86,37 @@ internal sealed class StackPanel : UiElement
         float equalLength = MathF.Max(
             0.0f,
             (finalMain - spacing * (visibleChildren.Length - 1)) / visibleChildren.Length);
+        float[] gaps = GetGapsAfter(visibleChildren, spacing);
         float position = 0.0f;
-        foreach (UiElement child in visibleChildren)
+        for (int index = 0; index < visibleChildren.Length; index++)
         {
+            UiElement child = visibleChildren[index];
             float length = _distribution == StackPanelDistribution.Equal
                 ? equalLength
-                : MathF.Max(0.0f, Main(child.DesiredSize));
+                : MathF.Max(0.0f, Main(child.DesiredSize)) * GetLayoutPresence(child);
             child.Arrange(CreateBounds(position, length, finalCross));
-            position += length + spacing;
+            position += length + gaps[index];
         }
+    }
+
+    // A collapsing child gives up its slot. Equal slots cannot shrink one child.
+    private float GetLayoutPresence(UiElement child) =>
+        _distribution == StackPanelDistribution.Natural ? child.LayoutPresence : 1.0f;
+
+    // A gap shrinks with the child before it and with whatever still follows it, so a collapsing
+    // child takes one gap with it and the stack always ends exactly at its last child.
+    private float[] GetGapsAfter(UiElement[] children, float spacing)
+    {
+        float[] gaps = new float[children.Length];
+        float laterPresence = 0.0f;
+        for (int index = children.Length - 1; index >= 0; index--)
+        {
+            float presence = GetLayoutPresence(children[index]);
+            gaps[index] = spacing * presence * laterPresence;
+            laterPresence = MathF.Max(laterPresence, presence);
+        }
+
+        return gaps;
     }
 
     protected override bool HitTestCore(PointF position) => false;

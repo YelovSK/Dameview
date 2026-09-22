@@ -13,10 +13,8 @@ internal sealed class PopupHost : UiElement
     private UiElement? _content;
     private Action? _closed;
     private readonly PopupPresenter _presenter;
-    private AnimatedFloat _visibility = new(0.0f, 24.0);
     private SizeF _preferredSize;
     private bool _outsidePressed;
-    private bool _closing;
 
     internal PopupHost()
     {
@@ -25,7 +23,7 @@ internal sealed class PopupHost : UiElement
         IsVisible = false;
     }
 
-    internal bool IsOpen => _content is not null && !_closing;
+    internal bool IsOpen => _content is not null && _presenter.IsPresent;
     internal override bool IsHitTestVisible => IsOpen;
     internal override bool PreservesFocusOnPointerPress => true;
 
@@ -40,12 +38,9 @@ internal sealed class PopupHost : UiElement
         _closed = closed;
         _preferredSize = preferredSize;
         _outsidePressed = false;
-        _closing = false;
-        _visibility = new AnimatedFloat(0.0f, 24.0);
-        _visibility.SetTarget(1.0f);
         _presenter.SetContent(content);
-        _presenter.IsVisible = true;
         IsVisible = true;
+        _presenter.IsPresent = true;
     }
 
     internal void Close()
@@ -55,13 +50,11 @@ internal sealed class PopupHost : UiElement
             return;
         }
 
-        _closing = true;
         _outsidePressed = false;
-        _visibility.SetTarget(0.0f);
+        _presenter.IsPresent = false;
         Action? closed = _closed;
         _closed = null;
         closed?.Invoke();
-        InvalidateLayout();
     }
 
     internal bool HandleEscape()
@@ -109,25 +102,26 @@ internal sealed class PopupHost : UiElement
             ? anchor.Bottom + gap
             : anchor.Top - gap - height;
         y = Math.Clamp(y, margin, MathF.Max(margin, finalSize.Height - margin - height));
-        float visibleHeight = height * _visibility.Current;
+        // The popup unrolls from its anchor as it enters and rolls back up as it leaves.
+        float visibleHeight = height * _presenter.LayoutPresence;
         _presenter.Arrange(new RectangleF(x, opensBelow ? y : y + height - visibleHeight, width, visibleHeight));
     }
 
+    // Lets go of a closed popup's anchor and content once it has rolled up.
     protected override bool UpdateCore(in UiUpdateContext context)
     {
-        bool wasAnimating = _visibility.Current != _visibility.Target;
-        bool continues = _visibility.Update(context);
-        if (wasAnimating)
+        if (_content is null || _presenter.IsPresent)
         {
-            InvalidateLayout();
+            return false;
         }
 
-        if (_closing && !continues)
+        if (_presenter.IsVisible)
         {
-            RemoveContent(invokeClosed: false);
+            return true;
         }
 
-        return continues;
+        RemoveContent(invokeClosed: false);
+        return false;
     }
 
     internal override UiPointerResult OnPointerEvent(in WindowPointerEvent input)
@@ -171,9 +165,9 @@ internal sealed class PopupHost : UiElement
         _content = null;
         _closed = null;
         _outsidePressed = false;
-        _closing = false;
+        _presenter.IsPresent = false;
+        _presenter.FinishTransition();
         _presenter.SetContent(null);
-        _presenter.IsVisible = false;
         IsVisible = false;
         closed?.Invoke();
     }
@@ -191,11 +185,20 @@ internal sealed class PopupHost : UiElement
         return true;
     }
 
-    private sealed class PopupPresenter(PopupHost owner) : UiElement
+    private sealed class PopupPresenter : UiElement
     {
+        private readonly PopupHost _owner;
         private UiElement? _content;
 
-        internal override bool IsHitTestVisible => owner.IsOpen;
+        internal PopupPresenter(PopupHost owner)
+        {
+            _owner = owner;
+            // The host sizes the presenter by its presence rather than fading it.
+            Transition = new UiTransition(Collapse: true, Response: 24.0);
+            IsPresent = false;
+        }
+
+        internal override bool IsHitTestVisible => _owner.IsOpen;
 
         internal void SetContent(UiElement? content)
         {

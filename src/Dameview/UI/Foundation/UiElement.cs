@@ -1,4 +1,5 @@
 using System.Drawing;
+using Dameview.UI.Animation;
 using Dameview.Win32.Input;
 
 namespace Dameview.UI.Foundation;
@@ -13,6 +14,8 @@ namespace Dameview.UI.Foundation;
 internal abstract class UiElement
 {
     private readonly List<UiElement> _children = [];
+    // How far the element has entered, easing toward IsPresent. Only exists with a Transition.
+    private AnimatedFloat? _presence;
 
     internal RectangleF Bounds { get; private set; }
     internal SizeF DesiredSize { get; private set; }
@@ -42,6 +45,65 @@ internal abstract class UiElement
         }
     } = true;
 
+    /// <summary>How the element animates as <see cref="IsPresent"/> changes; without one it switches at once.</summary>
+    internal UiTransition? Transition
+    {
+        get;
+        set
+        {
+            field = value;
+            _presence = value is { } transition
+                ? new AnimatedFloat(IsPresent ? 1.0f : 0.0f, transition.Response)
+                : null;
+        }
+    }
+
+    /// <summary>Whether the element should be shown.</summary>
+    /// <remarks>
+    /// Unlike <see cref="IsVisible"/>, this plays the <see cref="Transition"/>. A leaving element
+    /// stops taking input at once but stays visible until its exit has finished.
+    /// </remarks>
+    internal bool IsPresent
+    {
+        get;
+        set
+        {
+            if (field == value)
+            {
+                return;
+            }
+
+            field = value;
+            float target = value ? 1.0f : 0.0f;
+            // Nothing is on screen to animate from, so the element takes its new state at once.
+            if (_presence is null || Root is null || (!value && !IsVisible))
+            {
+                _presence?.SetValue(target);
+                IsVisible = value;
+                return;
+            }
+
+            if (!value)
+            {
+                Root.DisconnectSubtree(this);
+            }
+            else if (!IsVisible)
+            {
+                _presence.SetValue(0.0f);
+                IsVisible = true;
+            }
+
+            _presence.SetTarget(target);
+            InvalidateVisual();
+        }
+    } = true;
+
+    /// <summary>How far the element has entered, from 0 when absent to 1 when fully present.</summary>
+    internal float Presence => _presence?.Current ?? 1.0f;
+
+    /// <summary>The share of its space a container should give this element.</summary>
+    internal float LayoutPresence => Transition is { Collapse: true } ? Presence : 1.0f;
+
     /// <summary>Whether this element can receive keyboard focus.</summary>
     internal virtual bool IsFocusable => false;
     /// <summary>Whether this element and its descendants participate in hit testing.</summary>
@@ -53,11 +115,17 @@ internal abstract class UiElement
     /// <summary>The pointer cursor shown while hovering or capturing this element.</summary>
     internal virtual WindowCursor Cursor => WindowCursor.Default;
     /// <summary>The opacity applied to this element and its drawn content.</summary>
-    internal virtual float Opacity => 1.0f;
+    internal virtual float Opacity => Transition is { Fade: true } ? Presence : 1.0f;
     /// <summary>An animated translation applied for drawing and hit testing.</summary>
-    internal virtual PointF VisualOffset => PointF.Empty;
+    internal virtual PointF VisualOffset => Transition is { } transition
+        ? new PointF(
+            transition.HiddenOffset.X * (1.0f - Presence),
+            transition.HiddenOffset.Y * (1.0f - Presence))
+        : PointF.Empty;
     /// <summary>An animated scale about the element's center, applied for drawing only.</summary>
-    internal virtual float VisualScale => 1.0f;
+    internal virtual float VisualScale => Transition is { } transition
+        ? transition.HiddenScale + ((1.0f - transition.HiddenScale) * Presence)
+        : 1.0f;
 
     /// <summary>Measures this element and stores the size it would like to occupy.</summary>
     internal SizeF Measure(SizeF availableSize)
@@ -82,7 +150,8 @@ internal abstract class UiElement
             return false;
         }
 
-        bool continues = UpdateCore(context);
+        bool continues = UpdatePresence(context);
+        continues |= UpdateCore(context);
         foreach (UiElement child in _children)
         {
             continues |= child.UpdateTree(context);
@@ -91,11 +160,18 @@ internal abstract class UiElement
         return continues;
     }
 
+    /// <summary>Settles the transition at once, e.g. when the element is about to appear somewhere new.</summary>
+    internal void FinishTransition()
+    {
+        _presence?.SetValue(IsPresent ? 1.0f : 0.0f);
+        IsVisible = IsPresent;
+    }
+
     /// <summary>Finds the topmost hit-testable element at a point in the parent's coordinate space.</summary>
     /// <returns>The deepest matching element, or <see langword="null"/> when the point is outside the subtree.</returns>
     internal UiElement? HitTest(PointF positionInParent)
     {
-        if (!IsVisible || !IsHitTestVisible || Opacity <= 0.0f)
+        if (!IsVisible || !IsPresent || !IsHitTestVisible)
         {
             return null;
         }
@@ -275,6 +351,28 @@ internal abstract class UiElement
     protected virtual void OnVisualStateChanged() { }
     /// <summary>Called when focus enters or leaves this element's subtree.</summary>
     protected virtual void OnFocusWithinChanged() { }
+
+    private bool UpdatePresence(in UiUpdateContext context)
+    {
+        if (_presence is null)
+        {
+            return false;
+        }
+
+        float previous = _presence.Current;
+        bool continues = _presence.Update(context);
+        if (_presence.Current != previous && Transition is { Collapse: true })
+        {
+            InvalidateLayout();
+        }
+
+        if (!continues && !IsPresent)
+        {
+            IsVisible = false;
+        }
+
+        return continues;
+    }
 
     private WindowPointerEvent ToLayoutLocal(in WindowPointerEvent input)
     {

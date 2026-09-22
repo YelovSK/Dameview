@@ -23,7 +23,6 @@ internal sealed class ToastView : UiElement, IDisposable
 
     private readonly IDWriteTextFormat _format;
     private readonly DismissButton _dismiss;
-    private readonly AnimatedFloat _presence;
     private readonly AnimatedFloat _shift = new(0.0f, Response, completionDistance: 0.25f);
     private float? _top;
 
@@ -38,35 +37,26 @@ internal sealed class ToastView : UiElement, IDisposable
         // The layout is measured in a tall box, so the text has to start at its top.
         _format.ParagraphAlignment = ParagraphAlignment.Near;
         _format.WordWrapping = WordWrapping.Wrap;
-        _presence = new AnimatedFloat(0.0f, Response, completionDistance: 0.002f);
-        _presence.SetTarget(1.0f);
         _dismiss = new DismissButton(factory, dismissed);
         AddChild(_dismiss);
+        Transition = new UiTransition(Fade: true, HiddenOffset: new PointF(EntryOffset, 0.0f), Response: Response);
+        // Absent until the host adds it, so that it enters rather than starting in place.
+        IsPresent = false;
     }
 
     internal Toast Toast { get; }
 
-    /// <summary>Set once the message is gone from the service, to play the exit before removal.</summary>
-    internal bool IsLeaving
-    {
-        get;
-        set
-        {
-            if (field == value)
-            {
-                return;
-            }
+    /// <summary>Whether the message has gone from the service and the view has finished animating away.</summary>
+    internal bool HasLeft => !IsPresent && !IsVisible;
 
-            field = value;
-            _presence.SetTarget(value ? 0.0f : 1.0f);
+    internal override PointF VisualOffset
+    {
+        get
+        {
+            PointF entry = base.VisualOffset;
+            return new PointF(entry.X, entry.Y + _shift.Current);
         }
     }
-
-    internal bool HasLeft => IsLeaving && _presence.Current <= 0.0f;
-
-    internal override float Opacity => _presence.Current;
-    internal override PointF VisualOffset =>
-        new((1.0f - _presence.Current) * EntryOffset, _shift.Current);
 
     /// <summary>
     /// Tells the toast where the stack now wants it, before it is arranged there.
@@ -102,8 +92,7 @@ internal sealed class ToastView : UiElement, IDisposable
             DismissWidth));
     }
 
-    protected override bool UpdateCore(in UiUpdateContext context) =>
-        _presence.Update(context) | _shift.Update(context);
+    protected override bool UpdateCore(in UiUpdateContext context) => _shift.Update(context);
 
     protected override void DrawCore(in UiDrawContext context)
     {

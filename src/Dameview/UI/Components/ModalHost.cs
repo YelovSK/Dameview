@@ -19,13 +19,10 @@ internal abstract class ModalContent : UiElement
 // Owns modal interaction and placement, not the lifetime of its content.
 internal sealed class ModalHost : UiElement
 {
-    private const double VisibilityResponse = 22.0;
     private const float BackdropAlpha = 0.45f;
     private const float ClosedScale = 0.96f;
 
     private readonly ModalSurface _surface;
-    // 1 while a modal is open. Easing it fades the backdrop and fades and scales the panel.
-    private readonly AnimatedFloat _visibility = new(0.0f, VisibilityResponse);
     private Action? _dismiss;
     private bool _backdropPressed;
 
@@ -33,14 +30,13 @@ internal sealed class ModalHost : UiElement
     {
         _surface = new ModalSurface(this);
         AddChild(_surface);
-        IsVisible = false;
+        Transition = new UiTransition(Fade: true);
+        IsPresent = false;
     }
 
     internal bool IsOpen => Content is not null;
     internal ModalContent? Content { get; private set; }
     internal override bool PreservesFocusOnPointerPress => true;
-    // A closing modal is still drawn while it fades out, but clicks already reach what is beneath it.
-    internal override bool IsHitTestVisible => IsOpen;
 
     internal void Show(ModalContent content, Action dismiss)
     {
@@ -51,9 +47,7 @@ internal sealed class ModalHost : UiElement
         Content = content;
         _dismiss = dismiss;
         _backdropPressed = false;
-        IsVisible = true;
-        _visibility.SetTarget(1.0f);
-        InvalidateVisual();
+        IsPresent = true;
     }
 
     internal void Close()
@@ -64,12 +58,10 @@ internal sealed class ModalHost : UiElement
         }
 
         Root?.ClearPointer();
-        Root?.DisconnectSubtree(_surface);
         Content = null;
         _dismiss = null;
         _backdropPressed = false;
-        _visibility.SetTarget(0.0f);
-        InvalidateVisual();
+        IsPresent = false;
     }
 
     internal bool HandleEscape()
@@ -124,24 +116,11 @@ internal sealed class ModalHost : UiElement
             bottom - top));
     }
 
-    protected override bool UpdateCore(in UiUpdateContext context)
-    {
-        bool continues = _visibility.Update(context);
-        if (!IsOpen && !continues)
-        {
-            _surface.SetContent(null);
-            IsVisible = false;
-        }
-
-        return continues;
-    }
-
     protected override void DrawCore(in UiDrawContext context)
     {
         context.FillRoundedRectangle(
             new RoundedRectangle(new RectangleF(0.0f, 0.0f, Bounds.Width, Bounds.Height), 0.0f, 0.0f),
-            new Color4(0.0f, 0.0f, 0.0f, BackdropAlpha),
-            _visibility.Current);
+            new Color4(0.0f, 0.0f, 0.0f, BackdropAlpha));
     }
 
     internal override UiPointerResult OnPointerEvent(in WindowPointerEvent input)
@@ -172,11 +151,11 @@ internal sealed class ModalHost : UiElement
 
     private sealed class ModalSurface(ModalHost host) : UiElement
     {
-        // The content being shown, which outlives the host's Content while it fades out.
+        // The content last shown, which stays after the host closes so that it can fade out.
         internal ModalContent? Content { get; private set; }
         internal override bool PreservesFocusOnPointerPress => true;
-        internal override float Opacity => host._visibility.Current;
-        internal override float VisualScale => ClosedScale + ((1.0f - ClosedScale) * host._visibility.Current);
+        // The host fades everything; the panel also grows into place as it does.
+        internal override float VisualScale => ClosedScale + ((1.0f - ClosedScale) * host.Presence);
 
         internal void SetContent(ModalContent? content)
         {

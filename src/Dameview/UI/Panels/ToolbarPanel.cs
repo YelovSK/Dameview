@@ -51,6 +51,8 @@ internal sealed class ToolbarPanel : UiElement, IDisposable
 
     internal override float Opacity => _visibility.Current;
     internal override PointF VisualOffset => new(0.0f, (_visibility.Current - 1.0f) * Bounds.Height);
+    // Stays in the tree while hidden so it can notice the pointer coming near, but only takes clicks while shown.
+    internal override bool IsHitTestVisible => _visibility.Target > 0.0f;
 
     internal void Show()
     {
