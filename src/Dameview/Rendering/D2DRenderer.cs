@@ -24,7 +24,7 @@ internal readonly record struct RenderTiming(
 /// <summary>
 /// Owns the graphics device and the frame lifecycle. The Direct2D and DirectWrite factories
 /// outlive any one device; everything built from the device is replaced together whenever the
-/// device is, and <see cref="DeviceChanged"/> tells holders of device resources to rebuild.
+/// device is.
 /// </summary>
 internal sealed class D2DRenderer : IDisposable
 {
@@ -78,15 +78,6 @@ internal sealed class D2DRenderer : IDisposable
         CreateDeviceResources(device);
     }
 
-    /// <summary>
-    /// Raised before the device is replaced, while the outgoing context is still usable, so
-    /// that content with no copy outside the GPU can be read back instead of rebuilt.
-    /// </summary>
-    internal event Action<ID2D1DeviceContext>? DeviceReplacing;
-
-    /// <summary>Raised after the device was replaced, once the new resources are ready.</summary>
-    internal event Action? DeviceChanged;
-
     internal nint FrameLatencyWaitHandle => _frameLatencyWaitHandle.DangerousGetHandle();
     internal ID2D1DeviceContext DeviceContext { get; private set; }
     internal IDWriteFactory DirectWriteFactory => _directWriteFactory;
@@ -108,15 +99,12 @@ internal sealed class D2DRenderer : IDisposable
     /// <summary>
     /// Takes ownership of <paramref name="device"/> and rebuilds everything derived from the
     /// previous one. Holders of device resources must rebuild theirs from
-    /// <see cref="DeviceContext"/> before the next frame, which is what
-    /// <see cref="DeviceChanged"/> asks them to do.
+    /// <see cref="DeviceContext"/> before the next frame.
     /// </summary>
     internal void AdoptDevice(ID3D11Device device)
     {
-        DeviceReplacing?.Invoke(DeviceContext);
         ReleaseDeviceResources();
         CreateDeviceResources(device);
-        DeviceChanged?.Invoke();
     }
 
     internal RenderTiming Render(Action<SizeF> draw, Color4 background, bool measureGpu = false)

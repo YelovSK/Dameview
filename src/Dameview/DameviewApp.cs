@@ -47,7 +47,6 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     private readonly UpdateService _updates;
     private readonly ToastService _toasts = new();
     private Task<ID3D11Device>? _pendingHardwareDevice;
-    private bool _contentMigrated;
     private long _memorySampled;
     private CancellationTokenSource? _copyImageCancellation;
     private int _pointerX;
@@ -150,8 +149,6 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _workspace.PaneTabsChanged += HandleTabsChanged;
         HandleTabsChanged(_workspace.ActivePane);
 
-        _renderer.DeviceReplacing += HandleDeviceReplacing;
-        _renderer.DeviceChanged += HandleDeviceChanged;
         _window.Shown += HandleWindowShown;
         _window.RenderFrame += HandleRenderFrame;
         _window.Resized += HandleResize;
@@ -235,8 +232,6 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             CancellationToken.None,
             TaskContinuationOptions.OnlyOnRanToCompletion,
             TaskScheduler.Default);
-        _renderer.DeviceReplacing -= HandleDeviceReplacing;
-        _renderer.DeviceChanged -= HandleDeviceChanged;
         _ui.Invalidated -= _window.RequestRepaint;
         _ui.Dispose();
         _workspace.Dispose();
@@ -823,54 +818,6 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         SendPointerEvent(input);
     }
 
-    // The outgoing device is still usable here. Every image representation keeps what it was
-    // built from, except a cached bitmap, whose pixels only exist on the GPU: reading those
-    // back is what lets the switch keep what is on screen instead of decoding it again.
-    private void HandleDeviceReplacing(ID2D1DeviceContext outgoing)
-    {
-        try
-        {
-            _renderBitmapCache.ReadBack(outgoing);
-            _thumbnailBitmapCache.ReadBack(outgoing);
-            _contentMigrated = true;
-        }
-        catch (Exception exception)
-        {
-            // Any failure here only costs a visible reload, so it must not reach the caller.
-            Log.Warning(
-                "Native",
-                $"Could not move cached images to the new device: {exception.Message}");
-            _contentMigrated = false;
-        }
-    }
-
-    // Runs on the window thread between frames, so nothing can draw with a resource that
-    // belonged to the device that was just replaced.
-    private void HandleDeviceChanged()
-    {
-        _window.FrameLatencyWaitHandle = _renderer.FrameLatencyWaitHandle;
-        ID2D1DeviceContext deviceContext = _renderer.DeviceContext;
-        if (_contentMigrated)
-        {
-            // Before the UI rebinds, so it picks the moved bitmaps up rather than nothing.
-            _renderBitmapCache.Upload(deviceContext);
-            _thumbnailBitmapCache.Upload(deviceContext);
-            _ui.RecreateDeviceResources(deviceContext);
-        }
-        else
-        {
-            _renderBitmapCache.Clear();
-            _thumbnailBitmapCache.Clear();
-            _ui.RecreateDeviceResources(deviceContext);
-            foreach (ViewerSession session in _workspace.Sessions)
-            {
-                session.ReloadDisplayedImage();
-            }
-        }
-
-        _window.RequestRepaint();
-    }
-
     private void HandleWindowShown()
     {
         StartupTrace.Mark("shown");
@@ -899,10 +846,53 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         }
 
         long started = Stopwatch.GetTimestamp();
+        bool migrated = TryReadBackCachedBitmaps();
         _renderer.AdoptDevice(completed.Result);
+        _window.FrameLatencyWaitHandle = _renderer.FrameLatencyWaitHandle;
+        ID2D1DeviceContext deviceContext = _renderer.DeviceContext;
+        if (migrated)
+        {
+            // Before the UI rebinds, so it picks the moved bitmaps up rather than nothing.
+            _renderBitmapCache.Upload(deviceContext);
+            _thumbnailBitmapCache.Upload(deviceContext);
+            _ui.RecreateDeviceResources(deviceContext);
+        }
+        else
+        {
+            _renderBitmapCache.Clear();
+            _thumbnailBitmapCache.Clear();
+            _ui.RecreateDeviceResources(deviceContext);
+            foreach (ViewerSession session in _workspace.Sessions)
+            {
+                session.ReloadDisplayedImage();
+            }
+        }
+
+        _window.RequestRepaint();
         Log.Debug("Startup", string.Create(
             System.Globalization.CultureInfo.InvariantCulture,
             $"switched to the hardware device in {Stopwatch.GetElapsedTime(started).TotalMilliseconds:F1} ms"));
+    }
+
+    // Must run while the outgoing device is still alive. Every image representation keeps what
+    // it was built from, except a cached bitmap, whose pixels only exist on the GPU: reading
+    // those back is what lets the switch keep what is on screen instead of decoding it again.
+    private bool TryReadBackCachedBitmaps()
+    {
+        try
+        {
+            _renderBitmapCache.ReadBack(_renderer.DeviceContext);
+            _thumbnailBitmapCache.ReadBack(_renderer.DeviceContext);
+            return true;
+        }
+        catch (Exception exception)
+        {
+            // Any failure here only costs a visible reload.
+            Log.Warning(
+                "Native",
+                $"Could not move cached images to the new device: {exception.Message}");
+            return false;
+        }
     }
 
     private void HandleRenderFrame()
