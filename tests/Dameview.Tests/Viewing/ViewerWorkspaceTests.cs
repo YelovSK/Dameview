@@ -419,6 +419,7 @@ public sealed class ViewerWorkspaceTests
         workspace.OpenImageInNewTab(@"C:\moved\image.png");
         ViewerTab moved = source.Tabs[1];
         ViewerPane target = workspace.SplitPane(source, WorkspaceSplitOrientation.Horizontal);
+        target.ActiveSession.OpenImage(@"C:\target\image.png");
 
         Assert.IsTrue(workspace.MoveTab(
             source,
@@ -524,6 +525,7 @@ public sealed class ViewerWorkspaceTests
         using var workspace = new ViewerWorkspace(CreateTab);
         ViewerPane first = workspace.ActivePane;
         ViewerPane second = workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
+        second.ActiveSession.OpenImage(@"C:\second\image.png");
 
         workspace.OpenImageInNewTab(
             @"C:\gallery\image.png",
@@ -533,6 +535,38 @@ public sealed class ViewerWorkspaceTests
         Assert.AreEqual(0, second.ActiveIndex);
         Assert.AreEqual(@"C:\gallery\image.png", second.ActiveSession.State.RequestedPath);
         Assert.AreSame(second, workspace.ActivePane);
+    }
+
+    [TestMethod]
+    public void AnImageDroppedIntoAnEmptyPaneReplacesItsBlankTab()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane pane = workspace.ActivePane;
+        ViewerTab blank = pane.ActiveTab;
+
+        workspace.OpenImageInNewTab(@"C:\dropped\image.png", new WorkspaceTabDropTarget(pane, 1));
+
+        Assert.AreEqual(1, pane.Count);
+        Assert.AreNotSame(blank, pane.ActiveTab);
+        Assert.AreEqual(@"C:\dropped\image.png", pane.ActiveSession.State.RequestedPath);
+        Assert.ThrowsExactly<ObjectDisposedException>(() => blank.Session.OpenImage(@"C:\blank\image.png"));
+    }
+
+    [TestMethod]
+    public void ATabMovedIntoAnEmptyPaneReplacesItsBlankTab()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane source = workspace.ActivePane;
+        workspace.OpenImageInNewTab(@"C:\moved\image.png");
+        ViewerTab moved = source.Tabs[1];
+        // The source's active tab is blank, so the split copies nothing into the new pane.
+        ViewerPane target = workspace.SplitPane(source, WorkspaceSplitOrientation.Horizontal);
+        Assert.IsTrue(target.IsEmpty);
+
+        Assert.IsTrue(workspace.MoveTab(source, moved, new WorkspaceTabDropTarget(target, 1)));
+
+        Assert.AreEqual(1, target.Count);
+        Assert.AreSame(moved, target.ActiveTab);
     }
 
     // Left and Top put the dropped pane before the target, Right and Bottom after it.

@@ -204,15 +204,30 @@ internal sealed class WorkspaceDragController
 
             RectangleF contentBounds = paneView.ContentBounds;
             contentBounds.Offset(paneBounds.Location);
-            if (!contentBounds.Contains(point)
-                || IsInvalidSelfSplit(paneView.Pane)
-                || GetSplitSide(contentBounds, point) is not { } side)
+            if (!contentBounds.Contains(point))
             {
                 break;
             }
 
-            _target = new WorkspacePaneDropTarget(paneView.Pane, side);
-            landingBounds = GetLandingBounds(contentBounds, side);
+            ViewerPane pane = paneView.Pane;
+            bool fromThisPane = _payload is TabDragPayload tab && ReferenceEquals(tab.SourcePane, pane);
+            // An empty pane has nothing to split away from, so all of it takes the drop.
+            WorkspacePaneDropSide? side = pane.IsEmpty ? null : GetSplitSide(contentBounds, point);
+            if (side is null)
+            {
+                // Dropping a tab into the pane it came from would change nothing.
+                if (!fromThisPane)
+                {
+                    _target = new WorkspaceTabDropTarget(pane, pane.Count);
+                    landingBounds = contentBounds;
+                }
+            }
+            else if (!fromThisPane || pane.Count > 1)
+            {
+                _target = new WorkspacePaneDropTarget(pane, side.Value);
+                landingBounds = GetLandingBounds(contentBounds, side.Value);
+            }
+
             break;
         }
 
@@ -250,13 +265,6 @@ internal sealed class WorkspaceDragController
             WorkspacePaneDropSide.Bottom => bounds with { Y = bounds.Y + halfHeight, Height = halfHeight },
             _ => throw new ArgumentOutOfRangeException(nameof(side)),
         };
-    }
-
-    private bool IsInvalidSelfSplit(ViewerPane targetPane)
-    {
-        return _payload is TabDragPayload tab
-            && ReferenceEquals(tab.SourcePane, targetPane)
-            && targetPane.Count == 1;
     }
 
     // The image path is what the drag shows a thumbnail of.

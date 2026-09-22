@@ -20,6 +20,8 @@ internal sealed class ViewerPane : WorkspaceNode, IDisposable
     internal IReadOnlyList<ViewerTab> Tabs => _tabs;
     internal ViewerTab ActiveTab => _tabs[ActiveIndex];
     internal ViewerSession ActiveSession => ActiveTab.Session;
+    /// <summary>Whether the pane holds nothing but a tab that never opened an image.</summary>
+    internal bool IsEmpty => Count == 1 && ActiveSession.State.RequestedPath is null;
 
     internal void AddTab(ViewerTab tab) => AddTab(tab, notify: true);
 

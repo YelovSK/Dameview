@@ -57,7 +57,7 @@ internal sealed class ViewerWorkspace : IDisposable
         switch (target)
         {
             case WorkspaceTabDropTarget tabTarget:
-                tabTarget.Pane.InsertTab(tab, tabTarget.InsertionIndex, select: true);
+                InsertDroppedTab(tabTarget.Pane, tab, tabTarget.InsertionIndex);
                 SelectPane(tabTarget.Pane);
                 tab.Session.OpenImage(path);
                 break;
@@ -398,11 +398,23 @@ internal sealed class ViewerWorkspace : IDisposable
     {
         bool removeSourcePane = sourcePane.Count == 1;
         sourcePane.DetachTab(tab, notify: !removeSourcePane);
-        targetPane.InsertTab(tab, insertionIndex, select: true);
+        InsertDroppedTab(targetPane, tab, insertionIndex);
         SelectPane(targetPane);
         if (removeSourcePane)
         {
             RemovePane(sourcePane);
+        }
+    }
+
+    // An empty pane's blank tab is only a placeholder, so a tab dropped into the pane replaces it.
+    private static void InsertDroppedTab(ViewerPane pane, ViewerTab tab, int insertionIndex)
+    {
+        ViewerTab? placeholder = pane.IsEmpty ? pane.ActiveTab : null;
+        pane.InsertTab(tab, insertionIndex, select: true);
+        if (placeholder is not null)
+        {
+            pane.DetachTab(placeholder, notify: true);
+            placeholder.Dispose();
         }
     }
 
