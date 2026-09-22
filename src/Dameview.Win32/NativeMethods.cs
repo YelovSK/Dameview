@@ -38,6 +38,18 @@ internal static unsafe partial class NativeMethods
         CoUninitialize();
     }
 
+    /// <summary>When this process was created, which startup timing is measured from.</summary>
+    internal static DateTime GetProcessCreationTimeUtc()
+    {
+        System.Runtime.InteropServices.ComTypes.FILETIME creation, exit, kernel, user;
+        if (!GetProcessTimes(GetCurrentProcess(), &creation, &exit, &kernel, &user))
+        {
+            return DateTime.UtcNow;
+        }
+
+        return DateTime.FromFileTimeUtc(((long)creation.dwHighDateTime << 32) | (uint)creation.dwLowDateTime);
+    }
+
     internal static string GetProgramsPath()
     {
         HRESULT result = SHGetKnownFolderPath(FOLDERID_Programs, default, null, out PWSTR path);

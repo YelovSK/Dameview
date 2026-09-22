@@ -62,6 +62,7 @@ internal sealed unsafe class AppWindow : IDisposable
     }
 
     internal event Action? RenderFrame;
+    internal event Action? Shown;
     internal event Action? Closed;
     internal event Action<int, int>? Resized;
     internal event Action<float>? DpiChanged;
@@ -362,6 +363,7 @@ internal sealed unsafe class AppWindow : IDisposable
         RequestRepaint();
         RenderRequestedFrame();
         ShowWindow((HWND)Handle, _initialShowCommand);
+        Shown?.Invoke();
 
         bool quit = false;
         while (!quit)

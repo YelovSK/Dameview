@@ -80,6 +80,8 @@ DwmSetWindowAttribute
 
 // Kernel32
 GetModuleHandle
+GetCurrentProcess
+GetProcessTimes
 GlobalAlloc
 GlobalLock
 GlobalUnlock

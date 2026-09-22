@@ -13,9 +13,13 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        StartupTrace.Begin();
+        StartupTrace.Mark("runtime");
         InitializeLogger();
+        StartupTrace.Mark("log");
         NativeMethods.EnablePerMonitorDpiAwareness();
         NativeMethods.InitializeComApartment(ComApartment.ApartmentThreaded);
+        StartupTrace.Mark("com");
 
         try
         {
@@ -40,7 +44,9 @@ internal static class Program
                 args = [];
             }
 
+            StartupTrace.Mark("mode");
             AppSettings startupSettings = SettingsService.LoadForStartup();
+            StartupTrace.Mark("settings");
             using var instance = startupSettings.SingleInstance
                 ? SingleInstanceHost.AcquireOrForward(args)
                 : null;
@@ -52,6 +58,7 @@ internal static class Program
                 }
             }
 
+            StartupTrace.Mark("instance");
             using var app = new DameviewApp();
             return app.Run(args);
         }

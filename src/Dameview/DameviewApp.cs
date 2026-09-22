@@ -56,6 +56,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _window.SetTitleBarTheme(dark: true, UiTheme.Default.WindowCaptionColor, UiTheme.Default.WindowTextColor);
         _pointerX = _window.ClientWidth / 2;
         _pointerY = _window.ClientHeight / 2;
+        StartupTrace.Mark("window");
         try
         {
             _renderer = new D2DRenderer(
@@ -87,6 +88,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             _uiContext);
         using var imageDecoder = new ImageDecoder();
         _decodableExtensions = imageDecoder.GetProbablySupportedExtensions();
+        StartupTrace.Mark("wic");
         _folderScanner = new FolderScanner(
             path => _decodableExtensions.Contains(Path.GetExtension(path)));
         _workspace = new ViewerWorkspace(CreateTab);
@@ -95,6 +97,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             new GitHubUpdateClient(),
             _uiContext,
             AppInstallation.GetInstalledRunningVersion());
+        StartupTrace.Mark("services");
         _ui = new ViewerUi(
             _renderer.DeviceContext,
             _renderer.DirectWriteFactory,
@@ -105,6 +108,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             _thumbnailImageLoader,
             _performanceMonitor,
             _toasts);
+        StartupTrace.Mark("ui");
         _ui.Invalidated += _window.RequestRepaint;
         _ui.CursorChanged += _window.ApplyCursor;
         _workspace.ActivePaneChanged += HandleActivePaneChanged;
@@ -115,6 +119,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _workspace.PaneTabsChanged += HandleTabsChanged;
         HandleTabsChanged(_workspace.ActivePane);
 
+        _window.Shown += HandleWindowShown;
         _window.RenderFrame += HandleRenderFrame;
         _window.Resized += HandleResize;
         _window.DpiChanged += HandleDpiChanged;
@@ -138,6 +143,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _updates.Changed += HandleUpdateChanged;
         _updates.UpdateDownloaded += HandleUpdateDownloaded;
         _ui.ApplyUpdateState(_updates.State);
+        StartupTrace.Mark("wiring");
     }
 
     public int Run(string[] args)
@@ -150,6 +156,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             _workspace.OpenImage(imagePath);
         }
 
+        StartupTrace.Mark("args");
         _window.Closed += NativeMethods.RequestMessageLoopExit;
         try
         {
@@ -764,6 +771,12 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         SendPointerEvent(input);
     }
 
+    private void HandleWindowShown()
+    {
+        StartupTrace.Mark("shown");
+        StartupTrace.Report();
+    }
+
     private void HandleRenderFrame()
     {
         long frameStarted = Stopwatch.GetTimestamp();
@@ -782,6 +795,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             _ui.DrawFrame,
             _ui.Palette.Background,
             _performanceMonitor.Enabled);
+        StartupTrace.Mark("frame");
         _performanceMonitor.Record(new PerformanceFrameTiming(
             frameStarted,
             Stopwatch.GetElapsedTime(frameStarted, timing.SubmissionCompleted),
