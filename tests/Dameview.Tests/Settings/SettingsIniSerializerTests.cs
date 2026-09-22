@@ -7,47 +7,42 @@ namespace Dameview.Tests.Settings;
 [TestClass]
 public sealed class SettingsIniSerializerTests
 {
-    // Writing uses a hand-written name per enum value and throws on one it does not know,
-    // so adding a value and forgetting its name would stop settings saving at all.
+    // Existing files only keep reading while the enum members keep their names.
     [TestMethod]
-    public void EveryThemeSurvivesAWriteAndRead()
+    public void EnumSettingsAreStoredAsTheirNamesInCamelCase()
+    {
+        var settings = new AppSettings
+        {
+            Theme = ThemeId.CatppuccinMocha,
+            Sort = FolderSort.DateModifiedNewest,
+            GalleryPlacement = GalleryPlacement.Bottom,
+            GalleryThumbnailSize = GalleryThumbnailSize.Large,
+            Logging = new LoggingSettings { Level = LogLevel.Warning },
+        };
+
+        string text = SettingsIniSerializer.Write(settings);
+
+        Assert.Contains("theme=catppuccinMocha", text);
+        Assert.Contains("sort=dateModifiedNewest", text);
+        Assert.Contains("galleryPlacement=bottom", text);
+        Assert.Contains("galleryThumbnailSize=large", text);
+        Assert.Contains("level=warning", text);
+        AssertRoundTrips(settings);
+    }
+
+    [TestMethod]
+    public void EveryEnumValueSurvivesAWriteAndRead()
     {
         foreach (ThemeId theme in Enum.GetValues<ThemeId>())
         {
             AssertRoundTrips(new AppSettings { Theme = theme });
         }
-    }
 
-    [TestMethod]
-    public void EverySortOrderSurvivesAWriteAndRead()
-    {
         foreach (FolderSort sort in Enum.GetValues<FolderSort>())
         {
             AssertRoundTrips(new AppSettings { Sort = sort });
         }
-    }
 
-    [TestMethod]
-    public void EveryGalleryPlacementSurvivesAWriteAndRead()
-    {
-        foreach (GalleryPlacement placement in Enum.GetValues<GalleryPlacement>())
-        {
-            AssertRoundTrips(new AppSettings { GalleryPlacement = placement });
-        }
-    }
-
-    [TestMethod]
-    public void EveryThumbnailSizeSurvivesAWriteAndRead()
-    {
-        foreach (GalleryThumbnailSize size in Enum.GetValues<GalleryThumbnailSize>())
-        {
-            AssertRoundTrips(new AppSettings { GalleryThumbnailSize = size });
-        }
-    }
-
-    [TestMethod]
-    public void EveryLogLevelSurvivesAWriteAndRead()
-    {
         foreach (LogLevel level in Enum.GetValues<LogLevel>())
         {
             AssertRoundTrips(new AppSettings { Logging = new LoggingSettings { Level = level } });

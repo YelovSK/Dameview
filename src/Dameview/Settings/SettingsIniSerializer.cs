@@ -17,53 +17,37 @@ internal static class SettingsIniSerializer
     {
         var document = IniDocument.Parse(text);
         List<string> ignored = [];
-        ThemeId theme = ReadTheme(document.Get(string.Empty, "theme"), ignored);
-        bool animationsEnabled = ReadOptionalBoolean(
-            document.Get(string.Empty, "animations"),
-            defaultValue: true,
-            ignored);
-        bool singleInstance = ReadOptionalBoolean(
-            document.Get(string.Empty, "singleInstance"),
-            defaultValue: true,
-            ignored);
-        bool autoBalancePanes = ReadOptionalBoolean(
-            document.Get(string.Empty, "autoBalancePanes"),
-            defaultValue: false,
-            ignored);
-        FolderSort sort = ReadSort(document.Get(string.Empty, "sort"), ignored);
-        bool galleryEnabled = ReadOptionalBoolean(
-            document.Get(string.Empty, "galleryEnabled"),
-            defaultValue: true,
-            ignored);
-        GalleryPlacement galleryPlacement = ReadGalleryPlacement(
-            document.Get(string.Empty, "galleryPlacement"),
-            ignored);
-        GalleryThumbnailSize galleryThumbnailSize = ReadGalleryThumbnailSize(
-            document.Get(string.Empty, "galleryThumbnailSize"),
-            ignored);
-        float gallerySize = ReadOptionalFloat(
-            document.Get(string.Empty, "gallerySize"),
-            AppSettings.DefaultGallerySizeDips,
-            AppSettings.MinimumGallerySizeDips,
-            ignored);
-        WindowPlacementState? window = ReadWindow(document, ignored);
-        LogLevel logLevel = ReadLogLevel(document.Get("logging", "level"), ignored);
-        ViewerKeyBindings keyBindings = ReadKeyBindings(document, ignored);
-
+        AppSettings defaults = new();
         AppSettings settings = new()
         {
-            Theme = theme,
-            AnimationsEnabled = animationsEnabled,
-            SingleInstance = singleInstance,
-            AutoBalancePanes = autoBalancePanes,
-            Sort = sort,
-            GalleryEnabled = galleryEnabled,
-            GalleryPlacement = galleryPlacement,
-            GalleryThumbnailSize = galleryThumbnailSize,
-            GallerySizeDips = gallerySize,
-            Window = window,
-            Logging = new LoggingSettings { Level = logLevel },
-            KeyBindings = keyBindings,
+            Theme = ReadEnum(document.Get(string.Empty, "theme"), "theme", defaults.Theme, ignored),
+            AnimationsEnabled = ReadOptionalBoolean(
+                document.Get(string.Empty, "animations"), defaults.AnimationsEnabled, ignored),
+            SingleInstance = ReadOptionalBoolean(
+                document.Get(string.Empty, "singleInstance"), defaults.SingleInstance, ignored),
+            AutoBalancePanes = ReadOptionalBoolean(
+                document.Get(string.Empty, "autoBalancePanes"), defaults.AutoBalancePanes, ignored),
+            Sort = ReadEnum(document.Get(string.Empty, "sort"), "sort", defaults.Sort, ignored),
+            GalleryEnabled = ReadOptionalBoolean(
+                document.Get(string.Empty, "galleryEnabled"), defaults.GalleryEnabled, ignored),
+            GalleryPlacement = ReadEnum(
+                document.Get(string.Empty, "galleryPlacement"), "gallery placement", defaults.GalleryPlacement, ignored),
+            GalleryThumbnailSize = ReadEnum(
+                document.Get(string.Empty, "galleryThumbnailSize"),
+                "gallery thumbnail size",
+                defaults.GalleryThumbnailSize,
+                ignored),
+            GallerySizeDips = ReadOptionalFloat(
+                document.Get(string.Empty, "gallerySize"),
+                defaults.GallerySizeDips,
+                AppSettings.MinimumGallerySizeDips,
+                ignored),
+            Window = ReadWindow(document, ignored),
+            Logging = new LoggingSettings
+            {
+                Level = ReadEnum(document.Get("logging", "level"), "log level", defaults.Logging.Level, ignored),
+            },
+            KeyBindings = ReadKeyBindings(document, ignored),
         };
         return (settings, ignored);
     }
@@ -71,17 +55,17 @@ internal static class SettingsIniSerializer
     internal static string Write(AppSettings settings)
     {
         var document = new IniDocument();
-        document.Set(string.Empty, "theme", WriteTheme(settings.Theme));
+        document.Set(string.Empty, "theme", WriteEnum(settings.Theme));
         document.Set(string.Empty, "animations", settings.AnimationsEnabled ? "true" : "false");
         document.Set(string.Empty, "singleInstance", settings.SingleInstance ? "true" : "false");
         document.Set(
             string.Empty,
             "autoBalancePanes",
             settings.AutoBalancePanes ? "true" : "false");
-        document.Set(string.Empty, "sort", WriteSort(settings.Sort));
+        document.Set(string.Empty, "sort", WriteEnum(settings.Sort));
         document.Set(string.Empty, "galleryEnabled", settings.GalleryEnabled ? "true" : "false");
-        document.Set(string.Empty, "galleryPlacement", WriteGalleryPlacement(settings.GalleryPlacement));
-        document.Set(string.Empty, "galleryThumbnailSize", WriteGalleryThumbnailSize(settings.GalleryThumbnailSize));
+        document.Set(string.Empty, "galleryPlacement", WriteEnum(settings.GalleryPlacement));
+        document.Set(string.Empty, "galleryThumbnailSize", WriteEnum(settings.GalleryThumbnailSize));
         document.Set(string.Empty, "gallerySize", settings.GallerySizeDips.ToString(CultureInfo.InvariantCulture));
         if (settings.Window is { } window)
         {
@@ -92,7 +76,7 @@ internal static class SettingsIniSerializer
             document.Set("window", "maximized", window.Maximized ? "true" : "false");
         }
 
-        document.Set("logging", "level", WriteLogLevel(settings.Logging.Level));
+        document.Set("logging", "level", WriteEnum(settings.Logging.Level));
         WriteKeyBindings(document, settings.KeyBindings);
 
         return document.Write();
@@ -137,7 +121,7 @@ internal static class SettingsIniSerializer
         ViewerKeyBindings bindings = ViewerKeyBindings.Defaults;
         foreach (ViewerCommand command in ViewerCommandCatalog.Commands)
         {
-            if (document.Get("keybindings", GetCommandKey(command.Id)) is string value)
+            if (document.Get("keybindings", WriteEnum(command.Id)) is string value)
             {
                 bindings = bindings.WithShortcuts(command.Id, ReadShortcuts(value, ignored));
             }
@@ -173,71 +157,37 @@ internal static class SettingsIniSerializer
         {
             document.Set(
                 "keybindings",
-                GetCommandKey(command.Id),
+                WriteEnum(command.Id),
                 string.Join(' ', bindings.GetShortcuts(command.Id).Select(shortcut => shortcut.Text)));
         }
     }
 
-    private static string GetCommandKey(ViewerCommandId command)
+    // Enum values are stored as their names in camelCase, so renaming a member changes the file format.
+    private static string WriteEnum<T>(T value)
+        where T : struct, Enum
     {
-        string name = command.ToString();
+        string name = value.ToString();
         return char.ToLowerInvariant(name[0]) + name[1..];
     }
 
-    private static ThemeId ReadTheme(string? value, List<string> ignored) => value switch
+    private static T ReadEnum<T>(string? value, string name, T defaultValue, List<string> ignored)
+        where T : struct, Enum
     {
-        null or "dark" => ThemeId.Dark,
-        "light" => ThemeId.Light,
-        "catppuccinFrappe" => ThemeId.CatppuccinFrappe,
-        "catppuccinMacchiato" => ThemeId.CatppuccinMacchiato,
-        "catppuccinMocha" => ThemeId.CatppuccinMocha,
-        "gruvboxDark" => ThemeId.GruvboxDark,
-        "nord" => ThemeId.Nord,
-        "dracula" => ThemeId.Dracula,
-        "rosePine" => ThemeId.RosePine,
-        _ => Fallback("theme", value, ThemeId.Dark, ignored),
-    };
+        if (value is null)
+        {
+            return defaultValue;
+        }
 
-    private static FolderSort ReadSort(string? value, List<string> ignored) => value switch
-    {
-        null => FolderSort.NameAscending,
-        "nameAscending" => FolderSort.NameAscending,
-        "nameDescending" => FolderSort.NameDescending,
-        "dateModifiedNewest" => FolderSort.DateModifiedNewest,
-        "dateModifiedOldest" => FolderSort.DateModifiedOldest,
-        "dateCreatedNewest" => FolderSort.DateCreatedNewest,
-        "dateCreatedOldest" => FolderSort.DateCreatedOldest,
-        "sizeLargest" => FolderSort.SizeLargest,
-        "sizeSmallest" => FolderSort.SizeSmallest,
-        _ => Fallback("sort", value, FolderSort.NameAscending, ignored),
-    };
+        foreach (T candidate in Enum.GetValues<T>())
+        {
+            if (WriteEnum(candidate) == value)
+            {
+                return candidate;
+            }
+        }
 
-    private static GalleryThumbnailSize ReadGalleryThumbnailSize(string? value, List<string> ignored) => value switch
-    {
-        null => GalleryThumbnailSize.Medium,
-        "small" => GalleryThumbnailSize.Small,
-        "medium" => GalleryThumbnailSize.Medium,
-        "large" => GalleryThumbnailSize.Large,
-        _ => Fallback("gallery thumbnail size", value, GalleryThumbnailSize.Medium, ignored),
-    };
-
-    private static GalleryPlacement ReadGalleryPlacement(string? value, List<string> ignored) => value switch
-    {
-        null or "right" => GalleryPlacement.Right,
-        "left" => GalleryPlacement.Left,
-        "top" => GalleryPlacement.Top,
-        "bottom" => GalleryPlacement.Bottom,
-        _ => Fallback("gallery placement", value, GalleryPlacement.Right, ignored),
-    };
-
-    private static LogLevel ReadLogLevel(string? value, List<string> ignored) => value switch
-    {
-        null or "info" => LogLevel.Info,
-        "debug" => LogLevel.Debug,
-        "warning" => LogLevel.Warning,
-        "error" => LogLevel.Error,
-        _ => Fallback("log level", value, LogLevel.Info, ignored),
-    };
+        return Fallback(name, value, defaultValue, ignored);
+    }
 
     private static bool ReadOptionalBoolean(string? value, bool defaultValue, List<string> ignored) => value switch
     {
@@ -275,57 +225,4 @@ internal static class SettingsIniSerializer
         ignored.Add($"{name} '{value}'");
         return defaultValue;
     }
-
-    private static string WriteTheme(ThemeId value) => value switch
-    {
-        ThemeId.Dark => "dark",
-        ThemeId.Light => "light",
-        ThemeId.CatppuccinFrappe => "catppuccinFrappe",
-        ThemeId.CatppuccinMacchiato => "catppuccinMacchiato",
-        ThemeId.CatppuccinMocha => "catppuccinMocha",
-        ThemeId.GruvboxDark => "gruvboxDark",
-        ThemeId.Nord => "nord",
-        ThemeId.Dracula => "dracula",
-        ThemeId.RosePine => "rosePine",
-        _ => throw new ArgumentOutOfRangeException(nameof(value)),
-    };
-
-    private static string WriteGalleryThumbnailSize(GalleryThumbnailSize value) => value switch
-    {
-        GalleryThumbnailSize.Small => "small",
-        GalleryThumbnailSize.Medium => "medium",
-        GalleryThumbnailSize.Large => "large",
-        _ => throw new ArgumentOutOfRangeException(nameof(value)),
-    };
-
-    private static string WriteGalleryPlacement(GalleryPlacement value) => value switch
-    {
-        GalleryPlacement.Right => "right",
-        GalleryPlacement.Left => "left",
-        GalleryPlacement.Top => "top",
-        GalleryPlacement.Bottom => "bottom",
-        _ => throw new ArgumentOutOfRangeException(nameof(value)),
-    };
-
-    private static string WriteLogLevel(LogLevel value) => value switch
-    {
-        LogLevel.Debug => "debug",
-        LogLevel.Info => "info",
-        LogLevel.Warning => "warning",
-        LogLevel.Error => "error",
-        _ => throw new ArgumentOutOfRangeException(nameof(value)),
-    };
-
-    private static string WriteSort(FolderSort value) => value switch
-    {
-        FolderSort.NameAscending => "nameAscending",
-        FolderSort.NameDescending => "nameDescending",
-        FolderSort.DateModifiedNewest => "dateModifiedNewest",
-        FolderSort.DateModifiedOldest => "dateModifiedOldest",
-        FolderSort.DateCreatedNewest => "dateCreatedNewest",
-        FolderSort.DateCreatedOldest => "dateCreatedOldest",
-        FolderSort.SizeLargest => "sizeLargest",
-        FolderSort.SizeSmallest => "sizeSmallest",
-        _ => throw new ArgumentOutOfRangeException(nameof(value)),
-    };
 }
