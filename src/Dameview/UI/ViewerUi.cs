@@ -90,7 +90,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _activePaneView = FindPaneView(_activePane)
             ?? throw new InvalidOperationException("The active pane view was not created.");
         _workspaceView.SetActivePane(_activePane);
-        _dragOverlay = new WorkspaceDragOverlay(directWriteFactory);
+        _dragOverlay = new WorkspaceDragOverlay(directWriteFactory, thumbnailLoader);
         _dragController = new WorkspaceDragController(this, _workspaceView, _dragOverlay, commands);
         _performanceOverlay = new PerformanceOverlay(directWriteFactory, performanceMonitor)
         {

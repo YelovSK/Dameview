@@ -124,22 +124,9 @@ internal sealed class TabPreview : UiElement, IDisposable
         previewContext.FillRoundedRectangle(panel, context.Palette.OverlaySurface);
         previewContext.DrawRoundedRectangle(panel, context.Palette.SurfaceBorder);
 
-        float availableWidth = panelBounds.Width - 2.0f * PaddingDips;
-        float availableHeight = panelBounds.Height - 2.0f * PaddingDips;
-        float scale = MathF.Min(
-            availableWidth / bitmap.PixelSize.Width,
-            availableHeight / bitmap.PixelSize.Height);
-        float width = bitmap.PixelSize.Width * scale;
-        float height = bitmap.PixelSize.Height * scale;
-        var destination = new Rect(
-            panelBounds.X + (panelBounds.Width - width) / 2.0f,
-            panelBounds.Y + (panelBounds.Height - height) / 2.0f,
-            width,
-            height);
-        previewContext.DrawBitmap(
+        previewContext.DrawBitmapFitted(
             bitmap,
-            destination,
-            new Rect(0.0f, 0.0f, bitmap.PixelSize.Width, bitmap.PixelSize.Height));
+            RectangleF.Inflate(panelBounds, -PaddingDips, -PaddingDips));
     }
 
     public void Dispose() => Reset();

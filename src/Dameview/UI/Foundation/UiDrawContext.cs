@@ -95,6 +95,24 @@ internal readonly record struct UiDrawContext
             source);
     }
 
+    /// <summary>Draws a whole bitmap, scaled to fit and centered within an area.</summary>
+    internal void DrawBitmapFitted(ID2D1Bitmap bitmap, RectangleF area)
+    {
+        float scale = MathF.Min(
+            area.Width / bitmap.PixelSize.Width,
+            area.Height / bitmap.PixelSize.Height);
+        float width = bitmap.PixelSize.Width * scale;
+        float height = bitmap.PixelSize.Height * scale;
+        DrawBitmap(
+            bitmap,
+            new Rect(
+                area.X + (area.Width - width) / 2.0f,
+                area.Y + (area.Height - height) / 2.0f,
+                width,
+                height),
+            new Rect(0.0f, 0.0f, bitmap.PixelSize.Width, bitmap.PixelSize.Height));
+    }
+
     /// <summary>Counts a draw an element issued against <see cref="RenderTarget"/> itself.</summary>
     internal void CountOperation() => _tally.Operations++;
 

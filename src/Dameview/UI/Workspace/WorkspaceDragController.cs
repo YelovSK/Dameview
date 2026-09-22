@@ -9,6 +9,9 @@ namespace Dameview.UI.Workspace;
 
 internal sealed class WorkspaceDragController
 {
+    // How far into a pane, as a fraction of its size, an edge still splits it.
+    private const float SplitEdgeFraction = 0.35f;
+
     private readonly UiElement _coordinateSpace;
     private readonly WorkspaceView _workspaceView;
     private readonly WorkspaceDragOverlay _overlay;
@@ -52,8 +55,8 @@ internal sealed class WorkspaceDragController
             }
 
             ViewerTab tab = pane.Tabs[tabIndex];
-            string label = Path.GetFileName(tab.Session.State.RequestedPath) ?? "New tab";
-            Start(new TabDragPayload(pane, tab, label), point);
+            string? path = tab.Session.State.RequestedPath;
+            Start(new TabDragPayload(pane, tab, Path.GetFileName(path) ?? "New tab", path), point);
             return;
         }
 
@@ -106,7 +109,7 @@ internal sealed class WorkspaceDragController
     private void Start(WorkspaceDragPayload payload, PointF point)
     {
         _payload = payload;
-        _overlay.Show(payload.Label);
+        _overlay.Show(payload.Label, payload.ImagePath);
         Update(point);
     }
 
@@ -178,9 +181,8 @@ internal sealed class WorkspaceDragController
     private void Update(PointF point)
     {
         _target = null;
-        RectangleF paneTargetBounds = RectangleF.Empty;
         RectangleF insertionMarker = RectangleF.Empty;
-        WorkspaceDragTargetKind targetKind = WorkspaceDragTargetKind.None;
+        RectangleF landingBounds = RectangleF.Empty;
 
         foreach (ViewerPaneView paneView in _workspaceView.PaneViews)
         {
@@ -197,52 +199,57 @@ internal sealed class WorkspaceDragController
                 _target = new WorkspaceTabDropTarget(paneView.Pane, insertionIndex);
                 insertionMarker = paneView.GetTabInsertionMarkerBounds(insertionIndex);
                 insertionMarker.Offset(paneBounds.Location);
-                targetKind = WorkspaceDragTargetKind.TabInsertion;
                 break;
             }
 
             RectangleF contentBounds = paneView.ContentBounds;
             contentBounds.Offset(paneBounds.Location);
-            if (!contentBounds.Contains(point) || IsInvalidSelfSplit(paneView.Pane))
+            if (!contentBounds.Contains(point)
+                || IsInvalidSelfSplit(paneView.Pane)
+                || GetSplitSide(contentBounds, point) is not { } side)
             {
                 break;
             }
 
-            paneTargetBounds = contentBounds;
-            WorkspaceDockTargets dockTargets = WorkspaceDragOverlay.CalculateDockTargets(contentBounds);
-            if (dockTargets.Left.Contains(point))
-            {
-                _target = new WorkspacePaneDropTarget(
-                    paneView.Pane,
-                    WorkspacePaneDropSide.Left);
-                targetKind = WorkspaceDragTargetKind.SplitLeft;
-            }
-            else if (dockTargets.Up.Contains(point))
-            {
-                _target = new WorkspacePaneDropTarget(
-                    paneView.Pane,
-                    WorkspacePaneDropSide.Top);
-                targetKind = WorkspaceDragTargetKind.SplitUp;
-            }
-            else if (dockTargets.Right.Contains(point))
-            {
-                _target = new WorkspacePaneDropTarget(
-                    paneView.Pane,
-                    WorkspacePaneDropSide.Right);
-                targetKind = WorkspaceDragTargetKind.SplitRight;
-            }
-            else if (dockTargets.Down.Contains(point))
-            {
-                _target = new WorkspacePaneDropTarget(
-                    paneView.Pane,
-                    WorkspacePaneDropSide.Bottom);
-                targetKind = WorkspaceDragTargetKind.SplitDown;
-            }
-
+            _target = new WorkspacePaneDropTarget(paneView.Pane, side);
+            landingBounds = GetLandingBounds(contentBounds, side);
             break;
         }
 
-        _overlay.Update(point, paneTargetBounds, insertionMarker, targetKind);
+        _overlay.Update(point, insertionMarker, landingBounds);
+    }
+
+    /// <summary>Picks the pane edge the point is nearest to, relative to the pane's size.</summary>
+    /// <returns><see langword="null"/> in the middle of the pane, which does not split.</returns>
+    internal static WorkspacePaneDropSide? GetSplitSide(RectangleF bounds, PointF point)
+    {
+        float x = (point.X - bounds.Left) / bounds.Width;
+        float y = (point.Y - bounds.Top) / bounds.Height;
+        float horizontalDistance = MathF.Min(x, 1.0f - x);
+        float verticalDistance = MathF.Min(y, 1.0f - y);
+        if (MathF.Min(horizontalDistance, verticalDistance) >= SplitEdgeFraction)
+        {
+            return null;
+        }
+
+        return horizontalDistance < verticalDistance
+            ? (x < 0.5f ? WorkspacePaneDropSide.Left : WorkspacePaneDropSide.Right)
+            : (y < 0.5f ? WorkspacePaneDropSide.Top : WorkspacePaneDropSide.Bottom);
+    }
+
+    /// <summary>The half of the pane that a split on this side would give to the dropped item.</summary>
+    internal static RectangleF GetLandingBounds(RectangleF bounds, WorkspacePaneDropSide side)
+    {
+        float halfWidth = bounds.Width / 2.0f;
+        float halfHeight = bounds.Height / 2.0f;
+        return side switch
+        {
+            WorkspacePaneDropSide.Left => bounds with { Width = halfWidth },
+            WorkspacePaneDropSide.Top => bounds with { Height = halfHeight },
+            WorkspacePaneDropSide.Right => bounds with { X = bounds.X + halfWidth, Width = halfWidth },
+            WorkspacePaneDropSide.Bottom => bounds with { Y = bounds.Y + halfHeight, Height = halfHeight },
+            _ => throw new ArgumentOutOfRangeException(nameof(side)),
+        };
     }
 
     private bool IsInvalidSelfSplit(ViewerPane targetPane)
@@ -252,14 +259,15 @@ internal sealed class WorkspaceDragController
             && targetPane.Count == 1;
     }
 
-    private abstract record WorkspaceDragPayload(string Label);
+    // The image path is what the drag shows a thumbnail of.
+    private abstract record WorkspaceDragPayload(string Label, string? ImagePath);
 
-    private sealed record TabDragPayload(ViewerPane SourcePane, ViewerTab Tab, string TabLabel)
-        : WorkspaceDragPayload(TabLabel);
+    private sealed record TabDragPayload(ViewerPane SourcePane, ViewerTab Tab, string TabLabel, string? TabPath)
+        : WorkspaceDragPayload(TabLabel, TabPath);
 
     private sealed record ImageDragPayload(string Path, string ImageLabel)
-        : WorkspaceDragPayload(ImageLabel);
+        : WorkspaceDragPayload(ImageLabel, Path);
 
     private sealed record ExternalFilesDragPayload(IReadOnlyList<string> Paths, string FilesLabel)
-        : WorkspaceDragPayload(FilesLabel);
+        : WorkspaceDragPayload(FilesLabel, Paths[0]);
 }
