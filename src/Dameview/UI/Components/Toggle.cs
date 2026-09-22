@@ -25,7 +25,7 @@ internal sealed class Toggle : InteractiveControl, IDisposable
     {
         Label = label;
         _value = value;
-        _onAmount = new AnimatedFloat(value ? 1.0f : 0.0f, SwitchResponse);
+        _onAmount = Animate(value ? 1.0f : 0.0f, SwitchResponse);
         _changed = changed;
         _textFormat = factory.CreateTextFormat(
             UiTypography.FontFamily, FontWeight.Normal, FontStyle.Normal, UiDesign.BodyFontSize);
@@ -55,12 +55,6 @@ internal sealed class Toggle : InteractiveControl, IDisposable
     {
         float width = float.IsFinite(availableSize.Width) ? availableSize.Width : 220.0f;
         return new SizeF(MathF.Max(0.0f, width), 36.0f);
-    }
-
-    protected override bool UpdateCore(in UiUpdateContext context)
-    {
-        bool continues = base.UpdateCore(context);
-        return _onAmount.Update(context) || continues;
     }
 
     protected override void DrawCore(in UiDrawContext context)

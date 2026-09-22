@@ -12,8 +12,8 @@ internal abstract class InteractiveControl : UiElement
 
     protected InteractiveControl()
     {
-        _hoverAmount = new AnimatedFloat(0.0f, UiDesign.HoverResponse);
-        _pressedAmount = new AnimatedFloat(0.0f, UiDesign.PressedResponse);
+        _hoverAmount = Animate(0.0f, UiDesign.HoverResponse);
+        _pressedAmount = Animate(0.0f, UiDesign.PressedResponse);
     }
 
     internal bool IsEnabled
@@ -85,12 +85,6 @@ internal abstract class InteractiveControl : UiElement
 
         Activate();
         return true;
-    }
-
-    protected override bool UpdateCore(in UiUpdateContext context)
-    {
-        bool continues = _hoverAmount.Update(context);
-        return _pressedAmount.Update(context) || continues;
     }
 
     protected override void OnVisualStateChanged()

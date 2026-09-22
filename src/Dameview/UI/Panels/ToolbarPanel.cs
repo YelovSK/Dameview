@@ -17,7 +17,7 @@ internal sealed class ToolbarPanel : UiElement, IDisposable
 
     private readonly Button[] _buttons;
     private readonly StackPanel _buttonRow;
-    private readonly AnimatedFloat _visibility = new(0.0f, 14.0);
+    private readonly AnimatedFloat _visibility;
     private bool _pointerNear;
 
     internal ToolbarPanel(
@@ -26,6 +26,7 @@ internal sealed class ToolbarPanel : UiElement, IDisposable
         ViewerPane pane,
         Action showSettings)
     {
+        _visibility = Animate(0.0f, 14.0);
         _buttons =
         [
             new Button(directWriteFactory, "←", () => commands.ShowPreviousImage(pane)),
@@ -81,11 +82,6 @@ internal sealed class ToolbarPanel : UiElement, IDisposable
             content.Y + padding,
             MathF.Max(0.0f, content.Width - 2.0f * padding),
             MathF.Max(0.0f, content.Height - 2.0f * padding)));
-    }
-
-    protected override bool UpdateCore(in UiUpdateContext context)
-    {
-        return _visibility.Update(context);
     }
 
     protected override void DrawCore(in UiDrawContext context)

@@ -17,7 +17,7 @@ internal sealed class StatusPanel : UiElement, IDisposable
 
     private readonly IDWriteTextFormat _fileNameFormat;
     private readonly IDWriteTextFormat _detailsFormat;
-    private readonly AnimatedFloat _visibility = new(0.0f, 14.0);
+    private readonly AnimatedFloat _visibility;
     private string _fileName = string.Empty;
     private string _details = string.Empty;
     private float _fileNameWidth;
@@ -28,6 +28,7 @@ internal sealed class StatusPanel : UiElement, IDisposable
     internal StatusPanel(
         IDWriteFactory directWriteFactory)
     {
+        _visibility = Animate(0.0f, 14.0);
         _fileNameFormat = CreateFormat(directWriteFactory, TextAlignment.Leading);
         _detailsFormat = CreateFormat(directWriteFactory, TextAlignment.Leading);
     }
@@ -94,8 +95,6 @@ internal sealed class StatusPanel : UiElement, IDisposable
         float desiredWidth = (2.0f * HorizontalPadding) + _fileNameWidth + gap + _detailsWidth;
         return new SizeF(MathF.Min(maximumWidth, desiredWidth), HeightDips);
     }
-
-    protected override bool UpdateCore(in UiUpdateContext context) => _visibility.Update(context);
 
     protected override void DrawCore(in UiDrawContext context)
     {

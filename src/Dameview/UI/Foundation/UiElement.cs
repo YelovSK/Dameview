@@ -14,6 +14,7 @@ namespace Dameview.UI.Foundation;
 internal abstract class UiElement
 {
     private readonly List<UiElement> _children = [];
+    private readonly List<AnimatedFloat> _animations = [];
     // How far the element has entered, easing toward IsPresent. Only exists with a Transition.
     private AnimatedFloat? _presence;
 
@@ -151,6 +152,11 @@ internal abstract class UiElement
         }
 
         bool continues = UpdatePresence(context);
+        foreach (AnimatedFloat animation in _animations)
+        {
+            continues |= animation.Update(context);
+        }
+
         continues |= UpdateCore(context);
         foreach (UiElement child in _children)
         {
@@ -328,6 +334,14 @@ internal abstract class UiElement
     protected UiTextLayoutCache TextLayouts => Root?.TextLayouts
         ?? throw new InvalidOperationException(
             "Text is measured only once the element is attached to a root.");
+
+    /// <summary>Creates a value that this element advances on every update, before <see cref="UpdateCore"/>.</summary>
+    protected AnimatedFloat Animate(float initialValue, double response, float completionDistance = 0.001f)
+    {
+        var animation = new AnimatedFloat(initialValue, response, completionDistance);
+        _animations.Add(animation);
+        return animation;
+    }
 
     /// <summary>Requests a redraw without forcing layout.</summary>
     protected void InvalidateVisual() => Root?.InvalidateVisual();

@@ -23,12 +23,13 @@ internal sealed class ToastView : UiElement, IDisposable
 
     private readonly IDWriteTextFormat _format;
     private readonly DismissButton _dismiss;
-    private readonly AnimatedFloat _shift = new(0.0f, Response, completionDistance: 0.25f);
+    private readonly AnimatedFloat _shift;
     private float? _top;
 
     internal ToastView(IDWriteFactory factory, Toast toast, Action dismissed)
     {
         Toast = toast;
+        _shift = Animate(0.0f, Response, completionDistance: 0.25f);
         _format = factory.CreateTextFormat(
             UiTypography.FontFamily,
             FontWeight.Normal,
@@ -91,8 +92,6 @@ internal sealed class ToastView : UiElement, IDisposable
             DismissWidth,
             DismissWidth));
     }
-
-    protected override bool UpdateCore(in UiUpdateContext context) => _shift.Update(context);
 
     protected override void DrawCore(in UiDrawContext context)
     {
