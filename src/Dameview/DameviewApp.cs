@@ -53,9 +53,13 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     private int _pointerX;
     private int _pointerY;
 
-    public DameviewApp()
+    /// <param name="startupSettings">
+    /// Already read by <see cref="Program"/>. The window, the renderer and the UI are built
+    /// from them, rather than built at defaults and corrected once the service reports them.
+    /// </param>
+    public DameviewApp(AppSettings startupSettings)
     {
-        _window = new AppWindow("Dameview", 1100, 720);
+        _window = new AppWindow("Dameview", 1100, 720, startupSettings.Window);
         _uiContext = new WindowSynchronizationContext(_window.Post);
         SynchronizationContext.SetSynchronizationContext(_uiContext);
         _window.SetTitleBarTheme(dark: true, UiTheme.Default.WindowCaptionColor, UiTheme.Default.WindowTextColor);
@@ -116,7 +120,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _folderScanner = new FolderScanner(
             path => _decodableExtensions.Contains(Path.GetExtension(path)));
         _workspace = new ViewerWorkspace(CreateTab);
-        _settings = new SettingsService(SettingsService.DefaultPath, _uiContext);
+        _settings = new SettingsService(SettingsService.DefaultPath, _uiContext, loaded: startupSettings);
         _updates = new UpdateService(
             new GitHubUpdateClient(),
             _uiContext,
@@ -169,13 +173,16 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _updates.Changed += HandleUpdateChanged;
         _updates.UpdateDownloaded += HandleUpdateDownloaded;
         _ui.ApplyUpdateState(_updates.State);
+
+        // The window already carries its placement, so this is everything else the settings
+        // decide. It runs through the same path a later change does.
+        ApplyPreferences(new AppSettings(), startupSettings);
         StartupTrace.Mark("wiring");
     }
 
     public int Run(string[] args)
     {
         _settings.Start();
-        ApplyLogLevel(_settings.Current);
 
         if (args.FirstOrDefault() is string imagePath)
         {
@@ -626,14 +633,22 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _ui.SetFullscreen(_window.IsFullscreen);
     }
 
+    // Only reached when the file changes while running; the initial values are applied
+    // during construction, where the window takes its placement for itself.
     private void ApplySettings(AppSettings previous, AppSettings current)
     {
-        ApplyLogLevel(current);
         if (current.Window is { } windowPlacement && previous.Window != windowPlacement)
         {
             _window.RestorePlacement(windowPlacement);
         }
 
+        ApplyPreferences(previous, current);
+    }
+
+    /// <summary>Everything the settings decide except the window's own geometry.</summary>
+    private void ApplyPreferences(AppSettings previous, AppSettings current)
+    {
+        ApplyLogLevel(current);
         _ui.ApplySettings(current);
         _workspace.AutoBalancePanes = current.AutoBalancePanes;
         if (!previous.KeyBindings.Equals(current.KeyBindings))

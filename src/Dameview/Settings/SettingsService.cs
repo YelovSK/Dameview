@@ -19,11 +19,18 @@ internal sealed class SettingsService : IDisposable
     private int _readAttempts;
     private string[] _reportedIgnored = [];
 
+    /// <param name="loaded">
+    /// Settings already read from <paramref name="path"/>. Seeding them keeps <see cref="Start"/>
+    /// from announcing values the caller has applied itself, so <see cref="Changed"/> only ever
+    /// means the file changed while running.
+    /// </param>
     internal SettingsService(
         string path,
         SynchronizationContext ownerContext,
-        SettingsServiceOptions? options = null)
+        SettingsServiceOptions? options = null,
+        AppSettings? loaded = null)
     {
+        Current = loaded ?? new AppSettings();
         _path = Path.GetFullPath(path);
         _ownerContext = ownerContext;
         options ??= new SettingsServiceOptions();

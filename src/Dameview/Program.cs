@@ -59,7 +59,7 @@ internal static class Program
             }
 
             StartupTrace.Mark("instance");
-            using var app = new DameviewApp();
+            using var app = new DameviewApp(startupSettings);
             return app.Run(args);
         }
         catch (Exception exception)

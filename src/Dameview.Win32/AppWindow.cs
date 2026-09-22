@@ -33,7 +33,8 @@ internal sealed unsafe class AppWindow : IDisposable
     private FileDropTarget? _dropTarget;
     private bool _oleInitialized;
 
-    internal AppWindow(string title, int width, int height)
+    /// <param name="placement">Where the window was last left, if it has been.</param>
+    internal AppWindow(string title, int width, int height, WindowPlacementState? placement = null)
     {
         nint instance = GetModuleHandle(default(PCWSTR));
         if (instance == 0)
@@ -48,7 +49,7 @@ internal sealed unsafe class AppWindow : IDisposable
         }
 
         _selfHandle = GCHandle.Alloc(this);
-        Handle = CreateWindow(instance, title, width, height);
+        Handle = CreateWindow(instance, title, width, height, placement);
 
         if (Handle == 0)
         {
@@ -252,15 +253,18 @@ internal sealed unsafe class AppWindow : IDisposable
             return;
         }
 
+        (int originX, int originY) = GetWorkAreaOrigin(Handle);
+        int left = placement.X - originX;
+        int top = placement.Y - originY;
         WINDOWPLACEMENT native = new()
         {
             length = (uint)sizeof(WINDOWPLACEMENT),
             showCmd = placement.Maximized ? SHOW_WINDOW_CMD.SW_SHOWMAXIMIZED : SHOW_WINDOW_CMD.SW_SHOWNORMAL,
             rcNormalPosition = new RECT(
-                placement.X,
-                placement.Y,
-                placement.X + placement.Width,
-                placement.Y + placement.Height),
+                left,
+                top,
+                left + placement.Width,
+                top + placement.Height),
         };
 
         if (SetWindowPlacement((HWND)Handle, in native))
@@ -273,7 +277,7 @@ internal sealed unsafe class AppWindow : IDisposable
     {
         if (_windowedPlacement is { } windowedPlacement)
         {
-            return ToPlacementState(windowedPlacement);
+            return ToPlacementState(windowedPlacement, Handle);
         }
 
         if (Handle == 0)
@@ -288,6 +292,15 @@ internal sealed unsafe class AppWindow : IDisposable
         return CapturePlacement(Handle);
     }
 
+    private static (int X, int Y) GetWorkAreaOrigin(nint window)
+    {
+        HMONITOR monitor = MonitorFromWindow((HWND)window, MONITOR_FROM_FLAGS.MONITOR_DEFAULTTONEAREST);
+        MONITORINFO info = new() { cbSize = (uint)sizeof(MONITORINFO) };
+        return monitor.IsNull || !GetMonitorInfo(monitor, ref info)
+            ? (0, 0)
+            : (info.rcWork.left, info.rcWork.top);
+    }
+
     private static WindowPlacementState CapturePlacement(nint window)
     {
         WINDOWPLACEMENT native = new() { length = (uint)sizeof(WINDOWPLACEMENT) };
@@ -300,16 +313,24 @@ internal sealed unsafe class AppWindow : IDisposable
             };
         }
 
-        return ToPlacementState(native);
+        return ToPlacementState(native, window);
     }
 
-    private static WindowPlacementState ToPlacementState(WINDOWPLACEMENT native)
+    /// <summary>
+    /// Placement is stored in screen coordinates. Windows reports the restored rectangle
+    /// relative to the monitor's work area but positions new windows in screen coordinates,
+    /// so storing what it reports would move the window by the taskbar on every round trip.
+    /// The monitor is only unambiguous while the window exists, so the conversion belongs
+    /// here rather than where the placement is used.
+    /// </summary>
+    private static WindowPlacementState ToPlacementState(WINDOWPLACEMENT native, nint window)
     {
         RECT normal = native.rcNormalPosition;
+        (int originX, int originY) = GetWorkAreaOrigin(window);
         return new WindowPlacementState
         {
-            X = normal.left,
-            Y = normal.top,
+            X = normal.left + originX,
+            Y = normal.top + originY,
             Width = normal.Width,
             Height = normal.Height,
             Maximized = native.showCmd == SHOW_WINDOW_CMD.SW_SHOWMAXIMIZED,
@@ -447,8 +468,31 @@ internal sealed unsafe class AppWindow : IDisposable
         }
     }
 
-    private nint CreateWindow(nint instance, string title, int width, int height)
+    // Created in the state it will be shown in, so the client size is final before anything
+    // is built from it and the window is never restyled once it is on screen.
+    private nint CreateWindow(
+        nint instance,
+        string title,
+        int width,
+        int height,
+        WindowPlacementState? placement)
     {
+        WINDOW_STYLE style = WINDOW_STYLE.WS_OVERLAPPEDWINDOW;
+        int x = CW_USEDEFAULT;
+        int y = CW_USEDEFAULT;
+        if (placement is { IsUsable: true } saved)
+        {
+            x = saved.X;
+            y = saved.Y;
+            width = saved.Width;
+            height = saved.Height;
+            if (saved.Maximized)
+            {
+                style |= WINDOW_STYLE.WS_MAXIMIZE;
+                _initialShowCommand = SHOW_WINDOW_CMD.SW_SHOWMAXIMIZED;
+            }
+        }
+
         fixed (char* className = WindowClassName)
         fixed (char* windowTitle = title)
         {
@@ -456,9 +500,9 @@ internal sealed unsafe class AppWindow : IDisposable
                 default,
                 className,
                 windowTitle,
-                WINDOW_STYLE.WS_OVERLAPPEDWINDOW,
-                CW_USEDEFAULT,
-                CW_USEDEFAULT,
+                style,
+                x,
+                y,
                 width,
                 height,
                 default,
