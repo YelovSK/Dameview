@@ -16,20 +16,20 @@ internal sealed class StatusPanel : UiElement
     private const float MaximumWidth = 720.0f;
     private static readonly UiFont TextFont = new(13.0f, FontWeight.Medium);
 
-    private readonly AnimatedFloat _visibility;
     private string _fileName = string.Empty;
     private string _details = string.Empty;
     private float _fileNameWidth;
     private float _detailsWidth;
     private float _detailsX;
-    private bool _pointerNear;
 
     internal StatusPanel()
     {
-        _visibility = Animate(0.0f, 14.0);
+        Transition = new UiTransition(Fade: true, HiddenOffset: new PointF(0.0f, 8.0f), Response: 14.0);
+        IsPresent = false;
     }
 
     private ViewerStatus Status { get; set; }
+    internal bool HasMessage => Status.Message is not null;
 
     internal void SetStatus(ViewerStatus status)
     {
@@ -40,24 +40,10 @@ internal sealed class StatusPanel : UiElement
 
         Status = status;
         (_fileName, _details) = GetText(status);
-        UpdateVisibility();
         InvalidateLayout();
     }
 
     internal override bool IsHitTestVisible => false;
-    internal override float Opacity => _visibility.Current;
-    internal override PointF VisualOffset => new(0.0f, (1.0f - _visibility.Current) * 8.0f);
-
-    internal void SetPointerNear(bool pointerNear)
-    {
-        if (_pointerNear == pointerNear)
-        {
-            return;
-        }
-
-        _pointerNear = pointerNear;
-        UpdateVisibility();
-    }
 
     internal static string FormatFileSize(long sizeBytes)
     {
@@ -152,15 +138,6 @@ internal sealed class StatusPanel : UiElement
         return TextLayouts
             .Get(text, TextFont, new SizeF(MaximumWidth, HeightDips))
             .Metrics.WidthIncludingTrailingWhitespace;
-    }
-
-    private void UpdateVisibility()
-    {
-        bool visible = _pointerNear || Status.Message is not null;
-        if (_visibility.SetTarget(visible ? 1.0f : 0.0f))
-        {
-            InvalidateVisual();
-        }
     }
 }
 

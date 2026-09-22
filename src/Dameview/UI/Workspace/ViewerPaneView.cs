@@ -24,6 +24,8 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     private readonly Action<ViewerPane, ViewerTabInfo?, RectangleF> _hoveredTabChanged;
     private ViewerSessionState _state;
     private bool _chromeVisible = true;
+    private bool _pointerNearToolbar;
+    private bool _pointerNearStatus;
 
     internal ViewerPaneView(
         ID2D1DeviceContext deviceContext,
@@ -84,7 +86,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         || _state.Message is not null
         || _state.FolderError is not null;
     internal RectangleF ContentBounds { get; private set; }
-    internal UiElement FocusScope => _toolbarPanel.IsVisible ? _toolbarPanel : _emptyStatePanel;
+    internal UiElement FocusScope => HasImage ? _toolbarPanel : _emptyStatePanel;
 
     internal TimeSpan? NextAnimationFrameDelay => _imagePanel.NextAnimationFrameDelay;
     internal RectangleF TabStripBounds => _viewerTabs.GetBoundsRelativeTo(this);
@@ -99,32 +101,12 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
 
         _chromeVisible = visible;
         UpdateChromeVisibility();
-        if (!visible)
-        {
-            _statusPanel.SetPointerNear(false);
-        }
     }
 
     internal bool ShowActivePaneIndicator
     {
         get => _activePaneIndicator.IsVisible;
         set => _activePaneIndicator.IsVisible = value;
-    }
-
-    internal string? SettingsError
-    {
-        get;
-        set
-        {
-            if (field == value)
-            {
-                return;
-            }
-
-            field = value;
-            _statusPanel.IsVisible = _chromeVisible && HasStatus;
-            InvalidateVisual();
-        }
     }
 
     private void UpdateChromeVisibility()
@@ -134,8 +116,8 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         _emptyStatePanel.IsVisible = !hasImage && !_state.IsLoading;
         // A single tab that holds nothing is not worth a strip to switch between.
         _viewerTabs.IsVisible = _chromeVisible && (Pane.Count > 1 || hasImage);
-        _toolbarPanel.IsVisible = _chromeVisible && hasImage;
-        _statusPanel.IsVisible = _chromeVisible && HasStatus;
+        _toolbarPanel.IsPresent = _chromeVisible && hasImage && _pointerNearToolbar;
+        _statusPanel.IsPresent = _chromeVisible && HasStatus && (_pointerNearStatus || _statusPanel.HasMessage);
     }
 
     internal PointF GetImageViewportPoint(PointF panePoint, float dpi)
@@ -214,6 +196,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             _imagePanel.ZoomPercentage,
             message,
             animationError is not null || _state.IsError || _state.FolderError is not null));
+        UpdateChromeVisibility();
     }
 
     protected override SizeF MeasureCore(SizeF availableSize)
@@ -248,8 +231,6 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
 
         ViewerLayout layout = ViewerLayout.Calculate(
             ContentBounds.Size,
-            showStatus: _chromeVisible && HasStatus,
-            showToolbar: _toolbarPanel.IsVisible,
             statusWidthDips: _statusPanel.DesiredSize.Width,
             statusHeightDips: _statusPanel.DesiredSize.Height,
             toolbarWidthDips: ToolbarPanel.WidthDips);
@@ -270,14 +251,13 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             && input.Position.X < Bounds.Width
             && input.Position.Y >= 0.0f
             && input.Position.Y < Bounds.Height;
-        _statusPanel.SetPointerNear(
-            insidePane && input.Position.Y >= Bounds.Height - StatusPanel.HeightDips - 24.0f);
-        _toolbarPanel.SetPointerNear(
-            insidePane
+        _pointerNearStatus = insidePane && input.Position.Y >= Bounds.Height - StatusPanel.HeightDips - 24.0f;
+        _pointerNearToolbar = insidePane
             && input.Position.Y <= ContentBounds.Y
                 + UiDesign.WindowMargin
                 + UiDesign.ToolbarHeight
-                + 28.0f);
+                + 28.0f;
+        UpdateChromeVisibility();
     }
 
     internal void RecreateDeviceResources(ID2D1DeviceContext deviceContext)

@@ -10,8 +10,6 @@ internal readonly record struct ViewerLayout(
 {
     internal static ViewerLayout Calculate(
         SizeF size,
-        bool showStatus,
-        bool showToolbar,
         float statusWidthDips = float.PositiveInfinity,
         float statusHeightDips = UiDesign.StatusHeight,
         float toolbarWidthDips = UiDesign.ToolbarWidth)
@@ -23,24 +21,19 @@ internal readonly record struct ViewerLayout(
         float availableHeight = MathF.Max(0.0f, size.Height - (2.0f * margin));
         float statusHeight = MathF.Min(statusHeightDips, availableHeight);
         float statusWidth = MathF.Min(statusWidthDips, availableWidth);
-        RectangleF status = showStatus ? new RectangleF(
+        var status = new RectangleF(
             MathF.Max(margin, (contentWidth - statusWidth) / 2.0f),
             MathF.Max(margin, size.Height - statusHeight - margin),
             statusWidth,
-            statusHeight) : RectangleF.Empty;
+            statusHeight);
 
-        RectangleF toolbar = RectangleF.Empty;
-        if (showToolbar)
-        {
-            float toolbarWidth = MathF.Min(toolbarWidthDips, availableWidth);
-            float availableToolbarHeight = MathF.Max(0.0f, size.Height - 2.0f * margin);
-            float toolbarHeight = MathF.Min(UiDesign.ToolbarHeight, availableToolbarHeight);
-            toolbar = new RectangleF(
-                (contentWidth - toolbarWidth) / 2.0f,
-                margin,
-                toolbarWidth,
-                toolbarHeight);
-        }
+        float toolbarWidth = MathF.Min(toolbarWidthDips, availableWidth);
+        float toolbarHeight = MathF.Min(UiDesign.ToolbarHeight, availableHeight);
+        var toolbar = new RectangleF(
+            (contentWidth - toolbarWidth) / 2.0f,
+            margin,
+            toolbarWidth,
+            toolbarHeight);
 
         return new ViewerLayout(content, status, toolbar);
     }

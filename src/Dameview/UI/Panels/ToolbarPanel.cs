@@ -15,15 +15,12 @@ internal sealed class ToolbarPanel : UiElement
     internal const float WidthDips = UiDesign.ToolbarWidth;
 
     private readonly StackPanel _buttonRow;
-    private readonly AnimatedFloat _visibility;
-    private bool _pointerNear;
 
     internal ToolbarPanel(
         IViewerCommands commands,
         ViewerPane pane,
         Action showSettings)
     {
-        _visibility = Animate(0.0f, 14.0);
         Button[] buttons =
         [
             new Button("←", () => commands.ShowPreviousImage(pane)),
@@ -44,19 +41,8 @@ internal sealed class ToolbarPanel : UiElement
             StackPanelDistribution.Equal,
             buttons);
         AddChild(_buttonRow);
-    }
-
-    internal override float Opacity => _visibility.Current;
-    internal override PointF VisualOffset => new(0.0f, (_visibility.Current - 1.0f) * Bounds.Height);
-    // Stays in the tree while hidden so it can notice the pointer coming near, but only takes clicks while shown.
-    internal override bool IsHitTestVisible => _visibility.Target > 0.0f;
-
-    internal void Show()
-    {
-        if (_visibility.SetTarget(1.0f))
-        {
-            InvalidateVisual();
-        }
+        Transition = new UiTransition(Fade: true, HiddenOffset: new PointF(0.0f, -UiDesign.ToolbarHeight), Response: 14.0);
+        IsPresent = false;
     }
 
     protected override SizeF MeasureCore(SizeF availableSize)
@@ -94,23 +80,6 @@ internal sealed class ToolbarPanel : UiElement
             UiDesign.PanelCornerRadius);
         context.FillRoundedRectangle(panel, context.Palette.OverlaySurface);
         context.DrawRoundedRectangle(panel, context.Palette.SurfaceBorder);
-    }
-
-    internal void SetPointerNear(bool pointerNear)
-    {
-        _pointerNear = pointerNear;
-        if (_visibility.SetTarget(HasFocusWithin || _pointerNear ? 1.0f : 0.0f))
-        {
-            InvalidateVisual();
-        }
-    }
-
-    protected override void OnFocusWithinChanged()
-    {
-        if (HasFocusWithin)
-        {
-            Show();
-        }
     }
 
     private static RectangleF GetContentBounds(SizeF availableSize)
