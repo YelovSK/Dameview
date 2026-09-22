@@ -68,6 +68,7 @@ internal sealed class TextInput : UiElement
     internal override WindowCursor Cursor => WindowCursor.Text;
 
     private bool HasSelection => _anchor != CaretIndex;
+    private float ContentWidth => MathF.Max(0.0f, Bounds.Width - (2.0f * HorizontalPadding));
     private IDWriteTextLayout? TextLayout => _text.Length == 0
         ? null
         : TextLayouts.Get(_text, TextFont, new SizeF(100_000.0f, 38.0f));
@@ -162,12 +163,16 @@ internal sealed class TextInput : UiElement
         return new SizeF(MathF.Max(0.0f, width), 38.0f);
     }
 
+    // The scroll follows the caret as it glides and the width as it is resized.
+    protected override void ArrangeCore(SizeF finalSize) => UpdateHorizontalOffset();
+
     protected override bool UpdateCore(in UiUpdateContext context)
     {
         float target = GetCaretPosition(CaretIndex);
         bool headMoving = MoveCaretEdge(_caretHead, target, context);
         bool tailMoving = MoveCaretEdge(_caretTail, target, context);
         _caretGlides = HasVisualState(UiVisualState.Focused);
+        UpdateHorizontalOffset();
         return headMoving || tailMoving;
     }
 
@@ -183,7 +188,7 @@ internal sealed class TextInput : UiElement
             background,
             focused ? context.Palette.Accent : context.Palette.SurfaceBorder);
 
-        float contentWidth = MathF.Max(0.0f, Bounds.Width - (2.0f * HorizontalPadding));
+        float contentWidth = ContentWidth;
         float caretPosition = _caretHead.Current;
         float caretTop = (Bounds.Height - CaretHeight) / 2.0f;
         if (_text.Length == 0)
@@ -197,7 +202,6 @@ internal sealed class TextInput : UiElement
         }
         else
         {
-            UpdateHorizontalOffset(caretPosition, contentWidth);
             context.PushClip(new RectangleF(HorizontalPadding, 0.0f, contentWidth, Bounds.Height));
             try
             {
@@ -403,8 +407,11 @@ internal sealed class TextInput : UiElement
         InvalidateVisual();
     }
 
-    private void UpdateHorizontalOffset(float caretPosition, float contentWidth)
+    // Scrolls the text just enough to keep the drawn caret in view.
+    private void UpdateHorizontalOffset()
     {
+        float caretPosition = _caretHead.Current;
+        float contentWidth = ContentWidth;
         if (caretPosition < _horizontalOffset)
         {
             _horizontalOffset = caretPosition;
