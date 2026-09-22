@@ -12,7 +12,7 @@ internal sealed class ImagePresentationCache : IDisposable
     private const float DownscaleSharpness = 0.7f;
     private const float UpscaleSharpness = 0.25f;
 
-    private readonly ID2D1DeviceContext _renderContext;
+    private ID2D1DeviceContext _renderContext;
     private ID2D1Bitmap1? _bitmap;
     private ID2D1Bitmap1? _source;
     private RectangleF _imageBounds;
@@ -22,8 +22,21 @@ internal sealed class ImagePresentationCache : IDisposable
 
     internal ImagePresentationCache(ID2D1DeviceContext deviceContext)
     {
+        _renderContext = CreateRenderContext(deviceContext);
+    }
+
+    /// <summary>Rebuilds against a replacement device, discarding the rescale held for the old one.</summary>
+    internal void Recreate(ID2D1DeviceContext deviceContext)
+    {
+        Clear();
+        _renderContext.Dispose();
+        _renderContext = CreateRenderContext(deviceContext);
+    }
+
+    private static ID2D1DeviceContext CreateRenderContext(ID2D1DeviceContext deviceContext)
+    {
         using ID2D1Device device = deviceContext.Device;
-        _renderContext = device.CreateDeviceContext();
+        return device.CreateDeviceContext();
     }
 
     /// <summary>The rescale already held for this exact presentation, if there is one.</summary>

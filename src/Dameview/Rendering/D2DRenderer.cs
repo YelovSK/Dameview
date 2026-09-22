@@ -21,21 +21,28 @@ internal readonly record struct RenderTiming(
     long SubmissionCompleted,
     TimeSpan SubmitTime = default);
 
+/// <summary>
+/// Owns the graphics device and the frame lifecycle. The Direct2D and DirectWrite factories
+/// outlive any one device; everything built from the device is replaced together whenever the
+/// device is, and <see cref="DeviceChanged"/> tells holders of device resources to rebuild.
+/// </summary>
 internal sealed class D2DRenderer : IDisposable
 {
     private const uint BufferCount = 2;
 
-    private readonly ID3D11Device _d3dDevice;
-    private readonly ID3D11DeviceContext _d3dContext;
-    private readonly GpuFrameTimer _gpuFrameTimer;
-    private readonly IDXGIDevice _dxgiDevice;
-    private readonly IDXGIAdapter3? _videoMemoryAdapter;
-    private readonly IDXGIFactory2 _dxgiFactory;
-    private readonly IDXGISwapChain2 _swapChain;
-    private readonly SafeWaitHandle _frameLatencyWaitHandle;
+    private readonly nint _window;
     private readonly ID2D1Factory1 _d2dFactory;
-    private readonly ID2D1Device _d2dDevice;
     private readonly IDWriteFactory1 _directWriteFactory;
+
+    private ID3D11Device _d3dDevice;
+    private ID3D11DeviceContext _d3dContext;
+    private GpuFrameTimer _gpuFrameTimer;
+    private IDXGIDevice _dxgiDevice;
+    private IDXGIAdapter3? _videoMemoryAdapter;
+    private IDXGIFactory2 _dxgiFactory;
+    private IDXGISwapChain2 _swapChain;
+    private SafeWaitHandle _frameLatencyWaitHandle;
+    private ID2D1Device _d2dDevice;
     private ID2D1Bitmap1? _targetBitmap;
     private ID3D11RenderTargetView? _targetView;
     private int _width;
@@ -46,61 +53,64 @@ internal sealed class D2DRenderer : IDisposable
         nint window,
         int width,
         int height,
-        float dpi)
+        float dpi,
+        ID3D11Device device)
     {
+        _window = window;
         _width = width;
         _height = height;
         _dpi = dpi;
 
-        _d3dDevice = D3D11CreateDevice(
-            DriverType.Hardware,
+        _d2dFactory = D2D1CreateFactory<ID2D1Factory1>();
+        _directWriteFactory = DWriteCreateFactory<IDWriteFactory1>();
+        StartupTrace.Mark("d2d-factories");
+
+        // All assigned by CreateDeviceResources, which the compiler cannot see through.
+        _d3dDevice = null!;
+        _d3dContext = null!;
+        _gpuFrameTimer = null!;
+        _dxgiDevice = null!;
+        _dxgiFactory = null!;
+        _swapChain = null!;
+        _frameLatencyWaitHandle = null!;
+        _d2dDevice = null!;
+        DeviceContext = null!;
+        CreateDeviceResources(device);
+    }
+
+    /// <summary>Raised after the device was replaced, once the new resources are ready.</summary>
+    internal event Action? DeviceChanged;
+
+    internal nint FrameLatencyWaitHandle => _frameLatencyWaitHandle.DangerousGetHandle();
+    internal ID2D1DeviceContext DeviceContext { get; private set; }
+    internal IDWriteFactory DirectWriteFactory => _directWriteFactory;
+
+    /// <summary>
+    /// Creates a device off the window thread, so a slow hardware driver load does not block it.
+    /// </summary>
+    internal static ID3D11Device CreateDevice(DriverType driverType)
+    {
+        return D3D11CreateDevice(
+            driverType,
             DeviceCreationFlags.BgraSupport,
             Vortice.Direct3D.FeatureLevel.Level_11_1,
             Vortice.Direct3D.FeatureLevel.Level_11_0,
             Vortice.Direct3D.FeatureLevel.Level_10_1,
             Vortice.Direct3D.FeatureLevel.Level_10_0);
-        _dxgiDevice = _d3dDevice.QueryInterface<IDXGIDevice>();
-        _d3dContext = _d3dDevice.ImmediateContext;
-        _gpuFrameTimer = new GpuFrameTimer(_d3dDevice, _d3dContext);
-        using IDXGIAdapter adapter = _dxgiDevice.GetAdapter();
-        _dxgiFactory = adapter.GetParent<IDXGIFactory2>();
-        // Kept for its video memory reporting, which the rest of the adapter is not needed for.
-        _videoMemoryAdapter = adapter.QueryInterfaceOrNull<IDXGIAdapter3>();
-
-        _d2dFactory = D2D1CreateFactory<ID2D1Factory1>();
-        _d2dDevice = _d2dFactory.CreateDevice(_dxgiDevice);
-        DeviceContext = _d2dDevice.CreateDeviceContext();
-        DeviceContext.SetDpi(dpi, dpi);
-        _directWriteFactory = DWriteCreateFactory<IDWriteFactory1>();
-
-        SwapChainDescription1 description = new(
-            (uint)Math.Max(width, 1),
-            (uint)Math.Max(height, 1),
-            Format.B8G8R8A8_UNorm,
-            false,
-            Usage.RenderTargetOutput,
-            BufferCount,
-            Scaling.Stretch,
-            SwapEffect.FlipSequential,
-            Vortice.DXGI.AlphaMode.Ignore,
-            SwapChainFlags.FrameLatencyWaitableObject);
-
-        using IDXGISwapChain1 swapChain = _dxgiFactory.CreateSwapChainForHwnd(
-            _d3dDevice,
-            window,
-            description);
-        _swapChain = swapChain.QueryInterface<IDXGISwapChain2>();
-        _swapChain.MaximumFrameLatency = 1;
-        _frameLatencyWaitHandle = new SafeWaitHandle(
-            _swapChain.FrameLatencyWaitableObject,
-            ownsHandle: true);
-
-        CreateTargetBitmap();
     }
 
-    internal nint FrameLatencyWaitHandle => _frameLatencyWaitHandle.DangerousGetHandle();
-    internal ID2D1DeviceContext DeviceContext { get; }
-    internal IDWriteFactory DirectWriteFactory => _directWriteFactory;
+    /// <summary>
+    /// Takes ownership of <paramref name="device"/> and rebuilds everything derived from the
+    /// previous one. Holders of device resources must rebuild theirs from
+    /// <see cref="DeviceContext"/> before the next frame, which is what
+    /// <see cref="DeviceChanged"/> asks them to do.
+    /// </summary>
+    internal void AdoptDevice(ID3D11Device device)
+    {
+        ReleaseDeviceResources();
+        CreateDeviceResources(device);
+        DeviceChanged?.Invoke();
+    }
 
     internal RenderTiming Render(Action<SizeF> draw, Color4 background, bool measureGpu = false)
     {
@@ -181,14 +191,69 @@ internal sealed class D2DRenderer : IDisposable
 
     public void Dispose()
     {
-        ReleaseTargetBitmap();
-        _videoMemoryAdapter?.Dispose();
-        DeviceContext.Dispose();
-        _d2dDevice.Dispose();
+        ReleaseDeviceResources();
         _directWriteFactory.Dispose();
         _d2dFactory.Dispose();
+    }
+
+    private void CreateDeviceResources(ID3D11Device device)
+    {
+        _d3dDevice = device;
+        _dxgiDevice = _d3dDevice.QueryInterface<IDXGIDevice>();
+        _d3dContext = _d3dDevice.ImmediateContext;
+        _gpuFrameTimer = new GpuFrameTimer(_d3dDevice, _d3dContext);
+        using IDXGIAdapter adapter = _dxgiDevice.GetAdapter();
+        _dxgiFactory = adapter.GetParent<IDXGIFactory2>();
+        // Kept for its video memory reporting, which the rest of the adapter is not needed for.
+        _videoMemoryAdapter = adapter.QueryInterfaceOrNull<IDXGIAdapter3>();
+        Log.Info("Native", $"Graphics device: {adapter.Description.Description}");
+
+        _d2dDevice = _d2dFactory.CreateDevice(_dxgiDevice);
+        DeviceContext = _d2dDevice.CreateDeviceContext();
+        DeviceContext.SetDpi(_dpi, _dpi);
+        StartupTrace.Mark("d2d");
+
+        SwapChainDescription1 description = new(
+            (uint)Math.Max(_width, 1),
+            (uint)Math.Max(_height, 1),
+            Format.B8G8R8A8_UNorm,
+            false,
+            Usage.RenderTargetOutput,
+            BufferCount,
+            Scaling.Stretch,
+            SwapEffect.FlipSequential,
+            Vortice.DXGI.AlphaMode.Ignore,
+            SwapChainFlags.FrameLatencyWaitableObject);
+
+        using IDXGISwapChain1 swapChain = _dxgiFactory.CreateSwapChainForHwnd(
+            _d3dDevice,
+            _window,
+            description);
+        _swapChain = swapChain.QueryInterface<IDXGISwapChain2>();
+        _swapChain.MaximumFrameLatency = 1;
+        _frameLatencyWaitHandle = new SafeWaitHandle(
+            _swapChain.FrameLatencyWaitableObject,
+            ownsHandle: true);
+
+        CreateTargetBitmap();
+        StartupTrace.Mark("swap-chain");
+    }
+
+    private void ReleaseDeviceResources()
+    {
+        ReleaseTargetBitmap();
+
+        // A swap chain only leaves its window once nothing references its buffers any more,
+        // so the pipeline has to be cleared and flushed before the chain is dropped.
+        _d3dContext.ClearState();
+        _d3dContext.Flush();
+
+        DeviceContext.Dispose();
+        _d2dDevice.Dispose();
         _frameLatencyWaitHandle.Dispose();
         _swapChain.Dispose();
+        _videoMemoryAdapter?.Dispose();
+        _videoMemoryAdapter = null;
         _dxgiFactory.Dispose();
         _dxgiDevice.Dispose();
         _gpuFrameTimer.Dispose();
@@ -221,5 +286,4 @@ internal sealed class D2DRenderer : IDisposable
         _targetView?.Dispose();
         _targetView = null;
     }
-
 }

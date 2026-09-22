@@ -17,7 +17,7 @@ internal sealed class EmptyStatePanel : UiElement, IDisposable
     private readonly IDWriteTextFormat _titleFormat;
     private readonly IDWriteTextFormat _bodyFormat;
     private readonly IDWriteTextFormat _captionFormat;
-    private readonly ID2D1Bitmap1 _icon;
+    private ID2D1Bitmap1 _icon;
 
     internal EmptyStatePanel(
         IDWriteFactory directWriteFactory,
@@ -103,6 +103,13 @@ internal sealed class EmptyStatePanel : UiElement, IDisposable
             _captionFormat,
             new Rect(layout.Caption.X, layout.Caption.Y, layout.Caption.Width, layout.Caption.Height),
             context.Palette.SecondaryText);
+    }
+
+    /// <summary>Rebuilds against a replacement device.</summary>
+    internal void RecreateDeviceResources(ID2D1DeviceContext deviceContext)
+    {
+        _icon.Dispose();
+        _icon = LoadApplicationIcon(deviceContext);
     }
 
     public void Dispose()

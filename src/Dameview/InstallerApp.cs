@@ -5,6 +5,7 @@ using Dameview.UI;
 using Dameview.UI.Foundation;
 using Dameview.Win32;
 using Dameview.Win32.Input;
+using Vortice.Direct3D;
 
 namespace Dameview;
 
@@ -31,7 +32,8 @@ internal sealed class InstallerApp : IDisposable
             _window.Handle,
             _window.ClientWidth,
             _window.ClientHeight,
-            _window.Dpi);
+            _window.Dpi,
+            D2DRenderer.CreateDevice(DriverType.Hardware));
         _ui = new InstallerUi(
             _renderer.DeviceContext,
             _renderer.DirectWriteFactory,

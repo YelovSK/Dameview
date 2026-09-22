@@ -32,6 +32,11 @@ internal sealed class ViewerWorkspace : IDisposable
     internal int Count => ActivePane.Count;
     internal int ActiveIndex => ActivePane.ActiveIndex;
     internal IReadOnlyList<ViewerTab> Tabs => ActivePane.Tabs;
+
+    /// <summary>Every session in the workspace, including the tabs that are not active.</summary>
+    internal IEnumerable<ViewerSession> Sessions =>
+        EnumeratePanes(Root).SelectMany(pane => pane.Tabs).Select(tab => tab.Session);
+
     internal ViewerTab ActiveTab => ActivePane.ActiveTab;
     internal ViewerSession ActiveSession => ActivePane.ActiveSession;
 

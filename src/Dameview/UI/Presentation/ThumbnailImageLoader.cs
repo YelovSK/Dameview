@@ -34,13 +34,14 @@ internal sealed class ThumbnailImageLoader : IThumbnailImageLoader
     internal ThumbnailImageLoader(
         IThumbnailLoader source,
         RenderBitmapCache cache,
-        ID2D1DeviceContext deviceContext,
+        Func<ID2D1DeviceContext> deviceContext,
         SynchronizationContext uiContext)
         : this(
             source,
             cache,
             uiContext,
-            image => D2DBitmapFactory.Create(deviceContext, image))
+            // Resolved per upload, so a bitmap is always created on the live device.
+            image => D2DBitmapFactory.Create(deviceContext(), image))
     {
     }
 

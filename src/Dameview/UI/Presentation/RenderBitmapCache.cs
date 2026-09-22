@@ -86,6 +86,23 @@ internal sealed class RenderBitmapCache : IDisposable
         _disposeBitmap(bitmap);
     }
 
+    /// <summary>
+    /// Disposes every cached bitmap, as the graphics device they belong to is going away.
+    /// An outstanding lease keeps its entry alive but its bitmap is gone, so whatever is being
+    /// displayed has to be dropped in the same pass.
+    /// </summary>
+    internal void Clear()
+    {
+        foreach (CachedBitmap entry in _recentlyUsed)
+        {
+            _disposeBitmap(entry.Bitmap);
+        }
+
+        _entries.Clear();
+        _recentlyUsed.Clear();
+        _sizeBytes = 0;
+    }
+
     internal void Trim()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -168,14 +185,7 @@ internal sealed class RenderBitmapCache : IDisposable
         }
 
         _disposed = true;
-        foreach (CachedBitmap entry in _recentlyUsed)
-        {
-            _disposeBitmap(entry.Bitmap);
-        }
-
-        _entries.Clear();
-        _recentlyUsed.Clear();
-        _sizeBytes = 0;
+        Clear();
     }
 }
 

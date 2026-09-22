@@ -15,8 +15,8 @@ namespace Dameview.UI.Panels;
 
 internal sealed class ImagePanel : UiElement, IDisposable
 {
-    private readonly ID2D1DeviceContext _deviceContext;
-    private readonly ID2D1DeviceContext _scaleContext;
+    private ID2D1DeviceContext _deviceContext;
+    private ID2D1DeviceContext _scaleContext;
     private readonly ImagePresentationCache _presentationCache;
     private ImageViewport _viewport;
     private ViewportAnimator _animator;
@@ -42,8 +42,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
         TimeProvider? timeProvider = null)
     {
         _deviceContext = deviceContext;
-        using ID2D1Device device = deviceContext.Device;
-        _scaleContext = device.CreateDeviceContext();
+        _scaleContext = CreateScaleContext(deviceContext);
         _presentationCache = new ImagePresentationCache(deviceContext);
         _viewport = viewport;
         _animator = animator;
@@ -54,9 +53,25 @@ internal sealed class ImagePanel : UiElement, IDisposable
     internal TimeSpan? NextAnimationFrameDelay => _imageAnimation?.NextFrameDelay;
     internal Exception? AnimationError => _imageAnimation?.Error;
 
-    internal void Bind(
-        ImageViewport viewport,
-        ViewportAnimator animator)
+    /// <summary>Rebuilds against a replacement device; the image is supplied again afterwards.</summary>
+    internal void RecreateDeviceResources(ID2D1DeviceContext deviceContext)
+    {
+        ReleaseImageResources();
+        _deviceContext = deviceContext;
+        _scaleContext.Dispose();
+        _scaleContext = CreateScaleContext(deviceContext);
+        _presentationCache.Recreate(deviceContext);
+    }
+
+    private static ID2D1DeviceContext CreateScaleContext(ID2D1DeviceContext deviceContext)
+    {
+        using ID2D1Device device = deviceContext.Device;
+        return device.CreateDeviceContext();
+    }
+
+    // Everything here is built from the graphics device and from the displayed image,
+    // so replacing either one starts from nothing.
+    private void ReleaseImageResources()
     {
         _imageAnimation = null;
         _presentationCache.Clear();
@@ -69,6 +84,13 @@ internal sealed class ImagePanel : UiElement, IDisposable
         _previewImage = null;
         _previewFade.SetValue(0.0f);
         _isPreview = false;
+    }
+
+    internal void Bind(
+        ImageViewport viewport,
+        ViewportAnimator animator)
+    {
+        ReleaseImageResources();
         _pointerPressed = false;
         _isPanning = false;
         _viewport = viewport;

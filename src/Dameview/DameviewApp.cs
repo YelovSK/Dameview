@@ -18,6 +18,8 @@ using Dameview.Updates;
 using Dameview.Viewing;
 using Dameview.Win32;
 using Dameview.Win32.Input;
+using Vortice.Direct3D;
+using Vortice.Direct3D11;
 
 namespace Dameview;
 
@@ -59,11 +61,14 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         StartupTrace.Mark("window");
         try
         {
+            ID3D11Device device = D2DRenderer.CreateDevice(DriverType.Hardware);
+            StartupTrace.Mark("d3d-device");
             _renderer = new D2DRenderer(
                 _window.Handle,
                 _window.ClientWidth,
                 _window.ClientHeight,
-                _window.Dpi);
+                _window.Dpi,
+                device);
         }
         catch (Exception exception)
         {
@@ -84,7 +89,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _thumbnailImageLoader = new ThumbnailImageLoader(
             _thumbnailCoordinator,
             _thumbnailBitmapCache,
-            _renderer.DeviceContext,
+            () => _renderer.DeviceContext,
             _uiContext);
         using var imageDecoder = new ImageDecoder();
         _decodableExtensions = imageDecoder.GetProbablySupportedExtensions();
@@ -119,6 +124,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _workspace.PaneTabsChanged += HandleTabsChanged;
         HandleTabsChanged(_workspace.ActivePane);
 
+        _renderer.DeviceChanged += HandleDeviceChanged;
         _window.Shown += HandleWindowShown;
         _window.RenderFrame += HandleRenderFrame;
         _window.Resized += HandleResize;
@@ -193,6 +199,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _settings.Dispose();
         _copyImageCancellation?.Cancel();
         _copyImageCancellation?.Dispose();
+        _renderer.DeviceChanged -= HandleDeviceChanged;
         _ui.Invalidated -= _window.RequestRepaint;
         _ui.Dispose();
         _workspace.Dispose();
@@ -721,7 +728,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         var imageLoader = new PresentationImageLoader(
             loadClient,
             _renderBitmapCache,
-            _renderer.DeviceContext,
+            () => _renderer.DeviceContext,
             _thumbnailImageLoader,
             _uiContext);
         var folderMonitor = new FolderMonitor(
@@ -769,6 +776,22 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         }
 
         SendPointerEvent(input);
+    }
+
+    // Runs on the window thread between frames, so nothing can draw with a resource that
+    // belonged to the device that was just replaced.
+    private void HandleDeviceChanged()
+    {
+        _window.FrameLatencyWaitHandle = _renderer.FrameLatencyWaitHandle;
+        _ui.RecreateDeviceResources(_renderer.DeviceContext);
+        _renderBitmapCache.Clear();
+        _thumbnailBitmapCache.Clear();
+        foreach (ViewerSession session in _workspace.Sessions)
+        {
+            session.ReloadDisplayedImage();
+        }
+
+        _window.RequestRepaint();
     }
 
     private void HandleWindowShown()

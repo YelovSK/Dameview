@@ -63,6 +63,9 @@ internal sealed unsafe class AppWindow : IDisposable
 
     internal event Action? RenderFrame;
     internal event Action? Shown;
+
+    /// <summary>The frame-latency object the loop waits on; it changes with the swap chain.</summary>
+    internal nint FrameLatencyWaitHandle { get; set; }
     internal event Action? Closed;
     internal event Action<int, int>? Resized;
     internal event Action<float>? DpiChanged;
@@ -360,6 +363,7 @@ internal sealed unsafe class AppWindow : IDisposable
 
     internal int Run(nint frameLatencyWaitHandle)
     {
+        FrameLatencyWaitHandle = frameLatencyWaitHandle;
         RequestRepaint();
         RenderRequestedFrame();
         ShowWindow((HWND)Handle, _initialShowCommand);
@@ -386,7 +390,7 @@ internal sealed unsafe class AppWindow : IDisposable
             }
 
             WAIT_EVENT waitResult = NativeMethods.WaitForMessageOrHandle(
-                frameLatencyWaitHandle,
+                FrameLatencyWaitHandle,
                 _frameRequested);
             if (waitResult == WAIT_EVENT.WAIT_FAILED)
             {

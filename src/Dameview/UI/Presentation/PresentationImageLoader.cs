@@ -26,14 +26,15 @@ internal sealed class PresentationImageLoader : IImageLoader
     internal PresentationImageLoader(
         ImageLoadClient producer,
         RenderBitmapCache cache,
-        ID2D1DeviceContext deviceContext,
+        Func<ID2D1DeviceContext> deviceContext,
         IThumbnailImageLoader thumbnails,
         SynchronizationContext uiContext)
         : this(
             producer,
             cache,
-            upload => D2DBitmapFactory.Create(deviceContext, upload),
-            image => D2DBitmapFactory.Create(deviceContext, image),
+            // Resolved per upload, so a bitmap is always created on the live device.
+            upload => D2DBitmapFactory.Create(deviceContext(), upload),
+            image => D2DBitmapFactory.Create(deviceContext(), image),
             thumbnails,
             uiContext)
     {

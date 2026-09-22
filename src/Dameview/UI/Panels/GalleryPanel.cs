@@ -20,7 +20,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
     private const float DragThresholdDips = 4.0f;
 
-    private readonly ID2D1DeviceContext _thumbnailScaleContext;
+    private ID2D1DeviceContext _thumbnailScaleContext;
     private readonly IDWriteTextFormat _labelFormat;
     private readonly IDWriteInlineObject _ellipsisSign;
     private readonly IThumbnailImageLoader _thumbnailLoader;
@@ -53,8 +53,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         Action<string> openInNewTab,
         Action<string, WorkspaceDragEvent>? dragPointer = null)
     {
-        using ID2D1Device device = deviceContext.Device;
-        _thumbnailScaleContext = device.CreateDeviceContext();
+        _thumbnailScaleContext = CreateScaleContext(deviceContext);
         _thumbnailLoader = thumbnailLoader;
         _openImage = openImage;
         _openInNewTab = openInNewTab;
@@ -156,6 +155,20 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         _liveResize = false;
         RefreshVisibleThumbnails();
         InvalidateVisual();
+    }
+
+    /// <summary>Rebuilds against a replacement device; visible thumbnails are requested again.</summary>
+    internal void RecreateDeviceResources(ID2D1DeviceContext deviceContext)
+    {
+        ClearSlots();
+        _thumbnailScaleContext.Dispose();
+        _thumbnailScaleContext = CreateScaleContext(deviceContext);
+    }
+
+    private static ID2D1DeviceContext CreateScaleContext(ID2D1DeviceContext deviceContext)
+    {
+        using ID2D1Device device = deviceContext.Device;
+        return device.CreateDeviceContext();
     }
 
     internal void SetThumbnailSize(GalleryThumbnailSize size)

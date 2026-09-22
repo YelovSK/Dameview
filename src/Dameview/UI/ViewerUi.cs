@@ -22,8 +22,8 @@ namespace Dameview.UI;
 
 internal sealed class ViewerUi : UiElement, IDisposable
 {
-    private readonly ID2D1DeviceContext _deviceContext;
-    private readonly ID2D1SolidColorBrush _brush;
+    private ID2D1DeviceContext _deviceContext;
+    private ID2D1SolidColorBrush _brush;
     private readonly UiTextLayoutCache _textLayouts;
     private readonly UiDrawTally _drawTally = new();
     private readonly WorkspaceView _workspaceView;
@@ -73,8 +73,9 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _tabPreview = new TabPreview(thumbnailLoader);
         _workspaceView = new WorkspaceView(
             workspace.Root,
+            // Reads the field, so panes opened after a device switch use the live context.
             pane => new ViewerPaneView(
-                deviceContext,
+                _deviceContext,
                 directWriteFactory,
                 pane,
                 commands,
@@ -247,6 +248,24 @@ internal sealed class ViewerUi : UiElement, IDisposable
         if (isActivePane)
         {
             ApplyActivePaneState(state);
+        }
+
+        _root.InvalidateVisual();
+    }
+
+    /// <summary>
+    /// Rebuilds everything the UI holds on the graphics device after it was replaced. The
+    /// displayed images are reloaded separately, because the sessions own those.
+    /// </summary>
+    internal void RecreateDeviceResources(ID2D1DeviceContext deviceContext)
+    {
+        _deviceContext = deviceContext;
+        _brush.Dispose();
+        _brush = deviceContext.CreateSolidColorBrush(default(Color4));
+        _galleryPanel.RecreateDeviceResources(deviceContext);
+        foreach (ViewerPaneView paneView in _workspaceView.PaneViews)
+        {
+            paneView.RecreateDeviceResources(deviceContext);
         }
 
         _root.InvalidateVisual();
