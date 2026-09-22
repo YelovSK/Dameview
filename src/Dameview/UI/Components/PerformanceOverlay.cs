@@ -38,33 +38,13 @@ internal sealed class PerformanceOverlay : UiElement
 
     internal override bool IsHitTestVisible => false;
 
-    protected override SizeF MeasureCore(SizeF availableSize)
-    {
-        if (_text is null)
-        {
-            RefreshText();
-        }
-
-        return new SizeF(
-            MathF.Min(_textSize.Width + 2.0f * Padding, MathF.Max(0.0f, availableSize.Width)),
-            MathF.Min(_textSize.Height + 2.0f * Padding, MathF.Max(0.0f, availableSize.Height)));
-    }
-
     protected override bool UpdateCore(in UiUpdateContext context)
     {
         long now = Stopwatch.GetTimestamp();
         if (_text is null || now - _lastTextRefresh >= TextRefreshTicks)
         {
-            SizeF previousTextSize = _textSize;
             RefreshText();
             _lastTextRefresh = now;
-
-            // Only when the panel actually grew: InvalidateLayout also requests a
-            // repaint, and an extra frame would be recorded as a sub-millisecond one.
-            if (_textSize != previousTextSize)
-            {
-                InvalidateLayout();
-            }
         }
 
         return false;
@@ -72,25 +52,25 @@ internal sealed class PerformanceOverlay : UiElement
 
     protected override void DrawCore(in UiDrawContext context)
     {
-        if (Bounds.Width <= 0.0f || Bounds.Height <= 0.0f)
+        if (_text is null)
         {
             return;
         }
 
-        var panel = new RoundedRectangle(
-            new RectangleF(PointF.Empty, Bounds.Size),
-            UiDesign.PanelCornerRadius,
-            UiDesign.PanelCornerRadius);
+        // Arranged over the whole window, so the panel places itself in the corner.
+        var bounds = new RectangleF(
+            UiDesign.WindowMargin,
+            UiDesign.WindowMargin,
+            _textSize.Width + 2.0f * Padding,
+            _textSize.Height + 2.0f * Padding);
+        var panel = new RoundedRectangle(bounds, UiDesign.PanelCornerRadius, UiDesign.PanelCornerRadius);
         context.FillRoundedRectangle(panel, context.Palette.OverlaySurface, 0.94f);
         context.DrawRoundedRectangle(panel, context.Palette.SurfaceBorder);
-        if (_text is not null)
-        {
-            context.DrawTextLayout(
-                GetTextLayout(_text),
-                new System.Numerics.Vector2(Padding, Padding),
-                context.Palette.PrimaryText,
-                DrawTextOptions.Clip);
-        }
+        context.DrawTextLayout(
+            GetTextLayout(_text),
+            new System.Numerics.Vector2(bounds.X + Padding, bounds.Y + Padding),
+            context.Palette.PrimaryText,
+            DrawTextOptions.Clip);
     }
 
     private IDWriteTextLayout GetTextLayout(string text) =>

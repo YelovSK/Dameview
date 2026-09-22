@@ -31,7 +31,6 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private readonly WorkspaceDragOverlay _dragOverlay;
     private readonly WorkspaceDragController _dragController;
     private readonly PerformanceOverlay _performanceOverlay;
-    private readonly Overlay _mainOverlay;
     private readonly SplitView _splitView;
     private readonly GalleryPanel _galleryPanel;
     private readonly SettingsPanel _settingsPanel;
@@ -102,9 +101,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
             commands.OpenImageInNewTab,
             HandleGalleryDragPointer);
         _galleryPanel.Bind(GetGalleryState(_activePane.ActiveTab));
-        _mainOverlay = new Overlay(_workspaceView);
         _splitView = new SplitView(
-            _mainOverlay,
+            _workspaceView,
             _galleryPanel,
             initialDividerOffsetDips: GalleryPanel.DefaultSizeDips);
         _splitView.ResizeStarted += _galleryPanel.BeginLiveResize;
@@ -429,35 +427,23 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _dragController.HandleExternalFiles(input.Paths, new WorkspaceDragEvent(kind, position));
     }
 
+    // Every child is a layer covering the whole window, stacked in the order they were added.
     protected override SizeF MeasureCore(SizeF availableSize)
     {
-        _splitView.Measure(availableSize);
-        _tabPreview.Measure(availableSize);
-        _dragOverlay.Measure(availableSize);
-        _modalHost.Measure(availableSize);
-        _popupHost.Measure(availableSize);
-        _performanceOverlay.Measure(availableSize);
-        _toastHost.Measure(availableSize);
+        foreach (UiElement layer in Children)
+        {
+            layer.Measure(availableSize);
+        }
+
         return availableSize;
     }
 
     protected override void ArrangeCore(SizeF finalSize)
     {
-        _splitView.Arrange(new RectangleF(PointF.Empty, finalSize));
-        RectangleF paneBounds = _activePaneView.GetBoundsRelativeTo(_mainOverlay);
-        RectangleF contentBounds = _activePaneView.ContentBounds;
-        contentBounds.Offset(paneBounds.Location);
-        _tabPreview.Arrange(new RectangleF(PointF.Empty, finalSize));
-        _dragOverlay.Arrange(new RectangleF(PointF.Empty, finalSize));
-        _modalHost.Arrange(new RectangleF(PointF.Empty, finalSize));
-        _popupHost.Arrange(new RectangleF(PointF.Empty, finalSize));
-        _toastHost.Arrange(new RectangleF(PointF.Empty, finalSize));
-        SizeF performanceSize = _performanceOverlay.DesiredSize;
-        _performanceOverlay.Arrange(new RectangleF(
-            UiDesign.WindowMargin,
-            UiDesign.WindowMargin,
-            performanceSize.Width,
-            performanceSize.Height));
+        foreach (UiElement layer in Children)
+        {
+            layer.Arrange(new RectangleF(PointF.Empty, finalSize));
+        }
     }
 
     public void Dispose()
