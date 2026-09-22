@@ -631,7 +631,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     /// <summary>Everything the settings decide except the window's own geometry.</summary>
     private void ApplyPreferences(AppSettings previous, AppSettings current)
     {
-        ApplyLogLevel(current);
+        Log.SetMinimumLevel(current.Logging.Level);
         _ui.ApplySettings(current);
         _workspace.AutoBalancePanes = current.AutoBalancePanes;
         if (!previous.KeyBindings.Equals(current.KeyBindings))
@@ -652,11 +652,6 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         }
 
         _window.RequestRepaint();
-    }
-
-    private static void ApplyLogLevel(AppSettings settings)
-    {
-        Log.SetMinimumLevel(settings.Logging.Level);
     }
 
     private void HandleUpdateChanged(UpdateState state)
@@ -800,7 +795,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             _pointerY = (int)input.Position.Y;
         }
 
-        SendPointerEvent(input);
+        _ui.HandlePointer(input);
     }
 
     private void HandleWindowShown()
@@ -918,11 +913,6 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         {
             _window.RequestRepaintAfter(delay);
         }
-    }
-
-    private void SendPointerEvent(WindowPointerEvent input)
-    {
-        _ui.HandlePointer(input);
     }
 }
 
