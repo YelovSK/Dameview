@@ -23,46 +23,106 @@ internal static unsafe class Win32Clipboard
         ArgumentOutOfRangeException.ThrowIfNotEqual(stride, checked(width * 4));
         ArgumentOutOfRangeException.ThrowIfNotEqual(pixels.Length, checked(stride * height));
 
-        if (!OpenClipboard((HWND)owner))
+        return TrySetData((HWND)owner, CLIPBOARD_FORMAT.CF_DIB, AllocateBitmap(width, height, pixels));
+    }
+
+    // Text is rendered up front, so no owner window has to answer WM_RENDERFORMAT later.
+    internal static bool TrySetText(string text) =>
+        TrySetData(HWND.Null, CLIPBOARD_FORMAT.CF_UNICODETEXT, AllocateText(text));
+
+    internal static string? TryGetText()
+    {
+        if (!OpenClipboard(HWND.Null))
+        {
+            return null;
+        }
+
+        try
+        {
+            HANDLE data = GetClipboardData((uint)CLIPBOARD_FORMAT.CF_UNICODETEXT);
+            if (data == HANDLE.Null)
+            {
+                return null;
+            }
+
+            var memory = (HGLOBAL)(IntPtr)data;
+            char* locked = (char*)GlobalLock(memory);
+            if (locked is null)
+            {
+                return null;
+            }
+
+            try
+            {
+                return new string(locked);
+            }
+            finally
+            {
+                _ = GlobalUnlock(memory);
+            }
+        }
+        finally
+        {
+            _ = CloseClipboard();
+        }
+    }
+
+    // Takes ownership of the memory: the clipboard keeps it on success, otherwise it is freed.
+    private static bool TrySetData(HWND owner, CLIPBOARD_FORMAT format, HGLOBAL memory)
+    {
+        if (memory == HGLOBAL.Null)
         {
             return false;
         }
 
-        HGLOBAL dibMemory = HGLOBAL.Null;
-        bool dibTransferred = false;
+        bool transferred = false;
         try
         {
-            if (!EmptyClipboard())
+            if (!OpenClipboard(owner))
             {
                 return false;
             }
 
-            dibMemory = AllocateBitmap(width, height, pixels);
-            if (dibMemory == HGLOBAL.Null)
+            try
             {
-                return false;
+                transferred = EmptyClipboard()
+                    && SetClipboardData((uint)format, (HANDLE)(IntPtr)memory) != HANDLE.Null;
+                return transferred;
             }
-
-            if (SetClipboardData(
-                    (uint)CLIPBOARD_FORMAT.CF_DIB,
-                    (HANDLE)(IntPtr)dibMemory) == HANDLE.Null)
+            finally
             {
-                return false;
+                _ = CloseClipboard();
             }
-
-            dibTransferred = true;
-
-            return true;
         }
         finally
         {
-            if (!dibTransferred && dibMemory != HGLOBAL.Null)
+            if (!transferred)
             {
-                _ = GlobalFree(dibMemory);
+                _ = GlobalFree(memory);
             }
-
-            _ = CloseClipboard();
         }
+    }
+
+    private static HGLOBAL AllocateText(string text)
+    {
+        nuint size = checked((nuint)((text.Length + 1) * sizeof(char)));
+        HGLOBAL memory = GlobalAlloc(GLOBAL_ALLOC_FLAGS.GMEM_MOVEABLE, size);
+        if (memory == HGLOBAL.Null)
+        {
+            return HGLOBAL.Null;
+        }
+
+        char* locked = (char*)GlobalLock(memory);
+        if (locked is null)
+        {
+            _ = GlobalFree(memory);
+            return HGLOBAL.Null;
+        }
+
+        text.CopyTo(new Span<char>(locked, text.Length));
+        locked[text.Length] = '\0';
+        _ = GlobalUnlock(memory);
+        return memory;
     }
 
     private static HGLOBAL AllocateBitmap(

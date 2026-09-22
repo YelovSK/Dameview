@@ -49,6 +49,54 @@ public sealed class TextInputTests
     }
 
     [TestMethod]
+    public void TypingReplacesTheSelection()
+    {
+        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
+        using var input = new TextInput(factory) { Text = "hello world" };
+
+        input.OnKeyEvent(new WindowKeyEvent(WindowKey.Left, Shift: true, Control: true));
+        Assert.AreEqual("world", input.SelectedText);
+        input.OnTextInput("there");
+        Assert.AreEqual("hello there", input.Text);
+
+        input.OnKeyEvent(new WindowKeyEvent(WindowKey.A, Control: true));
+        input.OnTextInput("x");
+        Assert.AreEqual("x", input.Text);
+    }
+
+    [TestMethod]
+    public void ArrowsCollapseTheSelectionToItsEdges()
+    {
+        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
+        using var input = new TextInput(factory) { Text = "abcd" };
+        input.OnKeyEvent(new WindowKeyEvent(WindowKey.Left, Shift: true));
+        input.OnKeyEvent(new WindowKeyEvent(WindowKey.Left, Shift: true));
+
+        input.OnKeyEvent(new WindowKeyEvent(WindowKey.Left));
+
+        Assert.AreEqual(2, input.CaretIndex);
+        Assert.AreEqual(string.Empty, input.SelectedText);
+    }
+
+    [TestMethod]
+    public void ControlMovesAndDeletesByWord()
+    {
+        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
+        using var input = new TextInput(factory) { Text = "open file.png  " };
+
+        input.OnKeyEvent(new WindowKeyEvent(WindowKey.Backspace, Control: true));
+        Assert.AreEqual("open file.", input.Text);
+        input.OnKeyEvent(new WindowKeyEvent(WindowKey.Backspace, Control: true));
+        Assert.AreEqual("open file", input.Text);
+
+        input.OnKeyEvent(new WindowKeyEvent(WindowKey.Home));
+        input.OnKeyEvent(new WindowKeyEvent(WindowKey.Right, Control: true));
+        Assert.AreEqual(4, input.CaretIndex);
+        input.OnKeyEvent(new WindowKeyEvent(WindowKey.Delete, Control: true));
+        Assert.AreEqual("open", input.Text);
+    }
+
+    [TestMethod]
     public void UnhandledKeysBubbleFromTheInputToItsParent()
     {
         using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();

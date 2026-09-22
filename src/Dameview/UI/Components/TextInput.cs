@@ -2,7 +2,9 @@ using System.Drawing;
 using System.Globalization;
 using System.Numerics;
 using Dameview.UI.Foundation;
+using Dameview.Win32;
 using Dameview.Win32.Input;
+using SharpGen.Runtime;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
 using Vortice.Mathematics;
@@ -14,12 +16,14 @@ internal sealed class TextInput : UiElement, IDisposable
     private const float HorizontalPadding = 10.0f;
     private const float CaretWidth = 1.5f;
     private const float CaretHeight = 20.0f;
+    private const float SelectionOpacity = 0.35f;
 
     private readonly IDWriteFactory _factory;
     private readonly IDWriteTextFormat _format;
     private IDWriteTextLayout? _textLayout;
     private string _text = string.Empty;
-    private float _caretPosition;
+    // The fixed end of the selection; the caret is the end that moves.
+    private int _anchor;
     private float _horizontalOffset;
     private float _textWidth;
 
@@ -50,63 +54,76 @@ internal sealed class TextInput : UiElement, IDisposable
             }
 
             _text = value;
-            CaretIndex = value.Length;
+            _anchor = CaretIndex = value.Length;
             NotifyTextChanged();
         }
     }
 
     internal string Placeholder { get; }
     internal int CaretIndex { get; private set; }
+    internal int SelectionStart => Math.Min(_anchor, CaretIndex);
+    internal int SelectionEnd => Math.Max(_anchor, CaretIndex);
+    internal string SelectedText => _text[SelectionStart..SelectionEnd];
     internal override bool IsFocusable => true;
     internal override WindowCursor Cursor => WindowCursor.Text;
 
+    private bool HasSelection => _anchor != CaretIndex;
+
     internal void Clear() => Text = string.Empty;
 
-    internal override bool OnTextInput(string text)
-    {
-        string insertion = string.Concat(text.Where(character => !char.IsControl(character)));
-        if (insertion.Length == 0)
-        {
-            return false;
-        }
-
-        _text = _text.Insert(CaretIndex, insertion);
-        CaretIndex += insertion.Length;
-        NotifyTextChanged();
-        return true;
-    }
+    internal override bool OnTextInput(string text) => Insert(text);
 
     internal override bool OnKeyEvent(WindowKeyEvent input)
     {
-        if (input.Control)
-        {
-            return false;
-        }
-
         switch (input.Key)
         {
-            case WindowKey.Backspace:
-                DeletePreviousTextElement();
-                return true;
-
-            case WindowKey.Delete:
-                DeleteNextTextElement();
-                return true;
-
-            case WindowKey.Left:
-                SetCaretIndex(GetPreviousTextElementStart());
-                return true;
-
-            case WindowKey.Right:
-                SetCaretIndex(GetNextTextElementStart());
+            case WindowKey.Left or WindowKey.Right:
+                int direction = input.Key == WindowKey.Left ? -1 : 1;
+                int target = HasSelection && !input.Shift && !input.Control
+                    ? (direction < 0 ? SelectionStart : SelectionEnd)
+                    : FindBoundary(direction, input.Control);
+                MoveCaret(target, input.Shift);
                 return true;
 
             case WindowKey.Home:
-                SetCaretIndex(0);
+                MoveCaret(0, input.Shift);
                 return true;
 
             case WindowKey.End:
-                SetCaretIndex(_text.Length);
+                MoveCaret(_text.Length, input.Shift);
+                return true;
+
+            case WindowKey.Backspace or WindowKey.Delete:
+                if (!HasSelection)
+                {
+                    _anchor = FindBoundary(input.Key == WindowKey.Backspace ? -1 : 1, input.Control);
+                }
+
+                ReplaceSelection(string.Empty);
+                return true;
+
+            case WindowKey.A when input.Control:
+                Select(0, _text.Length);
+                return true;
+
+            case WindowKey.C when input.Control && HasSelection:
+                _ = Win32Clipboard.TrySetText(SelectedText);
+                return true;
+
+            case WindowKey.X when input.Control && HasSelection:
+                if (Win32Clipboard.TrySetText(SelectedText))
+                {
+                    ReplaceSelection(string.Empty);
+                }
+
+                return true;
+
+            case WindowKey.V when input.Control:
+                if (Win32Clipboard.TryGetText() is { } pasted)
+                {
+                    Insert(pasted);
+                }
+
                 return true;
 
             default:
@@ -116,13 +133,24 @@ internal sealed class TextInput : UiElement, IDisposable
 
     internal override UiPointerResult OnPointerEvent(in WindowPointerEvent input)
     {
-        if (input.Kind == WindowPointerEventKind.Pressed && input.Button == PointerButton.Primary)
+        switch (input.Kind)
         {
-            SetCaretIndex(_text.Length);
-            return new UiPointerResult(Consumed: true, NeedsRepaint: true);
-        }
+            case WindowPointerEventKind.Pressed when input.Button == PointerButton.Primary:
+                MoveCaret(HitTest(input.Position.X).Caret, extend: false);
+                return new UiPointerResult(Consumed: true, CapturePointer: true);
 
-        return default;
+            // Pressed is only set while this input holds the pointer capture, i.e. during a drag.
+            case WindowPointerEventKind.Moved when HasVisualState(UiVisualState.Pressed):
+                MoveCaret(HitTest(input.Position.X).Caret, extend: true);
+                return new UiPointerResult(Consumed: true);
+
+            case WindowPointerEventKind.DoubleClicked when input.Button == PointerButton.Primary:
+                SelectWordAt(HitTest(input.Position.X).Character);
+                return new UiPointerResult(Consumed: true);
+
+            default:
+                return default;
+        }
     }
 
     protected override SizeF MeasureCore(SizeF availableSize)
@@ -137,14 +165,15 @@ internal sealed class TextInput : UiElement, IDisposable
             new RectangleF(0.0f, 0.0f, Bounds.Width, Bounds.Height),
             UiDesign.ControlCornerRadius,
             UiDesign.ControlCornerRadius);
+        bool focused = HasVisualState(UiVisualState.Focused);
         context.FillRoundedRectangle(background, context.Palette.ControlSurface);
         context.DrawRoundedRectangle(
             background,
-            HasVisualState(UiVisualState.Focused)
-                ? context.Palette.Accent
-                : context.Palette.SurfaceBorder);
+            focused ? context.Palette.Accent : context.Palette.SurfaceBorder);
 
         float contentWidth = MathF.Max(0.0f, Bounds.Width - (2.0f * HorizontalPadding));
+        float caretPosition = GetCaretPosition(CaretIndex);
+        float caretTop = (Bounds.Height - CaretHeight) / 2.0f;
         if (_text.Length == 0)
         {
             context.DrawText(
@@ -156,21 +185,46 @@ internal sealed class TextInput : UiElement, IDisposable
         }
         else
         {
-            UpdateHorizontalOffset(_caretPosition, _textWidth, contentWidth);
-            DrawClippedText(context, contentWidth);
+            UpdateHorizontalOffset(caretPosition, contentWidth);
+            context.PushClip(new RectangleF(HorizontalPadding, 0.0f, contentWidth, Bounds.Height));
+            try
+            {
+                float textLeft = HorizontalPadding - _horizontalOffset;
+                if (focused && HasSelection)
+                {
+                    float selectionLeft = GetCaretPosition(SelectionStart);
+                    float selectionRight = GetCaretPosition(SelectionEnd);
+                    context.FillRoundedRectangle(
+                        new RoundedRectangle(
+                            new RectangleF(
+                                textLeft + selectionLeft,
+                                caretTop,
+                                selectionRight - selectionLeft,
+                                CaretHeight),
+                            0.0f,
+                            0.0f),
+                        context.Palette.Accent,
+                        SelectionOpacity);
+                }
+
+                context.DrawTextLayout(
+                    _textLayout!,
+                    new Vector2(textLeft, 0.0f),
+                    context.Palette.PrimaryText,
+                    DrawTextOptions.Clip);
+            }
+            finally
+            {
+                context.PopClip();
+            }
         }
 
-        if (HasVisualState(UiVisualState.Focused))
+        if (focused)
         {
-            float caretPosition = _caretPosition - _horizontalOffset;
-            float caretX = HorizontalPadding + Math.Clamp(caretPosition, 0.0f, contentWidth);
+            float caretX = HorizontalPadding + Math.Clamp(caretPosition - _horizontalOffset, 0.0f, contentWidth);
             context.FillRoundedRectangle(
                 new RoundedRectangle(
-                    new RectangleF(
-                        caretX,
-                        (Bounds.Height - CaretHeight) / 2.0f,
-                        CaretWidth,
-                        CaretHeight),
+                    new RectangleF(caretX, caretTop, CaretWidth, CaretHeight),
                     0.0f,
                     0.0f),
                 context.Palette.PrimaryText);
@@ -183,30 +237,84 @@ internal sealed class TextInput : UiElement, IDisposable
         _format.Dispose();
     }
 
-    private void DeletePreviousTextElement()
+    private bool Insert(string text)
     {
-        int previous = GetPreviousTextElementStart();
-        if (previous == CaretIndex)
+        string insertion = string.Concat(text.Where(character => !char.IsControl(character)));
+        if (insertion.Length == 0)
+        {
+            return false;
+        }
+
+        ReplaceSelection(insertion);
+        return true;
+    }
+
+    private void ReplaceSelection(string replacement)
+    {
+        if (!HasSelection && replacement.Length == 0)
         {
             return;
         }
 
-        _text = _text.Remove(previous, CaretIndex - previous);
-        CaretIndex = previous;
+        int start = SelectionStart;
+        _text = string.Concat(_text.AsSpan(0, start), replacement, _text.AsSpan(SelectionEnd));
+        _anchor = CaretIndex = start + replacement.Length;
         NotifyTextChanged();
     }
 
-    private void DeleteNextTextElement()
+    private void MoveCaret(int index, bool extend) => Select(extend ? _anchor : index, index);
+
+    private void Select(int anchor, int caret)
     {
-        int next = GetNextTextElementStart();
-        if (next == CaretIndex)
+        _anchor = anchor;
+        CaretIndex = caret;
+        InvalidateVisual();
+    }
+
+    private void SelectWordAt(int index)
+    {
+        if (_text.Length == 0)
         {
             return;
         }
 
-        _text = _text.Remove(CaretIndex, next - CaretIndex);
-        NotifyTextChanged();
+        index = Math.Min(index, _text.Length - 1);
+        CharacterClass run = GetCharacterClass(_text[index]);
+        Select(Scan(index, -1, run), Scan(index, 1, run));
     }
+
+    private int FindBoundary(int direction, bool word)
+    {
+        if (word)
+        {
+            int index = Scan(CaretIndex, direction, CharacterClass.Whitespace);
+            return GetAdjacentClass(index, direction) is { } run ? Scan(index, direction, run) : index;
+        }
+
+        return direction < 0 ? GetPreviousTextElementStart() : GetNextTextElementStart();
+    }
+
+    private int Scan(int index, int direction, CharacterClass run)
+    {
+        while (GetAdjacentClass(index, direction) == run)
+        {
+            index += direction;
+        }
+
+        return index;
+    }
+
+    private CharacterClass? GetAdjacentClass(int index, int direction)
+    {
+        int next = direction < 0 ? index - 1 : index;
+        return next >= 0 && next < _text.Length ? GetCharacterClass(_text[next]) : null;
+    }
+
+    // Surrogates and combining marks count as word characters, so a word boundary never splits a text element.
+    private static CharacterClass GetCharacterClass(char character) =>
+        char.IsWhiteSpace(character) ? CharacterClass.Whitespace
+        : char.IsPunctuation(character) || char.IsSymbol(character) ? CharacterClass.Punctuation
+        : CharacterClass.Word;
 
     private int GetPreviousTextElementStart()
     {
@@ -237,23 +345,38 @@ internal sealed class TextInput : UiElement, IDisposable
         return _text.Length;
     }
 
+    private (int Character, int Caret) HitTest(float x)
+    {
+        if (_textLayout is null)
+        {
+            return (0, 0);
+        }
+
+        _textLayout.HitTestPoint(
+            x - HorizontalPadding + _horizontalOffset,
+            Bounds.Height / 2.0f,
+            out RawBool isTrailingHit,
+            out _,
+            out HitTestMetrics metrics);
+        int character = (int)metrics.TextPosition;
+        return (character, isTrailingHit ? character + (int)metrics.Length : character);
+    }
+
+    private float GetCaretPosition(int index)
+    {
+        if (index == 0 || _textLayout is null)
+        {
+            return 0.0f;
+        }
+
+        _textLayout.HitTestTextPosition((uint)(index - 1), true, out float x, out _, out _);
+        return x;
+    }
+
     private void NotifyTextChanged()
     {
         UpdateTextLayout();
-        UpdateCaretPosition();
         TextChanged?.Invoke(_text);
-        InvalidateVisual();
-    }
-
-    private void SetCaretIndex(int index)
-    {
-        if (CaretIndex == index)
-        {
-            return;
-        }
-
-        CaretIndex = index;
-        UpdateCaretPosition();
         InvalidateVisual();
     }
 
@@ -270,23 +393,7 @@ internal sealed class TextInput : UiElement, IDisposable
         _textWidth = _textLayout?.Metrics.WidthIncludingTrailingWhitespace ?? 0.0f;
     }
 
-    private void UpdateCaretPosition()
-    {
-        if (CaretIndex == 0)
-        {
-            _caretPosition = 0.0f;
-            return;
-        }
-
-        using IDWriteTextLayout prefixLayout = _factory.CreateTextLayout(
-            _text[..CaretIndex],
-            _format,
-            100_000.0f,
-            38.0f);
-        _caretPosition = prefixLayout.Metrics.WidthIncludingTrailingWhitespace;
-    }
-
-    private void UpdateHorizontalOffset(float caretPosition, float textWidth, float contentWidth)
+    private void UpdateHorizontalOffset(float caretPosition, float contentWidth)
     {
         if (caretPosition < _horizontalOffset)
         {
@@ -297,23 +404,13 @@ internal sealed class TextInput : UiElement, IDisposable
             _horizontalOffset = caretPosition - contentWidth;
         }
 
-        _horizontalOffset = Math.Clamp(_horizontalOffset, 0.0f, MathF.Max(0.0f, textWidth - contentWidth));
+        _horizontalOffset = Math.Clamp(_horizontalOffset, 0.0f, MathF.Max(0.0f, _textWidth - contentWidth));
     }
 
-    private void DrawClippedText(in UiDrawContext context, float contentWidth)
+    private enum CharacterClass
     {
-        context.PushClip(new RectangleF(HorizontalPadding, 0.0f, contentWidth, Bounds.Height));
-        try
-        {
-            context.DrawTextLayout(
-                _textLayout!,
-                new Vector2(HorizontalPadding - _horizontalOffset, 0.0f),
-                context.Palette.PrimaryText,
-                DrawTextOptions.Clip);
-        }
-        finally
-        {
-            context.PopClip();
-        }
+        Whitespace,
+        Punctuation,
+        Word,
     }
 }

@@ -41,6 +41,7 @@ SetProcessDpiAwarenessContext
 OpenClipboard
 EmptyClipboard
 SetClipboardData
+GetClipboardData
 CloseClipboard
 
 // Gdi32
