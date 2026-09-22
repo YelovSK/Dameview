@@ -59,6 +59,9 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     /// </param>
     public DameviewApp(AppSettings startupSettings)
     {
+        // The software device does not need the window, so it is created alongside it.
+        Task<ID3D11Device> softwareDevice = Task.Run(
+            static () => D2DRenderer.CreateDevice(DriverType.Warp));
         _window = new AppWindow("Dameview", 1100, 720, startupSettings.Window);
         _uiContext = new WindowSynchronizationContext(_window.Post);
         SynchronizationContext.SetSynchronizationContext(_uiContext);
@@ -68,7 +71,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         StartupTrace.Mark("window");
         try
         {
-            ID3D11Device device = D2DRenderer.CreateDevice(DriverType.Warp);
+            ID3D11Device device = softwareDevice.GetAwaiter().GetResult();
             StartupTrace.Mark("warp-device");
             _renderer = new D2DRenderer(
                 _window.Handle,
