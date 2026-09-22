@@ -19,6 +19,9 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     internal const float DefaultSizeDips = AppSettings.DefaultGallerySizeDips;
 
     private const float DragThresholdDips = 4.0f;
+    // Labels are laid out at widths rounded down to this step, so resizing the panel reshapes
+    // them only when the width crosses a step rather than on every pointer move.
+    private const float LabelWidthStep = 8.0f;
     private static readonly UiFont LabelFont = new(12.0f, Alignment: TextAlignment.Center, Ellipsis: true);
 
     private ID2D1DeviceContext _thumbnailScaleContext;
@@ -125,12 +128,11 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
     /// <summary>
     /// Enters interactive-resize mode. While active, thumbnails are stretched
-    /// from their cached source bitmaps and labels are kept at their current
-    /// width so that each pointer move does not rebuild GPU bitmaps or text layouts.
+    /// from their cached source bitmaps so that each pointer move does not rebuild GPU bitmaps.
     /// </summary>
     internal void BeginLiveResize() => _liveResize = true;
 
-    /// <summary>Leaves interactive-resize mode and rebuilds thumbnails and labels at the final size.</summary>
+    /// <summary>Leaves interactive-resize mode and rebuilds thumbnails at the final size.</summary>
     internal void EndLiveResize()
     {
         if (!_liveResize)
@@ -379,10 +381,11 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         }
 
         RectangleF label = GalleryLayout.GetLabelBounds(itemBounds, GalleryItemSlot.LabelHeight);
+        float width = MathF.Floor(label.Width / LabelWidthStep) * LabelWidthStep;
         context.DrawText(
             entry.Name,
             LabelFont,
-            new Rect(label.X, label.Y, label.Width, label.Height),
+            new Rect(label.X + ((label.Width - width) / 2.0f), label.Y, width, label.Height),
             context.Palette.PrimaryText,
             DrawTextOptions.Clip);
     }
