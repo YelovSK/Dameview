@@ -12,16 +12,15 @@ internal enum UiButtonTone
     Danger,
 }
 
-internal sealed class Button : InteractiveControl, IDisposable
+internal sealed class Button : InteractiveControl
 {
     private readonly Action _clicked;
     private readonly float _backgroundInsetY;
-    private readonly IDWriteTextFormat _textFormat;
+    private readonly UiFont _font;
     private readonly UiButtonTone _tone;
     private string _label;
 
     internal Button(
-        IDWriteFactory directWriteFactory,
         string label,
         Action clicked,
         string fontFamily = UiTypography.FontFamily,
@@ -34,14 +33,7 @@ internal sealed class Button : InteractiveControl, IDisposable
         _clicked = clicked;
         _backgroundInsetY = backgroundInsetY;
         _tone = tone;
-        _textFormat = directWriteFactory.CreateTextFormat(
-            fontFamily,
-            FontWeight.SemiBold,
-            FontStyle.Normal,
-            fontSize);
-        _textFormat.TextAlignment = TextAlignment.Center;
-        _textFormat.ParagraphAlignment = ParagraphAlignment.Center;
-        _textFormat.WordWrapping = WordWrapping.NoWrap;
+        _font = new UiFont(fontSize, FontWeight.SemiBold, TextAlignment.Center, Family: fontFamily);
     }
 
     internal string Label
@@ -111,15 +103,10 @@ internal sealed class Button : InteractiveControl, IDisposable
 
         context.DrawText(
             Label,
-            _textFormat,
+            _font,
             new Rect(0.0f, 0.0f, width, height),
             IsEnabled ? textColor : context.Palette.SecondaryText,
             DrawTextOptions.Clip);
-    }
-
-    public void Dispose()
-    {
-        _textFormat.Dispose();
     }
 
     protected override void Activate() => _clicked();

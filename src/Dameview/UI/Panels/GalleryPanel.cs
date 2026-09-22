@@ -19,10 +19,9 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     internal const float DefaultSizeDips = AppSettings.DefaultGallerySizeDips;
 
     private const float DragThresholdDips = 4.0f;
+    private static readonly UiFont LabelFont = new(12.0f, Alignment: TextAlignment.Center, Ellipsis: true);
 
     private ID2D1DeviceContext _thumbnailScaleContext;
-    private readonly IDWriteTextFormat _labelFormat;
-    private readonly IDWriteInlineObject _ellipsisSign;
     private readonly IThumbnailImageLoader _thumbnailLoader;
     private readonly Action<string> _openImage;
     private readonly Action<string> _openInNewTab;
@@ -47,7 +46,6 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
     internal GalleryPanel(
         ID2D1DeviceContext deviceContext,
-        IDWriteFactory directWriteFactory,
         IThumbnailImageLoader thumbnailLoader,
         Action<string> openImage,
         Action<string> openInNewTab,
@@ -60,18 +58,6 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         _dragPointer = dragPointer;
         _scrollbar = new Scrollbar(SetScrollOffset);
         AddChild(_scrollbar);
-        _labelFormat = directWriteFactory.CreateTextFormat(
-            UiTypography.FontFamily,
-            FontWeight.Normal,
-            FontStyle.Normal,
-            12.0f);
-        _labelFormat.TextAlignment = TextAlignment.Center;
-        _labelFormat.ParagraphAlignment = ParagraphAlignment.Center;
-        _labelFormat.WordWrapping = WordWrapping.NoWrap;
-        _ellipsisSign = directWriteFactory.CreateEllipsisTrimmingSign(_labelFormat);
-        _labelFormat.SetTrimming(
-            new Trimming { Granularity = TrimmingGranularity.Character },
-            _ellipsisSign);
     }
 
     internal override bool PreservesFocusOnPointerPress => true;
@@ -324,8 +310,6 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     {
         ClearSlots();
         _thumbnailScaleContext.Dispose();
-        _ellipsisSign.Dispose();
-        _labelFormat.Dispose();
     }
 
     protected override bool UpdateCore(in UiUpdateContext context)
@@ -397,7 +381,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         RectangleF label = GalleryLayout.GetLabelBounds(itemBounds, GalleryItemSlot.LabelHeight);
         context.DrawText(
             entry.Name,
-            _labelFormat,
+            LabelFont,
             new Rect(label.X, label.Y, label.Width, label.Height),
             context.Palette.PrimaryText,
             DrawTextOptions.Clip);

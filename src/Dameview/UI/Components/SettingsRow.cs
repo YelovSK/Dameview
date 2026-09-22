@@ -1,22 +1,19 @@
 using System.Drawing;
 using Dameview.UI.Foundation;
 using Dameview.UI.Layout;
-using Vortice.DirectWrite;
 
 namespace Dameview.UI.Components;
 
-internal sealed class SettingsRow : UiElement, IDisposable
+internal sealed class SettingsRow : UiElement
 {
     private readonly TextBlock _label;
     private readonly StackPanel _stack;
 
     internal SettingsRow(
-        IDWriteFactory factory,
         string label,
         UiElement content)
     {
         _label = new TextBlock(
-            factory,
             label,
             UiTextStyle.Body,
             UiTextTone.Secondary,
@@ -38,6 +35,4 @@ internal sealed class SettingsRow : UiElement, IDisposable
     }
 
     protected override bool HitTestCore(PointF position) => false;
-
-    public void Dispose() => _label.Dispose();
 }

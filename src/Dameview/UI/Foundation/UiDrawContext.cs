@@ -57,11 +57,11 @@ internal readonly record struct UiDrawContext
         RenderTarget.DrawRoundedRectangle(innerRectangle, PrepareBrush(color, opacity), strokeWidth);
     }
 
-    internal void DrawText(string text, IDWriteTextFormat format, Rect bounds, Color4 color,
+    internal void DrawText(string text, UiFont font, Rect bounds, Color4 color,
         DrawTextOptions options = DrawTextOptions.None, float opacity = 1.0f)
     {
         IDWriteTextLayout layout = _textLayouts.Get(
-            text, format, new SizeF(bounds.Width, bounds.Height));
+            text, font, new SizeF(bounds.Width, bounds.Height));
         RenderTarget.DrawTextLayout(
             new Vector2(bounds.Left, bounds.Top),
             layout,

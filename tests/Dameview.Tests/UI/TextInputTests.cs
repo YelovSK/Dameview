@@ -2,8 +2,6 @@ using System.Drawing;
 using Dameview.UI.Components;
 using Dameview.UI.Foundation;
 using Dameview.Win32.Input;
-using Vortice.DirectWrite;
-using static Vortice.DirectWrite.DWrite;
 
 namespace Dameview.Tests.UI;
 
@@ -13,8 +11,7 @@ public sealed class TextInputTests
     [TestMethod]
     public void FocusedInputReceivesTextAndRaisesEachChangeImmediately()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
-        using var input = new TextInput(factory, "Filter commands");
+        var input = new TextInput("Filter commands");
         var root = new UiRoot(input, UiDpi.Default, TestTextLayouts.Shared);
         var changes = new List<string>();
         input.TextChanged += changes.Add;
@@ -33,8 +30,7 @@ public sealed class TextInputTests
     [TestMethod]
     public void BackspaceAndDeleteOperateOnWholeTextElements()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
-        using var input = new TextInput(factory) { Text = "A😀e\u0301" };
+        var input = new TextInput() { Text = "A😀e\u0301" };
 
         Assert.IsTrue(input.OnKeyEvent(new WindowKeyEvent(WindowKey.Backspace)));
         Assert.AreEqual("A😀", input.Text);
@@ -51,8 +47,7 @@ public sealed class TextInputTests
     [TestMethod]
     public void TypingReplacesTheSelection()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
-        using var input = new TextInput(factory) { Text = "hello world" };
+        var input = new TextInput() { Text = "hello world" };
 
         input.OnKeyEvent(new WindowKeyEvent(WindowKey.Left, Shift: true, Control: true));
         Assert.AreEqual("world", input.SelectedText);
@@ -67,8 +62,7 @@ public sealed class TextInputTests
     [TestMethod]
     public void ArrowsCollapseTheSelectionToItsEdges()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
-        using var input = new TextInput(factory) { Text = "abcd" };
+        var input = new TextInput() { Text = "abcd" };
         input.OnKeyEvent(new WindowKeyEvent(WindowKey.Left, Shift: true));
         input.OnKeyEvent(new WindowKeyEvent(WindowKey.Left, Shift: true));
 
@@ -81,8 +75,7 @@ public sealed class TextInputTests
     [TestMethod]
     public void ControlMovesAndDeletesByWord()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
-        using var input = new TextInput(factory) { Text = "open file.png  " };
+        var input = new TextInput() { Text = "open file.png  " };
 
         input.OnKeyEvent(new WindowKeyEvent(WindowKey.Backspace, Control: true));
         Assert.AreEqual("open file.", input.Text);
@@ -99,8 +92,7 @@ public sealed class TextInputTests
     [TestMethod]
     public void UnhandledKeysBubbleFromTheInputToItsParent()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
-        using var input = new TextInput(factory);
+        var input = new TextInput();
         var parent = new KeyContainer(input);
         var root = new UiRoot(parent, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(300.0f, 100.0f));

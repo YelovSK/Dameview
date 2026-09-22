@@ -50,19 +50,16 @@ internal sealed class InstallerUi : UiElement, IDisposable
         _request = request;
         (string title, string description) = GetCopy(request);
         _title = new TextBlock(
-            directWriteFactory,
             title,
             UiTextStyle.Heading,
             UiTextTone.Primary,
             UiTextWrapping.NoWrap);
         _description = new TextBlock(
-            directWriteFactory,
             description,
             UiTextStyle.Body,
             UiTextTone.Secondary,
             UiTextWrapping.Wrap);
         _location = new TextBlock(
-            directWriteFactory,
             request.Action == AppInstallationAction.Uninstall
                 ? $"Installed in {AppInstallation.InstallDirectory}"
                 : $"Install to {AppInstallation.InstallDirectory}",
@@ -70,7 +67,6 @@ internal sealed class InstallerUi : UiElement, IDisposable
             UiTextTone.Secondary,
             UiTextWrapping.NoWrap);
         _status = new TextBlock(
-            directWriteFactory,
             string.Empty,
             UiTextStyle.Body,
             UiTextTone.Error,
@@ -78,16 +74,14 @@ internal sealed class InstallerUi : UiElement, IDisposable
         {
             IsVisible = false,
         };
-        _primaryButton = new Button(directWriteFactory, GetPrimaryLabel(request.Action), primaryAction)
+        _primaryButton = new Button(GetPrimaryLabel(request.Action), primaryAction)
         {
             IsSelected = true,
         };
         _secondaryButton = new Button(
-            directWriteFactory,
             request.Action == AppInstallationAction.Uninstall ? "Cancel" : "Run Portable",
             secondaryAction);
         _uninstallButton = new Button(
-            directWriteFactory,
             "Uninstall",
             uninstall,
             tone: UiButtonTone.Danger)
@@ -264,13 +258,6 @@ internal sealed class InstallerUi : UiElement, IDisposable
     {
         _root.ClearPointer();
         _root.SetFocus(null);
-        _title.Dispose();
-        _description.Dispose();
-        _location.Dispose();
-        _status.Dispose();
-        _primaryButton.Dispose();
-        _secondaryButton.Dispose();
-        _uninstallButton.Dispose();
         _textLayouts.Dispose();
         _brush.Dispose();
     }

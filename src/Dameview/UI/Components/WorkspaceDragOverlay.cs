@@ -20,10 +20,9 @@ internal sealed class WorkspaceDragOverlay : UiElement, IDisposable
     private const float PreviewInset = 6.0f;
     private const float PreviewFillOpacity = 0.18f;
     private const double PreviewResponse = 28.0;
+    private static readonly UiFont LabelFont = new(12.0f, FontWeight.SemiBold, TextAlignment.Center, Ellipsis: true);
 
     private readonly IThumbnailImageLoader _thumbnailLoader;
-    private readonly IDWriteTextFormat _labelFormat;
-    private readonly IDWriteInlineObject _ellipsisSign;
     // Where the dragged item would land. It glides between landing spots and fades
     // in and out as the pointer enters or leaves one.
     private readonly AnimatedRectangle _preview = new(PreviewResponse);
@@ -36,21 +35,9 @@ internal sealed class WorkspaceDragOverlay : UiElement, IDisposable
     private PointF _pointer;
     private RectangleF _insertionMarker;
 
-    internal WorkspaceDragOverlay(IDWriteFactory factory, IThumbnailImageLoader thumbnailLoader)
+    internal WorkspaceDragOverlay(IThumbnailImageLoader thumbnailLoader)
     {
         _thumbnailLoader = thumbnailLoader;
-        _labelFormat = factory.CreateTextFormat(
-            UiTypography.FontFamily,
-            FontWeight.SemiBold,
-            FontStyle.Normal,
-            12.0f);
-        _labelFormat.TextAlignment = TextAlignment.Center;
-        _labelFormat.ParagraphAlignment = ParagraphAlignment.Center;
-        _labelFormat.WordWrapping = WordWrapping.NoWrap;
-        _ellipsisSign = factory.CreateEllipsisTrimmingSign(_labelFormat);
-        _labelFormat.SetTrimming(
-            new Trimming { Granularity = TrimmingGranularity.Character },
-            _ellipsisSign);
         IsVisible = false;
     }
 
@@ -150,12 +137,7 @@ internal sealed class WorkspaceDragOverlay : UiElement, IDisposable
         DrawGhost(context.WithOpacity(GhostOpacity));
     }
 
-    public void Dispose()
-    {
-        ReleaseThumbnail();
-        _ellipsisSign.Dispose();
-        _labelFormat.Dispose();
-    }
+    public void Dispose() => ReleaseThumbnail();
 
     private void ReleaseThumbnail()
     {
@@ -189,7 +171,7 @@ internal sealed class WorkspaceDragOverlay : UiElement, IDisposable
 
         context.DrawText(
             _label,
-            _labelFormat,
+            LabelFont,
             new Rect(
                 bounds.X + GhostPadding,
                 bounds.Bottom - GhostLabelHeight,

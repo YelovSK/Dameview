@@ -7,16 +7,15 @@ using Vortice.Mathematics;
 
 namespace Dameview.UI.Panels;
 
-internal sealed class StatusPanel : UiElement, IDisposable
+internal sealed class StatusPanel : UiElement
 {
     internal const float HeightDips = 32.0f;
 
     private const float HorizontalPadding = 12.0f;
     private const float TextGap = 12.0f;
     private const float MaximumWidth = 720.0f;
+    private static readonly UiFont TextFont = new(13.0f, FontWeight.Medium);
 
-    private readonly IDWriteTextFormat _fileNameFormat;
-    private readonly IDWriteTextFormat _detailsFormat;
     private readonly AnimatedFloat _visibility;
     private string _fileName = string.Empty;
     private string _details = string.Empty;
@@ -25,12 +24,9 @@ internal sealed class StatusPanel : UiElement, IDisposable
     private float _detailsX;
     private bool _pointerNear;
 
-    internal StatusPanel(
-        IDWriteFactory directWriteFactory)
+    internal StatusPanel()
     {
         _visibility = Animate(0.0f, 14.0);
-        _fileNameFormat = CreateFormat(directWriteFactory, TextAlignment.Leading);
-        _detailsFormat = CreateFormat(directWriteFactory, TextAlignment.Leading);
     }
 
     private ViewerStatus Status { get; set; }
@@ -83,12 +79,12 @@ internal sealed class StatusPanel : UiElement, IDisposable
             ? MathF.Min(MaximumWidth, MathF.Max(0.0f, availableSize.Width))
             : MaximumWidth;
         float contentWidth = MathF.Max(0.0f, maximumWidth - (2.0f * HorizontalPadding));
-        _detailsWidth = MathF.Min(MeasureText(_details, _detailsFormat), contentWidth);
+        _detailsWidth = MathF.Min(MeasureText(_details), contentWidth);
 
         float remainingWidth = MathF.Max(0.0f, contentWidth - _detailsWidth);
         float gap = _detailsWidth > 0.0f && remainingWidth > TextGap ? TextGap : 0.0f;
         _fileNameWidth = MathF.Min(
-            MeasureText(_fileName, _fileNameFormat),
+            MeasureText(_fileName),
             MathF.Max(0.0f, remainingWidth - gap));
         _detailsX = HorizontalPadding + _fileNameWidth + gap;
 
@@ -114,7 +110,7 @@ internal sealed class StatusPanel : UiElement, IDisposable
 
         context.DrawText(
             _fileName,
-            _fileNameFormat,
+            TextFont,
             new Rect(HorizontalPadding, 0.0f, _fileNameWidth, height),
             Status.Message is not null
                 ? (Status.IsError ? context.Palette.ErrorText : context.Palette.SecondaryText)
@@ -124,17 +120,11 @@ internal sealed class StatusPanel : UiElement, IDisposable
         {
             context.DrawText(
                 _details,
-                _detailsFormat,
+                TextFont,
                 new Rect(_detailsX, 0.0f, _detailsWidth, height),
                 context.Palette.SecondaryText,
                 DrawTextOptions.Clip);
         }
-    }
-
-    public void Dispose()
-    {
-        _detailsFormat.Dispose();
-        _fileNameFormat.Dispose();
     }
 
     private static (string FileName, string Details) GetText(ViewerStatus status)
@@ -152,7 +142,7 @@ internal sealed class StatusPanel : UiElement, IDisposable
             $"{status.ImageWidth} × {status.ImageHeight}{size}   {status.ZoomPercentage:0}%");
     }
 
-    private float MeasureText(string text, IDWriteTextFormat format)
+    private float MeasureText(string text)
     {
         if (text.Length == 0)
         {
@@ -160,7 +150,7 @@ internal sealed class StatusPanel : UiElement, IDisposable
         }
 
         return TextLayouts
-            .Get(text, format, new SizeF(MaximumWidth, HeightDips))
+            .Get(text, TextFont, new SizeF(MaximumWidth, HeightDips))
             .Metrics.WidthIncludingTrailingWhitespace;
     }
 
@@ -171,21 +161,6 @@ internal sealed class StatusPanel : UiElement, IDisposable
         {
             InvalidateVisual();
         }
-    }
-
-    private static IDWriteTextFormat CreateFormat(
-        IDWriteFactory factory,
-        TextAlignment textAlignment)
-    {
-        IDWriteTextFormat format = factory.CreateTextFormat(
-            UiTypography.FontFamily,
-            FontWeight.Medium,
-            FontStyle.Normal,
-            13.0f);
-        format.TextAlignment = textAlignment;
-        format.ParagraphAlignment = ParagraphAlignment.Center;
-        format.WordWrapping = WordWrapping.NoWrap;
-        return format;
     }
 }
 

@@ -1,8 +1,6 @@
 using System.Drawing;
 using Dameview.UI.Components;
 using Dameview.UI.Foundation;
-using Vortice.DirectWrite;
-using static Vortice.DirectWrite.DWrite;
 
 namespace Dameview.Tests.UI;
 
@@ -12,9 +10,7 @@ public sealed class TextBlockTests
     [TestMethod]
     public void WrappedTextMeasuresEnoughHeightForEveryLine()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
-        using var text = new TextBlock(
-            factory,
+        var text = new TextBlock(
             "Updates are only available when running the installed copy of Dameview.",
             UiTextStyle.Body,
             UiTextTone.Secondary,

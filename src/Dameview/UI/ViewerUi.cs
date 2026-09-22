@@ -76,7 +76,6 @@ internal sealed class ViewerUi : UiElement, IDisposable
             // Reads the field, so panes opened after a device switch use the live context.
             pane => new ViewerPaneView(
                 _deviceContext,
-                directWriteFactory,
                 pane,
                 commands,
                 index => commands.SelectTab(pane, index),
@@ -90,15 +89,14 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _activePaneView = FindPaneView(_activePane)
             ?? throw new InvalidOperationException("The active pane view was not created.");
         _workspaceView.SetActivePane(_activePane);
-        _dragOverlay = new WorkspaceDragOverlay(directWriteFactory, thumbnailLoader);
+        _dragOverlay = new WorkspaceDragOverlay(thumbnailLoader);
         _dragController = new WorkspaceDragController(this, _workspaceView, _dragOverlay, commands);
-        _performanceOverlay = new PerformanceOverlay(directWriteFactory, performanceMonitor)
+        _performanceOverlay = new PerformanceOverlay(performanceMonitor)
         {
             IsVisible = false,
         };
         _galleryPanel = new GalleryPanel(
             deviceContext,
-            directWriteFactory,
             thumbnailLoader,
             commands.SelectImage,
             commands.OpenImageInNewTab,
@@ -114,15 +112,13 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _splitView.ResizeCompleted += () => commands.UpdateSettings(
             settings => settings with { GallerySizeDips = _splitView.DividerOffsetDips });
         _modalHost = new ModalHost();
-        _toastHost = new ToastHost(directWriteFactory, toasts);
+        _toastHost = new ToastHost(toasts);
         _popupHost = new PopupHost();
         _settingsPanel = new SettingsPanel(
-            directWriteFactory,
             _popupHost,
             CloseModal,
             commands);
         _commandPalettePanel = new CommandPalettePanel(
-            directWriteFactory,
             ViewerCommandCatalog.Commands,
             ViewerKeyBindings.Defaults,
             command =>
@@ -478,11 +474,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
         _galleryStates.Clear();
         _dragOverlay.Dispose();
-        _performanceOverlay.Dispose();
         _toastHost.Dispose();
         _tabPreview.Dispose();
-        _commandPalettePanel.Dispose();
-        _settingsPanel.Dispose();
         _galleryPanel.Dispose();
         _workspaceView.Dispose();
         _textLayouts.Dispose();

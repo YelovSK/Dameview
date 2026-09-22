@@ -25,16 +25,15 @@ internal enum UiTextWrapping
     Wrap,
 }
 
-internal sealed class TextBlock : UiElement, IDisposable
+internal sealed class TextBlock : UiElement
 {
-    private readonly IDWriteTextFormat _format;
+    private readonly UiFont _font;
     private readonly float _lineHeight;
     private readonly UiTextWrapping _wrapping;
     private string _text;
     private UiTextTone _tone;
 
     internal TextBlock(
-        IDWriteFactory factory,
         string text,
         UiTextStyle style,
         UiTextTone tone,
@@ -44,14 +43,11 @@ internal sealed class TextBlock : UiElement, IDisposable
         _tone = tone;
         _wrapping = wrapping;
         _lineHeight = style == UiTextStyle.Heading ? 36.0f : 24.0f;
-        _format = factory.CreateTextFormat(
-            UiTypography.FontFamily,
+        _font = new UiFont(
+            style == UiTextStyle.Heading ? UiDesign.HeadingFontSize : UiDesign.BodyFontSize,
             style == UiTextStyle.Heading ? FontWeight.SemiBold : FontWeight.Normal,
-            FontStyle.Normal,
-            style == UiTextStyle.Heading ? UiDesign.HeadingFontSize : UiDesign.BodyFontSize);
-        _format.WordWrapping = wrapping == UiTextWrapping.Wrap
-            ? WordWrapping.Wrap
-            : WordWrapping.NoWrap;
+            VerticalAlignment: ParagraphAlignment.Near,
+            Wrapping: wrapping == UiTextWrapping.Wrap ? WordWrapping.Wrap : WordWrapping.NoWrap);
     }
 
     internal string Text
@@ -93,7 +89,7 @@ internal sealed class TextBlock : UiElement, IDisposable
             return new SizeF(width, _lineHeight);
         }
 
-        float height = TextLayouts.Get(Text, _format, new SizeF(width, 100_000.0f)).Metrics.Height;
+        float height = TextLayouts.Get(Text, _font, new SizeF(width, 100_000.0f)).Metrics.Height;
         return new SizeF(width, MathF.Max(_lineHeight, height));
     }
 
@@ -101,7 +97,7 @@ internal sealed class TextBlock : UiElement, IDisposable
     {
         context.DrawText(
             Text,
-            _format,
+            _font,
             new Rect(0.0f, 0.0f, Bounds.Width, Bounds.Height),
             Tone switch
             {
@@ -114,6 +110,4 @@ internal sealed class TextBlock : UiElement, IDisposable
     }
 
     protected override bool HitTestCore(PointF position) => false;
-
-    public void Dispose() => _format.Dispose();
 }

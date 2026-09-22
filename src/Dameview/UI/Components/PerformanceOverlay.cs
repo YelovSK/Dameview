@@ -8,46 +8,41 @@ using Vortice.Mathematics;
 
 namespace Dameview.UI.Components;
 
-internal sealed class PerformanceOverlay : UiElement, IDisposable
+internal sealed class PerformanceOverlay : UiElement
 {
     private const float Padding = 10.0f;
     private const float ColumnWidth = 72.0f;
     private const float MaximumTextWidth = 1024.0f;
     private const float MaximumTextHeight = 256.0f;
     private static readonly long TextRefreshTicks = (long)(Stopwatch.Frequency * 0.25);
+    private static readonly UiFont TextFont = new(
+        13.0f,
+        FontWeight.Medium,
+        VerticalAlignment: ParagraphAlignment.Near,
+        Wrapping: WordWrapping.Wrap,
+        TabStop: ColumnWidth);
 
     /// <summary>How often an otherwise idle window repaints while the overlay is visible.</summary>
     internal static readonly TimeSpan HeartbeatInterval = TimeSpan.FromMilliseconds(500.0);
 
-    private readonly IDWriteFactory _directWriteFactory;
-    private readonly IDWriteTextFormat _textFormat;
     private readonly PerformanceMonitor _monitor;
-    private IDWriteTextLayout? _textLayout;
+    private string? _text;
     private PerformanceSnapshot _lastActiveSnapshot;
     private SizeF _textSize;
     private long _lastTextRefresh;
 
-    internal PerformanceOverlay(IDWriteFactory directWriteFactory, PerformanceMonitor monitor)
+    internal PerformanceOverlay(PerformanceMonitor monitor)
     {
-        _directWriteFactory = directWriteFactory;
         _monitor = monitor;
-        _textFormat = directWriteFactory.CreateTextFormat(
-            UiTypography.FontFamily,
-            FontWeight.Medium,
-            FontStyle.Normal,
-            13.0f);
-        _textFormat.ParagraphAlignment = ParagraphAlignment.Near;
-        _textFormat.TextAlignment = TextAlignment.Leading;
-        _textFormat.IncrementalTabStop = ColumnWidth;
     }
 
     internal override bool IsHitTestVisible => false;
 
     protected override SizeF MeasureCore(SizeF availableSize)
     {
-        if (_textLayout is null)
+        if (_text is null)
         {
-            RefreshTextLayout();
+            RefreshText();
         }
 
         return new SizeF(
@@ -58,10 +53,10 @@ internal sealed class PerformanceOverlay : UiElement, IDisposable
     protected override bool UpdateCore(in UiUpdateContext context)
     {
         long now = Stopwatch.GetTimestamp();
-        if (_textLayout is null || now - _lastTextRefresh >= TextRefreshTicks)
+        if (_text is null || now - _lastTextRefresh >= TextRefreshTicks)
         {
             SizeF previousTextSize = _textSize;
-            RefreshTextLayout();
+            RefreshText();
             _lastTextRefresh = now;
 
             // Only when the panel actually grew: InvalidateLayout also requests a
@@ -88,23 +83,20 @@ internal sealed class PerformanceOverlay : UiElement, IDisposable
             UiDesign.PanelCornerRadius);
         context.FillRoundedRectangle(panel, context.Palette.OverlaySurface, 0.94f);
         context.DrawRoundedRectangle(panel, context.Palette.SurfaceBorder);
-        if (_textLayout is not null)
+        if (_text is not null)
         {
             context.DrawTextLayout(
-                _textLayout,
+                GetTextLayout(_text),
                 new System.Numerics.Vector2(Padding, Padding),
                 context.Palette.PrimaryText,
                 DrawTextOptions.Clip);
         }
     }
 
-    public void Dispose()
-    {
-        _textLayout?.Dispose();
-        _textFormat.Dispose();
-    }
+    private IDWriteTextLayout GetTextLayout(string text) =>
+        TextLayouts.Get(text, TextFont, new SizeF(MaximumTextWidth, MaximumTextHeight));
 
-    private void RefreshTextLayout()
+    private void RefreshText()
     {
         // The window empties whenever the app stops rendering, so keep showing the last
         // measured burst and mark it stale instead of dropping what the user stopped to read.
@@ -134,15 +126,11 @@ internal sealed class PerformanceOverlay : UiElement, IDisposable
             + FormatMemory(snapshot)
             + $"Alloc\t{snapshot.Memory.AllocatedBytesPerSecond / (1024.0 * 1024.0):0.0} MB/s\n";
 
-        _textLayout?.Dispose();
-        _textLayout = _directWriteFactory.CreateTextLayout(
-            text,
-            _textFormat,
-            MaximumTextWidth,
-            MaximumTextHeight);
+        _text = text;
+        TextMetrics metrics = GetTextLayout(text).Metrics;
         _textSize = new SizeF(
-            MathF.Max(_textSize.Width, MathF.Ceiling(_textLayout.Metrics.WidthIncludingTrailingWhitespace)),
-            MathF.Max(_textSize.Height, MathF.Ceiling(_textLayout.Metrics.Height)));
+            MathF.Max(_textSize.Width, MathF.Ceiling(metrics.WidthIncludingTrailingWhitespace)),
+            MathF.Max(_textSize.Height, MathF.Ceiling(metrics.Height)));
     }
 
     private static string FormatMemory(PerformanceSnapshot snapshot) =>

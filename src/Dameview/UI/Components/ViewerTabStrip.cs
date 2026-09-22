@@ -9,7 +9,7 @@ using Vortice.Mathematics;
 
 namespace Dameview.UI.Components;
 
-internal sealed class ViewerTabStrip : UiElement, IDisposable
+internal sealed class ViewerTabStrip : UiElement
 {
     internal const float HeightDips = 36.0f;
 
@@ -19,10 +19,9 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
     private const float LabelPaddingDips = 12.0f;
     private const float WheelStepDips = 120.0f;
     private const float DragThresholdDips = 4.0f;
+    private static readonly UiFont LabelFont = new(UiDesign.BodyFontSize, FontWeight.SemiBold, Ellipsis: true);
+    private static readonly UiFont CloseFont = new(16.0f, Alignment: TextAlignment.Center);
 
-    private readonly IDWriteTextFormat _labelFormat;
-    private readonly IDWriteTextFormat _closeFormat;
-    private readonly IDWriteInlineObject _ellipsisSign;
     private readonly Button _addButton;
     private readonly Action<int> _selectionChanged;
     private readonly Action<int> _closeRequested;
@@ -39,7 +38,6 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
     private float _viewportWidth = -1.0f;
 
     internal ViewerTabStrip(
-        IDWriteFactory factory,
         IReadOnlyList<ViewerTabInfo> tabs,
         int selectedIndex,
         Action<int> selectionChanged,
@@ -52,22 +50,7 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
         _closeRequested = closeRequested;
         _hoveredTabChanged = hoveredTabChanged;
         _dragPointer = dragPointer;
-        _labelFormat = factory.CreateTextFormat(
-            UiTypography.FontFamily, FontWeight.SemiBold, FontStyle.Normal, UiDesign.BodyFontSize);
-        _labelFormat.TextAlignment = TextAlignment.Leading;
-        _labelFormat.ParagraphAlignment = ParagraphAlignment.Center;
-        _labelFormat.WordWrapping = WordWrapping.NoWrap;
-        _ellipsisSign = factory.CreateEllipsisTrimmingSign(_labelFormat);
-        _labelFormat.SetTrimming(
-            new Trimming { Granularity = TrimmingGranularity.Character },
-            _ellipsisSign);
-        _closeFormat = factory.CreateTextFormat(
-            UiTypography.FontFamily, FontWeight.Normal, FontStyle.Normal, 16.0f);
-        _closeFormat.TextAlignment = TextAlignment.Center;
-        _closeFormat.ParagraphAlignment = ParagraphAlignment.Center;
-        _closeFormat.WordWrapping = WordWrapping.NoWrap;
         _addButton = new Button(
-            factory,
             "+",
             addRequested,
             fontSize: 18.0f,
@@ -288,14 +271,6 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
         }
     }
 
-    public void Dispose()
-    {
-        _addButton.Dispose();
-        _ellipsisSign.Dispose();
-        _closeFormat.Dispose();
-        _labelFormat.Dispose();
-    }
-
     private float ContentWidth => _tabs.Length * TabWidthDips
         + Math.Max(0, _tabs.Length - 1) * UiDesign.SmallSpacing;
 
@@ -327,7 +302,7 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
 
         context.DrawText(
             _tabs[index].Label,
-            _labelFormat,
+            LabelFont,
             new Rect(
                 x + LabelPaddingDips,
                 0.0f,
@@ -358,7 +333,7 @@ internal sealed class ViewerTabStrip : UiElement, IDisposable
 
         context.DrawText(
             "×",
-            _closeFormat,
+            CloseFont,
             closeBounds,
             context.Palette.PrimaryText,
             DrawTextOptions.Clip);

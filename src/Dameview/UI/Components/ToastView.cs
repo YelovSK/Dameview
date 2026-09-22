@@ -10,35 +10,28 @@ using Vortice.Mathematics;
 namespace Dameview.UI.Components;
 
 /// <summary>One message in the toast stack, which slides in and fades out on its way back.</summary>
-internal sealed class ToastView : UiElement, IDisposable
+internal sealed class ToastView : UiElement
 {
     internal const float Width = 320.0f;
     internal const float VerticalPadding = 12.0f;
 
     private const float HorizontalPadding = 14.0f;
     private const float DismissWidth = 32.0f;
-    private const float FontSize = 13.0f;
     private const double Response = 20.0;
     private const float EntryOffset = 24.0f;
+    // The layout is measured in a tall box, so the text has to start at its top.
+    private static readonly UiFont MessageFont = new(
+        13.0f, VerticalAlignment: ParagraphAlignment.Near, Wrapping: WordWrapping.Wrap);
 
-    private readonly IDWriteTextFormat _format;
     private readonly DismissButton _dismiss;
     private readonly AnimatedFloat _shift;
     private float? _top;
 
-    internal ToastView(IDWriteFactory factory, Toast toast, Action dismissed)
+    internal ToastView(Toast toast, Action dismissed)
     {
         Toast = toast;
         _shift = Animate(0.0f, Response, completionDistance: 0.25f);
-        _format = factory.CreateTextFormat(
-            UiTypography.FontFamily,
-            FontWeight.Normal,
-            FontStyle.Normal,
-            FontSize);
-        // The layout is measured in a tall box, so the text has to start at its top.
-        _format.ParagraphAlignment = ParagraphAlignment.Near;
-        _format.WordWrapping = WordWrapping.Wrap;
-        _dismiss = new DismissButton(factory, dismissed);
+        _dismiss = new DismissButton(dismissed);
         AddChild(_dismiss);
         Transition = new UiTransition(Fade: true, HiddenOffset: new PointF(EntryOffset, 0.0f), Response: Response);
         // Absent until the host adds it, so that it enters rather than starting in place.
@@ -109,12 +102,6 @@ internal sealed class ToastView : UiElement, IDisposable
             DrawTextOptions.Clip);
     }
 
-    public void Dispose()
-    {
-        _dismiss.Dispose();
-        _format.Dispose();
-    }
-
     private Color4 GetAccent(UiTheme palette) => Toast.Severity switch
     {
         ToastSeverity.Success => palette.SuccessText,
@@ -125,14 +112,12 @@ internal sealed class ToastView : UiElement, IDisposable
 
     private IDWriteTextLayout Layout => TextLayouts.Get(
         Toast.Message,
-        _format,
+        MessageFont,
         new SizeF(Width - HorizontalPadding - DismissWidth, 10_000.0f));
 
-    private sealed class DismissButton(IDWriteFactory factory, Action dismissed) : InteractiveControl, IDisposable
+    private sealed class DismissButton(Action dismissed) : InteractiveControl
     {
-        private const float GlyphSize = 15.0f;
-
-        private readonly IDWriteTextFormat _format = CreateFormat(factory);
+        private static readonly UiFont GlyphFont = new(15.0f, FontWeight.SemiBold, TextAlignment.Center);
 
         protected override SizeF MeasureCore(SizeF availableSize) => availableSize;
 
@@ -141,26 +126,11 @@ internal sealed class ToastView : UiElement, IDisposable
             Color4 text = context.Palette.SecondaryText;
             context.DrawText(
                 "×",
-                _format,
+                GlyphFont,
                 new Rect(0.0f, 0.0f, Bounds.Width, Bounds.Height),
                 HoverAmount > 0.0f ? context.Palette.PrimaryText : text);
         }
 
-        public void Dispose() => _format.Dispose();
-
         protected override void Activate() => dismissed();
-
-        private static IDWriteTextFormat CreateFormat(IDWriteFactory factory)
-        {
-            IDWriteTextFormat format = factory.CreateTextFormat(
-                UiTypography.FontFamily,
-                FontWeight.SemiBold,
-                FontStyle.Normal,
-                GlyphSize);
-            format.TextAlignment = TextAlignment.Center;
-            format.ParagraphAlignment = ParagraphAlignment.Center;
-            format.WordWrapping = WordWrapping.NoWrap;
-            return format;
-        }
     }
 }

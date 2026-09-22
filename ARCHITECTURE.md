@@ -85,7 +85,7 @@ Layout uses a measure-and-arrange pass in device-independent pixels. `UiRoot` re
 
 `AppWindow` reports pointer positions in physical pixels. `UiRoot` converts them to device-independent pixels, hit-tests the tree from front to back, and bubbles pointer events from the target through its ancestors. The root also owns hover, keyboard focus, pointer capture, cursor selection, focus navigation, and routing of key and text input.
 
-`ViewerUi.Update` advances animations and reports whether another frame is needed. During rendering, `UiDrawContext` walks the tree recursively and applies each element's position, clip, and inherited opacity before drawing it with Direct2D. `D2DRenderer` owns the graphics device, swap chain, and frame lifecycle. UI objects may retain element-specific DirectWrite and Direct2D resources that are expensive to recreate. `UiDrawContext` is frame-local and carries borrowed drawing state through the tree.
+`ViewerUi.Update` advances animations and reports whether another frame is needed. During rendering, `UiDrawContext` walks the tree recursively and applies each element's position, clip, and inherited opacity before drawing it with Direct2D. `D2DRenderer` owns the graphics device, swap chain, and frame lifecycle. UI objects may retain element-specific Direct2D resources that are expensive to recreate. Text is described by `UiFont` values, and the root's `UiTextLayoutCache` owns the DirectWrite formats and layouts behind them. `UiDrawContext` is frame-local and carries borrowed drawing state through the tree.
 
 ## Image representations and caching
 

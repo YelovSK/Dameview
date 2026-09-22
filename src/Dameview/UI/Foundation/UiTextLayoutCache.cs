@@ -1,5 +1,4 @@
 using System.Drawing;
-using System.Runtime.CompilerServices;
 using Vortice.DirectWrite;
 
 namespace Dameview.UI.Foundation;
@@ -18,6 +17,10 @@ namespace Dameview.UI.Foundation;
 /// makes that safe is the capacity: eviction takes the least recently used entry, so nothing a
 /// frame has already asked for can be thrown away while that frame is still drawing.
 /// </para>
+/// <para>
+/// The formats the layouts are built from live here too, one per distinct <see cref="UiFont"/>.
+/// The UI uses only a handful, so they are kept until the cache is disposed.
+/// </para>
 /// </remarks>
 internal sealed class UiTextLayoutCache : IDisposable
 {
@@ -25,6 +28,7 @@ internal sealed class UiTextLayoutCache : IDisposable
     private const int Capacity = 512;
 
     private readonly IDWriteFactory _factory;
+    private readonly Dictionary<UiFont, Format> _formats = [];
     private readonly Dictionary<Key, LinkedListNode<Entry>> _entries = [];
     private readonly LinkedList<Entry> _recentlyUsed = new();
 
@@ -36,11 +40,10 @@ internal sealed class UiTextLayoutCache : IDisposable
 
     internal int Count => _entries.Count;
 
-    internal IDWriteTextLayout Get(string text, IDWriteTextFormat format, SizeF maxSize)
+    internal IDWriteTextLayout Get(string text, UiFont font, SizeF maxSize)
     {
         ArgumentNullException.ThrowIfNull(text);
-        ArgumentNullException.ThrowIfNull(format);
-        var key = new Key(text, format, maxSize.Width, maxSize.Height);
+        var key = new Key(text, font, maxSize.Width, maxSize.Height);
         if (_entries.TryGetValue(key, out LinkedListNode<Entry>? cached))
         {
             _recentlyUsed.Remove(cached);
@@ -49,7 +52,7 @@ internal sealed class UiTextLayoutCache : IDisposable
         }
 
         IDWriteTextLayout layout = _factory.CreateTextLayout(
-            text, format, maxSize.Width, maxSize.Height);
+            text, GetFormat(font), maxSize.Width, maxSize.Height);
         _entries.Add(key, _recentlyUsed.AddFirst(new Entry(key, layout)));
         Trim();
         return layout;
@@ -64,6 +67,41 @@ internal sealed class UiTextLayoutCache : IDisposable
 
         _recentlyUsed.Clear();
         _entries.Clear();
+        foreach (Format format in _formats.Values)
+        {
+            format.TextFormat.Dispose();
+            format.EllipsisSign?.Dispose();
+        }
+
+        _formats.Clear();
+    }
+
+    private IDWriteTextFormat GetFormat(UiFont font)
+    {
+        if (_formats.TryGetValue(font, out Format cached))
+        {
+            return cached.TextFormat;
+        }
+
+        IDWriteTextFormat format = _factory.CreateTextFormat(
+            font.Family, font.Weight, FontStyle.Normal, font.Size);
+        format.TextAlignment = font.Alignment;
+        format.ParagraphAlignment = font.VerticalAlignment;
+        format.WordWrapping = font.Wrapping;
+        if (font.TabStop is float tabStop)
+        {
+            format.IncrementalTabStop = tabStop;
+        }
+
+        IDWriteInlineObject? ellipsisSign = null;
+        if (font.Ellipsis)
+        {
+            ellipsisSign = _factory.CreateEllipsisTrimmingSign(format);
+            format.SetTrimming(new Trimming { Granularity = TrimmingGranularity.Character }, ellipsisSign);
+        }
+
+        _formats.Add(font, new Format(format, ellipsisSign));
+        return format;
     }
 
     private void Trim()
@@ -77,29 +115,9 @@ internal sealed class UiTextLayoutCache : IDisposable
         }
     }
 
-    // The format shapes the text as much as the string does, so two layouts that differ only by
-    // font or alignment must not share an entry. It is keyed by its managed identity rather than
-    // itself, because a disposed COM object reports a different hash than it did alive and
-    // compares equal to every other disposed one, which would strand its entry here forever.
-    private readonly struct Key(string text, IDWriteTextFormat format, float width, float height)
-        : IEquatable<Key>
-    {
-        private readonly string _text = text;
-        private readonly IDWriteTextFormat _format = format;
-        private readonly float _width = width;
-        private readonly float _height = height;
-
-        public bool Equals(Key other) =>
-            ReferenceEquals(_format, other._format)
-            && _width.Equals(other._width)
-            && _height.Equals(other._height)
-            && _text == other._text;
-
-        public override bool Equals(object? obj) => obj is Key other && Equals(other);
-
-        public override int GetHashCode() =>
-            HashCode.Combine(_text, RuntimeHelpers.GetHashCode(_format), _width, _height);
-    }
+    private readonly record struct Key(string Text, UiFont Font, float Width, float Height);
 
     private readonly record struct Entry(Key Key, IDWriteTextLayout Layout);
+
+    private readonly record struct Format(IDWriteTextFormat TextFormat, IDWriteInlineObject? EllipsisSign);
 }

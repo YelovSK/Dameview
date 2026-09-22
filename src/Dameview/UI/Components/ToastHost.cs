@@ -1,7 +1,6 @@
 using System.Drawing;
 using Dameview.Notifications;
 using Dameview.UI.Foundation;
-using Vortice.DirectWrite;
 
 namespace Dameview.UI.Components;
 
@@ -10,13 +9,11 @@ internal sealed class ToastHost : UiElement, IDisposable
 {
     private const float Gap = 8.0f;
 
-    private readonly IDWriteFactory _factory;
     private readonly ToastService _toasts;
     private readonly List<ToastView> _views = [];
 
-    internal ToastHost(IDWriteFactory factory, ToastService toasts)
+    internal ToastHost(ToastService toasts)
     {
-        _factory = factory;
         _toasts = toasts;
         _toasts.Changed += Refresh;
         Refresh();
@@ -62,7 +59,6 @@ internal sealed class ToastHost : UiElement, IDisposable
                 ToastView left = _views[index];
                 _views.RemoveAt(index);
                 RemoveChild(left);
-                left.Dispose();
                 InvalidateLayout();
             }
         }
@@ -75,11 +71,6 @@ internal sealed class ToastHost : UiElement, IDisposable
     public void Dispose()
     {
         _toasts.Changed -= Refresh;
-        foreach (ToastView view in _views)
-        {
-            view.Dispose();
-        }
-
         _views.Clear();
     }
 
@@ -93,7 +84,7 @@ internal sealed class ToastHost : UiElement, IDisposable
                 continue;
             }
 
-            var view = new ToastView(_factory, toast, () => _toasts.Dismiss(toast.Id));
+            var view = new ToastView(toast, () => _toasts.Dismiss(toast.Id));
             _views.Add(view);
             AddChild(view);
         }

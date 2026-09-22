@@ -8,7 +8,6 @@ using Dameview.UI.Panels;
 using Dameview.Viewing;
 using Dameview.Win32.Input;
 using Vortice.Direct2D1;
-using Vortice.DirectWrite;
 
 namespace Dameview.UI.Workspace;
 
@@ -28,7 +27,6 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
 
     internal ViewerPaneView(
         ID2D1DeviceContext deviceContext,
-        IDWriteFactory directWriteFactory,
         ViewerPane pane,
         IViewerCommands commands,
         Action<int> selectTab,
@@ -51,7 +49,6 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             session.Animator,
             timeProvider);
         _viewerTabs = new ViewerTabStrip(
-            directWriteFactory,
             [new ViewerTabInfo("Dameview", null)],
             0,
             selectTab,
@@ -60,13 +57,12 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             HandleHoveredTabChanged,
             (index, input) => tabDragPointer(Pane, index, TranslateTabStripEvent(input)));
         _emptyStatePanel = new EmptyStatePanel(
-            directWriteFactory,
             deviceContext,
             openFile,
             showSettings);
         _contentOverlay = new Overlay(_imagePanel, _emptyStatePanel);
-        _toolbarPanel = new ToolbarPanel(directWriteFactory, commands, pane, showSettings);
-        _statusPanel = new StatusPanel(directWriteFactory);
+        _toolbarPanel = new ToolbarPanel(commands, pane, showSettings);
+        _statusPanel = new StatusPanel();
         _activePaneIndicator = new ActivePaneIndicator { IsVisible = false };
 
         AddChild(_viewerTabs);
@@ -298,9 +294,6 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
 
     public void Dispose()
     {
-        _viewerTabs.Dispose();
-        _toolbarPanel.Dispose();
-        _statusPanel.Dispose();
         _emptyStatePanel.Dispose();
         _imagePanel.Dispose();
     }

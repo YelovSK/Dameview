@@ -6,11 +6,10 @@ using Dameview.UI.Components;
 using Dameview.UI.Foundation;
 using Dameview.UI.Layout;
 using Dameview.Updates;
-using Vortice.DirectWrite;
 
 namespace Dameview.UI.Panels;
 
-internal sealed class SettingsPanel : ModalContent, IDisposable
+internal sealed class SettingsPanel : ModalContent
 {
     private enum SettingsTab
     {
@@ -73,7 +72,6 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
     private readonly ISettingsCommands _commands;
 
     internal SettingsPanel(
-        IDWriteFactory factory,
         PopupHost popupHost,
         Action close,
         ISettingsCommands commands)
@@ -81,40 +79,34 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
         _popupHost = popupHost;
         _commands = commands;
         _title = new TextBlock(
-            factory,
             "Settings",
             UiTextStyle.Heading,
             UiTextTone.Primary,
             UiTextWrapping.NoWrap);
         _message = new TextBlock(
-            factory,
             "Changes are saved automatically.",
             UiTextStyle.Body,
             UiTextTone.Secondary,
             UiTextWrapping.Wrap);
         _closeButton = new Button(
-            factory,
             UiTypography.CloseIcon,
             close,
             fontFamily: UiTypography.IconFontFamily,
             fontSize: 16.0f);
 
         _themeDropdown = new Dropdown<ThemeId>(
-            factory,
             popupHost,
             Themes.All
                 .Select(theme => new DropdownOption<ThemeId>(theme.DisplayName, theme.Id))
                 .ToArray(),
             ThemeId.Dark,
             theme => Update(settings => settings with { Theme = theme }));
-        _themeRow = new SettingsRow(factory, "Theme", _themeDropdown);
+        _themeRow = new SettingsRow("Theme", _themeDropdown);
         _galleryEnabledToggle = new Toggle(
-            factory,
             "Show gallery",
             value: true,
             enabled => Update(settings => settings with { GalleryEnabled = enabled }));
         _galleryPlacementDropdown = new Dropdown<GalleryPlacement>(
-            factory,
             popupHost,
             [
                 new("Right", GalleryPlacement.Right),
@@ -124,9 +116,8 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
             ],
             GalleryPlacement.Right,
             placement => Update(settings => settings with { GalleryPlacement = placement }));
-        _galleryPlacementRow = new SettingsRow(factory, "Gallery position", _galleryPlacementDropdown);
+        _galleryPlacementRow = new SettingsRow("Gallery position", _galleryPlacementDropdown);
         _galleryThumbnailSizeDropdown = new Dropdown<GalleryThumbnailSize>(
-            factory,
             popupHost,
             [
                 new("Small", GalleryThumbnailSize.Small),
@@ -136,27 +127,22 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
             GalleryThumbnailSize.Medium,
             size => Update(settings => settings with { GalleryThumbnailSize = size }));
         _galleryThumbnailSizeRow = new SettingsRow(
-            factory,
             "Gallery thumbnails",
             _galleryThumbnailSizeDropdown);
         _animationsToggle = new Toggle(
-            factory,
             "Animations",
             value: true,
             enabled => Update(settings => settings with { AnimationsEnabled = enabled }));
         _singleInstanceToggle = new Toggle(
-            factory,
             "Open files in existing window (restart required)",
             value: true,
             enabled => Update(settings => settings with { SingleInstance = enabled }));
         _autoBalancePanesToggle = new Toggle(
-            factory,
             "Balance panes automatically",
             value: false,
             enabled => Update(settings => settings with { AutoBalancePanes = enabled }));
 
         _sortField = new Dropdown<SortField>(
-            factory,
             popupHost,
             [
                 new("Name", SortField.Name),
@@ -167,7 +153,6 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
             SortField.Name,
             SetSortField);
         _sortDirection = new Dropdown<SortDirection>(
-            factory,
             popupHost,
             [
                 new("A–Z", SortDirection.First),
@@ -175,16 +160,15 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
             ],
             SortDirection.First,
             SetSortDirection);
-        _sortFieldRow = new SettingsRow(factory, "Sort by", _sortField);
-        _sortDirectionRow = new SettingsRow(factory, "Direction", _sortDirection);
+        _sortFieldRow = new SettingsRow("Sort by", _sortField);
+        _sortDirectionRow = new SettingsRow("Direction", _sortDirection);
 
         _updateStatus = new TextBlock(
-            factory,
             string.Empty,
             UiTextStyle.Body,
             UiTextTone.Secondary,
             UiTextWrapping.Wrap);
-        _updateButton = new Button(factory, "Check for updates", _commands.ActivateUpdate);
+        _updateButton = new Button("Check for updates", _commands.ActivateUpdate);
 
         var appearanceContent = new StackPanel(
             UiOrientation.Vertical,
@@ -224,7 +208,6 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
         _updatesPage = new ScrollView(updatesContent);
         _pages = new Overlay(_appearancePage, _layoutPage, _sortingPage, _behaviorPage, _updatesPage);
         _tabs = new TabStrip(
-            factory,
             ["Appearance", "Layout", "Sorting", "Behavior", "Updates"],
             (int)SettingsTab.Appearance,
             SelectTab);
@@ -316,30 +299,6 @@ internal sealed class SettingsPanel : ModalContent, IDisposable
         _message.Arrange(showMessage
             ? new RectangleF(24.0f, finalSize.Height - 52.0f, contentWidth, 40.0f)
             : new RectangleF(24.0f, finalSize.Height, contentWidth, 0.0f));
-    }
-
-    public void Dispose()
-    {
-        _closeButton.Dispose();
-        _themeDropdown.Dispose();
-        _galleryEnabledToggle.Dispose();
-        _galleryPlacementDropdown.Dispose();
-        _galleryThumbnailSizeDropdown.Dispose();
-        _animationsToggle.Dispose();
-        _singleInstanceToggle.Dispose();
-        _autoBalancePanesToggle.Dispose();
-        _sortField.Dispose();
-        _sortDirection.Dispose();
-        _themeRow.Dispose();
-        _galleryPlacementRow.Dispose();
-        _galleryThumbnailSizeRow.Dispose();
-        _sortFieldRow.Dispose();
-        _sortDirectionRow.Dispose();
-        _updateStatus.Dispose();
-        _updateButton.Dispose();
-        _tabs.Dispose();
-        _title.Dispose();
-        _message.Dispose();
     }
 
     private static float CalculateBodyHeight(float panelHeight)

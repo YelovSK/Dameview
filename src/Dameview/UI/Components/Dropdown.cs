@@ -10,16 +10,16 @@ namespace Dameview.UI.Components;
 
 internal readonly record struct DropdownOption<T>(string Label, T Value);
 
-internal sealed class Dropdown<T> : InteractiveControl, IDisposable
+internal sealed class Dropdown<T> : InteractiveControl
 {
+    private static readonly UiFont LabelFont = new(UiDesign.BodyFontSize, FontWeight.SemiBold);
+
     private readonly Action<T> _changed;
     private readonly DropdownOption<T>[] _options;
     private readonly PopupHost _popupHost;
     private readonly PopupList _popupList;
-    private readonly IDWriteTextFormat _textFormat;
 
     internal Dropdown(
-        IDWriteFactory factory,
         PopupHost popupHost,
         IReadOnlyList<DropdownOption<T>> options,
         T selectedValue,
@@ -34,11 +34,7 @@ internal sealed class Dropdown<T> : InteractiveControl, IDisposable
         _options = [.. options];
         _changed = changed;
         SelectedIndex = FindIndex(selectedValue);
-        _textFormat = factory.CreateTextFormat(
-            UiTypography.FontFamily, FontWeight.SemiBold, FontStyle.Normal, UiDesign.BodyFontSize);
-        _textFormat.ParagraphAlignment = ParagraphAlignment.Center;
-        _textFormat.WordWrapping = WordWrapping.NoWrap;
-        _popupList = new PopupList(factory, _options, SelectFromPopup);
+        _popupList = new PopupList(_options, SelectFromPopup);
         _popupList.SelectedIndex = SelectedIndex;
     }
 
@@ -122,7 +118,7 @@ internal sealed class Dropdown<T> : InteractiveControl, IDisposable
 
         context.DrawText(
             _options[SelectedIndex].Label,
-            _textFormat,
+            LabelFont,
             new Rect(12.0f, 0.0f, MathF.Max(12.0f, width - 12.0f), height),
             IsEnabled ? context.Palette.PrimaryText : context.Palette.SecondaryText,
             DrawTextOptions.Clip);
@@ -147,17 +143,6 @@ internal sealed class Dropdown<T> : InteractiveControl, IDisposable
         {
             ClosePopup();
         }
-    }
-
-    public void Dispose()
-    {
-        if (IsOpen)
-        {
-            _popupHost.Close();
-        }
-
-        _popupList.Dispose();
-        _textFormat.Dispose();
     }
 
     private int FindIndex(T value)
@@ -200,7 +185,7 @@ internal sealed class Dropdown<T> : InteractiveControl, IDisposable
         SetVisualState(UiVisualState.Open, false);
     }
 
-    private sealed class PopupList : UiElement, IDisposable
+    private sealed class PopupList : UiElement
     {
         private const float HorizontalPadding = 4.0f;
         private const float VerticalPadding = 2.0f;
@@ -210,7 +195,6 @@ internal sealed class Dropdown<T> : InteractiveControl, IDisposable
         private readonly StackPanel _column;
 
         internal PopupList(
-            IDWriteFactory factory,
             IReadOnlyList<DropdownOption<T>> options,
             Action<int> selected)
         {
@@ -219,7 +203,6 @@ internal sealed class Dropdown<T> : InteractiveControl, IDisposable
             {
                 int optionIndex = index;
                 _buttons[index] = new Button(
-                    factory,
                     options[index].Label,
                     () => selected(optionIndex),
                     backgroundInsetY: 2.0f);
@@ -278,14 +261,6 @@ internal sealed class Dropdown<T> : InteractiveControl, IDisposable
                 UiDesign.ControlCornerRadius);
             context.FillRoundedRectangle(surface, context.Palette.Surface);
             context.DrawRoundedRectangle(surface, context.Palette.SurfaceBorder);
-        }
-
-        public void Dispose()
-        {
-            foreach (Button button in _buttons)
-            {
-                button.Dispose();
-            }
         }
     }
 }

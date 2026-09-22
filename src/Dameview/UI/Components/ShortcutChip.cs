@@ -7,44 +7,26 @@ using Vortice.Mathematics;
 
 namespace Dameview.UI.Components;
 
-internal sealed class ShortcutChip : InteractiveControl, IDisposable
+internal sealed class ShortcutChip : InteractiveControl
 {
     internal const float Height = 24.0f;
 
-    private const float FontSize = 12.0f;
     private const float HorizontalPadding = 10.0f;
     private const float RemoveWidth = 22.0f;
-    private const float RemoveFontSize = 15.0f;
     private const float MinimumWidth = 34.0f;
+    private static readonly UiFont LabelFont = new(12.0f, FontWeight.SemiBold, TextAlignment.Center);
+    private static readonly UiFont RemoveFont = new(15.0f, FontWeight.SemiBold, TextAlignment.Center);
 
-    private readonly IDWriteTextFormat _format;
-    private readonly IDWriteTextFormat _removeFormat;
     private readonly Action _clicked;
     private readonly Action _removed;
     private bool _removeHovered;
     private string _label;
 
-    internal ShortcutChip(IDWriteFactory factory, string label, Action clicked, Action removed)
+    internal ShortcutChip(string label, Action clicked, Action removed)
     {
         _label = label;
         _clicked = clicked;
         _removed = removed;
-        _format = factory.CreateTextFormat(
-            UiTypography.FontFamily,
-            FontWeight.SemiBold,
-            FontStyle.Normal,
-            FontSize);
-        _format.TextAlignment = TextAlignment.Center;
-        _format.ParagraphAlignment = ParagraphAlignment.Center;
-        _format.WordWrapping = WordWrapping.NoWrap;
-        _removeFormat = factory.CreateTextFormat(
-            UiTypography.FontFamily,
-            FontWeight.SemiBold,
-            FontStyle.Normal,
-            RemoveFontSize);
-        _removeFormat.TextAlignment = TextAlignment.Center;
-        _removeFormat.ParagraphAlignment = ParagraphAlignment.Center;
-        _removeFormat.WordWrapping = WordWrapping.NoWrap;
     }
 
     internal string Label
@@ -83,7 +65,7 @@ internal sealed class ShortcutChip : InteractiveControl, IDisposable
     protected override SizeF MeasureCore(SizeF availableSize)
     {
         float textWidth = MathF.Ceiling(TextLayouts
-            .Get(_label, _format, new SizeF(10_000.0f, Height))
+            .Get(_label, LabelFont, new SizeF(10_000.0f, Height))
             .Metrics.WidthIncludingTrailingWhitespace);
         float width = textWidth + (2.0f * HorizontalPadding) + (CanRemove ? RemoveWidth : 0.0f);
         return new SizeF(MathF.Max(MinimumWidth, width), Height);
@@ -135,7 +117,7 @@ internal sealed class ShortcutChip : InteractiveControl, IDisposable
         float labelWidth = Bounds.Width - (CanRemove ? RemoveWidth : 0.0f);
         context.DrawText(
             _label,
-            _format,
+            LabelFont,
             new Rect(0.0f, 0.0f, labelWidth, Bounds.Height),
             context.Palette.PrimaryText,
             DrawTextOptions.Clip);
@@ -146,16 +128,10 @@ internal sealed class ShortcutChip : InteractiveControl, IDisposable
             Color4 error = context.Palette.ErrorText;
             context.DrawText(
                 "×",
-                _removeFormat,
+                RemoveFont,
                 new Rect(remove.X, remove.Y, remove.Width, remove.Height),
                 _removeHovered ? error : new Color4(error.R, error.G, error.B, 0.75f));
         }
-    }
-
-    public void Dispose()
-    {
-        _removeFormat.Dispose();
-        _format.Dispose();
     }
 
     protected override void Activate() => _clicked();

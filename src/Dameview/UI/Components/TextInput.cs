@@ -12,7 +12,7 @@ using Vortice.Mathematics;
 
 namespace Dameview.UI.Components;
 
-internal sealed class TextInput : UiElement, IDisposable
+internal sealed class TextInput : UiElement
 {
     private const float HorizontalPadding = 10.0f;
     private const float CaretWidth = 1.5f;
@@ -20,33 +20,22 @@ internal sealed class TextInput : UiElement, IDisposable
     private const float SelectionOpacity = 0.35f;
     private const double CaretHeadResponse = 80.0;
     private const double CaretTailResponse = 25.0;
+    private static readonly UiFont TextFont = new(UiDesign.BodyFontSize);
 
-    private readonly IDWriteFactory _factory;
-    private readonly IDWriteTextFormat _format;
     // Both edges of the drawn caret glide toward the layout position of CaretIndex. The tail
     // lags behind, so the caret stretches while it moves fast and shrinks back as it settles.
     private readonly AnimatedFloat _caretHead = new(0.0f, CaretHeadResponse, completionDistance: 0.05f);
     private readonly AnimatedFloat _caretTail = new(0.0f, CaretTailResponse, completionDistance: 0.05f);
     // Only a caret that stayed on screen glides; one that just appeared jumps into place.
     private bool _caretGlides;
-    private IDWriteTextLayout? _textLayout;
     private string _text = string.Empty;
     // The fixed end of the selection; the caret is the end that moves.
     private int _anchor;
     private float _horizontalOffset;
-    private float _textWidth;
 
-    internal TextInput(IDWriteFactory factory, string placeholder = "")
+    internal TextInput(string placeholder = "")
     {
-        _factory = factory;
         Placeholder = placeholder;
-        _format = factory.CreateTextFormat(
-            UiTypography.FontFamily,
-            FontWeight.Normal,
-            FontStyle.Normal,
-            UiDesign.BodyFontSize);
-        _format.ParagraphAlignment = ParagraphAlignment.Center;
-        _format.WordWrapping = WordWrapping.NoWrap;
     }
 
     internal event Action<string>? TextChanged;
@@ -79,6 +68,9 @@ internal sealed class TextInput : UiElement, IDisposable
     internal override WindowCursor Cursor => WindowCursor.Text;
 
     private bool HasSelection => _anchor != CaretIndex;
+    private IDWriteTextLayout? TextLayout => _text.Length == 0
+        ? null
+        : TextLayouts.Get(_text, TextFont, new SizeF(100_000.0f, 38.0f));
 
     internal void Clear() => Text = string.Empty;
 
@@ -198,7 +190,7 @@ internal sealed class TextInput : UiElement, IDisposable
         {
             context.DrawText(
                 Placeholder,
-                _format,
+                TextFont,
                 new Rect(HorizontalPadding, 0.0f, Bounds.Width - HorizontalPadding, Bounds.Height),
                 context.Palette.SecondaryText,
                 DrawTextOptions.Clip);
@@ -230,7 +222,7 @@ internal sealed class TextInput : UiElement, IDisposable
                 }
 
                 context.DrawTextLayout(
-                    _textLayout!,
+                    TextLayout!,
                     new Vector2(textLeft, 0.0f),
                     context.Palette.PrimaryText,
                     DrawTextOptions.Clip);
@@ -253,12 +245,6 @@ internal sealed class TextInput : UiElement, IDisposable
                     0.0f),
                 context.Palette.PrimaryText);
         }
-    }
-
-    public void Dispose()
-    {
-        _textLayout?.Dispose();
-        _format.Dispose();
     }
 
     private bool MoveCaretEdge(AnimatedFloat edge, float target, in UiUpdateContext context)
@@ -385,12 +371,12 @@ internal sealed class TextInput : UiElement, IDisposable
 
     private (int Character, int Caret) HitTest(float x)
     {
-        if (_textLayout is null)
+        if (TextLayout is not { } layout)
         {
             return (0, 0);
         }
 
-        _textLayout.HitTestPoint(
+        layout.HitTestPoint(
             x - HorizontalPadding + _horizontalOffset,
             Bounds.Height / 2.0f,
             out RawBool isTrailingHit,
@@ -402,33 +388,19 @@ internal sealed class TextInput : UiElement, IDisposable
 
     private float GetCaretPosition(int index)
     {
-        if (index == 0 || _textLayout is null)
+        if (index == 0 || TextLayout is not { } layout)
         {
             return 0.0f;
         }
 
-        _textLayout.HitTestTextPosition((uint)(index - 1), true, out float x, out _, out _);
+        layout.HitTestTextPosition((uint)(index - 1), true, out float x, out _, out _);
         return x;
     }
 
     private void NotifyTextChanged()
     {
-        UpdateTextLayout();
         TextChanged?.Invoke(_text);
         InvalidateVisual();
-    }
-
-    private void UpdateTextLayout()
-    {
-        _textLayout?.Dispose();
-        _textLayout = _text.Length == 0
-            ? null
-            : _factory.CreateTextLayout(
-                _text,
-                _format,
-                100_000.0f,
-                38.0f);
-        _textWidth = _textLayout?.Metrics.WidthIncludingTrailingWhitespace ?? 0.0f;
     }
 
     private void UpdateHorizontalOffset(float caretPosition, float contentWidth)
@@ -442,7 +414,8 @@ internal sealed class TextInput : UiElement, IDisposable
             _horizontalOffset = caretPosition - contentWidth;
         }
 
-        _horizontalOffset = Math.Clamp(_horizontalOffset, 0.0f, MathF.Max(0.0f, _textWidth - contentWidth));
+        float textWidth = TextLayout?.Metrics.WidthIncludingTrailingWhitespace ?? 0.0f;
+        _horizontalOffset = Math.Clamp(_horizontalOffset, 0.0f, MathF.Max(0.0f, textWidth - contentWidth));
     }
 
     private enum CharacterClass

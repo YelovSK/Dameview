@@ -2,23 +2,21 @@ using System.Drawing;
 using Dameview.UI.Animation;
 using Dameview.UI.Foundation;
 using Vortice.Direct2D1;
-using Vortice.DirectWrite;
 using Vortice.Mathematics;
 
 namespace Dameview.UI.Components;
 
-internal sealed class Toggle : InteractiveControl, IDisposable
+internal sealed class Toggle : InteractiveControl
 {
     private const double SwitchResponse = 24.0;
+    private static readonly UiFont LabelFont = new(UiDesign.BodyFontSize);
 
     private readonly Action<bool> _changed;
-    private readonly IDWriteTextFormat _textFormat;
     // 0 when off and 1 when on; slides the thumb and blends the track color in between.
     private readonly AnimatedFloat _onAmount;
     private bool _value;
 
     internal Toggle(
-        IDWriteFactory factory,
         string label,
         bool value,
         Action<bool> changed)
@@ -27,10 +25,6 @@ internal sealed class Toggle : InteractiveControl, IDisposable
         _value = value;
         _onAmount = Animate(value ? 1.0f : 0.0f, SwitchResponse);
         _changed = changed;
-        _textFormat = factory.CreateTextFormat(
-            UiTypography.FontFamily, FontWeight.Normal, FontStyle.Normal, UiDesign.BodyFontSize);
-        _textFormat.ParagraphAlignment = ParagraphAlignment.Center;
-        _textFormat.WordWrapping = WordWrapping.NoWrap;
         SetVisualState(UiVisualState.Selected, value);
     }
 
@@ -78,7 +72,7 @@ internal sealed class Toggle : InteractiveControl, IDisposable
 
         context.DrawText(
             Label,
-            _textFormat,
+            LabelFont,
             new Rect(12.0f, 0.0f, MathF.Max(12.0f, width - 56.0f), height),
             IsEnabled ? context.Palette.PrimaryText : context.Palette.SecondaryText,
             DrawTextOptions.Clip);
@@ -115,6 +109,4 @@ internal sealed class Toggle : InteractiveControl, IDisposable
         Value = !Value;
         _changed(Value);
     }
-
-    public void Dispose() => _textFormat.Dispose();
 }

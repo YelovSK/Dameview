@@ -2,8 +2,6 @@ using System.Drawing;
 using Dameview.UI.Components;
 using Dameview.UI.Foundation;
 using Dameview.Win32.Input;
-using Vortice.DirectWrite;
-using static Vortice.DirectWrite.DWrite;
 
 namespace Dameview.Tests.UI;
 
@@ -13,9 +11,8 @@ public sealed class InteractiveControlsTests
     [TestMethod]
     public void PointerActivationOccursOnPressOnly()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         int clicks = 0;
-        using var button = new Button(factory, "Test", () => clicks++);
+        var button = new Button("Test", () => clicks++);
         var root = new UiRoot(button, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(100.0f, 36.0f));
         PointF center = new(50.0f, 18.0f);
@@ -30,9 +27,8 @@ public sealed class InteractiveControlsTests
     [TestMethod]
     public void ToggleSharesKeyboardActivationAndDisabledBehavior()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         bool? changed = null;
-        using var toggle = new Toggle(factory, "Gallery", false, value => changed = value);
+        var toggle = new Toggle("Gallery", false, value => changed = value);
 
         Assert.IsTrue(toggle.OnKeyEvent(new WindowKeyEvent(WindowKey.Space)));
         Assert.IsTrue(toggle.Value);
@@ -46,9 +42,8 @@ public sealed class InteractiveControlsTests
     [TestMethod]
     public void TabArrowKeysSelectAndFocusTheAdjacentTab()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         int selected = -1;
-        using var tabs = new TabStrip(factory, ["General", "Gallery"], 0, index => selected = index);
+        var tabs = new TabStrip(["General", "Gallery"], 0, index => selected = index);
         var root = new UiRoot(tabs, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(300.0f, 36.0f));
         UiElement first = tabs.Children[0].Children[0];
@@ -69,11 +64,9 @@ public sealed class InteractiveControlsTests
     [TestMethod]
     public void DropdownPopupEscapesItsParentAndSelectionReturnsFocusToTheControl()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         var popupHost = new PopupHost();
         string? changed = null;
-        using var dropdown = new Dropdown<string>(
-            factory,
+        var dropdown = new Dropdown<string>(
             popupHost,
             [new("Name", "name"), new("Modified", "modified")],
             "name",
@@ -119,10 +112,8 @@ public sealed class InteractiveControlsTests
     [TestMethod]
     public void DoubleClickingDropdownClosesItDuringOpeningAnimation()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         var popupHost = new PopupHost();
-        using var dropdown = new Dropdown<int>(
-            factory,
+        var dropdown = new Dropdown<int>(
             popupHost,
             [new("One", 1), new("Two", 2)],
             1,
@@ -146,10 +137,8 @@ public sealed class InteractiveControlsTests
     [TestMethod]
     public void ClickingOutsideDropdownDismissesWithoutClickThrough()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         var popupHost = new PopupHost();
-        using var dropdown = new Dropdown<int>(
-            factory,
+        var dropdown = new Dropdown<int>(
             popupHost,
             [new("One", 1), new("Two", 2)],
             1,

@@ -7,36 +7,32 @@ using Dameview.UI.Layout;
 using Dameview.Viewing;
 using Dameview.Win32.Input;
 using Vortice.Direct2D1;
-using Vortice.DirectWrite;
 
 namespace Dameview.UI.Panels;
 
-internal sealed class ToolbarPanel : UiElement, IDisposable
+internal sealed class ToolbarPanel : UiElement
 {
     internal const float WidthDips = UiDesign.ToolbarWidth;
 
-    private readonly Button[] _buttons;
     private readonly StackPanel _buttonRow;
     private readonly AnimatedFloat _visibility;
     private bool _pointerNear;
 
     internal ToolbarPanel(
-        IDWriteFactory directWriteFactory,
         IViewerCommands commands,
         ViewerPane pane,
         Action showSettings)
     {
         _visibility = Animate(0.0f, 14.0);
-        _buttons =
+        Button[] buttons =
         [
-            new Button(directWriteFactory, "←", () => commands.ShowPreviousImage(pane)),
-            new Button(directWriteFactory, "→", () => commands.ShowNextImage(pane)),
-            new Button(directWriteFactory, "Fit", () => commands.FitImage(pane)),
-            new Button(directWriteFactory, "1:1", () => commands.ShowActualSize(pane)),
-            new Button(directWriteFactory, "Split →", () => commands.SplitRight(pane)),
-            new Button(directWriteFactory, "Split ↓", () => commands.SplitDown(pane)),
+            new Button("←", () => commands.ShowPreviousImage(pane)),
+            new Button("→", () => commands.ShowNextImage(pane)),
+            new Button("Fit", () => commands.FitImage(pane)),
+            new Button("1:1", () => commands.ShowActualSize(pane)),
+            new Button("Split →", () => commands.SplitRight(pane)),
+            new Button("Split ↓", () => commands.SplitDown(pane)),
             new Button(
-                directWriteFactory,
                 UiTypography.SettingsIcon,
                 showSettings,
                 fontFamily: UiTypography.IconFontFamily,
@@ -46,7 +42,7 @@ internal sealed class ToolbarPanel : UiElement, IDisposable
             UiOrientation.Horizontal,
             UiDesign.SmallSpacing,
             StackPanelDistribution.Equal,
-            _buttons);
+            buttons);
         AddChild(_buttonRow);
     }
 
@@ -114,14 +110,6 @@ internal sealed class ToolbarPanel : UiElement, IDisposable
         if (HasFocusWithin)
         {
             Show();
-        }
-    }
-
-    public void Dispose()
-    {
-        foreach (Button button in _buttons)
-        {
-            button.Dispose();
         }
     }
 

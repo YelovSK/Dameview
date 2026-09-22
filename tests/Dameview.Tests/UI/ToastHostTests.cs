@@ -2,8 +2,6 @@ using System.Drawing;
 using Dameview.Notifications;
 using Dameview.UI.Components;
 using Dameview.UI.Foundation;
-using Vortice.DirectWrite;
-using static Vortice.DirectWrite.DWrite;
 
 namespace Dameview.Tests.UI;
 
@@ -13,9 +11,8 @@ public sealed class ToastHostTests
     [TestMethod]
     public void AShownToastFadesInOverSeveralFrames()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         var service = new ToastService();
-        using var host = new ToastHost(factory, service);
+        using var host = new ToastHost(service);
         Arrange(host);
 
         service.Notify("Could not save settings.", ToastSeverity.Error);
@@ -38,9 +35,8 @@ public sealed class ToastHostTests
     [TestMethod]
     public void AnArrivingToastSlidesItsNeighbourUpInsteadOfJumpingIt()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         var service = new ToastService();
-        using var host = new ToastHost(factory, service);
+        using var host = new ToastHost(service);
         service.Notify("First.", ToastSeverity.Warning);
         Arrange(host);
         ToastView first = host.Children.OfType<ToastView>().Single();
@@ -69,9 +65,8 @@ public sealed class ToastHostTests
     [TestMethod]
     public void ADismissedToastLeavesTheTreeOnceItHasFadedOut()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         var service = new ToastService();
-        using var host = new ToastHost(factory, service);
+        using var host = new ToastHost(service);
         service.Notify("Copied.", ToastSeverity.Success);
         Arrange(host);
 
@@ -96,10 +91,9 @@ public sealed class ToastHostTests
     [TestMethod]
     public void AnExpiredToastLeavesWithoutBeingDismissed()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         var time = new ManualTimeProvider();
         var service = new ToastService(time);
-        using var host = new ToastHost(factory, service);
+        using var host = new ToastHost(service);
         service.Notify("Saved.", ToastSeverity.Success);
         Arrange(host);
 

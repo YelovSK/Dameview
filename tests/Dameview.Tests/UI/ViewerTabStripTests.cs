@@ -4,8 +4,6 @@ using Dameview.UI.Components;
 using Dameview.UI.Foundation;
 using Dameview.UI.Workspace;
 using Dameview.Win32.Input;
-using Vortice.DirectWrite;
-using static Vortice.DirectWrite.DWrite;
 
 namespace Dameview.Tests.UI;
 
@@ -15,9 +13,7 @@ public sealed class ViewerTabStripTests
     [TestMethod]
     public void WheelScrollsOverflowingTabsHorizontally()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
-        using var tabs = new ViewerTabStrip(
-            factory,
+        var tabs = new ViewerTabStrip(
             Tabs("One", "Two", "Three", "Four"),
             0,
             _ => { },
@@ -39,9 +35,8 @@ public sealed class ViewerTabStripTests
     [TestMethod]
     public void SelectingAnOffscreenTabRevealsIt()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         ViewerTabInfo[] tabItems = Tabs("One", "Two", "Three", "Four");
-        using var tabs = new ViewerTabStrip(factory, tabItems, 0, _ => { }, _ => { }, () => { });
+        var tabs = new ViewerTabStrip(tabItems, 0, _ => { }, _ => { }, () => { });
         var root = new UiRoot(tabs, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(300.0f, ViewerTabStrip.HeightDips));
 
@@ -53,10 +48,8 @@ public sealed class ViewerTabStripTests
     [TestMethod]
     public void CloseButtonReportsItsTabIndex()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         int closed = -1;
-        using var tabs = new ViewerTabStrip(
-            factory,
+        var tabs = new ViewerTabStrip(
             Tabs("One", "Two"),
             0,
             _ => { },
@@ -75,10 +68,8 @@ public sealed class ViewerTabStripTests
     [TestMethod]
     public void AddButtonRequestsANewTab()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         int additions = 0;
-        using var tabs = new ViewerTabStrip(
-            factory,
+        var tabs = new ViewerTabStrip(
             Tabs("One"),
             0,
             _ => { },
@@ -98,10 +89,8 @@ public sealed class ViewerTabStripTests
     [TestMethod]
     public void MiddleClickReportsItsTabIndexForClosing()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         int closed = -1;
-        using var tabs = new ViewerTabStrip(
-            factory,
+        var tabs = new ViewerTabStrip(
             Tabs("One", "Two"),
             0,
             _ => { },
@@ -120,10 +109,8 @@ public sealed class ViewerTabStripTests
     [TestMethod]
     public void MovingAcrossTabsReportsHoveredTab()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         var hovered = new List<string?>();
-        using var tabs = new ViewerTabStrip(
-            factory,
+        var tabs = new ViewerTabStrip(
             Tabs("One", "Two"),
             0,
             _ => { },
@@ -149,10 +136,8 @@ public sealed class ViewerTabStripTests
     [TestMethod]
     public void DraggingATabReportsTheGestureAfterTheThreshold()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         var events = new List<WorkspaceDragEventKind>();
-        using var tabs = new ViewerTabStrip(
-            factory,
+        var tabs = new ViewerTabStrip(
             Tabs("One", "Two"),
             0,
             _ => { },
@@ -190,9 +175,7 @@ public sealed class ViewerTabStripTests
     [TestMethod]
     public void TabInsertionUsesTheNearestGap()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
-        using var tabs = new ViewerTabStrip(
-            factory,
+        var tabs = new ViewerTabStrip(
             Tabs("One", "Two"),
             0,
             _ => { },

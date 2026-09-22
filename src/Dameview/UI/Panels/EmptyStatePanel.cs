@@ -13,29 +13,24 @@ internal sealed class EmptyStatePanel : UiElement, IDisposable
 {
     private const float ButtonWidth = 104.0f;
     private const float ButtonHeight = 36.0f;
+    private static readonly UiFont TitleFont = new(30.0f, FontWeight.SemiBold, TextAlignment.Center, Wrapping: WordWrapping.Wrap);
+    private static readonly UiFont BodyFont = new(15.0f, FontWeight.Normal, TextAlignment.Center, Wrapping: WordWrapping.Wrap);
+    private static readonly UiFont CaptionFont = new(12.0f, FontWeight.Medium, TextAlignment.Center, Wrapping: WordWrapping.Wrap);
 
-    private readonly IDWriteTextFormat _titleFormat;
-    private readonly IDWriteTextFormat _bodyFormat;
-    private readonly IDWriteTextFormat _captionFormat;
     private ID2D1Bitmap1 _icon;
 
     internal EmptyStatePanel(
-        IDWriteFactory directWriteFactory,
         ID2D1DeviceContext deviceContext,
         Action openFile,
         Action showSettings)
     {
         _icon = LoadApplicationIcon(deviceContext);
-        _titleFormat = CreateCenteredFormat(directWriteFactory, 30.0f, FontWeight.SemiBold);
-        _bodyFormat = CreateCenteredFormat(directWriteFactory, 15.0f, FontWeight.Normal);
-        _captionFormat = CreateCenteredFormat(directWriteFactory, 12.0f, FontWeight.Medium);
         SettingsButton = new Button(
-            directWriteFactory,
             UiTypography.SettingsIcon,
             showSettings,
             fontFamily: UiTypography.IconFontFamily,
             fontSize: 16.0f);
-        OpenButton = new Button(directWriteFactory, "Open image", openFile);
+        OpenButton = new Button("Open image", openFile);
         AddChild(OpenButton);
         AddChild(SettingsButton);
     }
@@ -83,13 +78,13 @@ internal sealed class EmptyStatePanel : UiElement, IDisposable
 
         context.DrawText(
             "Dameview",
-            _titleFormat,
+            TitleFont,
             new Rect(layout.Card.X + 24.0f, markY + markSize + 24.0f, layout.Card.Width - 48.0f, 44.0f),
             context.Palette.PrimaryText);
 
         context.DrawText(
             "Drop an image here to open it.",
-            _bodyFormat,
+            BodyFont,
             new Rect(layout.Card.X + 24.0f, markY + markSize + 68.0f, layout.Card.Width - 48.0f, 32.0f),
             context.Palette.SecondaryText);
 
@@ -100,7 +95,7 @@ internal sealed class EmptyStatePanel : UiElement, IDisposable
         context.DrawRoundedRectangle(pill, context.Palette.SurfaceBorder);
         context.DrawText(
             "Win32  •  Direct2D  •  Native AOT",
-            _captionFormat,
+            CaptionFont,
             new Rect(layout.Caption.X, layout.Caption.Y, layout.Caption.Width, layout.Caption.Height),
             context.Palette.SecondaryText);
     }
@@ -113,11 +108,6 @@ internal sealed class EmptyStatePanel : UiElement, IDisposable
 
     public void Dispose()
     {
-        OpenButton.Dispose();
-        SettingsButton.Dispose();
-        _captionFormat.Dispose();
-        _bodyFormat.Dispose();
-        _titleFormat.Dispose();
         _icon.Dispose();
     }
 
@@ -128,22 +118,6 @@ internal sealed class EmptyStatePanel : UiElement, IDisposable
             ?? throw new InvalidOperationException("The embedded application icon could not be found.");
         using var decoder = new ImageDecoder();
         return D2DBitmapFactory.Create(deviceContext, decoder.Decode(stream));
-    }
-
-    private static IDWriteTextFormat CreateCenteredFormat(
-        IDWriteFactory factory,
-        float size,
-        FontWeight weight)
-    {
-        IDWriteTextFormat format = factory.CreateTextFormat(
-            UiTypography.FontFamily,
-            weight,
-            FontStyle.Normal,
-            size);
-
-        format.TextAlignment = TextAlignment.Center;
-        format.ParagraphAlignment = ParagraphAlignment.Center;
-        return format;
     }
 
     private static EmptyStateLayout CalculateLayout(SizeF size)

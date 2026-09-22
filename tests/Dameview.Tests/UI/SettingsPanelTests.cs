@@ -7,8 +7,6 @@ using Dameview.UI.Foundation;
 using Dameview.UI.Panels;
 using Dameview.Updates;
 using Dameview.Win32.Input;
-using Vortice.DirectWrite;
-using static Vortice.DirectWrite.DWrite;
 
 namespace Dameview.Tests.UI;
 
@@ -18,11 +16,9 @@ public sealed class SettingsPanelTests
     [TestMethod]
     public void AppearanceTabCanDisableAnimations()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         var popupHost = new PopupHost();
         var commands = new TestSettingsCommands();
-        using var settings = new SettingsPanel(
-            factory,
+        var settings = new SettingsPanel(
             popupHost,
             () => { },
             commands);
@@ -45,11 +41,9 @@ public sealed class SettingsPanelTests
     [TestMethod]
     public void LayoutTabCanConfigureTheGallery()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         var popupHost = new PopupHost();
         var commands = new TestSettingsCommands();
-        using var settings = new SettingsPanel(
-            factory,
+        var settings = new SettingsPanel(
             popupHost,
             () => { },
             commands);
@@ -77,11 +71,9 @@ public sealed class SettingsPanelTests
     [TestMethod]
     public void SortingTabUsesDropdownsAndKeepsSortMeaning()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         var popupHost = new PopupHost();
         var commands = new TestSettingsCommands();
-        using var settings = new SettingsPanel(
-            factory,
+        var settings = new SettingsPanel(
             popupHost,
             () => { },
             commands);
@@ -106,10 +98,8 @@ public sealed class SettingsPanelTests
     [TestMethod]
     public void DropdownPopupIsPlacedOutsideTheSmallScrollViewport()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         var popupHost = new PopupHost();
-        using var settings = new SettingsPanel(
-            factory,
+        var settings = new SettingsPanel(
             popupHost,
             () => { },
             new TestSettingsCommands());
@@ -143,12 +133,10 @@ public sealed class SettingsPanelTests
     [TestMethod]
     public void AvailableUpdateCanBeActivatedFromUpdatesTab()
     {
-        using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         var popupHost = new PopupHost();
         int activations = 0;
         var commands = new TestSettingsCommands { Activate = () => activations++ };
-        using var settings = new SettingsPanel(
-            factory,
+        var settings = new SettingsPanel(
             popupHost,
             () => { },
             commands);

@@ -8,7 +8,7 @@ using Vortice.Mathematics;
 
 namespace Dameview.UI.Components;
 
-internal sealed class TabStrip : UiElement, IDisposable
+internal sealed class TabStrip : UiElement
 {
     private readonly TabItem[] _items;
     private readonly StackPanel _row;
@@ -16,7 +16,6 @@ internal sealed class TabStrip : UiElement, IDisposable
     private int _selectedIndex;
 
     internal TabStrip(
-        IDWriteFactory factory,
         IReadOnlyList<string> labels,
         int selectedIndex,
         Action<int> selectionChanged)
@@ -29,16 +28,10 @@ internal sealed class TabStrip : UiElement, IDisposable
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)selectedIndex, (uint)labels.Count);
         _selectionChanged = selectionChanged;
         _selectedIndex = selectedIndex;
-        IDWriteTextFormat textFormat = factory.CreateTextFormat(
-            UiTypography.FontFamily, FontWeight.SemiBold, FontStyle.Normal, UiDesign.BodyFontSize);
-        textFormat.TextAlignment = TextAlignment.Center;
-        textFormat.ParagraphAlignment = ParagraphAlignment.Center;
-        textFormat.WordWrapping = WordWrapping.NoWrap;
-        TextFormat = textFormat;
         _items = new TabItem[labels.Count];
         for (int index = 0; index < labels.Count; index++)
         {
-            _items[index] = new TabItem(this, index, labels[index], textFormat);
+            _items[index] = new TabItem(this, index, labels[index]);
             _items[index].SetVisualState(UiVisualState.Selected, index == selectedIndex);
         }
 
@@ -58,8 +51,6 @@ internal sealed class TabStrip : UiElement, IDisposable
 
     internal UiElement SelectedTab => _items[_selectedIndex];
 
-    private IDWriteTextFormat TextFormat { get; }
-
     protected override SizeF MeasureCore(SizeF availableSize)
     {
         float width = float.IsFinite(availableSize.Width)
@@ -76,8 +67,6 @@ internal sealed class TabStrip : UiElement, IDisposable
     }
 
     protected override bool HitTestCore(PointF position) => false;
-
-    public void Dispose() => TextFormat.Dispose();
 
     private void Select(int index, bool notify, bool moveFocus)
     {
@@ -101,21 +90,20 @@ internal sealed class TabStrip : UiElement, IDisposable
 
     private sealed class TabItem : InteractiveControl
     {
+        private static readonly UiFont LabelFont = new(UiDesign.BodyFontSize, FontWeight.SemiBold, TextAlignment.Center);
+
         private readonly int _index;
         private readonly string _label;
         private readonly TabStrip _owner;
-        private readonly IDWriteTextFormat _textFormat;
 
         internal TabItem(
             TabStrip owner,
             int index,
-            string label,
-            IDWriteTextFormat textFormat)
+            string label)
         {
             _owner = owner;
             _index = index;
             _label = label;
-            _textFormat = textFormat;
         }
 
         internal override bool OnKeyEvent(WindowKeyEvent input)
@@ -158,7 +146,7 @@ internal sealed class TabStrip : UiElement, IDisposable
 
             context.DrawText(
                 _label,
-                _textFormat,
+                LabelFont,
                 new Rect(0.0f, 0.0f, width, height),
                 context.Palette.PrimaryText,
                 DrawTextOptions.Clip);

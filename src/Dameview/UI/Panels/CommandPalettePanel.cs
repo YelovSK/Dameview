@@ -11,7 +11,7 @@ using Vortice.Mathematics;
 
 namespace Dameview.UI.Panels;
 
-internal sealed class CommandPalettePanel : ModalContent, IDisposable
+internal sealed class CommandPalettePanel : ModalContent
 {
     private const float Padding = 16.0f;
     private const float TitleHeight = 36.0f;
@@ -29,7 +29,6 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
     private int _selectedIndex;
 
     internal CommandPalettePanel(
-        IDWriteFactory factory,
         IReadOnlyList<ViewerCommand> commands,
         ViewerKeyBindings keyBindings,
         Action<ViewerCommandId> execute,
@@ -37,17 +36,15 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
     {
         ArgumentOutOfRangeException.ThrowIfZero(commands.Count);
         _title = new TextBlock(
-            factory,
             "Commands",
             UiTextStyle.Heading,
             UiTextTone.Primary,
             UiTextWrapping.NoWrap);
-        _filterInput = new TextInput(factory, "Filter commands");
+        _filterInput = new TextInput("Filter commands");
         _filterInput.TextChanged += ApplyFilter;
         _items =
         [
             .. commands.Select(command => new CommandItem(
-                factory,
                 command,
                 () => execute(command.Id),
                 slot => BeginCapture(command.Id, slot),
@@ -62,7 +59,6 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
             _items);
         _list = new ScrollView(itemList);
         _emptyMessage = new TextBlock(
-            factory,
             "No matching commands.",
             UiTextStyle.Body,
             UiTextTone.Secondary,
@@ -203,17 +199,6 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
         _emptyMessage.Arrange(new RectangleF(Padding, listTop, contentWidth, listHeight));
     }
 
-    public void Dispose()
-    {
-        _title.Dispose();
-        _filterInput.Dispose();
-        _emptyMessage.Dispose();
-        foreach (CommandItem item in _items)
-        {
-            item.Dispose();
-        }
-    }
-
     private static float CalculateListHeight(float panelHeight) =>
         MathF.Max(
             0.0f,
@@ -321,7 +306,7 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
         InvalidateLayout();
     }
 
-    private sealed class CommandItem : InteractiveControl, IDisposable
+    private sealed class CommandItem : InteractiveControl
     {
         internal const int NoCaptureSlot = -1;
 
@@ -330,29 +315,25 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
         private const float ChipPadding = 12.0f;
         private const string CaptureLabel = "Press a key";
         private const float RowHeight = 40.0f;
+        private static readonly UiFont LabelFont = new(UiDesign.BodyFontSize, FontWeight.Medium);
 
         private readonly Action _execute;
         private readonly Action<int> _captureShortcut;
         private readonly Action<int> _removeShortcut;
-        private readonly IDWriteFactory _factory;
-        private readonly IDWriteTextFormat _labelFormat;
         private readonly Button _addButton;
         private readonly List<ShortcutChip> _chips = [];
 
         internal CommandItem(
-            IDWriteFactory factory,
             ViewerCommand command,
             Action execute,
             Action<int> captureShortcut,
             Action<int> removeShortcut)
         {
             Command = command;
-            _factory = factory;
             _execute = execute;
             _captureShortcut = captureShortcut;
             _removeShortcut = removeShortcut;
-            _labelFormat = CreateFormat(factory);
-            _addButton = new Button(factory, "+", () => _captureShortcut(_chips.Count));
+            _addButton = new Button("+", () => _captureShortcut(_chips.Count));
             AddChild(_addButton);
             // Items that stop matching the filter fade and collapse out of the list.
             Transition = new UiTransition(Fade: true, Collapse: true, Response: 25.0);
@@ -378,17 +359,14 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
             int count = shortcuts.Count + (capturingSlot >= shortcuts.Count ? 1 : 0);
             while (_chips.Count > count)
             {
-                ShortcutChip removed = _chips[^1];
+                RemoveChild(_chips[^1]);
                 _chips.RemoveAt(_chips.Count - 1);
-                RemoveChild(removed);
-                removed.Dispose();
             }
 
             while (_chips.Count < count)
             {
                 int slot = _chips.Count;
                 var chip = new ShortcutChip(
-                    _factory,
                     CaptureLabel,
                     () => _captureShortcut(slot),
                     () => _removeShortcut(slot));
@@ -468,7 +446,7 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
 
             context.DrawText(
                 Command.Label,
-                _labelFormat,
+                LabelFont,
                 new Rect(
                     ChipPadding,
                     0.0f,
@@ -478,30 +456,6 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
                 DrawTextOptions.Clip);
         }
 
-        public void Dispose()
-        {
-            foreach (ShortcutChip chip in _chips)
-            {
-                chip.Dispose();
-            }
-
-            _addButton.Dispose();
-            _labelFormat.Dispose();
-        }
-
         protected override void Activate() => Execute();
-
-        private static IDWriteTextFormat CreateFormat(IDWriteFactory factory)
-        {
-            IDWriteTextFormat format = factory.CreateTextFormat(
-                UiTypography.FontFamily,
-                FontWeight.Medium,
-                FontStyle.Normal,
-                UiDesign.BodyFontSize);
-            format.TextAlignment = TextAlignment.Leading;
-            format.ParagraphAlignment = ParagraphAlignment.Center;
-            format.WordWrapping = WordWrapping.NoWrap;
-            return format;
-        }
     }
 }
