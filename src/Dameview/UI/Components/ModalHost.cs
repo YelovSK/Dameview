@@ -1,4 +1,5 @@
 using System.Drawing;
+using Dameview.UI.Animation;
 using Dameview.UI.Foundation;
 using Dameview.Win32.Input;
 using Vortice.Direct2D1;
@@ -18,13 +19,19 @@ internal abstract class ModalContent : UiElement
 // Owns modal interaction and placement, not the lifetime of its content.
 internal sealed class ModalHost : UiElement
 {
+    private const double VisibilityResponse = 22.0;
+    private const float BackdropAlpha = 0.45f;
+    private const float ClosedScale = 0.96f;
+
     private readonly ModalSurface _surface;
+    // 1 while a modal is open. Easing it fades the backdrop and fades and scales the panel.
+    private readonly AnimatedFloat _visibility = new(0.0f, VisibilityResponse);
     private Action? _dismiss;
     private bool _backdropPressed;
 
     internal ModalHost()
     {
-        _surface = new ModalSurface();
+        _surface = new ModalSurface(this);
         AddChild(_surface);
         IsVisible = false;
     }
@@ -32,6 +39,8 @@ internal sealed class ModalHost : UiElement
     internal bool IsOpen => Content is not null;
     internal ModalContent? Content { get; private set; }
     internal override bool PreservesFocusOnPointerPress => true;
+    // A closing modal is still drawn while it fades out, but clicks already reach what is beneath it.
+    internal override bool IsHitTestVisible => IsOpen;
 
     internal void Show(ModalContent content, Action dismiss)
     {
@@ -43,16 +52,24 @@ internal sealed class ModalHost : UiElement
         _dismiss = dismiss;
         _backdropPressed = false;
         IsVisible = true;
+        _visibility.SetTarget(1.0f);
+        InvalidateVisual();
     }
 
     internal void Close()
     {
+        if (Content is null)
+        {
+            return;
+        }
+
         Root?.ClearPointer();
-        _surface.SetContent(null);
+        Root?.DisconnectSubtree(_surface);
         Content = null;
         _dismiss = null;
         _backdropPressed = false;
-        IsVisible = false;
+        _visibility.SetTarget(0.0f);
+        InvalidateVisual();
     }
 
     internal bool HandleEscape()
@@ -76,7 +93,7 @@ internal sealed class ModalHost : UiElement
 
     protected override SizeF MeasureCore(SizeF availableSize)
     {
-        if (Content is not null)
+        if (_surface.Content is not null)
         {
             _surface.Measure(availableSize);
         }
@@ -86,13 +103,13 @@ internal sealed class ModalHost : UiElement
 
     protected override void ArrangeCore(SizeF finalSize)
     {
-        if (Content is null)
+        if (_surface.Content is not { } content)
         {
             return;
         }
 
         const float margin = 12.0f;
-        SizeF desired = Content.PreferredSize;
+        SizeF desired = content.PreferredSize;
         float width = MathF.Min(desired.Width, MathF.Max(0.0f, finalSize.Width - (2.0f * margin)));
         float height = MathF.Min(desired.Height, MathF.Max(0.0f, finalSize.Height - (2.0f * margin)));
         float dpi = Root?.Dpi ?? UiDpi.Default;
@@ -107,11 +124,24 @@ internal sealed class ModalHost : UiElement
             bottom - top));
     }
 
+    protected override bool UpdateCore(in UiUpdateContext context)
+    {
+        bool continues = _visibility.Update(context);
+        if (!IsOpen && !continues)
+        {
+            _surface.SetContent(null);
+            IsVisible = false;
+        }
+
+        return continues;
+    }
+
     protected override void DrawCore(in UiDrawContext context)
     {
         context.FillRoundedRectangle(
             new RoundedRectangle(new RectangleF(0.0f, 0.0f, Bounds.Width, Bounds.Height), 0.0f, 0.0f),
-            new Color4(0.0f, 0.0f, 0.0f, 0.45f));
+            new Color4(0.0f, 0.0f, 0.0f, BackdropAlpha),
+            _visibility.Current);
     }
 
     internal override UiPointerResult OnPointerEvent(in WindowPointerEvent input)
@@ -140,20 +170,22 @@ internal sealed class ModalHost : UiElement
         }
     }
 
-    private sealed class ModalSurface : UiElement
+    private sealed class ModalSurface(ModalHost host) : UiElement
     {
-        private ModalContent? _content;
-
+        // The content being shown, which outlives the host's Content while it fades out.
+        internal ModalContent? Content { get; private set; }
         internal override bool PreservesFocusOnPointerPress => true;
+        internal override float Opacity => host._visibility.Current;
+        internal override float VisualScale => ClosedScale + ((1.0f - ClosedScale) * host._visibility.Current);
 
         internal void SetContent(ModalContent? content)
         {
-            if (_content is not null)
+            if (Content is not null)
             {
-                RemoveChild(_content);
+                RemoveChild(Content);
             }
 
-            _content = content;
+            Content = content;
             if (content is not null)
             {
                 AddChild(content);
@@ -162,28 +194,28 @@ internal sealed class ModalHost : UiElement
 
         protected override SizeF MeasureCore(SizeF availableSize)
         {
-            if (_content is null)
+            if (Content is null)
             {
                 return SizeF.Empty;
             }
 
             var contentSize = new SizeF(
-                MathF.Min(_content.PreferredSize.Width, availableSize.Width),
-                MathF.Min(_content.PreferredSize.Height, availableSize.Height));
-            _content.Measure(contentSize);
+                MathF.Min(Content.PreferredSize.Width, availableSize.Width),
+                MathF.Min(Content.PreferredSize.Height, availableSize.Height));
+            Content.Measure(contentSize);
             return new SizeF(
-                MathF.Min(_content.PreferredSize.Width, availableSize.Width),
-                MathF.Min(_content.PreferredSize.Height, availableSize.Height));
+                MathF.Min(Content.PreferredSize.Width, availableSize.Width),
+                MathF.Min(Content.PreferredSize.Height, availableSize.Height));
         }
 
         protected override void ArrangeCore(SizeF finalSize)
         {
-            if (_content is null)
+            if (Content is null)
             {
                 return;
             }
 
-            _content.Arrange(new RectangleF(PointF.Empty, finalSize));
+            Content.Arrange(new RectangleF(PointF.Empty, finalSize));
         }
 
         protected override void DrawCore(in UiDrawContext context)

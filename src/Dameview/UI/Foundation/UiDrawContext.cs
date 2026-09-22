@@ -138,8 +138,15 @@ internal readonly record struct UiDrawContext
         RectangleF bounds = element.Bounds;
         PointF offset = element.VisualOffset;
         Matrix3x2 previousTransform = RenderTarget.Transform;
-        RenderTarget.Transform = Matrix3x2.CreateTranslation(bounds.X + offset.X, bounds.Y + offset.Y)
-            * previousTransform;
+        var transform = Matrix3x2.CreateTranslation(bounds.X + offset.X, bounds.Y + offset.Y);
+        float scale = element.VisualScale;
+        if (scale != 1.0f)
+        {
+            transform = Matrix3x2.CreateScale(scale, new Vector2(bounds.Width / 2.0f, bounds.Height / 2.0f))
+                * transform;
+        }
+
+        RenderTarget.Transform = transform * previousTransform;
         PushClip(new RectangleF(0.0f, 0.0f, bounds.Width, bounds.Height));
 
         try

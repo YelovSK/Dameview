@@ -56,6 +56,8 @@ internal abstract class UiElement
     internal virtual float Opacity => 1.0f;
     /// <summary>An animated translation applied for drawing and hit testing.</summary>
     internal virtual PointF VisualOffset => PointF.Empty;
+    /// <summary>An animated scale about the element's center, applied for drawing only.</summary>
+    internal virtual float VisualScale => 1.0f;
 
     /// <summary>Measures this element and stores the size it would like to occupy.</summary>
     internal SizeF Measure(SizeF availableSize)
