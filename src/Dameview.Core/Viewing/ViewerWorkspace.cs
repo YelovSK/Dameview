@@ -112,7 +112,7 @@ internal sealed class ViewerWorkspace : IDisposable
     internal void DuplicateActiveTab(ViewerPane pane)
     {
         EnsureContains(pane);
-        string? path = GetCurrentImagePath(pane.ActiveTab);
+        string? path = pane.ActiveSession.State.RequestedPath;
         ViewerTab tab = CreateTab();
         pane.AddTab(tab);
         pane.SelectTab(pane.Count - 1);
@@ -142,7 +142,7 @@ internal sealed class ViewerWorkspace : IDisposable
     internal bool CloseTab(ViewerPane pane, int index)
     {
         EnsureContains(pane);
-        string? path = GetCurrentImagePath(pane.Tabs[index]);
+        string? path = pane.Tabs[index].Session.State.RequestedPath;
         // A pane refuses to close its last tab, so the pane goes instead and takes the tab with it.
         bool closed = pane.CloseTab(index);
         Remember(closed ? pane : null, index, path);
@@ -173,7 +173,7 @@ internal sealed class ViewerWorkspace : IDisposable
     internal ViewerPane SplitPane(ViewerPane pane, WorkspaceSplitOrientation orientation)
     {
         EnsureContains(pane);
-        string? path = GetCurrentImagePath(pane.ActiveTab);
+        string? path = pane.ActiveSession.State.RequestedPath;
         ViewerTab tab = CreateTab();
         ViewerPane newPane = SplitPane(pane, orientation, tab);
         if (path is not null)
@@ -495,12 +495,6 @@ internal sealed class ViewerWorkspace : IDisposable
         {
             _closedTabs.RemoveAt(0);
         }
-    }
-
-    private static string? GetCurrentImagePath(ViewerTab tab)
-    {
-        ViewerSessionState state = tab.Session.State;
-        return state.DisplayedImage?.Path ?? state.RequestedPath;
     }
 
     private void AttachPane(ViewerPane pane)
