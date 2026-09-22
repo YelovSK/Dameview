@@ -24,6 +24,7 @@ internal sealed class ViewerKeyBindings : IEquatable<ViewerKeyBindings>
         [ViewerCommandId.TogglePerformanceOverlay] = [new(WindowKey.F3)],
         [ViewerCommandId.ShowSettings] = [new(WindowKey.Comma, Control: true)],
         [ViewerCommandId.ShowCommandPalette] = [new(WindowKey.P, Control: true, Shift: true)],
+        [ViewerCommandId.ToggleGallery] = [new(WindowKey.G, Control: true)],
     });
 
     private readonly Dictionary<ViewerCommandId, ViewerCommandShortcut[]> _shortcuts;

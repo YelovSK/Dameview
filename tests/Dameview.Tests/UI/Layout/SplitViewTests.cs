@@ -162,6 +162,71 @@ public sealed class SplitViewTests
         Assert.AreEqual(1, completed);
     }
 
+    [TestMethod]
+    public void HidingSlidesThePanelOutPastItsEdgeWhileTheMainContentGrows()
+    {
+        AssertSlide(SplitViewEdge.Right, bounds => bounds.X, outward: 1.0f);
+        AssertSlide(SplitViewEdge.Left, bounds => bounds.X, outward: -1.0f);
+        AssertSlide(SplitViewEdge.Top, bounds => bounds.Y, outward: -1.0f);
+        AssertSlide(SplitViewEdge.Bottom, bounds => bounds.Y, outward: 1.0f);
+
+        static void AssertSlide(SplitViewEdge edge, Func<RectangleF, float> position, float outward)
+        {
+            var main = new FixedContent();
+            var splitView = new SplitView(main, new FixedContent(), initialDividerOffsetDips: 184.0f, edge: edge)
+            {
+                SecondPaneVisible = true,
+            };
+            var root = new UiRoot(splitView, UiDpi.Default, TestTextLayouts.Shared);
+            root.Arrange(new SizeF(1000.0f, 800.0f));
+            RectangleF shownPanel = splitView.SecondPaneBounds;
+            RectangleF shownMain = splitView.FirstPaneBounds;
+
+            splitView.SecondPaneVisible = false;
+            root.Update(new UiUpdateContext(0.02));
+            root.Arrange(new SizeF(1000.0f, 800.0f));
+
+            Assert.AreEqual(shownPanel.Size, splitView.SecondPaneBounds.Size);
+            Assert.IsGreaterThan(0.0f, (position(splitView.SecondPaneBounds) - position(shownPanel)) * outward);
+            Assert.IsGreaterThan(shownMain.Width * shownMain.Height, main.Bounds.Width * main.Bounds.Height);
+
+            root.Update(new UiUpdateContext(0.0, AnimationsEnabled: false));
+            root.Arrange(new SizeF(1000.0f, 800.0f));
+
+            Assert.AreEqual(new RectangleF(0.0f, 0.0f, 1000.0f, 800.0f), splitView.FirstPaneBounds);
+            Assert.AreEqual(RectangleF.Empty, splitView.SecondPaneBounds);
+            Assert.AreEqual(184.0f, splitView.DividerOffsetDips);
+        }
+    }
+
+    [TestMethod]
+    public void ShowingAgainMidwayReturnsFromWhereThePanelIs()
+    {
+        var splitView = new SplitView(new FixedContent(), new FixedContent(), initialDividerOffsetDips: 184.0f)
+        {
+            SecondPaneVisible = true,
+        };
+        var root = new UiRoot(splitView, UiDpi.Default, TestTextLayouts.Shared);
+        root.Arrange(new SizeF(1000.0f, 800.0f));
+
+        splitView.SecondPaneVisible = false;
+        root.Update(new UiUpdateContext(0.02));
+        root.Arrange(new SizeF(1000.0f, 800.0f));
+        float midway = splitView.SecondPaneBounds.X;
+
+        splitView.SecondPaneVisible = true;
+        root.Update(new UiUpdateContext(0.005));
+        root.Arrange(new SizeF(1000.0f, 800.0f));
+
+        Assert.IsTrue(splitView.SecondPaneBounds.X is > 804.0f and < 1000.0f);
+        Assert.IsLessThan(midway, splitView.SecondPaneBounds.X);
+
+        root.Update(new UiUpdateContext(0.0, AnimationsEnabled: false));
+        root.Arrange(new SizeF(1000.0f, 800.0f));
+
+        Assert.AreEqual(new RectangleF(804.0f, 12.0f, 184.0f, 776.0f), splitView.SecondPaneBounds);
+    }
+
     private sealed class FixedContent : UiElement
     {
         protected override SizeF MeasureCore(SizeF availableSize) => availableSize;

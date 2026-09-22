@@ -111,6 +111,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
             initialDividerOffsetDips: GalleryPanel.DefaultSizeDips);
         _splitView.ResizeStarted += _galleryPanel.BeginLiveResize;
         _splitView.ResizeCompleted += _galleryPanel.EndLiveResize;
+        _splitView.ResizeCompleted += () => commands.UpdateSettings(
+            settings => settings with { GallerySizeDips = _splitView.DividerOffsetDips });
         _modalHost = new ModalHost();
         _toastHost = new ToastHost(directWriteFactory, toasts);
         _popupHost = new PopupHost();
@@ -141,10 +143,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _root.CursorChanged += cursor => _cursorChanged?.Invoke(cursor);
         _root.PointerPressed += HandlePointerPressed;
 
-        ViewerSessionState state = _activePane.ActiveSession.State;
-        _galleryPanel.IsVisible = ShouldShowGallery(state);
-        _splitView.SecondPaneVisible = _galleryPanel.IsVisible;
-        _galleryPanel.ApplyState(state.FolderEntries, state.RequestedPath);
+        ApplyActivePaneState(_activePane.ActiveSession.State);
     }
 
     internal event Action? Invalidated
@@ -166,7 +165,6 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _workspaceView.NextAnimationFrameDelay
         ?? (_performanceOverlay.IsVisible ? PerformanceOverlay.HeartbeatInterval : null);
     internal bool IsClosingPane => _workspaceView.IsClosingPane;
-    internal float GallerySizeDips => _splitView.DividerOffsetDips;
     internal PaneLayoutArea PaneLayoutArea => new(
         MathF.Max(1.0f, _root.DipsToPixels(_workspaceView.Bounds.Width)),
         MathF.Max(1.0f, _root.DipsToPixels(_workspaceView.Bounds.Height)),
@@ -576,8 +574,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     private void ApplyActivePaneState(ViewerSessionState state)
     {
-        _galleryPanel.IsVisible = _chromeVisible && _galleryEnabled && ShouldShowGallery(state);
-        _splitView.SecondPaneVisible = _galleryPanel.IsVisible;
+        _splitView.SecondPaneVisible = _chromeVisible && _galleryEnabled && ShouldShowGallery(state);
         _galleryPanel.ApplyState(state.FolderEntries, state.RequestedPath);
     }
 

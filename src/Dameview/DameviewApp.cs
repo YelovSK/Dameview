@@ -208,11 +208,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     {
         // WINDOWPLACEMENT keeps rcNormalPosition up to date while maximized,
         // so this also remembers the size that will be restored after unmaximizing.
-        _settings.Update(_settings.Current with
-        {
-            GallerySizeDips = _ui.GallerySizeDips,
-            Window = _window.CapturePlacement(),
-        });
+        _settings.Update(_settings.Current with { Window = _window.CapturePlacement() });
         _updates.Changed -= HandleUpdateChanged;
         _updates.UpdateDownloaded -= HandleUpdateDownloaded;
         _settings.Dispose();
@@ -483,6 +479,10 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
 
             case ViewerCommandId.ToggleFullscreen:
                 ToggleFullscreen();
+                break;
+
+            case ViewerCommandId.ToggleGallery:
+                UpdateSettings(settings => settings with { GalleryEnabled = !settings.GalleryEnabled });
                 break;
 
             case ViewerCommandId.SplitRight:

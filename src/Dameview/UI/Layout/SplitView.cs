@@ -1,4 +1,5 @@
 using System.Drawing;
+using Dameview.UI.Animation;
 using Dameview.UI.Foundation;
 
 namespace Dameview.UI.Layout;
@@ -35,7 +36,9 @@ internal sealed class SplitView : UiElement, ISplitResizerTarget
         _resizer = new SplitResizer(this);
         _resizer.ResizeStarted += () => ResizeStarted?.Invoke();
         _resizer.ResizeCompleted += () => ResizeCompleted?.Invoke();
-        _secondPane.IsVisible = false;
+        // Collapsing slides the pane in from its edge while the first pane gives way.
+        _secondPane.Transition = new UiTransition(Collapse: true);
+        _secondPane.IsPresent = false;
         AddChild(firstPane);
         AddChild(secondPane);
         AddChild(_resizer);
@@ -52,34 +55,11 @@ internal sealed class SplitView : UiElement, ISplitResizerTarget
     internal float DividerOffsetDips { get; private set; }
     internal bool IsHorizontal => Edge is SplitViewEdge.Left or SplitViewEdge.Right;
 
-    internal bool FirstPaneVisible
-    {
-        get; set
-        {
-            if (field == value)
-            {
-                return;
-            }
-
-            field = value;
-            _firstPane.IsVisible = value;
-            InvalidateLayout();
-        }
-    } = true;
-
+    /// <summary>Whether the second pane is shown; changing it slides the pane in or out.</summary>
     internal bool SecondPaneVisible
     {
-        get; set
-        {
-            if (field == value)
-            {
-                return;
-            }
-
-            field = value;
-            _secondPane.IsVisible = value;
-            InvalidateLayout();
-        }
+        get => _secondPane.IsPresent;
+        set => _secondPane.IsPresent = value;
     }
 
     protected override SizeF MeasureCore(SizeF availableSize)
@@ -120,70 +100,46 @@ internal sealed class SplitView : UiElement, ISplitResizerTarget
 
     private void CalculateBounds(SizeF finalSize)
     {
+        if (!_secondPane.IsVisible)
+        {
+            _firstPaneBounds = new RectangleF(PointF.Empty, finalSize);
+            _secondPaneBounds = RectangleF.Empty;
+            return;
+        }
+
         float margin = UiDesign.WindowMargin;
         float usableAxis = (IsHorizontal ? finalSize.Width : finalSize.Height)
             - 2.0f * margin
             - SplitterSize;
         float maximumSplitSize = MathF.Max(MinimumPaneSizeDips, usableAxis - MinimumPaneSizeDips);
         float splitSize = Math.Clamp(DividerOffsetDips, MinimumPaneSizeDips, maximumSplitSize);
-
-        if (!FirstPaneVisible && !SecondPaneVisible)
-        {
-            _firstPaneBounds = RectangleF.Empty;
-            _secondPaneBounds = RectangleF.Empty;
-            return;
-        }
-
-        if (!SecondPaneVisible || splitSize <= 0.0f)
-        {
-            _firstPaneBounds = FirstPaneVisible
-                ? new RectangleF(0.0f, 0.0f, finalSize.Width, finalSize.Height)
-                : RectangleF.Empty;
-            _secondPaneBounds = RectangleF.Empty;
-            return;
-        }
-
-        if (!FirstPaneVisible)
-        {
-            _firstPaneBounds = RectangleF.Empty;
-            _secondPaneBounds = new RectangleF(0.0f, 0.0f, finalSize.Width, finalSize.Height);
-            return;
-        }
+        // How far from its edge the first pane ends. The second pane keeps its size and
+        // sits just beyond that, so while collapsing it slides out past the window edge.
+        float reserved = (margin + splitSize + SplitterSize) * _secondPane.LayoutPresence;
+        float secondPaneStart = reserved - SplitterSize - splitSize;
 
         float secondPaneWidth = IsHorizontal ? splitSize : MathF.Max(0.0f, finalSize.Width - 2.0f * margin);
         float secondPaneHeight = IsHorizontal ? MathF.Max(0.0f, finalSize.Height - 2.0f * margin) : splitSize;
         switch (Edge)
         {
             case SplitViewEdge.Right:
-                _secondPaneBounds = new RectangleF(finalSize.Width - margin - secondPaneWidth, margin, secondPaneWidth, secondPaneHeight);
-                _firstPaneBounds = new RectangleF(0.0f, 0.0f, _secondPaneBounds.X - SplitterSize, finalSize.Height);
+                _secondPaneBounds = new RectangleF(finalSize.Width - secondPaneStart - secondPaneWidth, margin, secondPaneWidth, secondPaneHeight);
+                _firstPaneBounds = new RectangleF(0.0f, 0.0f, MathF.Max(0.0f, finalSize.Width - reserved), finalSize.Height);
                 break;
 
             case SplitViewEdge.Left:
-                _secondPaneBounds = new RectangleF(margin, margin, secondPaneWidth, secondPaneHeight);
-                _firstPaneBounds = new RectangleF(
-                    _secondPaneBounds.Right + SplitterSize,
-                    0.0f,
-                    MathF.Max(0.0f, finalSize.Width - _secondPaneBounds.Right - SplitterSize),
-                    finalSize.Height);
+                _secondPaneBounds = new RectangleF(secondPaneStart, margin, secondPaneWidth, secondPaneHeight);
+                _firstPaneBounds = new RectangleF(reserved, 0.0f, MathF.Max(0.0f, finalSize.Width - reserved), finalSize.Height);
                 break;
 
             case SplitViewEdge.Top:
-                _secondPaneBounds = new RectangleF(margin, margin, secondPaneWidth, secondPaneHeight);
-                _firstPaneBounds = new RectangleF(
-                    0.0f,
-                    _secondPaneBounds.Bottom + SplitterSize,
-                    finalSize.Width,
-                    MathF.Max(0.0f, finalSize.Height - _secondPaneBounds.Bottom - SplitterSize));
+                _secondPaneBounds = new RectangleF(margin, secondPaneStart, secondPaneWidth, secondPaneHeight);
+                _firstPaneBounds = new RectangleF(0.0f, reserved, finalSize.Width, MathF.Max(0.0f, finalSize.Height - reserved));
                 break;
 
             case SplitViewEdge.Bottom:
-                _secondPaneBounds = new RectangleF(margin, finalSize.Height - margin - secondPaneHeight, secondPaneWidth, secondPaneHeight);
-                _firstPaneBounds = new RectangleF(
-                    0.0f,
-                    0.0f,
-                    finalSize.Width,
-                    MathF.Max(0.0f, _secondPaneBounds.Y - SplitterSize));
+                _secondPaneBounds = new RectangleF(margin, finalSize.Height - secondPaneStart - secondPaneHeight, secondPaneWidth, secondPaneHeight);
+                _firstPaneBounds = new RectangleF(0.0f, 0.0f, finalSize.Width, MathF.Max(0.0f, finalSize.Height - reserved));
                 break;
 
             default:

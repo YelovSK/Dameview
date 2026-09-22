@@ -76,7 +76,7 @@ internal abstract class UiElement
             field = value;
             float target = value ? 1.0f : 0.0f;
             // Nothing is on screen to animate from, so the element takes its new state at once.
-            if (_presence is null || Root is null || (!value && !IsVisible))
+            if (_presence is null || Root is not { LayoutPasses: > 0 } || (!value && !IsVisible))
             {
                 _presence?.SetValue(target);
                 IsVisible = value;

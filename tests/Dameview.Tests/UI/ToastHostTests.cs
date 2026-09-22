@@ -129,12 +129,7 @@ public sealed class ToastHostTests
     private static void Arrange(ToastHost host)
     {
         // Measuring a toast shapes its message, which needs the root's shared text layouts.
-        if (host.Root is null)
-        {
-            _ = new UiRoot(host, UiDpi.Default, TestTextLayouts.Shared);
-        }
-
-        host.Measure(new SizeF(800.0f, 600.0f));
-        host.Arrange(new RectangleF(0.0f, 0.0f, 800.0f, 600.0f));
+        UiRoot root = host.Root ?? new UiRoot(host, UiDpi.Default, TestTextLayouts.Shared);
+        root.Arrange(new SizeF(800.0f, 600.0f));
     }
 }
