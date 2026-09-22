@@ -1,4 +1,5 @@
 using System.Drawing;
+using Dameview.UI.Animation;
 using Dameview.UI.Foundation;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
@@ -8,8 +9,12 @@ namespace Dameview.UI.Components;
 
 internal sealed class Toggle : InteractiveControl, IDisposable
 {
+    private const double SwitchResponse = 24.0;
+
     private readonly Action<bool> _changed;
     private readonly IDWriteTextFormat _textFormat;
+    // 0 when off and 1 when on; slides the thumb and blends the track color in between.
+    private readonly AnimatedFloat _onAmount;
     private bool _value;
 
     internal Toggle(
@@ -20,6 +25,7 @@ internal sealed class Toggle : InteractiveControl, IDisposable
     {
         Label = label;
         _value = value;
+        _onAmount = new AnimatedFloat(value ? 1.0f : 0.0f, SwitchResponse);
         _changed = changed;
         _textFormat = factory.CreateTextFormat(
             UiTypography.FontFamily, FontWeight.Normal, FontStyle.Normal, UiDesign.BodyFontSize);
@@ -40,6 +46,7 @@ internal sealed class Toggle : InteractiveControl, IDisposable
             }
 
             _value = value;
+            _onAmount.SetTarget(value ? 1.0f : 0.0f);
             SetVisualState(UiVisualState.Selected, value);
         }
     }
@@ -48,6 +55,12 @@ internal sealed class Toggle : InteractiveControl, IDisposable
     {
         float width = float.IsFinite(availableSize.Width) ? availableSize.Width : 220.0f;
         return new SizeF(MathF.Max(0.0f, width), 36.0f);
+    }
+
+    protected override bool UpdateCore(in UiUpdateContext context)
+    {
+        bool continues = base.UpdateCore(context);
+        return _onAmount.Update(context) || continues;
     }
 
     protected override void DrawCore(in UiDrawContext context)
@@ -84,15 +97,20 @@ internal sealed class Toggle : InteractiveControl, IDisposable
             new RectangleF(trackX, trackY, trackWidth, trackHeight),
             trackHeight / 2.0f,
             trackHeight / 2.0f);
-        context.FillRoundedRectangle(
-            track,
-            Value ? context.Palette.Accent : context.Palette.SurfaceBorder,
-            IsEnabled ? 1.0f : 0.55f);
+        float onAmount = _onAmount.Current;
+        float trackOpacity = IsEnabled ? 1.0f : 0.55f;
+        context.FillRoundedRectangle(track, context.Palette.SurfaceBorder, trackOpacity);
+        if (onAmount > 0.0f)
+        {
+            context.FillRoundedRectangle(track, context.Palette.Accent, trackOpacity * onAmount);
+        }
 
         const float thumbSize = 16.0f;
-        float thumbX = Value ? trackX + trackWidth - thumbSize - 3.0f : trackX + 3.0f;
+        const float thumbInset = 3.0f;
+        float thumbTravel = trackWidth - thumbSize - (2.0f * thumbInset);
+        float thumbX = trackX + thumbInset + (thumbTravel * onAmount);
         var thumb = new RoundedRectangle(
-            new RectangleF(thumbX, trackY + 3.0f, thumbSize, thumbSize),
+            new RectangleF(thumbX, trackY + thumbInset, thumbSize, thumbSize),
             thumbSize / 2.0f,
             thumbSize / 2.0f);
         context.FillRoundedRectangle(thumb, context.Palette.PrimaryText, IsEnabled ? 1.0f : 0.65f);
