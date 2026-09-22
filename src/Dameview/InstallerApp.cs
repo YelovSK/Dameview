@@ -56,7 +56,7 @@ internal sealed class InstallerApp : IDisposable
         _window.Closed += NativeMethods.RequestMessageLoopExit;
         try
         {
-            _window.Run(_renderer.FrameLatencyWaitHandle);
+            _window.Run(() => _renderer.FrameLatencyWaitHandle);
         }
         finally
         {

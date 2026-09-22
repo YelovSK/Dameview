@@ -62,9 +62,6 @@ internal sealed unsafe class AppWindow : IDisposable
 
     internal event Action? RenderFrame;
     internal event Action? Shown;
-
-    /// <summary>Changes with the swap chain.</summary>
-    internal nint FrameLatencyWaitHandle { get; set; }
     internal event Action? Closed;
     internal event Action<int, int>? Resized;
     internal event Action<float>? DpiChanged;
@@ -375,9 +372,9 @@ internal sealed unsafe class AppWindow : IDisposable
         _ = PostMessage((HWND)window, NativeMethods.MessageDispatch, 0, 0);
     }
 
-    internal int Run(nint frameLatencyWaitHandle)
+    /// <param name="frameLatencyWaitHandle">Asked for on every wait, since it changes with the swap chain.</param>
+    internal int Run(Func<nint> frameLatencyWaitHandle)
     {
-        FrameLatencyWaitHandle = frameLatencyWaitHandle;
         RequestRepaint();
         RenderRequestedFrame();
         ShowWindow((HWND)Handle, _initialShowCommand);
@@ -407,7 +404,7 @@ internal sealed unsafe class AppWindow : IDisposable
             }
 
             WAIT_EVENT waitResult = NativeMethods.WaitForMessageOrHandle(
-                FrameLatencyWaitHandle,
+                frameLatencyWaitHandle(),
                 _frameRequested);
             if (waitResult == WAIT_EVENT.WAIT_FAILED)
             {

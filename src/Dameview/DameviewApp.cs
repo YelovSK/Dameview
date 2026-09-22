@@ -185,7 +185,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _window.Closed += NativeMethods.RequestMessageLoopExit;
         try
         {
-            return _window.Run(_renderer.FrameLatencyWaitHandle);
+            return _window.Run(() => _renderer.FrameLatencyWaitHandle);
         }
         finally
         {
@@ -828,7 +828,6 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         long started = Stopwatch.GetTimestamp();
         bool migrated = TryMoveCachedBitmaps(cache => cache.ReadBack(_renderer.DeviceContext));
         bool adopted = _renderer.AdoptDevice(completed.Result);
-        _window.FrameLatencyWaitHandle = _renderer.FrameLatencyWaitHandle;
         ID2D1DeviceContext deviceContext = _renderer.DeviceContext;
         if (!(migrated && TryMoveCachedBitmaps(cache => cache.Upload(deviceContext))))
         {
