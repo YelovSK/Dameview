@@ -145,6 +145,6 @@ internal sealed class FolderNavigator
 
     private readonly record struct NavigationEntry(string Path, FolderEntry? Metadata)
     {
-        internal string Name => System.IO.Path.GetFileName(Path);
+        internal string Name { get; } = System.IO.Path.GetFileName(Path);
     }
 }
