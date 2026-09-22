@@ -157,10 +157,14 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         InvalidateVisual();
     }
 
-    /// <summary>Rebuilds against a replacement device; visible thumbnails are requested again.</summary>
+    /// <summary>Rebuilds against a replacement device, keeping the thumbnails already loaded.</summary>
     internal void RecreateDeviceResources(ID2D1DeviceContext deviceContext)
     {
-        ClearSlots();
+        foreach (GalleryItemSlot slot in _slots.Values)
+        {
+            slot.ClearDisplayBitmap();
+        }
+
         _thumbnailScaleContext.Dispose();
         _thumbnailScaleContext = CreateScaleContext(deviceContext);
     }

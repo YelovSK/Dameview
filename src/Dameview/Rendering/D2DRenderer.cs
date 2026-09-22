@@ -78,6 +78,12 @@ internal sealed class D2DRenderer : IDisposable
         CreateDeviceResources(device);
     }
 
+    /// <summary>
+    /// Raised before the device is replaced, while the outgoing context is still usable, so
+    /// that content with no copy outside the GPU can be read back instead of rebuilt.
+    /// </summary>
+    internal event Action<ID2D1DeviceContext>? DeviceReplacing;
+
     /// <summary>Raised after the device was replaced, once the new resources are ready.</summary>
     internal event Action? DeviceChanged;
 
@@ -107,6 +113,7 @@ internal sealed class D2DRenderer : IDisposable
     /// </summary>
     internal void AdoptDevice(ID3D11Device device)
     {
+        DeviceReplacing?.Invoke(DeviceContext);
         ReleaseDeviceResources();
         CreateDeviceResources(device);
         DeviceChanged?.Invoke();

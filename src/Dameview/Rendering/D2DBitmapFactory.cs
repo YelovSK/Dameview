@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.InteropServices;
 using Dameview.Imaging;
 using Vortice.DCommon;
 using Vortice.Direct2D1;
@@ -45,6 +46,35 @@ internal static class D2DBitmapFactory
             image.Pixels,
             (uint)image.Stride,
             properties);
+    }
+
+    /// <summary>
+    /// Reads a bitmap back into system memory, so its content can be uploaded to another
+    /// device instead of being decoded again. The source device must still be alive.
+    /// </summary>
+    internal static DecodedImage ReadBack(ID2D1DeviceContext deviceContext, ID2D1Bitmap1 bitmap)
+    {
+        SizeI pixelSize = bitmap.PixelSize;
+        BitmapProperties1 properties = new(
+            bitmap.PixelFormat,
+            DefaultDpi,
+            DefaultDpi,
+            BitmapOptions.CpuRead | BitmapOptions.CannotDraw);
+        using ID2D1Bitmap1 readable = deviceContext.CreateBitmap(pixelSize, nint.Zero, 0, properties);
+        readable.CopyFromBitmap(bitmap);
+
+        MappedRectangle mapped = readable.Map(MapOptions.Read);
+        try
+        {
+            int stride = checked((int)mapped.Pitch);
+            var pixels = new byte[(long)stride * pixelSize.Height];
+            Marshal.Copy(mapped.Bits, pixels, 0, pixels.Length);
+            return new DecodedImage(pixelSize.Width, pixelSize.Height, stride, pixels);
+        }
+        finally
+        {
+            readable.Unmap();
+        }
     }
 
     internal static ID2D1Bitmap1 CreateScaled(

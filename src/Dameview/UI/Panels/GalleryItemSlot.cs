@@ -65,7 +65,8 @@ internal sealed class GalleryItemSlot : IDisposable
         _sourceLease?.Dispose();
     }
 
-    private void ClearDisplayBitmap()
+    /// <summary>Drops the scaled copy; the next draw rebuilds it from the thumbnail.</summary>
+    internal void ClearDisplayBitmap()
     {
         _displayBitmap?.Dispose();
         _displayBitmap = null;

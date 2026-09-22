@@ -1,5 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
+using Dameview.Imaging;
 using Dameview.Imaging.Loading;
+using Dameview.Rendering;
 using Vortice.Direct2D1;
 
 namespace Dameview.UI.Presentation;
@@ -103,6 +105,63 @@ internal sealed class RenderBitmapCache : IDisposable
         _sizeBytes = 0;
     }
 
+    /// <summary>
+    /// Reads every cached bitmap into system memory and releases it, because the device that
+    /// owns it is being replaced. A cached bitmap is the only image with no copy outside the
+    /// GPU, so this is what keeps a device switch from decoding everything again. Entries keep
+    /// their identity, so outstanding leases stay valid across the pair.
+    /// </summary>
+    internal void ReadBack(ID2D1DeviceContext deviceContext)
+    {
+        // Only what is on screen is worth moving. Everything else was fetched speculatively,
+        // so dropping it costs a background reload that nobody sees, while moving it would
+        // stall the window thread for as long as it takes to copy whole images twice.
+        LinkedListNode<CachedBitmap>? node = _recentlyUsed.First;
+        while (node is not null)
+        {
+            LinkedListNode<CachedBitmap>? next = node.Next;
+            if (node.Value.PinCount == 0)
+            {
+                Remove(node);
+            }
+
+            node = next;
+        }
+
+        try
+        {
+            // Read everything before releasing anything, so a failure leaves the cache usable.
+            foreach (CachedBitmap entry in _recentlyUsed)
+            {
+                entry.Pixels = D2DBitmapFactory.ReadBack(deviceContext, entry.Bitmap);
+            }
+        }
+        catch
+        {
+            foreach (CachedBitmap entry in _recentlyUsed)
+            {
+                entry.Pixels = null;
+            }
+
+            throw;
+        }
+
+        foreach (CachedBitmap entry in _recentlyUsed)
+        {
+            _disposeBitmap(entry.Bitmap);
+        }
+    }
+
+    /// <summary>Puts the read-back bitmaps on the replacement device.</summary>
+    internal void Upload(ID2D1DeviceContext deviceContext)
+    {
+        foreach (CachedBitmap entry in _recentlyUsed)
+        {
+            entry.Bitmap = D2DBitmapFactory.Create(deviceContext, entry.Pixels!);
+            entry.Pixels = null;
+        }
+    }
+
     internal void Trim()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -197,7 +256,11 @@ internal sealed class CachedBitmap(
     long sizeBytes)
 {
     internal string Path { get; } = path;
-    internal ID2D1Bitmap1 Bitmap { get; } = bitmap;
+    // Replaced when the entry moves to another device, which is why leases read through here.
+    internal ID2D1Bitmap1 Bitmap { get; set; } = bitmap;
+
+    /// <summary>Held only between reading the bitmap back and uploading it again.</summary>
+    internal DecodedImage? Pixels { get; set; }
     internal int Width { get; } = width;
     internal int Height { get; } = height;
     internal long SizeBytes { get; } = sizeBytes;
