@@ -20,9 +20,7 @@ internal sealed class SettingsService : IDisposable
     private string[] _reportedIgnored = [];
 
     /// <param name="loaded">
-    /// Settings already read from <paramref name="path"/>. Seeding them keeps <see cref="Start"/>
-    /// from announcing values the caller has applied itself, so <see cref="Changed"/> only ever
-    /// means the file changed while running.
+    /// Already read from <paramref name="path"/>, so <see cref="Start"/> doesn't report them as a change.
     /// </param>
     internal SettingsService(
         string path,

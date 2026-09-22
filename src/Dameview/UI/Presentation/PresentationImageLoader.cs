@@ -32,7 +32,7 @@ internal sealed class PresentationImageLoader : IImageLoader
         : this(
             producer,
             cache,
-            // Resolved per upload, so a bitmap is always created on the live device.
+            // Resolved per upload, since the device can be replaced.
             upload => D2DBitmapFactory.Create(deviceContext(), upload),
             image => D2DBitmapFactory.Create(deviceContext(), image),
             thumbnails,

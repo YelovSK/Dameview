@@ -52,13 +52,9 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     private int _pointerX;
     private int _pointerY;
 
-    /// <param name="startupSettings">
-    /// Already read by <see cref="Program"/>. The window, the renderer and the UI are built
-    /// from them, rather than built at defaults and corrected once the service reports them.
-    /// </param>
     public DameviewApp(AppSettings startupSettings)
     {
-        // The software device does not need the window, so it is created alongside it.
+        // Doesn't need the window, so it's created in parallel.
         Task<ID3D11Device> softwareDevice = Task.Run(
             static () => D2DRenderer.CreateDevice(DriverType.Warp));
         _window = new AppWindow("Dameview", 1100, 720, startupSettings.Window);
@@ -85,11 +81,8 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             throw;
         }
 
-        // Creating the hardware device loads the display driver, which takes far longer than
-        // everything else in startup put together, so the window comes up on the software
-        // rasterizer above and adopts the real device once this finishes. It starts only
-        // now because both creations contend for the loader lock, and the fast one has to
-        // win that race for any of this to help.
+        // Loading the display driver dominates startup, so the window comes up on WARP and
+        // switches once this finishes. Started only now because both contend for the loader lock.
         _pendingHardwareDevice = Task.Run(static () =>
         {
             long started = Stopwatch.GetTimestamp();
@@ -174,8 +167,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _updates.UpdateDownloaded += HandleUpdateDownloaded;
         _ui.ApplyUpdateState(_updates.State);
 
-        // The window already carries its placement, so this is everything else the settings
-        // decide. It runs through the same path a later change does.
+        // The window was created with its placement already.
         ApplyPreferences(new AppSettings(), startupSettings);
         StartupTrace.Mark("wiring");
     }
@@ -631,8 +623,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _ui.SetFullscreen(_window.IsFullscreen);
     }
 
-    // Only reached when the file changes while running; the initial values are applied
-    // during construction, where the window takes its placement for itself.
+    // Only for changes while running; the window was created with its initial placement.
     private void ApplySettings(AppSettings previous, AppSettings current)
     {
         if (current.Window is { } windowPlacement && previous.Window != windowPlacement)

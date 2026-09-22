@@ -25,7 +25,6 @@ internal sealed class ImagePresentationCache : IDisposable
         _renderContext = CreateRenderContext(deviceContext);
     }
 
-    /// <summary>Rebuilds against a replacement device, discarding the rescale held for the old one.</summary>
     internal void Recreate(ID2D1DeviceContext deviceContext)
     {
         Clear();

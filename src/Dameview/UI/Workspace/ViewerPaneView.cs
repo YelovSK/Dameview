@@ -284,13 +284,12 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
                 + 28.0f);
     }
 
-    /// <summary>Rebuilds what this pane holds on the graphics device after it was replaced.</summary>
     internal void RecreateDeviceResources(ID2D1DeviceContext deviceContext)
     {
         _imagePanel.RecreateDeviceResources(deviceContext);
         _emptyStatePanel.RecreateDeviceResources(deviceContext);
 
-        // The representation still holds what it needs, so this rebinds without reloading.
+        // Rebinds from the representation, without reloading.
         if (_state.DisplayedImage is { } displayed)
         {
             ApplyDisplayedImage(displayed);

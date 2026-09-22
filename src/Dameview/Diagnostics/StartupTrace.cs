@@ -5,8 +5,8 @@ using Dameview.Win32;
 namespace Dameview.Diagnostics;
 
 /// <summary>
-/// Times the stages of startup from process creation, so the cost before managed code ran is
-/// included. Marks are recorded on the window thread only and written once the window is shown.
+/// Times startup stages from process creation, so the time before managed code runs counts too.
+/// Window thread only.
 /// </summary>
 internal static class StartupTrace
 {

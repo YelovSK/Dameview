@@ -40,7 +40,7 @@ internal sealed class ThumbnailImageLoader : IThumbnailImageLoader
             source,
             cache,
             uiContext,
-            // Resolved per upload, so a bitmap is always created on the live device.
+            // Resolved per upload, since the device can be replaced.
             image => D2DBitmapFactory.Create(deviceContext(), image))
     {
     }

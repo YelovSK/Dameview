@@ -53,7 +53,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
     internal TimeSpan? NextAnimationFrameDelay => _imageAnimation?.NextFrameDelay;
     internal Exception? AnimationError => _imageAnimation?.Error;
 
-    /// <summary>Rebuilds against a replacement device; the image is supplied again afterwards.</summary>
+    /// <summary>The image has to be set again afterwards.</summary>
     internal void RecreateDeviceResources(ID2D1DeviceContext deviceContext)
     {
         ReleaseImageResources();
@@ -69,8 +69,6 @@ internal sealed class ImagePanel : UiElement, IDisposable
         return device.CreateDeviceContext();
     }
 
-    // Everything here is built from the graphics device and from the displayed image,
-    // so replacing either one starts from nothing.
     private void ReleaseImageResources()
     {
         _imageAnimation = null;

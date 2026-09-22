@@ -88,11 +88,7 @@ internal sealed class RenderBitmapCache : IDisposable
         _disposeBitmap(bitmap);
     }
 
-    /// <summary>
-    /// Disposes every cached bitmap, as the graphics device they belong to is going away.
-    /// An outstanding lease keeps its entry alive but its bitmap is gone, so whatever is being
-    /// displayed has to be dropped in the same pass.
-    /// </summary>
+    /// <summary>Also disposes leased bitmaps, so whatever displays them has to be dropped too.</summary>
     internal void Clear()
     {
         foreach (CachedBitmap entry in _recentlyUsed)
@@ -112,16 +108,13 @@ internal sealed class RenderBitmapCache : IDisposable
     }
 
     /// <summary>
-    /// Reads every cached bitmap into system memory and releases it, because the device that
-    /// owns it is being replaced. A cached bitmap is the only image with no copy outside the
-    /// GPU, so this is what keeps a device switch from decoding everything again. Entries keep
-    /// their identity, so outstanding leases stay valid across the pair.
+    /// Moves the leased bitmaps to system memory before a device switch, and drops the rest.
+    /// Leases stay valid through the following <see cref="Upload"/>.
     /// </summary>
     internal void ReadBack(ID2D1DeviceContext deviceContext)
     {
-        // Only what is on screen is worth moving. Everything else was fetched speculatively,
-        // so dropping it costs a background reload that nobody sees, while moving it would
-        // stall the window thread for as long as it takes to copy whole images twice.
+        // Unleased entries were only preloaded; reloading them later is cheaper than copying
+        // them twice on the window thread now.
         LinkedListNode<CachedBitmap>? node = _recentlyUsed.First;
         while (node is not null)
         {

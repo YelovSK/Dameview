@@ -38,7 +38,6 @@ internal static unsafe partial class NativeMethods
         CoUninitialize();
     }
 
-    /// <summary>When this process was created, which startup timing is measured from.</summary>
     internal static DateTime GetProcessCreationTimeUtc()
     {
         System.Runtime.InteropServices.ComTypes.FILETIME creation, exit, kernel, user;

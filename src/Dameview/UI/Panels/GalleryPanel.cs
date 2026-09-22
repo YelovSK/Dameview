@@ -157,7 +157,6 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         InvalidateVisual();
     }
 
-    /// <summary>Rebuilds against a replacement device, keeping the thumbnails already loaded.</summary>
     internal void RecreateDeviceResources(ID2D1DeviceContext deviceContext)
     {
         foreach (GalleryItemSlot slot in _slots.Values)

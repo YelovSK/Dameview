@@ -48,10 +48,7 @@ internal static class D2DBitmapFactory
             properties);
     }
 
-    /// <summary>
-    /// Reads a bitmap back into system memory, so its content can be uploaded to another
-    /// device instead of being decoded again. The source device must still be alive.
-    /// </summary>
+    /// <summary>Copies a bitmap to system memory, so it can move to another device.</summary>
     internal static DecodedImage ReadBack(ID2D1DeviceContext deviceContext, ID2D1Bitmap1 bitmap)
     {
         SizeI pixelSize = bitmap.PixelSize;

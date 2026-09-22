@@ -253,10 +253,6 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _root.InvalidateVisual();
     }
 
-    /// <summary>
-    /// Rebuilds everything the UI holds on the graphics device after it was replaced. The
-    /// displayed images are reloaded separately, because the sessions own those.
-    /// </summary>
     internal void RecreateDeviceResources(ID2D1DeviceContext deviceContext)
     {
         _deviceContext = deviceContext;

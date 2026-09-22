@@ -106,10 +106,7 @@ internal sealed class ViewerSession : IDisposable
         _folderMonitor.Open(directoryPath);
     }
 
-    /// <summary>
-    /// Drops the displayed image and loads it again, for when the graphics device its bitmap
-    /// belonged to has been replaced.
-    /// </summary>
+    /// <summary>For when the graphics device the displayed bitmap lived on was replaced.</summary>
     internal void ReloadDisplayedImage()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);

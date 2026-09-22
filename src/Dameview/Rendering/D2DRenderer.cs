@@ -21,11 +21,7 @@ internal readonly record struct RenderTiming(
     long SubmissionCompleted,
     TimeSpan SubmitTime = default);
 
-/// <summary>
-/// Owns the graphics device and the frame lifecycle. The Direct2D and DirectWrite factories
-/// outlive any one device; everything built from the device is replaced together whenever the
-/// device is.
-/// </summary>
+/// <summary>Owns the graphics device and the frame lifecycle. The factories outlive device switches.</summary>
 internal sealed class D2DRenderer : IDisposable
 {
     private const uint BufferCount = 2;
@@ -65,9 +61,6 @@ internal sealed class D2DRenderer : IDisposable
     internal ID2D1DeviceContext DeviceContext => _device.DeviceContext;
     internal IDWriteFactory DirectWriteFactory => _directWriteFactory;
 
-    /// <summary>
-    /// Creates a device off the window thread, so a slow hardware driver load does not block it.
-    /// </summary>
     internal static ID3D11Device CreateDevice(DriverType driverType)
     {
         return D3D11CreateDevice(

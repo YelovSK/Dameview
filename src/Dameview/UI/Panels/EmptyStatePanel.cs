@@ -105,7 +105,6 @@ internal sealed class EmptyStatePanel : UiElement, IDisposable
             context.Palette.SecondaryText);
     }
 
-    /// <summary>Rebuilds against a replacement device.</summary>
     internal void RecreateDeviceResources(ID2D1DeviceContext deviceContext)
     {
         _icon.Dispose();

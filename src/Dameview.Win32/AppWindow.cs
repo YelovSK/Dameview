@@ -33,7 +33,6 @@ internal sealed unsafe class AppWindow : IDisposable
     private FileDropTarget? _dropTarget;
     private bool _oleInitialized;
 
-    /// <param name="placement">Where the window was last left, if it has been.</param>
     internal AppWindow(string title, int width, int height, WindowPlacementState? placement = null)
     {
         nint instance = GetModuleHandle(default(PCWSTR));
@@ -64,7 +63,7 @@ internal sealed unsafe class AppWindow : IDisposable
     internal event Action? RenderFrame;
     internal event Action? Shown;
 
-    /// <summary>The frame-latency object the loop waits on; it changes with the swap chain.</summary>
+    /// <summary>Changes with the swap chain.</summary>
     internal nint FrameLatencyWaitHandle { get; set; }
     internal event Action? Closed;
     internal event Action<int, int>? Resized;
@@ -315,13 +314,8 @@ internal sealed unsafe class AppWindow : IDisposable
         return ToPlacementState(native, window);
     }
 
-    /// <summary>
-    /// Placement is stored in screen coordinates. Windows reports the restored rectangle
-    /// relative to the monitor's work area but positions new windows in screen coordinates,
-    /// so storing what it reports would move the window by the taskbar on every round trip.
-    /// The monitor is only unambiguous while the window exists, so the conversion belongs
-    /// here rather than where the placement is used.
-    /// </summary>
+    // Windows reports the restored rectangle in work-area coordinates but places new windows in
+    // screen coordinates, so storing it as-is would shift the window by the taskbar every run.
     private static WindowPlacementState ToPlacementState(WINDOWPLACEMENT native, nint window)
     {
         RECT normal = native.rcNormalPosition;
@@ -389,9 +383,7 @@ internal sealed unsafe class AppWindow : IDisposable
         ShowWindow((HWND)Handle, _initialShowCommand);
         Shown?.Invoke();
 
-        // After the window is up: nothing can be dragged onto one that was never on
-        // screen, and registering costs a COM apartment initialization that the window
-        // does not have to wait behind.
+        // Registering initializes OLE, which the first frame shouldn't wait for.
         RegisterFileDropTarget();
 
         bool quit = false;
@@ -472,8 +464,7 @@ internal sealed unsafe class AppWindow : IDisposable
         }
     }
 
-    // Created in the state it will be shown in, so the client size is final before anything
-    // is built from it and the window is never restyled once it is on screen.
+    // Created at its final size and state, so nothing built from the client size is redone.
     private nint CreateWindow(
         nint instance,
         string title,
