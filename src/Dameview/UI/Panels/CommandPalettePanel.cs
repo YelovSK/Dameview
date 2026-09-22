@@ -1,5 +1,6 @@
 using System.Drawing;
 using Dameview.Commands;
+using Dameview.UI.Animation;
 using Dameview.UI.Components;
 using Dameview.UI.Foundation;
 using Dameview.UI.Layout;
@@ -54,9 +55,10 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
         ];
         _keyBindings = keyBindings;
         _applyKeyBindings = applyKeyBindings;
+        // Each item carries the gap below itself, so it can collapse away together with its row.
         var itemList = new StackPanel(
             UiOrientation.Vertical,
-            UiDesign.SmallSpacing,
+            0.0f,
             StackPanelDistribution.Natural,
             _items);
         _list = new ScrollView(itemList);
@@ -80,8 +82,8 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
 
     internal override SizeF PreferredSize => new(540.0f, 580.0f);
     internal override UiElement InitialFocus => _filterInput;
-    internal int VisibleCommandCount => _items.Count(item => item.IsVisible);
-    internal ViewerCommandId? SelectedCommand => GetVisibleItems().ElementAtOrDefault(_selectedIndex)?.Command.Id;
+    internal int MatchingCommandCount => _items.Count(item => item.Matches);
+    internal ViewerCommandId? SelectedCommand => GetMatchingItems().ElementAtOrDefault(_selectedIndex)?.Command.Id;
     internal string Query => _filterInput.Text;
 
     internal bool IsCapturing => _capture is not null;
@@ -143,6 +145,12 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
         else
         {
             ApplyFilter(string.Empty);
+        }
+
+        // The palette opens on the full list rather than animating it back in.
+        foreach (CommandItem item in _items)
+        {
+            item.FinishPresenceChange();
         }
     }
 
@@ -216,41 +224,41 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
     {
         foreach (CommandItem item in _items)
         {
-            item.IsVisible = item.Command.Label.Contains(query, StringComparison.OrdinalIgnoreCase);
+            item.Matches = item.Command.Label.Contains(query, StringComparison.OrdinalIgnoreCase);
         }
 
         _selectedIndex = 0;
         _list.SetScrollOffset(0.0f);
-        _emptyMessage.IsVisible = VisibleCommandCount == 0;
+        _emptyMessage.IsVisible = MatchingCommandCount == 0;
         UpdateSelection(scrollIntoView: false);
     }
 
     private void MoveSelection(int offset)
     {
-        CommandItem[] visibleItems = GetVisibleItems();
-        if (visibleItems.Length == 0)
+        CommandItem[] matchingItems = GetMatchingItems();
+        if (matchingItems.Length == 0)
         {
             return;
         }
 
-        _selectedIndex = (_selectedIndex + offset + visibleItems.Length) % visibleItems.Length;
+        _selectedIndex = (_selectedIndex + offset + matchingItems.Length) % matchingItems.Length;
         UpdateSelection(scrollIntoView: true);
     }
 
     private void ExecuteSelectedCommand()
     {
-        CommandItem[] visibleItems = GetVisibleItems();
-        if (_selectedIndex >= 0 && _selectedIndex < visibleItems.Length)
+        CommandItem[] matchingItems = GetMatchingItems();
+        if (_selectedIndex >= 0 && _selectedIndex < matchingItems.Length)
         {
-            visibleItems[_selectedIndex].Execute();
+            matchingItems[_selectedIndex].Execute();
         }
     }
 
     private void UpdateSelection(bool scrollIntoView)
     {
-        CommandItem[] visibleItems = GetVisibleItems();
-        CommandItem? selected = _selectedIndex >= 0 && _selectedIndex < visibleItems.Length
-            ? visibleItems[_selectedIndex]
+        CommandItem[] matchingItems = GetMatchingItems();
+        CommandItem? selected = _selectedIndex >= 0 && _selectedIndex < matchingItems.Length
+            ? matchingItems[_selectedIndex]
             : null;
         foreach (CommandItem item in _items)
         {
@@ -263,7 +271,7 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
         }
     }
 
-    private CommandItem[] GetVisibleItems() => [.. _items.Where(item => item.IsVisible)];
+    private CommandItem[] GetMatchingItems() => [.. _items.Where(item => item.Matches)];
 
     internal void ApplyKeyBindings(ViewerKeyBindings keyBindings)
     {
@@ -322,7 +330,11 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
         private const float AddButtonWidth = 26.0f;
         private const float ChipPadding = 12.0f;
         private const string CaptureLabel = "Press a key";
+        private const float RowHeight = 40.0f;
+        private const double PresenceResponse = 25.0;
 
+        // 1 while the item matches the filter; eases to 0 as it fades and collapses out of the list.
+        private readonly AnimatedFloat _presence = new(1.0f, PresenceResponse);
         private readonly Action _execute;
         private readonly Action<int> _captureShortcut;
         private readonly Action<int> _removeShortcut;
@@ -357,6 +369,30 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
         }
         internal override bool IsFocusable => false;
         internal override bool PreservesFocusOnPointerPress => true;
+        internal override bool IsHitTestVisible => Matches;
+        internal override float Opacity => _presence.Current;
+
+        internal bool Matches
+        {
+            get => _presence.Target == 1.0f;
+            set
+            {
+                if (!_presence.SetTarget(value ? 1.0f : 0.0f))
+                {
+                    return;
+                }
+
+                // A leaving item stays in the list until it has collapsed.
+                IsVisible = true;
+                InvalidateLayout();
+            }
+        }
+
+        internal void FinishPresenceChange()
+        {
+            _presence.SetValue(_presence.Target);
+            IsVisible = Matches;
+        }
 
         internal void Execute() => _execute();
 
@@ -408,12 +444,16 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
             }
 
             _addButton.Measure(new SizeF(AddButtonWidth, ShortcutChip.Height));
-            return new SizeF(MathF.Max(0.0f, width), 40.0f);
+            return new SizeF(
+                MathF.Max(0.0f, width),
+                _presence.Current * (RowHeight + UiDesign.SmallSpacing));
         }
 
+        // The row keeps its full height while the item collapses, so the shrinking bounds clip it
+        // from below instead of squashing it.
         protected override void ArrangeCore(SizeF finalSize)
         {
-            float top = (finalSize.Height - ShortcutChip.Height) / 2.0f;
+            float top = (RowHeight - ShortcutChip.Height) / 2.0f;
             float right = finalSize.Width - ChipPadding;
             if (_addButton.IsVisible)
             {
@@ -433,10 +473,27 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
             ChipsLeft = right;
         }
 
+        protected override bool UpdateCore(in UiUpdateContext context)
+        {
+            bool continues = base.UpdateCore(context);
+            float previous = _presence.Current;
+            continues |= _presence.Update(context);
+            if (_presence.Current != previous)
+            {
+                IsVisible = _presence.Current > 0.0f;
+                InvalidateLayout();
+            }
+
+            return continues;
+        }
+
+        // The gap below the row belongs to the item but is not part of it.
+        protected override bool HitTestCore(PointF position) => position.Y < RowHeight;
+
         protected override void DrawCore(in UiDrawContext context)
         {
             var background = new RoundedRectangle(
-                new RectangleF(0.0f, 0.0f, Bounds.Width, Bounds.Height),
+                new RectangleF(0.0f, 0.0f, Bounds.Width, RowHeight),
                 UiDesign.ControlCornerRadius,
                 UiDesign.ControlCornerRadius);
             if (IsSelected)
@@ -461,7 +518,7 @@ internal sealed class CommandPalettePanel : ModalContent, IDisposable
                     ChipPadding,
                     0.0f,
                     MathF.Max(ChipPadding, ChipsLeft - ChipGap),
-                    Bounds.Height),
+                    RowHeight),
                 context.Palette.PrimaryText,
                 DrawTextOptions.Clip);
         }

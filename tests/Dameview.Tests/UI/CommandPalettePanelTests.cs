@@ -50,11 +50,11 @@ public sealed class CommandPalettePanelTests
         root.SetFocus(panel.InitialFocus);
 
         root.HandleTextInput("a");
-        Assert.AreEqual(3, panel.VisibleCommandCount);
+        Assert.AreEqual(3, panel.MatchingCommandCount);
         root.HandleTextInput("l");
 
         Assert.AreEqual("al", panel.Query);
-        Assert.AreEqual(2, panel.VisibleCommandCount);
+        Assert.AreEqual(2, panel.MatchingCommandCount);
         Assert.AreEqual(ViewerCommandId.NewTab, panel.SelectedCommand);
     }
 
@@ -76,14 +76,14 @@ public sealed class CommandPalettePanelTests
         root.HandleTextInput("z");
         root.HandleKey(new WindowKeyEvent(WindowKey.Enter), panel, wrapFocus: true, directionalNavigation: true);
 
-        Assert.AreEqual(0, panel.VisibleCommandCount);
+        Assert.AreEqual(0, panel.MatchingCommandCount);
         Assert.IsNull(panel.SelectedCommand);
         Assert.IsNull(executed);
 
         panel.Reset();
 
         Assert.AreEqual(string.Empty, panel.Query);
-        Assert.AreEqual(2, panel.VisibleCommandCount);
+        Assert.AreEqual(2, panel.MatchingCommandCount);
         Assert.AreEqual(ViewerCommandId.NewTab, panel.SelectedCommand);
     }
     [TestMethod]
