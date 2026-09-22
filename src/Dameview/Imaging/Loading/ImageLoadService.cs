@@ -241,7 +241,7 @@ internal sealed class ImageLoadService : IDisposable
             result = new ImageLoadFailed(request.Path, exception);
         }
 
-        PostToUi(() => DeliverForeground(request, result));
+        PostToUi(() => Deliver(request, result));
         FinishLoad(request);
     }
 
@@ -262,18 +262,6 @@ internal sealed class ImageLoadService : IDisposable
         {
             Log.Error("Image", $"Failed to decode '{Path.GetFileName(request.Path)}'.", exception);
             return new ImageLoadFailed(request.Path, exception);
-        }
-    }
-
-    private void DeliverForeground(LoadRequest request, ImageLoadResult result)
-    {
-        if (IsCurrent(request))
-        {
-            Deliver(request, result);
-        }
-        else
-        {
-            DisposeResult(result);
         }
     }
 
@@ -467,14 +455,6 @@ internal sealed class ImageLoadService : IDisposable
         if (next is not null)
         {
             StartForeground(next);
-        }
-    }
-
-    private bool IsCurrent(LoadRequest request)
-    {
-        lock (_sync)
-        {
-            return IsCurrentUnsafe(request);
         }
     }
 
