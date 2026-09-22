@@ -46,6 +46,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     private readonly SettingsService _settings;
     private readonly UpdateService _updates;
     private readonly ToastService _toasts = new();
+    private Task<ID3D11Device>? _pendingHardwareDevice;
     private bool _contentMigrated;
     private long _memorySampled;
     private CancellationTokenSource? _copyImageCancellation;
@@ -63,8 +64,8 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         StartupTrace.Mark("window");
         try
         {
-            ID3D11Device device = D2DRenderer.CreateDevice(DriverType.Hardware);
-            StartupTrace.Mark("d3d-device");
+            ID3D11Device device = D2DRenderer.CreateDevice(DriverType.Warp);
+            StartupTrace.Mark("warp-device");
             _renderer = new D2DRenderer(
                 _window.Handle,
                 _window.ClientWidth,
@@ -77,6 +78,22 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             Log.Error("Native", "Renderer initialization failed.", exception);
             throw;
         }
+
+        // Creating the hardware device loads the display driver, which takes far longer than
+        // everything else in startup put together, so the window comes up on the software
+        // rasterizer above and adopts the real device once this finishes. It starts only
+        // now because both creations contend for the loader lock, and the fast one has to
+        // win that race for any of this to help.
+        _pendingHardwareDevice = Task.Run(static () =>
+        {
+            long started = Stopwatch.GetTimestamp();
+            ID3D11Device device = D2DRenderer.CreateDevice(DriverType.Hardware);
+            Log.Debug("Startup", string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"hardware device created in {Stopwatch.GetElapsedTime(started).TotalMilliseconds:F1} ms"));
+            return device;
+        });
+
         _performanceMonitor = new PerformanceMonitor();
         _imageBackend = new WindowsImageLoadingBackend();
         _thumbnailCoordinator = new ThumbnailCoordinator(
@@ -202,6 +219,12 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _settings.Dispose();
         _copyImageCancellation?.Cancel();
         _copyImageCancellation?.Dispose();
+        // Closing before the hardware device arrives leaves nothing else to own it.
+        _ = _pendingHardwareDevice?.ContinueWith(
+            static completed => completed.Result.Dispose(),
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnRanToCompletion,
+            TaskScheduler.Default);
         _renderer.DeviceReplacing -= HandleDeviceReplacing;
         _renderer.DeviceChanged -= HandleDeviceChanged;
         _ui.Invalidated -= _window.RequestRepaint;
@@ -834,6 +857,34 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     {
         StartupTrace.Mark("shown");
         StartupTrace.Report();
+        if (_pendingHardwareDevice is not { } pending)
+        {
+            return;
+        }
+
+        _ = pending.ContinueWith(
+            completed => _uiContext.Post(_ => AdoptHardwareDevice(completed), null),
+            CancellationToken.None,
+            TaskContinuationOptions.None,
+            TaskScheduler.Default);
+    }
+
+    private void AdoptHardwareDevice(Task<ID3D11Device> completed)
+    {
+        _pendingHardwareDevice = null;
+        if (!completed.IsCompletedSuccessfully)
+        {
+            Log.Warning(
+                "Native",
+                $"Keeping the software rasterizer: {completed.Exception?.GetBaseException().Message}");
+            return;
+        }
+
+        long started = Stopwatch.GetTimestamp();
+        _renderer.AdoptDevice(completed.Result);
+        Log.Debug("Startup", string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"switched to the hardware device in {Stopwatch.GetElapsedTime(started).TotalMilliseconds:F1} ms"));
     }
 
     private void HandleRenderFrame()
