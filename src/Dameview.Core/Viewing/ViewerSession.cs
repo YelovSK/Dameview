@@ -41,7 +41,7 @@ internal sealed class ViewerSession : IDisposable
         };
         if (!State.IsLoading)
         {
-            ApplyNavigationResult(navigationDirection: 0);
+            PreloadNeighbours(navigationDirection: 0);
         }
 
         StateChanged?.Invoke();
@@ -172,13 +172,13 @@ internal sealed class ViewerSession : IDisposable
 
         if (!State.IsLoading)
         {
-            ApplyNavigationResult(navigationDirection: 0);
+            PreloadNeighbours(navigationDirection: 0);
         }
 
         StateChanged?.Invoke();
     }
 
-    private void ApplyNavigationResult(int navigationDirection)
+    private void PreloadNeighbours(int navigationDirection)
     {
         if (!State.IsError && State.FolderError is null)
         {
@@ -263,7 +263,7 @@ internal sealed class ViewerSession : IDisposable
                         Message = null,
                         IsError = false,
                     };
-                    ApplyNavigationResult(navigationDirection);
+                    PreloadNeighbours(navigationDirection);
 
                     break;
 
