@@ -374,10 +374,9 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
 
     private void HandleKeyPress(WindowKeyEvent input)
     {
-        // Recording a shortcut has to beat the window bindings
-        if (_ui.IsCapturingShortcut)
+        // An element holding the keyboard, such as a shortcut being recorded, beats even the window bindings.
+        if (_ui.HandleCapturedKey(input))
         {
-            _ui.HandleKey(input);
             _window.RequestRepaint();
             return;
         }
@@ -409,11 +408,6 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
 
     private void HandleTextInput(string text)
     {
-        if (_ui.IsCapturingShortcut)
-        {
-            return;
-        }
-
         if (_ui.HandleTextInput(text))
         {
             _window.RequestRepaint();

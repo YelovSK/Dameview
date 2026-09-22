@@ -268,6 +268,8 @@ internal abstract class UiElement
     /// <summary>Handles committed text input.</summary>
     /// <returns><see langword="true"/> when the text was handled.</returns>
     internal virtual bool OnTextInput(string text) => false;
+    /// <summary>Called when the element stops capturing the keyboard, whether it released it or lost it.</summary>
+    internal virtual void OnKeyboardCaptureLost() { }
     /// <summary>Requests that a descendant's bounds be brought into this element's visible region.</summary>
     internal virtual void BringIntoView(RectangleF descendantBounds) { }
 

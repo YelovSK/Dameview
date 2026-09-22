@@ -26,6 +26,8 @@ internal sealed class UiRoot
     internal event Action<UiElement?>? PointerPressed;
 
     internal UiElement? CapturedElement { get; private set; }
+    /// <summary>The element that receives every key and text input ahead of focus and app shortcuts.</summary>
+    internal UiElement? KeyboardCaptor { get; private set; }
     internal UiElement? FocusedElement { get; private set; }
     internal float Dpi { get; private set; }
     /// <summary>The shared text layouts, for elements that measure text to size themselves.</summary>
@@ -151,6 +153,45 @@ internal sealed class UiRoot
         {
             SetFocus(null);
         }
+
+        if (KeyboardCaptor is { } captor && IsWithin(captor, subtree))
+        {
+            ReleaseKeyboard(captor);
+        }
+    }
+
+    internal void CaptureKeyboard(UiElement element)
+    {
+        UiElement? previous = KeyboardCaptor;
+        KeyboardCaptor = element;
+        if (previous is not null && !ReferenceEquals(previous, element))
+        {
+            previous.OnKeyboardCaptureLost();
+        }
+    }
+
+    internal void ReleaseKeyboard(UiElement element)
+    {
+        if (!ReferenceEquals(KeyboardCaptor, element))
+        {
+            return;
+        }
+
+        KeyboardCaptor = null;
+        element.OnKeyboardCaptureLost();
+    }
+
+    /// <summary>Gives a key to the element capturing the keyboard.</summary>
+    /// <returns><see langword="true"/> when an element holds the keyboard, which takes every key whether it uses it or not.</returns>
+    internal bool HandleCapturedKey(WindowKeyEvent input)
+    {
+        if (KeyboardCaptor is not { } captor)
+        {
+            return false;
+        }
+
+        captor.OnKeyEvent(input);
+        return true;
     }
 
     /// <summary>Routes a key event and optionally performs focus navigation.</summary>
@@ -195,6 +236,12 @@ internal sealed class UiRoot
     internal bool HandleTextInput(string text)
     {
         ArgumentException.ThrowIfNullOrEmpty(text);
+        if (KeyboardCaptor is { } captor)
+        {
+            captor.OnTextInput(text);
+            return true;
+        }
+
         for (UiElement? element = FocusedElement; element is not null; element = element.Parent)
         {
             if (element.OnTextInput(text))

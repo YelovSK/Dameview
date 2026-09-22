@@ -89,7 +89,7 @@ public sealed class CommandPalettePanelTests
 
         BeginCapture(root, panel);
         Assert.IsTrue(panel.IsCapturing);
-        Assert.IsTrue(panel.HandleCaptureKey(new WindowKeyEvent(WindowKey.G, Control: true)));
+        Assert.IsTrue(root.HandleCapturedKey(new WindowKeyEvent(WindowKey.G, Control: true)));
 
         Assert.IsFalse(panel.IsCapturing);
         Assert.IsNotNull(applied);
@@ -105,7 +105,7 @@ public sealed class CommandPalettePanelTests
         CommandPalettePanel panel = CreatePanel(bindings => applied = bindings, out UiRoot root);
 
         BeginCapture(root, panel);
-        Assert.IsTrue(panel.HandleCaptureKey(new WindowKeyEvent(WindowKey.Escape)));
+        Assert.IsTrue(root.HandleCapturedKey(new WindowKeyEvent(WindowKey.Escape)));
 
         Assert.IsFalse(panel.IsCapturing);
         Assert.IsNull(applied, "Cancelling records nothing.");
@@ -118,7 +118,7 @@ public sealed class CommandPalettePanelTests
         CommandPalettePanel panel = CreatePanel(bindings => applied = bindings, out UiRoot root);
 
         BeginCapture(root, panel);
-        Assert.IsTrue(panel.HandleCaptureKey(new WindowKeyEvent(WindowKey.Delete)));
+        Assert.IsTrue(root.HandleCapturedKey(new WindowKeyEvent(WindowKey.Delete)));
 
         Assert.IsFalse(panel.IsCapturing);
         Assert.IsNotNull(applied);
@@ -135,7 +135,7 @@ public sealed class CommandPalettePanelTests
 
         // A key the enum does not name could not be written to settings, so it is ignored
         // without ending the capture.
-        Assert.IsTrue(panel.HandleCaptureKey(new WindowKeyEvent((WindowKey)9999)));
+        Assert.IsTrue(root.HandleCapturedKey(new WindowKeyEvent((WindowKey)9999)));
 
         Assert.IsTrue(panel.IsCapturing, "The capture waits for a key it can store.");
         Assert.IsNull(applied);
@@ -144,9 +144,9 @@ public sealed class CommandPalettePanelTests
     [TestMethod]
     public void CaptureKeysAreIgnoredWhileNothingIsRecording()
     {
-        CommandPalettePanel panel = CreatePanel(_ => { }, out _);
+        CreatePanel(_ => { }, out UiRoot root);
 
-        Assert.IsFalse(panel.HandleCaptureKey(new WindowKeyEvent(WindowKey.G, Control: true)));
+        Assert.IsFalse(root.HandleCapturedKey(new WindowKeyEvent(WindowKey.G, Control: true)));
     }
 
     private static CommandPalettePanel CreatePanel(

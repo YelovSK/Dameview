@@ -310,15 +310,10 @@ internal sealed class ViewerUi : UiElement, IDisposable
         return _performanceOverlay.IsVisible;
     }
 
-    internal bool IsCapturingShortcut => _commandPalettePanel.IsCapturing;
+    internal bool HandleCapturedKey(WindowKeyEvent input) => _root.HandleCapturedKey(input);
 
     internal bool HandleKey(WindowKeyEvent input)
     {
-        if (_commandPalettePanel.HandleCaptureKey(input))
-        {
-            return true;
-        }
-
         if (input.Key == WindowKey.Escape && _dragController.IsActive)
         {
             _root.CancelPointer();

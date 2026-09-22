@@ -169,6 +169,27 @@ public sealed class UiRootTests
     }
 
     [TestMethod]
+    public void AKeyboardCaptorTakesKeysAndTextAheadOfFocusUntilItLeavesTheTree()
+    {
+        var focused = new KeyRecorder();
+        var captor = new KeyRecorder();
+        var root = new UiRoot(new FocusContainer(focused, captor), UiDpi.Default, TestTextLayouts.Shared);
+        root.Arrange(new SizeF(800, 600));
+        root.SetFocus(focused);
+        root.CaptureKeyboard(captor);
+
+        Assert.IsTrue(root.HandleCapturedKey(new WindowKeyEvent(WindowKey.G)));
+        Assert.IsTrue(root.HandleTextInput("g"));
+        Assert.AreEqual(2, captor.Received);
+        Assert.AreEqual(0, focused.Received);
+
+        captor.IsVisible = false;
+
+        Assert.IsTrue(captor.LostCapture);
+        Assert.IsFalse(root.HandleCapturedKey(new WindowKeyEvent(WindowKey.G)));
+    }
+
+    [TestMethod]
     public void PressNotificationReportsTheHitElementBeforeRouting()
     {
         int stage = 0;
@@ -286,6 +307,17 @@ public sealed class UiRootTests
 
             return default;
         }
+    }
+
+    private sealed class KeyRecorder : TestElement
+    {
+        internal override bool IsFocusable => true;
+        internal int Received { get; private set; }
+        internal bool LostCapture { get; private set; }
+
+        internal override bool OnKeyEvent(WindowKeyEvent input) => ++Received > 0;
+        internal override bool OnTextInput(string text) => ++Received > 0;
+        internal override void OnKeyboardCaptureLost() => LostCapture = true;
     }
 
     private sealed class FocusContainer : UiElement

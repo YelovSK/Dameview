@@ -83,56 +83,9 @@ internal sealed class CommandPalettePanel : ModalContent
 
     internal bool IsCapturing => _capture is not null;
 
-    // Consumes every key while recording,
-    // so a shortcut cannot fire the command it is being bound to.
-    internal bool HandleCaptureKey(WindowKeyEvent input)
-    {
-        if (_capture is not (ViewerCommandId command, int slot))
-        {
-            return false;
-        }
-
-        if (input.Key is WindowKey.Escape)
-        {
-            CancelCapture();
-            return true;
-        }
-
-        if (input.Key is WindowKey.Delete or WindowKey.Backspace)
-        {
-            RemoveShortcut(command, slot);
-            CancelCapture();
-            return true;
-        }
-
-        // Keys WindowKey does not name, such as a bare modifier, have no text form and so
-        // could not be written to settings.
-        if (!Enum.IsDefined(input.Key))
-        {
-            return true;
-        }
-
-        var shortcut = new ViewerCommandShortcut(input.Key, input.Control, input.Shift);
-        Apply(_keyBindings
-            .WithShortcuts(command, Without(_keyBindings.GetShortcuts(command), slot))
-            .WithShortcut(command, shortcut));
-        return true;
-    }
-
-    internal void CancelCapture()
-    {
-        if (_capture is null)
-        {
-            return;
-        }
-
-        _capture = null;
-        RefreshShortcuts();
-    }
-
     internal void Reset()
     {
-        CancelCapture();
+        EndCapture();
         if (_filterInput.Text.Length > 0)
         {
             _filterInput.Clear();
@@ -151,6 +104,14 @@ internal sealed class CommandPalettePanel : ModalContent
 
     internal override bool OnKeyEvent(WindowKeyEvent input)
     {
+        // While recording, the palette holds the keyboard, so a shortcut cannot fire the
+        // command it is being bound to.
+        if (_capture is (ViewerCommandId command, int slot))
+        {
+            RecordShortcut(input, command, slot);
+            return true;
+        }
+
         switch (input.Key)
         {
             case WindowKey.Up:
@@ -263,10 +224,45 @@ internal sealed class CommandPalettePanel : ModalContent
         RefreshShortcuts();
     }
 
+    internal override void OnKeyboardCaptureLost()
+    {
+        _capture = null;
+        RefreshShortcuts();
+    }
+
     private void BeginCapture(ViewerCommandId command, int slot)
     {
         _capture = (command, slot);
+        Root?.CaptureKeyboard(this);
         RefreshShortcuts();
+    }
+
+    private void EndCapture() => Root?.ReleaseKeyboard(this);
+
+    private void RecordShortcut(WindowKeyEvent input, ViewerCommandId command, int slot)
+    {
+        switch (input.Key)
+        {
+            case WindowKey.Escape:
+                EndCapture();
+                break;
+
+            case WindowKey.Delete or WindowKey.Backspace:
+                RemoveShortcut(command, slot);
+                EndCapture();
+                break;
+
+            // Keys WindowKey does not name, such as a bare modifier, have no text form and so
+            // could not be written to settings.
+            case var key when !Enum.IsDefined(key):
+                break;
+
+            default:
+                Apply(_keyBindings
+                    .WithShortcuts(command, Without(_keyBindings.GetShortcuts(command), slot))
+                    .WithShortcut(command, new ViewerCommandShortcut(input.Key, input.Control, input.Shift)));
+                break;
+        }
     }
 
     private void RemoveShortcut(ViewerCommandId command, int slot)
@@ -286,8 +282,8 @@ internal sealed class CommandPalettePanel : ModalContent
 
     private void Apply(ViewerKeyBindings bindings)
     {
-        _capture = null;
         _keyBindings = bindings;
+        EndCapture();
         RefreshShortcuts();
         _applyKeyBindings(bindings);
     }
