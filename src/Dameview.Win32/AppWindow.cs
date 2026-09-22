@@ -59,7 +59,6 @@ internal sealed unsafe class AppWindow : IDisposable
 
         UpdateClientSize();
         Dpi = GetDpiForWindow((HWND)Handle);
-        RegisterFileDropTarget();
     }
 
     internal event Action? RenderFrame;
@@ -389,6 +388,11 @@ internal sealed unsafe class AppWindow : IDisposable
         RenderRequestedFrame();
         ShowWindow((HWND)Handle, _initialShowCommand);
         Shown?.Invoke();
+
+        // After the window is up: nothing can be dragged onto one that was never on
+        // screen, and registering costs a COM apartment initialization that the window
+        // does not have to wait behind.
+        RegisterFileDropTarget();
 
         bool quit = false;
         while (!quit)
