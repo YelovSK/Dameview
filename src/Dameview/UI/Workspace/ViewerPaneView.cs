@@ -135,7 +135,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     {
         bool hasImage = HasImage;
         _imagePanel.IsVisible = hasImage;
-        _emptyStatePanel.IsVisible = !hasImage;
+        _emptyStatePanel.IsVisible = !hasImage && !_state.IsLoading;
         // A single tab that holds nothing is not worth a strip to switch between.
         _viewerTabs.IsVisible = _chromeVisible && (Pane.Count > 1 || hasImage);
         _toolbarPanel.IsVisible = _chromeVisible && hasImage;
