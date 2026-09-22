@@ -97,7 +97,13 @@ internal sealed class RenderBitmapCache : IDisposable
     {
         foreach (CachedBitmap entry in _recentlyUsed)
         {
-            _disposeBitmap(entry.Bitmap);
+            // Read back but never uploaded, so its bitmap was released already.
+            if (entry.Pixels is null)
+            {
+                _disposeBitmap(entry.Bitmap);
+            }
+
+            entry.Pixels = null;
         }
 
         _entries.Clear();
@@ -152,12 +158,30 @@ internal sealed class RenderBitmapCache : IDisposable
         }
     }
 
-    /// <summary>Puts the read-back bitmaps on the replacement device.</summary>
+    /// <summary>
+    /// Puts the read-back bitmaps on the replacement device. Nothing changes if this fails, so
+    /// <see cref="Clear"/> still knows which bitmaps are already gone.
+    /// </summary>
     internal void Upload(ID2D1DeviceContext deviceContext)
     {
+        var uploaded = new List<ID2D1Bitmap1>(_recentlyUsed.Count);
+        try
+        {
+            foreach (CachedBitmap entry in _recentlyUsed)
+            {
+                uploaded.Add(D2DBitmapFactory.Create(deviceContext, entry.Pixels!));
+            }
+        }
+        catch
+        {
+            uploaded.ForEach(_disposeBitmap);
+            throw;
+        }
+
+        int index = 0;
         foreach (CachedBitmap entry in _recentlyUsed)
         {
-            entry.Bitmap = D2DBitmapFactory.Create(deviceContext, entry.Pixels!);
+            entry.Bitmap = uploaded[index++];
             entry.Pixels = null;
         }
     }
@@ -259,7 +283,10 @@ internal sealed class CachedBitmap(
     // Replaced when the entry moves to another device, which is why leases read through here.
     internal ID2D1Bitmap1 Bitmap { get; set; } = bitmap;
 
-    /// <summary>Held only between reading the bitmap back and uploading it again.</summary>
+    /// <summary>
+    /// Held only between reading the bitmap back and uploading it again; while it is set,
+    /// <see cref="Bitmap"/> has been released.
+    /// </summary>
     internal DecodedImage? Pixels { get; set; }
     internal int Width { get; } = width;
     internal int Height { get; } = height;
