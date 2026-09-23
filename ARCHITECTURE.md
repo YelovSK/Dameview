@@ -93,6 +93,10 @@ Image loading selects a representation according to the source. Ordinary static 
 
 The caches serve different stages of this pipeline. `ThumbnailCoordinator` decodes thumbnails on background workers and deduplicates concurrent requests. `ThumbnailImageLoader` uploads them into a UI-thread GPU cache and hands out leases. `PresentationImageLoader` is the matching facade for full images, and also joins a GPU thumbnail with the source dimensions to produce the blurred preview. `RenderBitmapCache` is reused for two UI-thread-owned GPU caches: one for uploaded full-image bitmaps and one for uploaded thumbnails. Displayed images and visible thumbnails hold leases that prevent their entries from being evicted. Each `ImagePanel` caches a pre-scaled Direct2D bitmap for its current static viewport, avoiding repeated high-quality scaling while the source and viewport remain unchanged. Tiled presentation owns a bounded set of GPU tiles rather than constructing one full-size bitmap.
 
+## Graphics devices
+
+Loading the display driver dominates startup, so the window first renders on WARP, Direct3D's software rasterizer, while the hardware device is created in the background. Once it is ready, `D2DRenderer` switches to it and device-bound resources are recreated on the new device. Logical state lives outside `Rendering` and `UI`, so only GPU resources are affected, but anything holding a device-bound value, such as the device context, must pick up the new one.
+
 ## Installation and updates
 
 `InstallerApp` uses the same window, renderer, and custom UI infrastructure as the viewer, while `AppInstallation` owns the install and uninstall workflow.

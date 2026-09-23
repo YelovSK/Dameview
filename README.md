@@ -26,7 +26,8 @@ More in [ARCHITECTURE.md](ARCHITECTURE.md).
 - Color themes
 - Built-in installer
 - Built-in updater
-- Fast to launch, fast to navigate
+- Starts in ~100 ms
+- Tiled rendering for large images
 
 ## Motivation
 
