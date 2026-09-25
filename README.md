@@ -2,7 +2,7 @@
 
 A Windows image viewer built with C#, Native AOT, Win32, and Direct2D.
 
-https://github.com/user-attachments/assets/3f427e63-679a-4f7d-805f-54f9f93250a2
+https://github.com/user-attachments/assets/677feaf6-f3dd-442b-a480-fc2a9d779cc4
 
 ## Tech stack
 
