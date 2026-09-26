@@ -76,6 +76,7 @@ public sealed class FolderScanSessionTests
             fixture.Loader.Complete();
         }
 
+        fixture.Scanner.WaitForRequest(0);
         fixture.Scanner.Requests[0].Completion.SetException(new IOException("Folder unavailable"));
         fixture.DeliverScan();
         if (!imageFirst)
@@ -98,6 +99,7 @@ public sealed class FolderScanSessionTests
         fixture.Session.OpenImage(Fixture.First);
         fixture.Loader.Fail();
         string? error = fixture.Session.State.Message;
+        fixture.Scanner.WaitForRequest(0);
         fixture.Scanner.Requests[0].Completion.SetException(new IOException("Folder unavailable"));
         fixture.DeliverScan();
         Assert.AreEqual(error, fixture.Session.State.Message);
@@ -132,6 +134,7 @@ public sealed class FolderScanSessionTests
 
         fixture.Session.OpenImage(Fixture.First);
         Assert.IsFalse(fixture.Session.State.IsError);
+        fixture.Scanner.WaitForRequest(1);
         Assert.IsFalse(fixture.Scanner.Requests[1].Token.IsCancellationRequested);
     }
 
@@ -173,6 +176,7 @@ public sealed class FolderScanSessionTests
         using var watcher = new FakeFolderWatcher();
         using var monitor = new FolderMonitor(scanner, watcher, new WindowSynchronizationContext(_ => { }), debounceMilliseconds: 0);
         monitor.Open(@"C:\images");
+        scanner.WaitForRequests(1);
         Assert.AreEqual(1, scanner.Requests);
 
         watcher.RaiseChanged(@"C:\images\notes.txt");
@@ -189,6 +193,7 @@ public sealed class FolderScanSessionTests
         using var watcher = new FakeFolderWatcher();
         using var monitor = new FolderMonitor(scanner, watcher, new WindowSynchronizationContext(_ => { }), debounceMilliseconds: 0);
         monitor.Open(@"C:\images");
+        scanner.WaitForRequests(1);
         Assert.AreEqual(1, scanner.Requests);
 
         watcher.RaiseRenamed(@"C:\images\pic.txt", @"C:\images\pic.jpg");
@@ -196,6 +201,98 @@ public sealed class FolderScanSessionTests
 
         watcher.RaiseRenamed(@"C:\images\pic.txt", @"C:\images\notes.txt");
         Assert.AreEqual(2, scanner.Requests);
+    }
+
+    [TestMethod]
+    public void SlowWatcherDoesNotBlockOpen()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"Dameview-watch-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        using var watcher = new FakeFolderWatcher { OnStart = () =>
+        {
+            entered.Set();
+            release.Wait();
+        } };
+        var scanner = new ExtensionScanner();
+        using var monitor = new FolderMonitor(scanner, watcher, new WindowSynchronizationContext(_ => { }));
+        try
+        {
+            var open = Task.Run(() => monitor.Open(directory));
+            Assert.IsTrue(entered.Wait(TimeSpan.FromSeconds(5)));
+            Assert.IsTrue(open.Wait(TimeSpan.FromSeconds(1)));
+            Assert.AreEqual(0, scanner.Requests);
+            release.Set();
+            scanner.WaitForRequests(1);
+        }
+        finally
+        {
+            release.Set();
+            Directory.Delete(directory);
+        }
+    }
+
+    [TestMethod]
+    public void ClosingDuringWatcherStartupCancelsTheScan()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"Dameview-watch-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        int stops = 0;
+        using var watcher = new FakeFolderWatcher
+        {
+            OnStart = () =>
+            {
+                entered.Set();
+                release.Wait();
+            },
+            OnStop = () => Interlocked.Increment(ref stops),
+        };
+        var scanner = new ExtensionScanner();
+        using var monitor = new FolderMonitor(scanner, watcher, new WindowSynchronizationContext(_ => { }));
+        try
+        {
+            monitor.Open(directory);
+            Assert.IsTrue(entered.Wait(TimeSpan.FromSeconds(5)));
+            var close = Task.Run(monitor.Close);
+            Assert.IsTrue(close.Wait(TimeSpan.FromSeconds(1)));
+            release.Set();
+            Assert.IsTrue(SpinWait.SpinUntil(() => Volatile.Read(ref stops) >= 2, TimeSpan.FromSeconds(5)));
+            Assert.AreEqual(0, scanner.Requests);
+        }
+        finally
+        {
+            release.Set();
+            Directory.Delete(directory);
+        }
+    }
+
+    [TestMethod]
+    public void UnexpectedWatcherFailureIsReportedAndStillScans()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"Dameview-watch-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        using var watcher = new FakeFolderWatcher
+        {
+            OnStart = () => throw new InvalidOperationException("Watcher failed"),
+        };
+        var failures = new ConcurrentQueue<Exception>();
+        var scanner = new ExtensionScanner();
+        using var monitor = new FolderMonitor(scanner, watcher, new WindowSynchronizationContext(_ => { }));
+        monitor.WatcherFailed += failures.Enqueue;
+        try
+        {
+            monitor.Open(directory);
+            scanner.WaitForRequests(1);
+            Assert.IsTrue(failures.TryDequeue(out Exception? failure));
+            Assert.IsInstanceOfType<InvalidOperationException>(failure);
+        }
+        finally
+        {
+            Directory.Delete(directory);
+        }
     }
 
     private sealed class Fixture : IDisposable
@@ -237,13 +334,17 @@ public sealed class FolderScanSessionTests
 
     private sealed class ExtensionScanner : IFolderScanner
     {
-        internal int Requests { get; private set; }
+        private int _requests;
+        internal int Requests => Volatile.Read(ref _requests);
 
         public Task<FolderEntry[]> ScanAsync(string directoryPath, CancellationToken cancellationToken)
         {
-            Requests++;
+            Interlocked.Increment(ref _requests);
             return Task.FromResult(Array.Empty<FolderEntry>());
         }
+
+        internal void WaitForRequests(int count) =>
+            Assert.IsTrue(SpinWait.SpinUntil(() => Requests >= count, TimeSpan.FromSeconds(5)));
 
         public bool IsProbablySupported(string path)
             => Path.GetExtension(path).Equals(".jpg", StringComparison.OrdinalIgnoreCase);
@@ -256,7 +357,11 @@ public sealed class FolderScanSessionTests
         public Task<FolderEntry[]> ScanAsync(string directoryPath, CancellationToken cancellationToken)
         {
             var completion = new TaskCompletionSource<FolderEntry[]>(TaskCreationOptions.RunContinuationsAsynchronously);
-            Requests.Add((completion, cancellationToken));
+            lock (Requests)
+            {
+                Requests.Add((completion, cancellationToken));
+                Monitor.PulseAll(Requests);
+            }
             return completion.Task;
         }
 
@@ -264,7 +369,19 @@ public sealed class FolderScanSessionTests
 
         internal void Complete(int index, params string[] paths)
         {
+            WaitForRequest(index);
             Requests[index].Completion.SetResult([.. paths.Select(path => new FolderEntry(path, 1, default, default))]);
+        }
+
+        internal void WaitForRequest(int index)
+        {
+            lock (Requests)
+            {
+                while (Requests.Count <= index)
+                {
+                    Assert.IsTrue(Monitor.Wait(Requests, TimeSpan.FromSeconds(5)));
+                }
+            }
         }
     }
 
@@ -307,6 +424,8 @@ public sealed class FolderScanSessionTests
 
 internal sealed class FakeFolderWatcher : IFolderWatcher
 {
+    internal Action? OnStart { get; init; }
+    internal Action? OnStop { get; init; }
     public event Action<string>? Changed;
     public event Action<string>? Created;
     public event Action<string>? Deleted;
@@ -321,10 +440,12 @@ internal sealed class FakeFolderWatcher : IFolderWatcher
 
     public void Start(string directoryPath)
     {
+        OnStart?.Invoke();
     }
 
     public void Stop()
     {
+        OnStop?.Invoke();
     }
 
     public void Dispose()

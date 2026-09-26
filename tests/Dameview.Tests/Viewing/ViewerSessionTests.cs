@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Drawing;
 using Dameview.Imaging;
 using Dameview.Imaging.Animation;
@@ -11,6 +12,8 @@ namespace Dameview.Tests.Viewing;
 [TestClass]
 public sealed class ViewerSessionTests
 {
+    private readonly ConcurrentQueue<Action> _posts = new();
+
     [TestMethod]
     public void SortChangePreservesImageAndViewportAndUpdatesNeighbors()
     {
@@ -18,6 +21,7 @@ public sealed class ViewerSessionTests
         var loader = new ManualImageLoader();
         using ViewerSession session = CreateSession(loader);
         session.OpenImage(files.First);
+        DeliverFolder(session);
         loader.Complete(CreateImage());
         session.Viewport.SetActualSizeAt(400, 300, session.Viewport.ImageCenter);
         ImageLoaded? displayed = session.State.DisplayedImage;
@@ -40,10 +44,11 @@ public sealed class ViewerSessionTests
         using var files = new SessionFiles();
         var loader = new ManualImageLoader();
         var scanner = new ImmediateScanner();
-        var monitor = new FolderMonitor(scanner, new FakeFolderWatcher(), new WindowSynchronizationContext(action => action()), debounceMilliseconds: 0);
+        var monitor = new FolderMonitor(scanner, new FakeFolderWatcher(), new WindowSynchronizationContext(_posts.Enqueue), debounceMilliseconds: 0);
         using var session = new ViewerSession(new FolderNavigator(), monitor, loader);
         session.Viewport.SetViewportSize(800, 600);
         session.OpenImage(files.First);
+        DeliverFolder(session);
         loader.Complete(CreateImage());
 
         session.SelectImage(files.Third);
@@ -64,6 +69,7 @@ public sealed class ViewerSessionTests
         session.StateChanged += () => states.Add(session.State);
 
         session.OpenImage(files.First);
+        DeliverFolder(session);
         Assert.IsTrue(session.State.IsLoading);
         Assert.IsNull(session.State.DisplayedImage);
         var image = new DecodedImage(1600, 1200, 6400, new byte[6400 * 1200]);
@@ -101,6 +107,7 @@ public sealed class ViewerSessionTests
         var loader = new ManualImageLoader();
         using ViewerSession session = CreateSession(loader);
         session.OpenImage(files.First);
+        DeliverFolder(session);
         loader.Complete(CreateImage());
         CollectionAssert.AreEqual(new[] { files.Second, files.Third }, loader.Preloads);
 
@@ -126,6 +133,7 @@ public sealed class ViewerSessionTests
         var loader = new ManualImageLoader();
         using ViewerSession session = CreateSession(loader);
         session.OpenImage(files.First);
+        DeliverFolder(session);
         loader.Fail(new InvalidDataException("Broken image"));
         session.ShowNextImage();
         Assert.IsFalse(session.State.IsError);
@@ -222,12 +230,23 @@ public sealed class ViewerSessionTests
         Assert.IsTrue(tiles.IsDisposed);
     }
 
-    private static ViewerSession CreateSession(ManualImageLoader loader)
+    private ViewerSession CreateSession(ManualImageLoader loader)
     {
-        var monitor = new FolderMonitor(new ImmediateScanner(), new FakeFolderWatcher(), new WindowSynchronizationContext(action => action()), debounceMilliseconds: 0);
+        var monitor = new FolderMonitor(new ImmediateScanner(), new FakeFolderWatcher(), new WindowSynchronizationContext(_posts.Enqueue), debounceMilliseconds: 0);
         var session = new ViewerSession(new FolderNavigator(), monitor, loader);
         session.Viewport.SetViewportSize(800, 600);
         return session;
+    }
+
+    private void DeliverFolder(ViewerSession session)
+    {
+        Assert.IsTrue(SpinWait.SpinUntil(() => !_posts.IsEmpty, TimeSpan.FromSeconds(5)));
+        while (_posts.TryDequeue(out Action? action))
+        {
+            action();
+        }
+
+        Assert.HasCount(3, session.State.FolderEntries);
     }
 
     private sealed class ImmediateScanner : IFolderScanner

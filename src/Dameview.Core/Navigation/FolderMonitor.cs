@@ -24,7 +24,9 @@ internal sealed class FolderMonitor : IFolderMonitor
     private readonly int _debounceMilliseconds;
     private readonly Lock _gate = new();
     private readonly Timer _debounceTimer;
+    private Task _watcherTask = Task.CompletedTask;
     private CancellationTokenSource? _scanCts;
+    private int _watcherVersion;
     private bool _disposed;
 
     internal FolderMonitor(
@@ -46,26 +48,27 @@ internal sealed class FolderMonitor : IFolderMonitor
     }
 
     public event Action<FolderUpdate>? Updated;
+    internal event Action<Exception>? WatcherFailed;
 
     public string? CurrentDirectory { get; private set; }
 
     public void Open(string directoryPath)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-
         CancellationTokenSource cts;
+        Task watcherReady;
         lock (_gate)
         {
+            ObjectDisposedException.ThrowIf(_disposed, this);
             CurrentDirectory = directoryPath;
             _scanCts?.Cancel();
             _scanCts?.Dispose();
             cts = new CancellationTokenSource();
             _scanCts = cts;
             _debounceTimer.Change(Timeout.Infinite, Timeout.Infinite);
-            ResetWatcher(directoryPath);
+            watcherReady = QueueWatcherReset(directoryPath);
         }
 
-        _ = ScanAsync(directoryPath, cts.Token);
+        _ = ScanAfterWatcherAsync(directoryPath, watcherReady, cts.Token);
     }
 
     public void Close()
@@ -77,7 +80,7 @@ internal sealed class FolderMonitor : IFolderMonitor
             _scanCts?.Dispose();
             _scanCts = null;
             _debounceTimer.Change(Timeout.Infinite, Timeout.Infinite);
-            ResetWatcher(null);
+            QueueWatcherReset(null);
         }
     }
 
@@ -96,25 +99,60 @@ internal sealed class FolderMonitor : IFolderMonitor
             _scanCts?.Dispose();
             _scanCts = null;
             _debounceTimer.Dispose();
-            ResetWatcher(null);
-            _watcher.Dispose();
+            QueueWatcherReset(null, dispose: true);
         }
     }
 
-    private void ResetWatcher(string? directoryPath)
+    // Watcher operations stay ordered without making the owner thread wait for network I/O.
+    private Task QueueWatcherReset(string? directoryPath, bool dispose = false)
     {
-        if (directoryPath is null || !Directory.Exists(directoryPath))
+        int version = ++_watcherVersion;
+        _watcherTask = _watcherTask.ContinueWith(
+            _ => ResetWatcher(directoryPath, version, dispose),
+            CancellationToken.None,
+            TaskContinuationOptions.None,
+            TaskScheduler.Default);
+        return _watcherTask;
+    }
+
+    private void ResetWatcher(string? directoryPath, int version, bool dispose)
+    {
+        if (version != Volatile.Read(ref _watcherVersion))
         {
-            _watcher.Stop();
             return;
         }
 
         try
         {
+            _watcher.Stop();
+            if (dispose)
+            {
+                _watcher.Dispose();
+                return;
+            }
+
+            if (directoryPath is null || version != Volatile.Read(ref _watcherVersion))
+            {
+                return;
+            }
+
             _watcher.Start(directoryPath);
         }
         catch (Exception exception) when (IsRecoverableError(exception))
         {
+        }
+        catch (Exception exception)
+        {
+            WatcherFailed?.Invoke(exception);
+        }
+    }
+
+    private async Task ScanAfterWatcherAsync(string directoryPath, Task watcherReady, CancellationToken token)
+    {
+        await watcherReady.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        if (!token.IsCancellationRequested)
+        {
+            await ScanAsync(directoryPath, token).ConfigureAwait(false);
         }
     }
 

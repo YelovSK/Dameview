@@ -755,6 +755,8 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             _folderScanner,
             new FileSystemFolderWatcher(),
             _uiContext);
+        folderMonitor.WatcherFailed += exception =>
+            Log.Error("Folder", "Folder watcher failed.", exception);
         var session = new ViewerSession(
             new FolderNavigator(),
             folderMonitor,
