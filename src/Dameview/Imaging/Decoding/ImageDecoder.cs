@@ -40,7 +40,7 @@ internal sealed class ImageDecoder : IImageDecoder
     {
         using IWICBitmapDecoder decoder = CreateDecoder(path, DecodeOptions.CacheOnDemand);
         using IWICBitmapFrameDecode frame = decoder.GetFrame(0);
-        return new ImageInfo(frame.Size.Width, frame.Size.Height);
+        return new ImageInfo(frame.Size.Width, frame.Size.Height, checked((int)decoder.FrameCount));
     }
 
     internal DecodedImageUpload DecodeUpload(

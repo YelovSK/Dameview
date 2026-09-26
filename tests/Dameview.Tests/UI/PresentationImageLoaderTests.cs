@@ -409,7 +409,7 @@ public sealed class PresentationImageLoaderTests
 
     private sealed class FakeDecoder(Func<DecodedImageUpload> decode) : IImageDecoder
     {
-        public ImageInfo GetInfo(string path) => new(1, 1);
+        public ImageInfo GetInfo(string path) => new(1, 1, 1);
         public DecodedImageUpload DecodeUpload(
             string path,
             CancellationToken cancellationToken = default) => decode();

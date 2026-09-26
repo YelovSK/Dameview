@@ -8,6 +8,7 @@ internal sealed class WindowsImageLoadingBackend : IImageLoadingBackend
     private static readonly IAnimatedImageDecoder[] AnimatedDecoders =
     [
         new WicGifAnimationDecoder(),
+        new WicWebpAnimationDecoder(),
     ];
     public IImageDecoder CreateDecoder() => new ImageDecoder();
 

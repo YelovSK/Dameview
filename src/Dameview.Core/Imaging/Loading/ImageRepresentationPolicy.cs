@@ -1,6 +1,6 @@
 namespace Dameview.Imaging.Loading;
 
-internal readonly record struct ImageInfo(int Width, int Height);
+internal readonly record struct ImageInfo(int Width, int Height, int FrameCount);
 
 internal readonly record struct ImageRepresentationPolicy
 {

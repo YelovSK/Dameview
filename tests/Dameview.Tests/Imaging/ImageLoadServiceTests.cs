@@ -286,7 +286,10 @@ public sealed class ImageLoadServiceTests
     }
 
     [TestMethod]
-    public void ForegroundUsesTiledRepresentationWithoutFullDecode()
+    [DataRow("large.png")]
+    [DataRow("large.webp")]
+    [DataRow("large.gif")]
+    public void ForegroundUsesTiledRepresentationWithoutFullDecode(string path)
     {
         using var completed = new ManualResetEventSlim();
         int decodeCount = 0;
@@ -300,12 +303,13 @@ public sealed class ImageLoadServiceTests
                         Interlocked.Increment(ref decodeCount);
                         return CreateImage();
                     },
-                    _ => new ImageInfo(20_000, 10_000)),
+                    _ => new ImageInfo(20_000, 10_000, 1)),
+                animatedDecoder: new FakeAnimatedImageDecoder(_ => throw new AssertFailedException("Static image opened as animation.")),
                 openTiledImage: _ => tiles),
             TestPolicy);
         ImageLoaded? loaded = null;
 
-        coordinator.Load("large.png", result =>
+        coordinator.Load(path, result =>
         {
             loaded = (ImageLoaded)result;
             completed.Set();
@@ -339,8 +343,8 @@ public sealed class ImageLoadServiceTests
                         return CreateImage();
                     },
                     path => path == "large"
-                        ? new ImageInfo(20_000, 10_000)
-                        : new ImageInfo(1, 1)),
+                        ? new ImageInfo(20_000, 10_000, 1)
+                        : new ImageInfo(1, 1, 1)),
                 openTiledImage: path =>
                 {
                     openedTilePaths.Enqueue(path);
@@ -356,16 +360,21 @@ public sealed class ImageLoadServiceTests
     }
 
     [TestMethod]
-    public void CompletedPreloadDeliversDisposableUpload()
+    [DataRow("next.png")]
+    [DataRow("next.webp")]
+    [DataRow("next.gif")]
+    public void CompletedPreloadDeliversDisposableUpload(string path)
     {
         using var completed = new ManualResetEventSlim();
         using var coordinator = new TestClient(
             action => action(),
-            new FakeImageLoadingBackend(() => new FakeImageDecoder(_ => CreateImage())),
+            new FakeImageLoadingBackend(
+                () => new FakeImageDecoder(_ => CreateImage()),
+                new FakeAnimatedImageDecoder(_ => throw new AssertFailedException("Static image opened as animation."))),
             TestPolicy);
         ImageLoaded? loaded = null;
 
-        coordinator.Preload(["next"], result =>
+        coordinator.Preload([path], result =>
         {
             loaded = (ImageLoaded)result;
             completed.Set();
@@ -377,11 +386,16 @@ public sealed class ImageLoadServiceTests
     }
 
     [TestMethod]
-    public void ForegroundLoadJoinsAnActivePreloadForTheSameImage()
+    [DataRow("same.png")]
+    [DataRow("same.webp")]
+    [DataRow("same.gif")]
+    public void ForegroundLoadJoinsAnActivePreloadForTheSameImage(string path)
     {
         using var decodeStarted = new ManualResetEventSlim();
         using var releaseDecode = new ManualResetEventSlim();
         using var completed = new ManualResetEventSlim();
+        using var preloadCompleted = new ManualResetEventSlim();
+        ImageLoaded? preload = null;
         int decodeCount = 0;
 
         DecodedImage Decode(string _)
@@ -394,23 +408,36 @@ public sealed class ImageLoadServiceTests
 
         using var coordinator = new TestClient(
             action => action(),
-            new FakeImageLoadingBackend(() => new FakeImageDecoder(Decode)),
+            new FakeImageLoadingBackend(
+                () => new FakeImageDecoder(Decode),
+                new FakeAnimatedImageDecoder(_ => throw new AssertFailedException("Static image opened as animation."))),
             TestPolicy);
 
         try
         {
-            coordinator.Preload(["same"], DisposeResult);
+            coordinator.Preload([path], result =>
+            {
+                preload = (ImageLoaded)result;
+                preloadCompleted.Set();
+            });
             Assert.IsTrue(decodeStarted.Wait(TimeSpan.FromSeconds(5)));
 
-            coordinator.Load("same", _ => completed.Set());
+            coordinator.Load(path, result =>
+            {
+                DisposeResult(result);
+                completed.Set();
+            });
             releaseDecode.Set();
 
             Assert.IsTrue(completed.Wait(TimeSpan.FromSeconds(5)));
+            Assert.IsTrue(preloadCompleted.Wait(TimeSpan.FromSeconds(5)));
             Assert.AreEqual(1, Volatile.Read(ref decodeCount));
         }
         finally
         {
             releaseDecode.Set();
+            preloadCompleted.Wait(TimeSpan.FromSeconds(5));
+            preload?.Dispose();
         }
     }
 
@@ -435,6 +462,71 @@ public sealed class ImageLoadServiceTests
 
         Assert.IsTrue(completed.Wait(TimeSpan.FromSeconds(5)));
         Assert.IsInstanceOfType<ImageLoadFailed>(result);
+    }
+
+    [TestMethod]
+    [DataRow(1, true, false)]
+    [DataRow(2, true, true)]
+    [DataRow(2, false, false)]
+    public void ForegroundRequiresMultipleFramesAndAnAnimationDecoder(
+        int frameCount, bool supported, bool animated)
+    {
+        using var completed = new ManualResetEventSlim();
+        var session = new FakeAnimationSession();
+        using var coordinator = new TestClient(
+            action => action(),
+            new FakeImageLoadingBackend(
+                () => new FakeImageDecoder(_ => CreateImage(), _ => new ImageInfo(1, 1, frameCount)),
+                supported ? new FakeAnimatedImageDecoder(_ => session) : null),
+            TestPolicy);
+        ImageLoadResult? result = null;
+        coordinator.Load("image", value =>
+        {
+            result = value;
+            completed.Set();
+        });
+
+        Assert.IsTrue(completed.Wait(TimeSpan.FromSeconds(5)));
+        Assert.IsInstanceOfType<ImageLoaded>(result);
+        using var loaded = (ImageLoaded)result;
+        if (animated)
+        {
+            Assert.IsInstanceOfType<AnimatedImageRepresentation>(loaded.Representation);
+        }
+        else
+        {
+            Assert.IsInstanceOfType<UploadImageRepresentation>(loaded.Representation);
+        }
+    }
+
+    [TestMethod]
+    public void PreloadSkipsAnimatedContentButLoadsStaticFilesOfTheSameFormat()
+    {
+        using var completed = new ManualResetEventSlim();
+        var decodedPaths = new ConcurrentQueue<string>();
+        using var coordinator = new TestClient(
+            action => action(),
+            new FakeImageLoadingBackend(
+                () => new FakeImageDecoder(
+                    path =>
+                    {
+                        decodedPaths.Enqueue(path);
+                        return CreateImage();
+                    },
+                    path => new ImageInfo(1, 1, path.StartsWith("animated", StringComparison.Ordinal) ? 2 : 1)),
+                new FakeAnimatedImageDecoder(_ => throw new AssertFailedException("Preload opened animation."))),
+            TestPolicy);
+        coordinator.Preload(["animated.webp", "animated.gif", "static.webp", "static.gif"], result =>
+        {
+            DisposeResult(result);
+            if (result.Path == "static.gif")
+            {
+                completed.Set();
+            }
+        });
+
+        Assert.IsTrue(completed.Wait(TimeSpan.FromSeconds(5)));
+        CollectionAssert.AreEqual(new[] { "static.webp", "static.gif" }, decodedPaths.ToArray());
     }
 
     private static DecodedImage CreateImage(int width = 1, int height = 1)
@@ -489,7 +581,7 @@ public sealed class ImageLoadServiceTests
             Func<string, ImageInfo>? getInfo = null)
         {
             _decode = decode;
-            _getInfo = getInfo ?? (_ => new ImageInfo(1, 1));
+            _getInfo = getInfo ?? (_ => new ImageInfo(1, 1, 1));
         }
 
         internal FakeImageDecoder(
@@ -498,7 +590,7 @@ public sealed class ImageLoadServiceTests
         {
             _decode = _ => throw new InvalidOperationException();
             _decodeWithCancellation = decode;
-            _getInfo = getInfo ?? (_ => new ImageInfo(1, 1));
+            _getInfo = getInfo ?? (_ => new ImageInfo(1, 1, 1));
         }
 
         public ImageInfo GetInfo(string path) => _getInfo(path);
@@ -570,7 +662,7 @@ public sealed class ImageLoadServiceTests
 
         public IAnimationSession Open(string path) => _open(path);
 
-        public ImageInfo GetInfo(string path) => throw new NotSupportedException();
+        public ImageInfo GetInfo(string path) => new(1, 1, 2);
 
         public DecodedImageUpload DecodeUpload(
             string path,

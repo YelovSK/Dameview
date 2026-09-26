@@ -73,16 +73,13 @@ internal sealed class ImageLoadService : IDisposable
     internal void Load(ImageLoadClient client, string path, Action<ImageLoadResult> completed)
     {
         Log.Debug("Image", $"Open requested: '{path}'.");
-        bool supportsAnimation = _backend.SupportsAnimation(path);
         LoadRequest? start = null;
         lock (_sync)
         {
             ClientState state = GetState(client);
             CancelLoad(state);
             var cancellation = new CancellationTokenSource();
-            LoadRequest request = supportsAnimation
-                ? new AnimatedLoadRequest(client, path, completed, cancellation)
-                : new StaticLoadRequest(client, path, completed, cancellation);
+            var request = new LoadRequest(client, path, completed, cancellation);
             state.CurrentLoad = request;
             state.PendingLoad = request;
             start = TakeActive(state);
@@ -270,7 +267,7 @@ internal sealed class ImageLoadService : IDisposable
         ImageLoadResult? result = null;
         try
         {
-            if (IsPreloadCurrent(request) && !_backend.SupportsAnimation(request.Path))
+            if (IsPreloadCurrent(request))
             {
                 result = await _preloadQueue.Enqueue(
                     (decoder, _) => PreloadDecode(request, decoder)).ConfigureAwait(false);
@@ -300,7 +297,9 @@ internal sealed class ImageLoadService : IDisposable
 
         try
         {
-            if (_representationPolicy.RequiresTiling(decoder.GetInfo(request.Path))
+            ImageInfo sourceInfo = decoder.GetInfo(request.Path);
+            if (IsAnimated(request.Path, sourceInfo)
+                || _representationPolicy.RequiresTiling(sourceInfo)
                 || !IsPreloadCurrent(request))
             {
                 return null;
@@ -334,10 +333,10 @@ internal sealed class ImageLoadService : IDisposable
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (request is StaticLoadRequest)
+        ImageInfo sourceInfo = decoder.GetInfo(request.Path);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!IsAnimated(request.Path, sourceInfo))
         {
-            ImageInfo sourceInfo = decoder.GetInfo(request.Path);
-            cancellationToken.ThrowIfCancellationRequested();
             if (_representationPolicy.RequiresTiling(sourceInfo))
             {
                 Log.Debug("Image", $"Selected tiled representation for '{request.Path}'.");
@@ -372,6 +371,9 @@ internal sealed class ImageLoadService : IDisposable
             animation?.Dispose();
         }
     }
+
+    private bool IsAnimated(string path, ImageInfo info) =>
+        info.FrameCount > 1 && _backend.SupportsAnimation(path);
 
     private DecodedImageUpload DecodeShared(
         string path,
@@ -523,7 +525,7 @@ internal sealed class ImageLoadService : IDisposable
         internal bool LoadActive { get; set; }
     }
 
-    private abstract class LoadRequest(
+    private sealed class LoadRequest(
         ImageLoadClient client,
         string path,
         Action<ImageLoadResult> completed,
@@ -534,24 +536,6 @@ internal sealed class ImageLoadService : IDisposable
         internal Action<ImageLoadResult> Completed { get; } = completed;
         internal CancellationTokenSource Cancellation { get; } = cancellation;
         internal bool IsComplete { get; set; }
-    }
-
-    private sealed class AnimatedLoadRequest(
-        ImageLoadClient client,
-        string path,
-        Action<ImageLoadResult> completed,
-        CancellationTokenSource cancellation)
-        : LoadRequest(client, path, completed, cancellation)
-    {
-    }
-
-    private sealed class StaticLoadRequest(
-        ImageLoadClient client,
-        string path,
-        Action<ImageLoadResult> completed,
-        CancellationTokenSource cancellation)
-        : LoadRequest(client, path, completed, cancellation)
-    {
     }
 
     private sealed record PreloadRequest(
