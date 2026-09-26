@@ -36,14 +36,11 @@ internal sealed class WicGifAnimationDecoder : WicAnimationDecoder
         int height)
     {
         using IWICBitmapFrameDecode frame = decoder.GetFrame((uint)index);
-        using IWICFormatConverter converter = factory.CreateFormatConverter();
-        converter.Initialize(frame, PixelFormat.Format32bppPBGRA).CheckError();
-
-        int frameWidth = frame.Size.Width;
-        int frameHeight = frame.Size.Height;
-        int frameStride = checked(frameWidth * 4);
-        byte[] pixels = GC.AllocateUninitializedArray<byte>(checked(frameStride * frameHeight));
-        converter.CopyPixels((uint)frameStride, pixels);
+        DecodedImage image = DecodePixels(factory, frame);
+        int frameWidth = image.Width;
+        int frameHeight = image.Height;
+        int frameStride = image.Stride;
+        byte[] pixels = image.Pixels;
 
         int left = MetadataUInt(frame, "/imgdesc/Left");
         int top = MetadataUInt(frame, "/imgdesc/Top");

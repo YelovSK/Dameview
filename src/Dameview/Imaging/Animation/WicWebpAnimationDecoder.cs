@@ -1,5 +1,4 @@
 using System.Globalization;
-using SharpGen.Runtime;
 using Vortice.WIC;
 
 namespace Dameview.Imaging.Animation;
@@ -29,14 +28,7 @@ internal sealed class WicWebpAnimationDecoder : WicAnimationDecoder
         for (uint index = 0; index < decoder.FrameCount; index++)
         {
             using IWICBitmapFrameDecode frame = decoder.GetFrame(index);
-            using IWICFormatConverter converter = factory.CreateFormatConverter();
-            converter.Initialize(frame, PixelFormat.Format32bppPBGRA).CheckError();
-
-            int width = frame.Size.Width;
-            int height = frame.Size.Height;
-            int stride = checked(width * 4);
-            byte[] pixels = GC.AllocateUninitializedArray<byte>(checked(stride * height));
-            converter.CopyPixels((uint)stride, pixels);
+            DecodedImage image = DecodePixels(factory, frame);
 
             int duration = 0;
             if (decoder.FrameCount > 1)
@@ -56,11 +48,8 @@ internal sealed class WicWebpAnimationDecoder : WicAnimationDecoder
 
             // WIC returns the composed canvas, including blending and frame disposal.
             yield return new AnimationFrame(
-                new DecodedImage(width, height, stride, pixels),
+                image,
                 TimeSpan.FromMilliseconds(Math.Clamp(duration, 10, 60000)));
         }
     }
-
-    private static bool IsMetadataError(Exception exception) =>
-        exception is SharpGenException or InvalidCastException or FormatException or OverflowException;
 }

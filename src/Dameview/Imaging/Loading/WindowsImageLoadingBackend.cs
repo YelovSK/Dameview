@@ -9,6 +9,7 @@ internal sealed class WindowsImageLoadingBackend : IImageLoadingBackend
     [
         new WicGifAnimationDecoder(),
         new WicWebpAnimationDecoder(),
+        new WicJxlAnimationDecoder(),
     ];
     public IImageDecoder CreateDecoder() => new ImageDecoder();
 

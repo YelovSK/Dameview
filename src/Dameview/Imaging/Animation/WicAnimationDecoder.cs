@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Dameview.Win32;
+using SharpGen.Runtime;
 using Vortice.WIC;
 
 namespace Dameview.Imaging.Animation;
@@ -15,6 +16,21 @@ internal abstract class WicAnimationDecoder : IAnimatedImageDecoder
     protected abstract IEnumerable<AnimationFrame> DecodeFrames(
         IWICImagingFactory2 factory,
         IWICBitmapDecoder decoder);
+
+    protected static DecodedImage DecodePixels(IWICImagingFactory2 factory, IWICBitmapFrameDecode frame)
+    {
+        using IWICFormatConverter converter = factory.CreateFormatConverter();
+        converter.Initialize(frame, PixelFormat.Format32bppPBGRA).CheckError();
+        int width = frame.Size.Width;
+        int height = frame.Size.Height;
+        int stride = checked(width * 4);
+        byte[] pixels = GC.AllocateUninitializedArray<byte>(checked(stride * height));
+        converter.CopyPixels((uint)stride, pixels);
+        return new DecodedImage(width, height, stride, pixels);
+    }
+
+    protected static bool IsMetadataError(Exception exception) =>
+        exception is SharpGenException or InvalidCastException or FormatException or OverflowException;
 
     private sealed class Session : IAnimationSession
     {
