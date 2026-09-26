@@ -20,7 +20,6 @@ internal sealed class ImagePanel : UiElement, IDisposable
     private readonly ImagePresentationCache _presentationCache;
     private ImageViewport _viewport;
     private ViewportAnimator _animator;
-    private readonly TimeProvider _timeProvider;
     private const float PanStartThresholdDips = 4.0f;
     private ID2D1Bitmap1? _ownedImage;
     private ID2D1Bitmap1? _previewImage;
@@ -38,15 +37,13 @@ internal sealed class ImagePanel : UiElement, IDisposable
     internal ImagePanel(
         ID2D1DeviceContext deviceContext,
         ImageViewport viewport,
-        ViewportAnimator animator,
-        TimeProvider? timeProvider = null)
+        ViewportAnimator animator)
     {
         _deviceContext = deviceContext;
         _scaleContext = CreateScaleContext(deviceContext);
         _presentationCache = new ImagePresentationCache(deviceContext);
         _viewport = viewport;
         _animator = animator;
-        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     internal float ZoomPercentage => _viewport.Scale * 100.0f;
@@ -71,7 +68,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
 
     private void ReleaseImageResources()
     {
-        _imageAnimation = null;
+        DetachAnimation();
         _presentationCache.Clear();
         _cachedImage = null;
         _tiledImage?.Dispose();
@@ -123,7 +120,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
                 break;
 
             case AnimatedImageRepresentation animated:
-                SetAnimation(animated.Animation);
+                SetAnimation(animated.Player);
                 break;
 
             default:
@@ -133,7 +130,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
 
     private unsafe void SetDecodedImage(DecodedImage image, bool isPreview)
     {
-        _imageAnimation = null;
+        DetachAnimation();
         _presentationCache.Clear();
         ClearCachedImage();
         _tiledImage?.Dispose();
@@ -148,7 +145,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
 
     private void SetTiledImage(IImageTileSource source)
     {
-        _imageAnimation = null;
+        DetachAnimation();
         _presentationCache.Clear();
         ClearCachedImage();
         _ownedImage?.Dispose();
@@ -172,7 +169,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
 
     private void SetCachedImage(ID2D1Bitmap1 image, bool isPreview)
     {
-        _imageAnimation = null;
+        DetachAnimation();
         _presentationCache.Clear();
         _ownedImage?.Dispose();
         _ownedImage = null;
@@ -207,16 +204,22 @@ internal sealed class ImagePanel : UiElement, IDisposable
         _viewport.SetViewportSize(pixelSize.Width, pixelSize.Height);
     }
 
-    private void SetAnimation(IAnimationSession animation)
+    private void SetAnimation(AnimatedImagePlayer animation)
     {
-        _imageAnimation = null;
+        DetachAnimation();
         _presentationCache.Clear();
         ClearCachedImage();
         _tiledImage?.Dispose();
         _tiledImage = null;
-        SetBitmap(animation.FirstFrame.Image);
+        SetBitmap(animation.CurrentImage);
         _isPreview = false;
-        _imageAnimation = new AnimatedImagePlayer(animation, _timeProvider);
+        _imageAnimation = animation;
+    }
+
+    private void DetachAnimation()
+    {
+        _imageAnimation?.Pause();
+        _imageAnimation = null;
     }
 
     protected override bool UpdateCore(in UiUpdateContext context)
@@ -412,7 +415,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
 
     public void Dispose()
     {
-        _imageAnimation = null;
+        DetachAnimation();
         _presentationCache.Dispose();
         ClearCachedImage();
         _tiledImage?.Dispose();

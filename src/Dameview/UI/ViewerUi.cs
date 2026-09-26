@@ -83,8 +83,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
                 () => commands.ExecuteCommand(ViewerCommandId.OpenFile),
                 ShowSettings,
                 ShowTabPreview,
-                HandleTabDragPointer,
-                timeProvider));
+                HandleTabDragPointer));
         _activePaneView = FindPaneView(_activePane)
             ?? throw new InvalidOperationException("The active pane view was not created.");
         _workspaceView.SetActivePane(_activePane);

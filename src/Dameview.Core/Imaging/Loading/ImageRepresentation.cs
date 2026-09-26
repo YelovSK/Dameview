@@ -53,6 +53,7 @@ internal sealed class AnimatedImageRepresentation(IAnimationSession animation)
     : ImageRepresentation(animation.FirstFrame.Image.Width, animation.FirstFrame.Image.Height)
 {
     internal IAnimationSession Animation { get; } = animation;
+    internal AnimatedImagePlayer Player { get; } = new(animation);
 
     protected override void DisposeCore() => Animation.Dispose();
 }

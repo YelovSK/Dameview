@@ -1,9 +1,7 @@
-using Dameview.Imaging;
-using Dameview.Imaging.Animation;
+namespace Dameview.Imaging.Animation;
 
-namespace Dameview.Viewing;
-
-// Borrows the animation session; ViewerSession owns its lifetime.
+// Borrows the animation session. The playback position lives here rather than in the
+// presenter, because the session's frame queue cannot rewind when a presenter rebinds.
 internal sealed class AnimatedImagePlayer
 {
     private const int MaximumCatchUpFrames = 8;
@@ -11,7 +9,7 @@ internal sealed class AnimatedImagePlayer
     private readonly TimeProvider _timeProvider;
     private AnimationFrame _current;
     private double _remainingSeconds;
-    private long _timestamp;
+    private long? _timestamp;
     private bool _finished;
     private bool _frameChanged;
 
@@ -21,7 +19,6 @@ internal sealed class AnimatedImagePlayer
         _timeProvider = timeProvider ?? TimeProvider.System;
         _current = session.FirstFrame;
         _remainingSeconds = ToSeconds(_current.Duration);
-        _timestamp = _timeProvider.GetTimestamp();
     }
 
     internal DecodedImage CurrentImage => _current.Image;
@@ -31,6 +28,13 @@ internal sealed class AnimatedImagePlayer
         ? null
         : TimeSpan.FromSeconds(Math.Max(0.01, _remainingSeconds));
 
+    /// <summary>Stops the clock until the next update, so time spent off screen is not played.</summary>
+    internal void Pause()
+    {
+        _timestamp = null;
+    }
+
+    /// <remarks>The first update after construction or <see cref="Pause"/> only starts the clock.</remarks>
     internal bool Update()
     {
         if (_finished)
@@ -39,7 +43,9 @@ internal sealed class AnimatedImagePlayer
         }
 
         long timestamp = _timeProvider.GetTimestamp();
-        double elapsedSeconds = _timeProvider.GetElapsedTime(_timestamp, timestamp).TotalSeconds;
+        double elapsedSeconds = _timestamp is { } previous
+            ? _timeProvider.GetElapsedTime(previous, timestamp).TotalSeconds
+            : 0.0;
         _timestamp = timestamp;
         _remainingSeconds -= Math.Max(0.0, elapsedSeconds);
         bool changed = false;

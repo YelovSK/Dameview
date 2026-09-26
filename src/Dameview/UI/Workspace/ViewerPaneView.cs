@@ -37,8 +37,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         Action openFile,
         Action showSettings,
         Action<ViewerPane, ViewerTabInfo?, RectangleF> hoveredTabChanged,
-        Action<ViewerPane, int, WorkspaceDragEvent> tabDragPointer,
-        TimeProvider? timeProvider = null)
+        Action<ViewerPane, int, WorkspaceDragEvent> tabDragPointer)
     {
         Pane = pane;
         _hoveredTabChanged = hoveredTabChanged;
@@ -48,8 +47,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         _imagePanel = new ImagePanel(
             deviceContext,
             session.Viewport,
-            session.Animator,
-            timeProvider);
+            session.Animator);
         _viewerTabs = new ViewerTabStrip(
             [new ViewerTabInfo("Dameview", null)],
             0,
