@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Dameview.Diagnostics;
 using Dameview.Win32;
 
 namespace Dameview.Installation;
@@ -20,6 +21,7 @@ internal static class AppInstallation
 {
     private const string InstallArgument = "--install";
     private const string UninstallArgument = "--uninstall";
+    private const string OldExecutablePattern = "Dameview.old.*.exe";
     private static readonly InstalledProgramRegistration InstalledProgram = new("Dameview");
     private static readonly FileAssociationRegistration FileAssociations = new("Dameview", "Dameview.Image");
 
@@ -28,6 +30,8 @@ internal static class AppInstallation
         "Programs", "Dameview");
 
     internal static string InstalledExecutablePath => Path.Combine(InstallDirectory, "Dameview.exe");
+
+    private static string StagedExecutablePath => Path.Combine(InstallDirectory, "Dameview.new.exe");
 
     internal static Version? GetInstalledRunningVersion()
     {
@@ -74,9 +78,11 @@ internal static class AppInstallation
     internal static void Install(string sourcePath, IEnumerable<string> supportedExtensions)
     {
         Directory.CreateDirectory(InstallDirectory);
-        string stagedPath = Path.Combine(InstallDirectory, "Dameview.new.exe");
-        File.Copy(sourcePath, stagedPath, overwrite: true);
-        File.Move(stagedPath, InstalledExecutablePath, overwrite: true);
+        Log.Info("Installation", "Staging executable.");
+        File.Copy(sourcePath, StagedExecutablePath, overwrite: true);
+        Log.Info("Installation", "Replacing installed executable.");
+        ReplaceExecutable(StagedExecutablePath, InstalledExecutablePath);
+        Log.Info("Installation", "Installed executable replaced, updating registration.");
         ShellIntegration.CreateShortcut(
             GetStartMenuShortcutPath(), InstalledExecutablePath, InstallDirectory,
             "Dameview image viewer", InstalledExecutablePath);
@@ -89,6 +95,76 @@ internal static class AppInstallation
             fileTypeDescription: "Image",
             executablePath: InstalledExecutablePath,
             supportedExtensions: supportedExtensions);
+        CleanUpOldExecutables();
+    }
+
+    internal static void ReplaceExecutable(string stagedPath, string installedPath)
+    {
+        if (!File.Exists(installedPath))
+        {
+            File.Move(stagedPath, installedPath);
+            return;
+        }
+
+        string oldPath = Path.Combine(
+            Path.GetDirectoryName(installedPath)!,
+            $"Dameview.old.{Guid.NewGuid():N}.exe");
+
+        File.Move(installedPath, oldPath);
+        Log.Info("Installation", "Previous executable renamed aside.");
+
+        try
+        {
+            File.Move(stagedPath, installedPath);
+        }
+        catch (Exception placementException)
+        {
+            try
+            {
+                File.Move(oldPath, installedPath);
+            }
+            catch (Exception rollbackException)
+            {
+                Log.Error("Installation", "Could not restore the previous executable.", rollbackException);
+                throw new AggregateException("Could not install or restore the executable.", placementException, rollbackException);
+            }
+
+            Log.Warning("Installation", "New executable could not be placed, previous executable restored.");
+            throw;
+        }
+    }
+
+    internal static void CleanUpOldExecutables()
+    {
+        foreach (string path in GetOldExecutablePaths())
+        {
+            try
+            {
+                File.Delete(path);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                Log.Warning("Installation", $"Old executable could not be removed yet ({exception.GetType().Name}, 0x{exception.HResult:X8}).");
+            }
+        }
+    }
+
+    private static string[] GetOldExecutablePaths()
+    {
+        if (!Directory.Exists(InstallDirectory))
+        {
+            return [];
+        }
+
+        try
+        {
+            return Directory.GetFiles(InstallDirectory, OldExecutablePattern);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            Log.Warning("Installation", $"Could not inspect old executables ({exception.GetType().Name}, 0x{exception.HResult:X8}).");
+            return [];
+        }
     }
 
     internal static void LaunchInstalled()
@@ -114,19 +190,13 @@ internal static class AppInstallation
 
     internal static void DeleteInstalledFilesAfterExit()
     {
-        if (!File.Exists(InstalledExecutablePath))
+        if (!Directory.Exists(InstallDirectory))
         {
             return;
         }
 
-        if (!IsInstalledExecutable())
-        {
-            File.Delete(InstalledExecutablePath);
-            Directory.Delete(InstallDirectory, recursive: false);
-            return;
-        }
-
-        DeleteAfterExit([InstalledExecutablePath], InstallDirectory);
+        string[] oldPaths = GetOldExecutablePaths();
+        DeleteAfterExit([InstalledExecutablePath, StagedExecutablePath, .. oldPaths], InstallDirectory);
     }
 
     internal static void DeleteCurrentExecutableAfterExit(string additionalPath)

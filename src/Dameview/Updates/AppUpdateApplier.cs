@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using Dameview.Diagnostics;
 using Dameview.Imaging.Decoding;
 using Dameview.Installation;
 
@@ -20,10 +21,26 @@ internal static class AppUpdateApplier
         }
 
         string updatePath = Path.GetFullPath(args[2]);
+        Log.Info("Updates", $"Updater started; waiting for viewer process {previousProcessId} to exit.");
         WaitForExit(previousProcessId);
-        using var imageDecoder = new ImageDecoder();
-        AppInstallation.Install(updatePath, imageDecoder.GetProbablySupportedExtensions());
+        Log.Info("Updates", "Previous viewer exited; installing update.");
+        try
+        {
+            using var imageDecoder = new ImageDecoder();
+            AppInstallation.Install(updatePath, imageDecoder.GetProbablySupportedExtensions());
+            Log.Info("Updates", "Update installed; launching viewer.");
+        }
+        catch (Exception exception)
+        {
+            Log.Error("Updates", "Could not install the update; reopening the installed app.", exception);
+            if (!File.Exists(AppInstallation.InstalledExecutablePath))
+            {
+                throw;
+            }
+        }
+
         AppInstallation.LaunchInstalled();
+        Log.Info("Updates", "Installed viewer launched.");
         AppInstallation.DeleteCurrentExecutableAfterExit(updatePath);
         return true;
     }
@@ -34,8 +51,9 @@ internal static class AppUpdateApplier
             ?? throw new InvalidOperationException("Could not determine the executable path.");
         string updateDirectory = Path.GetDirectoryName(updatePath)
             ?? throw new InvalidOperationException("The update path has no containing directory.");
-        string helperPath = Path.Combine(updateDirectory, "Dameview.updater.exe");
-        File.Copy(currentPath, helperPath, overwrite: true);
+        string helperPath = Path.Combine(updateDirectory, $"Dameview.updater.{Guid.NewGuid():N}.exe");
+        Log.Info("Updates", "Preparing updater handoff.");
+        File.Copy(currentPath, helperPath);
 
         var startInfo = new ProcessStartInfo(helperPath)
         {
@@ -47,8 +65,9 @@ internal static class AppUpdateApplier
         startInfo.ArgumentList.Add(Path.GetFullPath(updatePath));
         try
         {
-            _ = Process.Start(startInfo)
+            using var helper = Process.Start(startInfo)
                 ?? throw new InvalidOperationException("Could not start the temporary updater.");
+            Log.Info("Updates", $"Updater process {helper.Id} started; closing viewer.");
         }
         catch
         {
