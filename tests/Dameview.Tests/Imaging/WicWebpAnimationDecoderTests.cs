@@ -2,6 +2,8 @@ using System.Buffers.Binary;
 using Dameview.Imaging.Animation;
 using Dameview.Imaging.Decoding;
 using Dameview.Imaging.Loading;
+using SharpGen.Runtime;
+using WicResult = Vortice.WIC.ResultCode;
 
 namespace Dameview.Tests.Imaging;
 
@@ -13,6 +15,31 @@ public sealed class WicWebpAnimationDecoderTests
     private const string Animation =
         "UklGRuoAAABXRUJQVlA4WAoAAAASAAAAAwAAAAAAQU5JTQYAAAAAAAAAAgBBTk1GKAAAAAAAAAAAAAMAAAAAABQAAAJWUDhMDwAAAC8DAAAABxD9j/4HIqL/AQBBTk1GKgAAAAEAAAAAAAEAAAAAACgAAABWUDhMEQAAAC8BAAAQDxAx//MfjApE9D8AAEFOTUYoAAAAAAAAAAAAAQAAAAAAPAAAA1ZQOEwQAAAALwEAABAPMP8R8x+MjOh/AEFOTUYsAAAAAQAAAAAAAQAAAAAAUAAAAlZQOEwTAAAALwEAABAPsP/7P/8P/I8lZET/AwA=";
     private const string StaticImage = "UklGRhwAAABXRUJQVlA4TA8AAAAvAwAAAAcQ/Y/+ByKi/wEA";
+
+    [ClassInitialize]
+    public static void RequireWicWebpDecoder(TestContext _)
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.webp");
+        try
+        {
+            File.WriteAllBytes(path, Convert.FromBase64String(StaticImage));
+            using var decoder = new ImageDecoder();
+            try
+            {
+                Assert.AreEqual(1, decoder.GetInfo(path).FrameCount);
+            }
+            catch (SharpGenException exception) when (
+                exception.ResultCode == WicResult.ComponentInitializeFailure ||
+                exception.ResultCode == WicResult.ComponentNotFound)
+            {
+                Assert.Inconclusive("The WIC WebP decoder is unavailable on this machine.");
+            }
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
 
     [TestMethod]
     [DataRow(1)]
