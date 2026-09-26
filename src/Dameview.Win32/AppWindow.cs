@@ -25,6 +25,7 @@ internal sealed unsafe class AppWindow : IDisposable
     private GCHandle _selfHandle;
     private Exception? _unhandledException;
     private bool _frameRequested;
+    private bool _trackingMouseLeave;
     private WINDOWPLACEMENT? _windowedPlacement;
     private WINDOW_STYLE _windowedStyle;
     private SHOW_WINDOW_CMD _initialShowCommand = SHOW_WINDOW_CMD.SW_SHOWNORMAL;
@@ -626,9 +627,25 @@ internal sealed unsafe class AppWindow : IDisposable
                 return default;
 
             case WM_MOUSEMOVE:
+                if (!_trackingMouseLeave)
+                {
+                    TRACKMOUSEEVENT tracking = new()
+                    {
+                        cbSize = (uint)sizeof(TRACKMOUSEEVENT),
+                        dwFlags = TRACKMOUSEEVENT_FLAGS.TME_LEAVE,
+                        hwndTrack = window,
+                    };
+                    _trackingMouseLeave = TrackMouseEvent(ref tracking);
+                }
+
                 PointerInput?.Invoke(new WindowPointerEvent(
                     WindowPointerEventKind.Moved,
                     new PointF(GetX(lParam), GetY(lParam))));
+                return default;
+
+            case WM_MOUSELEAVE:
+                _trackingMouseLeave = false;
+                PointerInput?.Invoke(new WindowPointerEvent(WindowPointerEventKind.Left, PointF.Empty));
                 return default;
 
             case WM_LBUTTONUP:

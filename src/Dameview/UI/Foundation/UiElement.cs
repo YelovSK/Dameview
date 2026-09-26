@@ -221,6 +221,25 @@ internal abstract class UiElement
         }
     }
 
+    /// <summary>Notifies visible pointer observers that the pointer left the window.</summary>
+    internal void ObservePointerLeaveTree()
+    {
+        if (!IsVisible)
+        {
+            return;
+        }
+
+        if (ObservePointerMoves)
+        {
+            ObservePointerLeave();
+        }
+
+        foreach (UiElement child in _children)
+        {
+            child.ObservePointerLeaveTree();
+        }
+    }
+
     /// <summary>Converts a root-space pointer event to this element's local coordinates.</summary>
     internal WindowPointerEvent ToLocal(in WindowPointerEvent input)
     {
@@ -363,6 +382,8 @@ internal abstract class UiElement
     protected virtual bool HitTestCore(PointF position) => true;
     /// <summary>Observes a pointer move without consuming or capturing the event.</summary>
     protected virtual void ObservePointerMove(in WindowPointerEvent input) { }
+    /// <summary>Observes the pointer leaving the window without cancelling capture.</summary>
+    protected virtual void ObservePointerLeave() { }
     /// <summary>Called after one or more visual-state flags change.</summary>
     protected virtual void OnVisualStateChanged() { }
     /// <summary>Called when focus enters or leaves this element's subtree.</summary>

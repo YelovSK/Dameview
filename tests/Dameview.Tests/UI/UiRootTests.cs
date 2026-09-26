@@ -70,6 +70,27 @@ public sealed class UiRootTests
     }
 
     [TestMethod]
+    public void LeavingWindowClearsObservedHoverWithoutCancellingCapture()
+    {
+        var child = new ObservingCapturingElement();
+        var content = new TestContainer(child, new RectangleF(100, 200, 80, 40));
+        var root = new UiRoot(content, UiDpi.Default, TestTextLayouts.Shared);
+        root.Arrange(new SizeF(800, 600));
+
+        root.HandlePointer(Pointer(WindowPointerEventKind.Moved, 110, 210));
+        root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, 110, 210));
+        Assert.IsTrue(child.PointerInside);
+        Assert.AreSame(child, root.CapturedElement);
+
+        root.HandlePointer(new WindowPointerEvent(WindowPointerEventKind.Left, PointF.Empty));
+
+        Assert.IsFalse(child.PointerInside);
+        Assert.IsFalse(child.HasVisualState(UiVisualState.Hovered));
+        Assert.AreSame(child, root.CapturedElement);
+        Assert.IsFalse(child.Events.Any(input => input.Kind == WindowPointerEventKind.Left));
+    }
+
+    [TestMethod]
     public void RootOwnsHoverFocusAndPressedVisualStates()
     {
         var child = new FocusableElement();
@@ -241,6 +262,23 @@ public sealed class UiRootTests
             return new UiPointerResult(
                 Consumed: true,
                 CapturePointer: input.Kind == WindowPointerEventKind.Pressed);
+        }
+    }
+
+    private sealed class ObservingCapturingElement : TestElement
+    {
+        internal override bool ObservePointerMoves => true;
+        internal bool PointerInside { get; private set; }
+
+        protected override void ObservePointerMove(in WindowPointerEvent input) =>
+            PointerInside = new RectangleF(PointF.Empty, Bounds.Size).Contains(input.Position);
+
+        protected override void ObservePointerLeave() => PointerInside = false;
+
+        internal override UiPointerResult OnPointerEvent(in WindowPointerEvent input)
+        {
+            base.OnPointerEvent(input);
+            return new UiPointerResult(CapturePointer: input.Kind == WindowPointerEventKind.Pressed);
         }
     }
 

@@ -11,6 +11,7 @@ internal readonly record struct WindowPointerEvent(
 internal enum WindowPointerEventKind
 {
     Moved,
+    Left,
     Pressed,
     Released,
     Cancelled,

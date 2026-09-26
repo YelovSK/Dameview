@@ -791,7 +791,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
 
     private void HandlePointerInput(WindowPointerEvent input)
     {
-        if (input.Kind != WindowPointerEventKind.Cancelled)
+        if (input.Kind is not (WindowPointerEventKind.Cancelled or WindowPointerEventKind.Left))
         {
             _pointerX = (int)input.Position.X;
             _pointerY = (int)input.Position.Y;

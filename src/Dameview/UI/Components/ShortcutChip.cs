@@ -97,6 +97,15 @@ internal sealed class ShortcutChip : InteractiveControl
         InvalidateVisual();
     }
 
+    protected override void ObservePointerLeave()
+    {
+        if (_removeHovered)
+        {
+            _removeHovered = false;
+            InvalidateVisual();
+        }
+    }
+
     protected override void DrawCore(in UiDrawContext context)
     {
         var background = new RoundedRectangle(

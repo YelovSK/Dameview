@@ -253,10 +253,18 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             && input.Position.Y < Bounds.Height;
         _pointerNearStatus = insidePane && input.Position.Y >= Bounds.Height - StatusPanel.HeightDips - 24.0f;
         _pointerNearToolbar = insidePane
+            && input.Position.Y >= ContentBounds.Y
             && input.Position.Y <= ContentBounds.Y
                 + UiDesign.WindowMargin
                 + UiDesign.ToolbarHeight
                 + 28.0f;
+        UpdateChromeVisibility();
+    }
+
+    protected override void ObservePointerLeave()
+    {
+        _pointerNearStatus = false;
+        _pointerNearToolbar = false;
         UpdateChromeVisibility();
     }
 

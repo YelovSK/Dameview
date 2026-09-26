@@ -78,6 +78,14 @@ internal sealed class UiRoot
             return hadCapture;
         }
 
+        if (input.Kind == WindowPointerEventKind.Left)
+        {
+            _content.ObservePointerLeaveTree();
+            SetHovered(null);
+            UpdateCursor();
+            return false;
+        }
+
         EnsureLayout(_pixelSize);
         if (input.Kind == WindowPointerEventKind.Moved)
         {
