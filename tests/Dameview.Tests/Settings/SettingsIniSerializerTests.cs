@@ -1,6 +1,7 @@
 using Dameview.Diagnostics;
 using Dameview.Navigation;
 using Dameview.Settings;
+using Dameview.Win32;
 
 namespace Dameview.Tests.Settings;
 
@@ -47,6 +48,73 @@ public sealed class SettingsIniSerializerTests
         {
             AssertRoundTrips(new AppSettings { Logging = new LoggingSettings { Level = level } });
         }
+    }
+
+    [TestMethod]
+    public void RewritingItsOwnOutputChangesNothing()
+    {
+        var settings = new AppSettings
+        {
+            Theme = ThemeId.Nord,
+            Window = new WindowPlacementState { X = 10, Y = 20, Width = 800, Height = 600 },
+        };
+        string written = SettingsIniSerializer.Write(settings);
+
+        Assert.AreEqual(written, SettingsIniSerializer.Write(settings, written));
+    }
+
+    [TestMethod]
+    public void CommentsFormattingAndUnknownKeysSurviveASave()
+    {
+        const string existing =
+            "; my settings\n"
+            + "theme = light\n"
+            + "futureOption=true\n"
+            + "\n"
+            + "[logging]\n"
+            + "# chatty\n"
+            + "level=debug\n"
+            + "\n"
+            + "[future]\n"
+            + "key=value\n";
+        (AppSettings read, _) = SettingsIniSerializer.Read(existing);
+
+        string written = SettingsIniSerializer.Write(read with { Theme = ThemeId.Dark }, existing);
+
+        string[] lines = written.ReplaceLineEndings("\n").Split('\n');
+        Assert.AreEqual("; my settings", lines[0]);
+        Assert.AreEqual("theme=dark", lines[1]);
+        Assert.AreEqual("futureOption=true", lines[2]);
+        Assert.Contains("# chatty\nlevel=debug\n", written.ReplaceLineEndings("\n"));
+        Assert.Contains("[future]\nkey=value\n", written.ReplaceLineEndings("\n"));
+        Assert.AreEqual(read with { Theme = ThemeId.Dark }, SettingsIniSerializer.Read(written).Settings);
+    }
+
+    [TestMethod]
+    public void MissingTopLevelKeysAreAddedAboveTheFirstSection()
+    {
+        const string existing = "[logging]\nlevel=warning\n";
+
+        string written = SettingsIniSerializer.Write(new AppSettings(), existing);
+
+        string normalized = written.ReplaceLineEndings("\n");
+        Assert.IsTrue(normalized.StartsWith("theme=dark\n", StringComparison.Ordinal), normalized);
+        Assert.Contains("\n\n[logging]\nlevel=info\n", normalized);
+        Assert.AreEqual(new AppSettings(), SettingsIniSerializer.Read(written).Settings);
+    }
+
+    [TestMethod]
+    public void ClearedWindowPlacementIsRemovedFromTheFile()
+    {
+        string existing = SettingsIniSerializer.Write(new AppSettings
+        {
+            Window = new WindowPlacementState { X = 10, Y = 20, Width = 800, Height = 600 },
+        });
+
+        string written = SettingsIniSerializer.Write(new AppSettings(), existing);
+
+        Assert.DoesNotContain("[window]", written);
+        Assert.AreEqual(SettingsIniSerializer.Write(new AppSettings()), written);
     }
 
     private static void AssertRoundTrips(AppSettings settings)

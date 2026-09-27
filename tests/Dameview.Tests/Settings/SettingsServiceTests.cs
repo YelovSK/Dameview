@@ -134,6 +134,39 @@ public sealed class SettingsServiceTests
     }
 
     [TestMethod]
+    public void SavingKeepsTheUsersCommentsAndUnknownKeys()
+    {
+        using var files = new SettingsFiles();
+        File.WriteAllText(files.Path, "; picked by hand\ntheme=light\nfutureOption=true\n");
+        using SettingsService settings = files.CreateService();
+        settings.Start();
+
+        settings.Update(settings.Current with { Sort = FolderSort.SizeLargest });
+
+        string saved = File.ReadAllText(files.Path);
+        Assert.Contains("; picked by hand", saved);
+        Assert.Contains("futureOption=true", saved);
+        Assert.Contains("sort=sizeLargest", saved);
+    }
+
+    [TestMethod]
+    public void AFileThatCannotBeParsedIsNotOverwritten()
+    {
+        using var files = new SettingsFiles();
+        const string malformed = "theme=light\nnot a setting\n";
+        File.WriteAllText(files.Path, malformed);
+        using SettingsService settings = files.CreateService();
+        settings.Start();
+        files.PumpUntil(() => settings.Error is not null);
+
+        settings.Update(settings.Current with { Sort = FolderSort.SizeLargest });
+
+        Assert.AreEqual(FolderSort.SizeLargest, settings.Current.Sort);
+        StringAssert.Contains(settings.Error, "Could not save");
+        Assert.AreEqual(malformed, File.ReadAllText(files.Path));
+    }
+
+    [TestMethod]
     public void NamedThemesPersistAcrossReload()
     {
         foreach (ThemeId theme in Enum.GetValues<ThemeId>())

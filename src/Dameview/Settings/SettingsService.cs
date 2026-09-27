@@ -205,7 +205,8 @@ internal sealed class SettingsService : IDisposable
         string temporaryPath = _path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
-            File.WriteAllText(temporaryPath, SettingsIniSerializer.Write(settings));
+            string existing = File.Exists(_path) ? File.ReadAllText(_path) : string.Empty;
+            File.WriteAllText(temporaryPath, SettingsIniSerializer.Write(settings, existing));
             File.Move(temporaryPath, _path, overwrite: true);
             _fileSettings = settings;
         }

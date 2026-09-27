@@ -28,7 +28,7 @@ internal static class AppInstallation
     private const string UninstallArgument = "--uninstall";
     private const string OldExecutablePattern = "Dameview.old.*.exe";
 
-    // Declared in the winget manifest as packageInUse.
+    // Lets a script tell "close Dameview first" apart from other failures.
     private const int AppInUseExitCode = 2;
 
     private static readonly InstalledProgramRegistration InstalledProgram = new("Dameview");

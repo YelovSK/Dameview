@@ -52,9 +52,10 @@ internal static class SettingsIniSerializer
         return (settings, ignored);
     }
 
-    internal static string Write(AppSettings settings)
+    /// <param name="existing">The file being replaced, whose comments and unknown keys are kept.</param>
+    internal static string Write(AppSettings settings, string existing = "")
     {
-        var document = new IniDocument();
+        var document = IniDocument.Parse(existing);
         document.Set(string.Empty, "theme", WriteEnum(settings.Theme));
         document.Set(string.Empty, "animations", settings.AnimationsEnabled ? "true" : "false");
         document.Set(string.Empty, "singleInstance", settings.SingleInstance ? "true" : "false");
@@ -74,6 +75,10 @@ internal static class SettingsIniSerializer
             document.Set("window", "width", window.Width.ToString(CultureInfo.InvariantCulture));
             document.Set("window", "height", window.Height.ToString(CultureInfo.InvariantCulture));
             document.Set("window", "maximized", window.Maximized ? "true" : "false");
+        }
+        else
+        {
+            document.RemoveSection("window");
         }
 
         document.Set("logging", "level", WriteEnum(settings.Logging.Level));
