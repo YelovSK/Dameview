@@ -2,6 +2,7 @@ using Windows.Win32;
 using Windows.Win32.Foundation;
 using Windows.Win32.System.Com;
 using Windows.Win32.UI.Shell;
+using Windows.Win32.UI.Shell.Common;
 using static Windows.Win32.PInvoke;
 
 namespace Dameview.Win32;
@@ -21,6 +22,38 @@ internal static class ShellIntegration
         shellLink.SetDescription(description);
         shellLink.SetIconLocation(iconPath, 0);
         ((IPersistFile)shellLink).Save(shortcutPath, true);
+    }
+
+    // Unlike starting explorer.exe, this reaches a replacement file manager set as the default.
+    // The shell call waits on that file manager, which may never answer (File Pilot doesn't),
+    // so it gets its own thread that cannot hold up the UI or process exit.
+    internal static void ShowInFolder(string path)
+    {
+        var thread = new Thread(() => ShowInFolderBlocking(path))
+        {
+            IsBackground = true,
+            Name = "Dameview show in folder",
+        };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+    }
+
+    private static unsafe void ShowInFolderBlocking(string path)
+    {
+        ITEMIDLIST* item = ILCreateFromPath(path);
+        if (item is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _ = SHOpenFolderAndSelectItems(item, 0, null, 0);
+        }
+        finally
+        {
+            ILFree(item);
+        }
     }
 
     // Blocks until an app is picked or the dialog is dismissed, which is not a failure.

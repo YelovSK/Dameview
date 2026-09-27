@@ -479,8 +479,8 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
                 CopyFile();
                 break;
 
-            case ViewerCommandId.ShowInExplorer:
-                ShowInExplorer();
+            case ViewerCommandId.ShowInFolder:
+                ShowInFolder();
                 break;
 
             case ViewerCommandId.OpenWith:
@@ -532,7 +532,10 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
                 break;
 
             case ViewerCommandId.OpenDataFolder:
-                Process.Start("explorer.exe", $"\"{Path.GetDirectoryName(SettingsService.DefaultPath)}\"")?.Dispose();
+                Process.Start(new ProcessStartInfo(Path.GetDirectoryName(SettingsService.DefaultPath)!)
+                {
+                    UseShellExecute = true,
+                })?.Dispose();
                 break;
 
             case ViewerCommandId.ShowCommandPalette:
@@ -601,11 +604,11 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         }
     }
 
-    private void ShowInExplorer()
+    private void ShowInFolder()
     {
         if (DisplayedPath is { } path)
         {
-            Process.Start("explorer.exe", $"/select,\"{path}\"")?.Dispose();
+            ShellIntegration.ShowInFolder(path);
         }
     }
 
