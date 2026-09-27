@@ -88,10 +88,10 @@ public sealed class CommandPalettePanelTests
         CommandPalettePanel panel = CreatePanel(bindings => applied = bindings, out UiRoot root);
 
         BeginCapture(root, panel);
-        Assert.IsTrue(panel.IsCapturing);
+        Assert.IsTrue(panel.IsRecording);
         Assert.IsTrue(root.HandleCapturedKey(new WindowKeyEvent(WindowKey.G, Control: true)));
 
-        Assert.IsFalse(panel.IsCapturing);
+        Assert.IsFalse(panel.IsRecording);
         Assert.IsNotNull(applied);
         CollectionAssert.AreEqual(
             new[] { new ViewerCommandShortcut(WindowKey.G, Control: true) },
@@ -107,12 +107,62 @@ public sealed class CommandPalettePanelTests
         BeginCapture(root, panel);
         Assert.IsTrue(root.HandleCapturedKey(new WindowKeyEvent(WindowKey.Escape)));
 
-        Assert.IsFalse(panel.IsCapturing);
+        Assert.IsFalse(panel.IsRecording);
         Assert.IsNull(applied, "Cancelling records nothing.");
     }
 
     [TestMethod]
-    public void DeleteUnbindsTheSlot()
+    public void PressingOutsideTheRecordingChipCancelsTheCapture()
+    {
+        ViewerKeyBindings? applied = null;
+        CommandPalettePanel panel = CreatePanel(bindings => applied = bindings, out UiRoot root);
+        BeginCapture(root, panel);
+        root.Arrange(new SizeF(540.0f, 580.0f));
+        ShortcutChip chip = Descendants(panel).OfType<ShortcutChip>().First();
+        RectangleF chipBounds = chip.GetBoundsRelativeTo(panel);
+
+        var onChip = new PointF(chipBounds.Left + 4.0f, chipBounds.Top + (chipBounds.Height / 2.0f));
+        root.HandlePointer(new WindowPointerEvent(WindowPointerEventKind.Pressed, onChip, PointerButton.Primary));
+        root.HandlePointer(new WindowPointerEvent(WindowPointerEventKind.Released, onChip, PointerButton.Primary));
+        Assert.IsTrue(panel.IsRecording, "Clicking the chip being recorded keeps recording.");
+
+        root.HandlePointer(new WindowPointerEvent(
+            WindowPointerEventKind.Pressed,
+            new PointF(10.0f, 10.0f),
+            PointerButton.Primary));
+        Assert.IsFalse(panel.IsRecording);
+        Assert.IsNull(applied, "Cancelling records nothing.");
+    }
+
+    [TestMethod]
+    public void AddingAShortcutKeepsItsChipOnlyWhenAKeyIsRecorded()
+    {
+        ViewerKeyBindings? applied = null;
+        CommandPalettePanel panel = CreatePanel(bindings => applied = bindings, out UiRoot root);
+        Button add = Descendants(panel).OfType<Button>().Single();
+        int chips = Descendants(panel).OfType<ShortcutChip>().Count();
+
+        root.SetFocus(add);
+        root.HandleKey(new WindowKeyEvent(WindowKey.Enter), panel, wrapFocus: true, directionalNavigation: true);
+        Assert.IsTrue(panel.IsRecording);
+        Assert.AreEqual(chips + 1, Descendants(panel).OfType<ShortcutChip>().Count());
+        root.HandleCapturedKey(new WindowKeyEvent(WindowKey.Escape));
+        Assert.AreEqual(chips, Descendants(panel).OfType<ShortcutChip>().Count(), "An abandoned chip goes away.");
+        Assert.IsNull(applied);
+
+        root.SetFocus(add);
+        root.HandleKey(new WindowKeyEvent(WindowKey.Enter), panel, wrapFocus: true, directionalNavigation: true);
+        root.HandleCapturedKey(new WindowKeyEvent(WindowKey.G, Control: true));
+        Assert.IsFalse(panel.IsRecording);
+        Assert.AreEqual(chips + 1, Descendants(panel).OfType<ShortcutChip>().Count());
+        Assert.IsNotNull(applied);
+        Assert.AreEqual(
+            new ViewerCommandShortcut(WindowKey.G, Control: true),
+            applied.GetShortcuts(ViewerCommandId.NewTab)[^1]);
+    }
+
+    [TestMethod]
+    public void DeleteIsRecordedLikeAnyOtherKey()
     {
         ViewerKeyBindings? applied = null;
         CommandPalettePanel panel = CreatePanel(bindings => applied = bindings, out UiRoot root);
@@ -120,9 +170,10 @@ public sealed class CommandPalettePanelTests
         BeginCapture(root, panel);
         Assert.IsTrue(root.HandleCapturedKey(new WindowKeyEvent(WindowKey.Delete)));
 
-        Assert.IsFalse(panel.IsCapturing);
         Assert.IsNotNull(applied);
-        Assert.IsEmpty(applied.GetShortcuts(ViewerCommandId.NewTab));
+        CollectionAssert.AreEqual(
+            new[] { new ViewerCommandShortcut(WindowKey.Delete) },
+            applied.GetShortcuts(ViewerCommandId.NewTab).ToArray());
     }
 
     [TestMethod]
@@ -137,7 +188,7 @@ public sealed class CommandPalettePanelTests
         // without ending the capture.
         Assert.IsTrue(root.HandleCapturedKey(new WindowKeyEvent((WindowKey)9999)));
 
-        Assert.IsTrue(panel.IsCapturing, "The capture waits for a key it can store.");
+        Assert.IsTrue(panel.IsRecording, "The capture waits for a key it can store.");
         Assert.IsNull(applied);
     }
 

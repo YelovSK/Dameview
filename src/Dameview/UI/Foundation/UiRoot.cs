@@ -98,6 +98,12 @@ internal sealed class UiRoot
         UiElement? target = CapturedElement ?? hit;
         if (input.Kind == WindowPointerEventKind.Pressed)
         {
+            // Like a menu, a keyboard capture ends on a press anywhere else.
+            if (KeyboardCaptor is { } captor && !IsWithin(target, captor))
+            {
+                ReleaseKeyboard(captor);
+            }
+
             PointerPressed?.Invoke(target);
             UiElement? focusable = FindFocusable(target);
             if (focusable is not null || target?.PreservesFocusOnPointerPress != true)

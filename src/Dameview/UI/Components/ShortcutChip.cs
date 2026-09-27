@@ -1,4 +1,5 @@
 using System.Drawing;
+using Dameview.Commands;
 using Dameview.UI.Foundation;
 using Dameview.Win32.Input;
 using Vortice.Direct2D1;
@@ -17,34 +18,23 @@ internal sealed class ShortcutChip : InteractiveControl
     private static readonly UiFont LabelFont = new(12.0f, FontWeight.SemiBold, TextAlignment.Center);
     private static readonly UiFont RemoveFont = new(15.0f, FontWeight.SemiBold, TextAlignment.Center);
 
-    private readonly Action _clicked;
+    private const string RecordingLabel = "Press a key";
+
+    private readonly Action<ViewerCommandShortcut> _recorded;
     private readonly Action _removed;
     private bool _removeHovered;
-    private string _label;
 
-    internal ShortcutChip(string label, Action clicked, Action removed)
+    /// <summary>
+    /// A chip records a shortcut while it holds the keyboard. One without a shortcut is being
+    /// added, and asks to be removed when it stops recording without one.
+    /// </summary>
+    internal ShortcutChip(Action<ViewerCommandShortcut> recorded, Action removed)
     {
-        _label = label;
-        _clicked = clicked;
+        _recorded = recorded;
         _removed = removed;
     }
 
-    internal string Label
-    {
-        get => _label;
-        set
-        {
-            if (_label == value)
-            {
-                return;
-            }
-
-            _label = value;
-            InvalidateLayout();
-        }
-    }
-
-    internal bool CanRemove
+    internal ViewerCommandShortcut? Shortcut
     {
         get;
         set
@@ -55,6 +45,16 @@ internal sealed class ShortcutChip : InteractiveControl
             }
 
             field = value;
+            InvalidateLayout();
+        }
+    }
+
+    internal bool IsRecording
+    {
+        get;
+        private set
+        {
+            field = value;
             _removeHovered = false;
             InvalidateLayout();
         }
@@ -62,10 +62,56 @@ internal sealed class ShortcutChip : InteractiveControl
 
     internal override bool ObservePointerMoves => true;
 
+    private string Label => IsRecording || Shortcut is null ? RecordingLabel : Shortcut.Value.Text;
+    private bool CanRemove => IsRecording && Shortcut is not null;
+
+    // Holding the keyboard also keeps a shortcut from firing the command it is being bound to.
+    internal void BeginRecording()
+    {
+        Root?.CaptureKeyboard(this);
+        IsRecording = true;
+    }
+
+    internal override bool OnKeyEvent(WindowKeyEvent input)
+    {
+        if (!IsRecording)
+        {
+            return base.OnKeyEvent(input);
+        }
+
+        switch (input.Key)
+        {
+            case WindowKey.Escape:
+                Root?.ReleaseKeyboard(this);
+                break;
+
+            // Keys WindowKey does not name, such as a bare modifier, have no text form and so
+            // could not be written to settings.
+            case var key when !Enum.IsDefined(key):
+                break;
+
+            default:
+                _recorded(new ViewerCommandShortcut(input.Key, input.Control, input.Shift));
+                Root?.ReleaseKeyboard(this);
+                break;
+        }
+
+        return true;
+    }
+
+    internal override void OnKeyboardCaptureLost()
+    {
+        IsRecording = false;
+        if (Shortcut is null)
+        {
+            _removed();
+        }
+    }
+
     protected override SizeF MeasureCore(SizeF availableSize)
     {
         float textWidth = MathF.Ceiling(TextLayouts
-            .Get(_label, LabelFont, new SizeF(10_000.0f, Height))
+            .Get(Label, LabelFont, new SizeF(10_000.0f, Height))
             .Metrics.WidthIncludingTrailingWhitespace);
         float width = textWidth + (2.0f * HorizontalPadding) + (CanRemove ? RemoveWidth : 0.0f);
         return new SizeF(MathF.Max(MinimumWidth, width), Height);
@@ -78,6 +124,7 @@ internal sealed class ShortcutChip : InteractiveControl
             && input.Button == PointerButton.Primary
             && GetRemoveBounds().Contains(input.Position))
         {
+            Root?.ReleaseKeyboard(this);
             _removed();
             return new UiPointerResult(Consumed: true, NeedsRepaint: true);
         }
@@ -125,7 +172,7 @@ internal sealed class ShortcutChip : InteractiveControl
 
         float labelWidth = Bounds.Width - (CanRemove ? RemoveWidth : 0.0f);
         context.DrawText(
-            _label,
+            Label,
             LabelFont,
             new Rect(0.0f, 0.0f, labelWidth, Bounds.Height),
             context.Palette.PrimaryText,
@@ -143,7 +190,7 @@ internal sealed class ShortcutChip : InteractiveControl
         }
     }
 
-    protected override void Activate() => _clicked();
+    protected override void Activate() => BeginRecording();
 
     private RectangleF GetRemoveBounds() =>
         new(MathF.Max(0.0f, Bounds.Width - RemoveWidth), 0.0f, RemoveWidth, Bounds.Height);

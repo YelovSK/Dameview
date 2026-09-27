@@ -25,7 +25,6 @@ internal sealed class CommandPalettePanel : ModalContent
     private readonly TextBlock _emptyMessage;
     private readonly Action<ViewerKeyBindings> _applyKeyBindings;
     private ViewerKeyBindings _keyBindings;
-    private (ViewerCommandId Command, int Slot)? _capture;
     private int _selectedIndex;
 
     internal CommandPalettePanel(
@@ -47,7 +46,7 @@ internal sealed class CommandPalettePanel : ModalContent
             .. commands.Select(command => new CommandItem(
                 command,
                 () => execute(command.Id),
-                slot => BeginCapture(command.Id, slot),
+                (slot, shortcut) => RecordShortcut(command.Id, slot, shortcut),
                 slot => RemoveShortcut(command.Id, slot))),
         ];
         _keyBindings = keyBindings;
@@ -81,11 +80,15 @@ internal sealed class CommandPalettePanel : ModalContent
     internal ViewerCommandId? SelectedCommand => GetMatchingItems().ElementAtOrDefault(_selectedIndex)?.Command.Id;
     internal string Query => _filterInput.Text;
 
-    internal bool IsCapturing => _capture is not null;
+    internal bool IsRecording => Root?.KeyboardCaptor is ShortcutChip;
 
     internal void Reset()
     {
-        EndCapture();
+        if (Root is { KeyboardCaptor: ShortcutChip chip } root)
+        {
+            root.ReleaseKeyboard(chip);
+        }
+
         if (_filterInput.Text.Length > 0)
         {
             _filterInput.Clear();
@@ -104,14 +107,6 @@ internal sealed class CommandPalettePanel : ModalContent
 
     internal override bool OnKeyEvent(WindowKeyEvent input)
     {
-        // While recording, the palette holds the keyboard, so a shortcut cannot fire the
-        // command it is being bound to.
-        if (_capture is (ViewerCommandId command, int slot))
-        {
-            RecordShortcut(input, command, slot);
-            return true;
-        }
-
         switch (input.Key)
         {
             case WindowKey.Up:
@@ -224,53 +219,22 @@ internal sealed class CommandPalettePanel : ModalContent
         RefreshShortcuts();
     }
 
-    internal override void OnKeyboardCaptureLost()
-    {
-        _capture = null;
-        RefreshShortcuts();
-    }
-
-    private void BeginCapture(ViewerCommandId command, int slot)
-    {
-        _capture = (command, slot);
-        Root?.CaptureKeyboard(this);
-        RefreshShortcuts();
-    }
-
-    private void EndCapture() => Root?.ReleaseKeyboard(this);
-
-    private void RecordShortcut(WindowKeyEvent input, ViewerCommandId command, int slot)
-    {
-        switch (input.Key)
-        {
-            case WindowKey.Escape:
-                EndCapture();
-                break;
-
-            case WindowKey.Delete or WindowKey.Backspace:
-                RemoveShortcut(command, slot);
-                EndCapture();
-                break;
-
-            // Keys WindowKey does not name, such as a bare modifier, have no text form and so
-            // could not be written to settings.
-            case var key when !Enum.IsDefined(key):
-                break;
-
-            default:
-                Apply(_keyBindings
-                    .WithShortcuts(command, Without(_keyBindings.GetShortcuts(command), slot))
-                    .WithShortcut(command, new ViewerCommandShortcut(input.Key, input.Control, input.Shift)));
-                break;
-        }
-    }
+    private void RecordShortcut(ViewerCommandId command, int slot, ViewerCommandShortcut shortcut) =>
+        Apply(_keyBindings
+            .WithShortcuts(command, Without(_keyBindings.GetShortcuts(command), slot))
+            .WithShortcut(command, shortcut));
 
     private void RemoveShortcut(ViewerCommandId command, int slot)
     {
         IReadOnlyList<ViewerCommandShortcut> existing = _keyBindings.GetShortcuts(command);
-        if (slot >= 0 && slot < existing.Count)
+        if (slot < existing.Count)
         {
             Apply(_keyBindings.WithShortcuts(command, Without(existing, slot)));
+        }
+        else
+        {
+            // The chip being added was abandoned; the refresh drops it.
+            RefreshShortcuts();
         }
     }
 
@@ -283,7 +247,6 @@ internal sealed class CommandPalettePanel : ModalContent
     private void Apply(ViewerKeyBindings bindings)
     {
         _keyBindings = bindings;
-        EndCapture();
         RefreshShortcuts();
         _applyKeyBindings(bindings);
     }
@@ -292,11 +255,7 @@ internal sealed class CommandPalettePanel : ModalContent
     {
         foreach (CommandItem item in _items)
         {
-            item.SetShortcuts(
-                _keyBindings.GetShortcuts(item.Command.Id),
-                _capture is (ViewerCommandId command, int slot) && command == item.Command.Id
-                    ? slot
-                    : CommandItem.NoCaptureSlot);
+            item.SetShortcuts(_keyBindings.GetShortcuts(item.Command.Id));
         }
 
         InvalidateLayout();
@@ -304,17 +263,14 @@ internal sealed class CommandPalettePanel : ModalContent
 
     private sealed class CommandItem : InteractiveControl
     {
-        internal const int NoCaptureSlot = -1;
-
         private const float ChipGap = 4.0f;
         private const float AddButtonWidth = 26.0f;
         private const float ChipPadding = 12.0f;
-        private const string CaptureLabel = "Press a key";
         private const float RowHeight = 40.0f;
         private static readonly UiFont LabelFont = new(UiDesign.BodyFontSize, FontWeight.Medium);
 
         private readonly Action _execute;
-        private readonly Action<int> _captureShortcut;
+        private readonly Action<int, ViewerCommandShortcut> _recordShortcut;
         private readonly Action<int> _removeShortcut;
         private readonly Button _addButton;
         private readonly List<ShortcutChip> _chips = [];
@@ -322,14 +278,14 @@ internal sealed class CommandPalettePanel : ModalContent
         internal CommandItem(
             ViewerCommand command,
             Action execute,
-            Action<int> captureShortcut,
+            Action<int, ViewerCommandShortcut> recordShortcut,
             Action<int> removeShortcut)
         {
             Command = command;
             _execute = execute;
-            _captureShortcut = captureShortcut;
+            _recordShortcut = recordShortcut;
             _removeShortcut = removeShortcut;
-            _addButton = new Button("+", () => _captureShortcut(_chips.Count));
+            _addButton = new Button("+", () => AddChip().BeginRecording());
             AddChild(_addButton);
             // Items that stop matching the filter fade and collapse out of the list.
             Transition = new UiTransition(Fade: true, Collapse: true, Response: 25.0);
@@ -348,39 +304,41 @@ internal sealed class CommandPalettePanel : ModalContent
         internal void Execute() => _execute();
 
         // A chip at index i always stands for slot i, so only the count ever changes and
-        // the callbacks are fixed when the chip is created.
-        internal void SetShortcuts(IReadOnlyList<ViewerCommandShortcut> shortcuts, int capturingSlot)
+        // the callbacks are fixed when the chip is created. A chip being added by "+" sits
+        // one past the bound ones, and goes when the shortcuts are next set without it.
+        internal void SetShortcuts(IReadOnlyList<ViewerCommandShortcut> shortcuts)
         {
-            // The slot being added by "+" sits one past the bound ones.
-            int count = shortcuts.Count + (capturingSlot >= shortcuts.Count ? 1 : 0);
-            while (_chips.Count > count)
+            while (_chips.Count > shortcuts.Count)
             {
-                RemoveChild(_chips[^1]);
+                // Off the list first: removing a chip that is recording ends the recording,
+                // which can set the shortcuts again.
+                ShortcutChip chip = _chips[^1];
                 _chips.RemoveAt(_chips.Count - 1);
+                RemoveChild(chip);
             }
 
-            while (_chips.Count < count)
+            while (_chips.Count < shortcuts.Count)
             {
-                int slot = _chips.Count;
-                var chip = new ShortcutChip(
-                    CaptureLabel,
-                    () => _captureShortcut(slot),
-                    () => _removeShortcut(slot));
-                _chips.Add(chip);
-                AddChild(chip);
+                AddChip();
             }
 
-            for (int slot = 0; slot < count; slot++)
+            for (int slot = 0; slot < shortcuts.Count; slot++)
             {
-                bool pending = slot >= shortcuts.Count;
-                _chips[slot].Label = pending || slot == capturingSlot
-                    ? CaptureLabel
-                    : shortcuts[slot].Text;
-                _chips[slot].CanRemove = !pending && slot == capturingSlot;
+                _chips[slot].Shortcut = shortcuts[slot];
             }
 
-            _addButton.IsVisible = capturingSlot == NoCaptureSlot;
             InvalidateLayout();
+        }
+
+        private ShortcutChip AddChip()
+        {
+            int slot = _chips.Count;
+            var chip = new ShortcutChip(
+                shortcut => _recordShortcut(slot, shortcut),
+                () => _removeShortcut(slot));
+            _chips.Add(chip);
+            AddChild(chip);
+            return chip;
         }
 
         protected override SizeF MeasureCore(SizeF availableSize)
@@ -400,13 +358,9 @@ internal sealed class CommandPalettePanel : ModalContent
         protected override void ArrangeCore(SizeF finalSize)
         {
             float top = (RowHeight - ShortcutChip.Height) / 2.0f;
-            float right = finalSize.Width - ChipPadding;
-            if (_addButton.IsVisible)
-            {
-                right -= AddButtonWidth;
-                _addButton.Arrange(new RectangleF(right, top, AddButtonWidth, ShortcutChip.Height));
-                right -= ChipGap;
-            }
+            float right = finalSize.Width - ChipPadding - AddButtonWidth;
+            _addButton.Arrange(new RectangleF(right, top, AddButtonWidth, ShortcutChip.Height));
+            right -= ChipGap;
 
             for (int index = _chips.Count - 1; index >= 0; index--)
             {
