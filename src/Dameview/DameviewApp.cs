@@ -491,6 +491,10 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
                 ShowProperties();
                 break;
 
+            case ViewerCommandId.DeleteFile:
+                DeleteFile();
+                break;
+
             case ViewerCommandId.ToggleFullscreen:
                 ToggleFullscreen();
                 break;
@@ -614,6 +618,15 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         if (DisplayedPath is { } path && !ShellIntegration.TryShowProperties(_window.Handle, path))
         {
             _toasts.Notify("Could not show the file properties.", ToastSeverity.Error);
+        }
+    }
+
+    private void DeleteFile()
+    {
+        if (DisplayedPath is { } path && ShellIntegration.TryMoveToRecycleBin(_window.Handle, path))
+        {
+            _toasts.Notify($"Moved {Path.GetFileName(path)} to the Recycle Bin.", ToastSeverity.Success);
+            ExecuteCommand(ViewerCommandId.NextImage);
         }
     }
 

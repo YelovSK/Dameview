@@ -37,6 +37,26 @@ internal static class ShellIntegration
     internal static bool TryShowProperties(nint owner, string path) =>
         SHObjectProperties((HWND)owner, SHOP_TYPE.SHOP_FILEPATH, path, null);
 
+    // The shell shows its own errors, and still asks first when the file cannot be recycled.
+    internal static unsafe bool TryMoveToRecycleBin(nint owner, string path)
+    {
+        // The shell expects a list terminated by an extra null.
+        fixed (char* from = path + '\0')
+        {
+            var operation = new SHFILEOPSTRUCTW
+            {
+                hwnd = (HWND)owner,
+                wFunc = FO_DELETE,
+                pFrom = from,
+                fFlags = (ushort)(FILEOPERATION_FLAGS.FOF_ALLOWUNDO
+                    | FILEOPERATION_FLAGS.FOF_NOCONFIRMATION
+                    | FILEOPERATION_FLAGS.FOF_SILENT
+                    | FILEOPERATION_FLAGS.FOF_WANTNUKEWARNING),
+            };
+            return SHFileOperation(ref operation) == 0 && !operation.fAnyOperationsAborted;
+        }
+    }
+
     internal static unsafe void NotifyAssociationChanged()
     {
         SHChangeNotify(SHCNE_ID.SHCNE_ASSOCCHANGED, SHCNF_FLAGS.SHCNF_IDLIST, null, null);

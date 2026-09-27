@@ -19,6 +19,7 @@ internal sealed class ViewerKeyBindings : IEquatable<ViewerKeyBindings>
         [ViewerCommandId.ToggleFitActualSize] = [new(WindowKey.Z)],
         [ViewerCommandId.CopyImage] = [new(WindowKey.C, Control: true)],
         [ViewerCommandId.CopyFilePath] = [new(WindowKey.C, Control: true, Shift: true)],
+        [ViewerCommandId.DeleteFile] = [new(WindowKey.Delete)],
         [ViewerCommandId.ToggleFullscreen] = [new(WindowKey.F11), new(WindowKey.F, Control: true)],
         [ViewerCommandId.SplitRight] = [new(WindowKey.S, Control: true, Shift: true)],
         [ViewerCommandId.SplitDown] = [new(WindowKey.S, Control: true)],
