@@ -10,7 +10,7 @@ internal sealed class InstalledProgramRegistration(string applicationId)
 
     internal void Register(
         string displayName, string displayVersion, string installDirectory,
-        string executablePath, string uninstallArguments)
+        string executablePath, string uninstallArguments, string quietUninstallArguments)
     {
         using RegistryKey key = Registry.CurrentUser.CreateSubKey(_registryPath);
         key.SetValue("DisplayName", displayName);
@@ -18,6 +18,7 @@ internal sealed class InstalledProgramRegistration(string applicationId)
         key.SetValue("InstallLocation", installDirectory);
         key.SetValue("DisplayIcon", executablePath);
         key.SetValue("UninstallString", $"\"{executablePath}\" {uninstallArguments}");
+        key.SetValue("QuietUninstallString", $"\"{executablePath}\" {quietUninstallArguments}");
         key.SetValue("EstimatedSize", checked((int)((new FileInfo(executablePath).Length + 1023) / 1024)), RegistryValueKind.DWord);
         key.SetValue("NoModify", 1, RegistryValueKind.DWord);
         key.SetValue("NoRepair", 1, RegistryValueKind.DWord);

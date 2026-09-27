@@ -28,6 +28,11 @@ internal static class Program
                 return 0;
             }
 
+            if (AppInstallation.GetSilentAction(args) is { } silentAction)
+            {
+                return AppInstallation.RunSilent(silentAction);
+            }
+
             if (AppInstallation.GetRequest(args) is { } installationRequest)
             {
                 bool runPortable;

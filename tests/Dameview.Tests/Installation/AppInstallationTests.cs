@@ -6,6 +6,20 @@ namespace Dameview.Tests.Installation;
 public sealed class AppInstallationTests
 {
     [TestMethod]
+    public void SilentActionsRequireTwoRecognizedArguments()
+    {
+        Assert.AreEqual(AppInstallationAction.Install, AppInstallation.GetSilentAction(["--install", "--silent"]));
+        Assert.AreEqual(AppInstallationAction.Install, AppInstallation.GetSilentAction(["--silent", "--INSTALL"]));
+        Assert.AreEqual(AppInstallationAction.Uninstall, AppInstallation.GetSilentAction(["--uninstall", "--silent"]));
+        Assert.AreEqual(AppInstallationAction.Uninstall, AppInstallation.GetSilentAction(["--SILENT", "--UNINSTALL"]));
+        Assert.IsNull(AppInstallation.GetSilentAction(["--install"]));
+        Assert.IsNull(AppInstallation.GetSilentAction(["--uninstall"]));
+        Assert.IsNull(AppInstallation.GetSilentAction(["--silent"]));
+        Assert.IsNull(AppInstallation.GetSilentAction(["--install", "--silent", "extra"]));
+        Assert.IsNull(AppInstallation.GetSilentAction(["--install", "--uninstall"]));
+    }
+
+    [TestMethod]
     public void ReplacingExecutablePreservesThePreviousVersionUnderAUniqueName()
     {
         string directory = CreateTestDirectory();

@@ -1,4 +1,3 @@
-using Dameview.Imaging.Decoding;
 using Dameview.Installation;
 using Dameview.Rendering;
 using Dameview.UI;
@@ -103,10 +102,7 @@ internal sealed class InstallerApp : IDisposable
                 return;
             }
 
-            using var imageDecoder = new ImageDecoder();
-            string sourcePath = Environment.ProcessPath
-                ?? throw new InvalidOperationException("Could not determine the executable path.");
-            AppInstallation.Install(sourcePath, imageDecoder.GetProbablySupportedExtensions());
+            AppInstallation.Install(AppInstallation.CurrentExecutablePath);
             AppInstallation.LaunchInstalled();
             Close();
         }

@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
 using Dameview.Diagnostics;
-using Dameview.Imaging.Decoding;
 using Dameview.Installation;
 
 namespace Dameview.Updates;
@@ -26,8 +25,7 @@ internal static class AppUpdateApplier
         Log.Info("Updates", "Previous viewer exited; installing update.");
         try
         {
-            using var imageDecoder = new ImageDecoder();
-            AppInstallation.Install(updatePath, imageDecoder.GetProbablySupportedExtensions());
+            AppInstallation.Install(updatePath);
             Log.Info("Updates", "Update installed; launching viewer.");
         }
         catch (Exception exception)
@@ -47,8 +45,7 @@ internal static class AppUpdateApplier
 
     internal static void Launch(string updatePath)
     {
-        string currentPath = Environment.ProcessPath
-            ?? throw new InvalidOperationException("Could not determine the executable path.");
+        string currentPath = AppInstallation.CurrentExecutablePath;
         string updateDirectory = Path.GetDirectoryName(updatePath)
             ?? throw new InvalidOperationException("The update path has no containing directory.");
         string helperPath = Path.Combine(updateDirectory, $"Dameview.updater.{Guid.NewGuid():N}.exe");

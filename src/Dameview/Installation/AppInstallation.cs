@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Dameview.Diagnostics;
+using Dameview.Imaging.Decoding;
 using Dameview.Win32;
 
 namespace Dameview.Installation;
@@ -20,6 +21,7 @@ internal readonly record struct AppInstallationRequest(
 internal static class AppInstallation
 {
     private const string InstallArgument = "--install";
+    private const string SilentArgument = "--silent";
     private const string UninstallArgument = "--uninstall";
     private const string OldExecutablePattern = "Dameview.old.*.exe";
     private static readonly InstalledProgramRegistration InstalledProgram = new("Dameview");
@@ -31,11 +33,55 @@ internal static class AppInstallation
 
     internal static string InstalledExecutablePath => Path.Combine(InstallDirectory, "Dameview.exe");
 
+    internal static string CurrentExecutablePath => Environment.ProcessPath
+        ?? throw new InvalidOperationException("Could not determine the executable path.");
+
     private static string StagedExecutablePath => Path.Combine(InstallDirectory, "Dameview.new.exe");
 
     internal static Version? GetInstalledRunningVersion()
     {
         return IsInstalledExecutable() ? ReadVersion(Environment.ProcessPath) : null;
+    }
+
+    internal static AppInstallationAction? GetSilentAction(string[] args)
+    {
+        if (args.Length != 2 || !args.Contains(SilentArgument, StringComparer.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        if (args.Contains(InstallArgument, StringComparer.OrdinalIgnoreCase))
+        {
+            return AppInstallationAction.Install;
+        }
+
+        return args.Contains(UninstallArgument, StringComparer.OrdinalIgnoreCase)
+            ? AppInstallationAction.Uninstall
+            : null;
+    }
+
+    internal static int RunSilent(AppInstallationAction action)
+    {
+        try
+        {
+            if (action == AppInstallationAction.Uninstall)
+            {
+                Uninstall();
+                DeleteInstalledFilesAfterExit();
+            }
+            else
+            {
+                Install(CurrentExecutablePath);
+            }
+
+            Log.Info("Installation", $"Silent {action} completed.");
+            return 0;
+        }
+        catch (Exception exception)
+        {
+            Log.Error("Installation", $"Silent {action} failed.", exception);
+            return 1;
+        }
     }
 
     internal static AppInstallationRequest? GetRequest(string[] args)
@@ -75,8 +121,10 @@ internal static class AppInstallation
             GetDisplayVersion(InstalledExecutablePath));
     }
 
-    internal static void Install(string sourcePath, IEnumerable<string> supportedExtensions)
+    internal static void Install(string sourcePath)
     {
+        using var imageDecoder = new ImageDecoder();
+        IEnumerable<string> supportedExtensions = imageDecoder.GetProbablySupportedExtensions();
         Directory.CreateDirectory(InstallDirectory);
         Log.Info("Installation", "Staging executable.");
         File.Copy(sourcePath, StagedExecutablePath, overwrite: true);
@@ -88,7 +136,7 @@ internal static class AppInstallation
             "Dameview image viewer", InstalledExecutablePath);
         InstalledProgram.Register(
             "Dameview", GetDisplayVersion(InstalledExecutablePath), InstallDirectory,
-            InstalledExecutablePath, UninstallArgument);
+            InstalledExecutablePath, UninstallArgument, $"{UninstallArgument} {SilentArgument}");
         FileAssociations.Register(
             applicationName: "Dameview",
             applicationDescription: "View images with Dameview",
@@ -201,9 +249,7 @@ internal static class AppInstallation
 
     internal static void DeleteCurrentExecutableAfterExit(string additionalPath)
     {
-        string path = Environment.ProcessPath
-            ?? throw new InvalidOperationException("Could not determine the executable path.");
-        DeleteAfterExit([path, additionalPath], directory: null);
+        DeleteAfterExit([CurrentExecutablePath, additionalPath], directory: null);
     }
 
     private static void DeleteAfterExit(IReadOnlyList<string> paths, string? directory)
