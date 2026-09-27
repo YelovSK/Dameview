@@ -487,6 +487,10 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
                 OpenWith();
                 break;
 
+            case ViewerCommandId.ShowProperties:
+                ShowProperties();
+                break;
+
             case ViewerCommandId.ToggleFullscreen:
                 ToggleFullscreen();
                 break;
@@ -602,6 +606,14 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         if (DisplayedPath is { } path && !ShellIntegration.TryShowOpenWith(_window.Handle, path))
         {
             _toasts.Notify("Could not show the Open with dialog.", ToastSeverity.Error);
+        }
+    }
+
+    private void ShowProperties()
+    {
+        if (DisplayedPath is { } path && !ShellIntegration.TryShowProperties(_window.Handle, path))
+        {
+            _toasts.Notify("Could not show the file properties.", ToastSeverity.Error);
         }
     }
 

@@ -61,6 +61,7 @@ SHGetKnownFolderPath
 SHChangeNotify
 DROPFILES
 SHOpenWithDialog
+SHObjectProperties
 
 // Ole32
 CoInitializeEx

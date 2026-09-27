@@ -34,6 +34,9 @@ internal static class ShellIntegration
         }
     }
 
+    internal static bool TryShowProperties(nint owner, string path) =>
+        SHObjectProperties((HWND)owner, SHOP_TYPE.SHOP_FILEPATH, path, null);
+
     internal static unsafe void NotifyAssociationChanged()
     {
         SHChangeNotify(SHCNE_ID.SHCNE_ASSOCCHANGED, SHCNF_FLAGS.SHCNF_IDLIST, null, null);
