@@ -531,6 +531,10 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
                 _ui.ShowSettings();
                 break;
 
+            case ViewerCommandId.OpenDataFolder:
+                Process.Start("explorer.exe", $"\"{Path.GetDirectoryName(SettingsService.DefaultPath)}\"")?.Dispose();
+                break;
+
             case ViewerCommandId.ShowCommandPalette:
                 _ui.ShowCommandPalette();
                 break;

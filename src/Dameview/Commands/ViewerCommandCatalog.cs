@@ -28,6 +28,7 @@ internal enum ViewerCommandId
     OptimizePaneLayout,
     TogglePerformanceOverlay,
     ShowSettings,
+    OpenDataFolder,
     ShowCommandPalette,
 }
 
@@ -79,6 +80,7 @@ internal static class ViewerCommandCatalog
             "Toggle performance overlay",
             ViewerCommandScope.Window),
         new(ViewerCommandId.ShowSettings, "Open settings", ViewerCommandScope.Window),
+        new(ViewerCommandId.OpenDataFolder, "Open settings and logs folder", ViewerCommandScope.Window),
         new(ViewerCommandId.ShowCommandPalette, "Show command palette", ViewerCommandScope.Window),
     ];
 
