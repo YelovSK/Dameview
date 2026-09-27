@@ -479,6 +479,10 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
                 CopyFile();
                 break;
 
+            case ViewerCommandId.ShowInExplorer:
+                ShowInExplorer();
+                break;
+
             case ViewerCommandId.ToggleFullscreen:
                 ToggleFullscreen();
                 break;
@@ -578,6 +582,14 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         else
         {
             _toasts.Notify("Could not copy the file to the clipboard.", ToastSeverity.Error);
+        }
+    }
+
+    private void ShowInExplorer()
+    {
+        if (DisplayedPath is { } path)
+        {
+            Process.Start("explorer.exe", $"/select,\"{path}\"")?.Dispose();
         }
     }
 
