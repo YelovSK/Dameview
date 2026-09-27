@@ -135,7 +135,7 @@ internal static class AppInstallation
             GetStartMenuShortcutPath(), InstalledExecutablePath, InstallDirectory,
             "Dameview image viewer", InstalledExecutablePath);
         InstalledProgram.Register(
-            "Dameview", GetDisplayVersion(InstalledExecutablePath), InstallDirectory,
+            "Dameview", "YelovSK", GetDisplayVersion(InstalledExecutablePath), InstallDirectory,
             InstalledExecutablePath, UninstallArgument, $"{UninstallArgument} {SilentArgument}");
         FileAssociations.Register(
             applicationName: "Dameview",
