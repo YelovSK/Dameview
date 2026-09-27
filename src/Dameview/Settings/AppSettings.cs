@@ -38,6 +38,8 @@ internal sealed record AppSettings
 {
     internal const float DefaultGallerySizeDips = 184.0f;
     internal const float MinimumGallerySizeDips = 120.0f;
+    internal const int MinimumWindowWidth = 320;
+    internal const int MinimumWindowHeight = 240;
 
     public ThemeId Theme { get; init; } = ThemeId.Dark;
     public bool AnimationsEnabled { get; init; } = true;
@@ -72,7 +74,7 @@ internal sealed record AppSettings
             throw new IniFormatException("Gallery size is invalid.");
         }
 
-        if (Window is { } window && (window.Width < 320 || window.Height < 240))
+        if (Window is { } window && (window.Width < MinimumWindowWidth || window.Height < MinimumWindowHeight))
         {
             throw new IniFormatException("Window dimensions are too small.");
         }

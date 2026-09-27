@@ -1,54 +1,69 @@
-using System.Globalization;
 using Dameview.Commands;
 using Dameview.Diagnostics;
-using Dameview.Navigation;
 using Dameview.Serialization;
 using Dameview.Win32;
+using Binding = Dameview.Serialization.IniBinding<Dameview.Settings.AppSettings>;
 
 namespace Dameview.Settings;
 
 internal static class SettingsIniSerializer
 {
-    private const int MinimumWindowWidth = 320;
-    private const int MinimumWindowHeight = 240;
+    private const string Root = "";
+
+    private static readonly Binding[] Bindings =
+    [
+        Binding.Enum(Root, "theme", s => s.Theme, (s, value) => s with { Theme = value }),
+        Binding.Bool(Root, "animations", s => s.AnimationsEnabled, (s, value) => s with { AnimationsEnabled = value }),
+        Binding.Bool(Root, "singleInstance", s => s.SingleInstance, (s, value) => s with { SingleInstance = value }),
+        Binding.Bool(Root, "autoBalancePanes", s => s.AutoBalancePanes, (s, value) => s with { AutoBalancePanes = value }),
+        Binding.Enum(Root, "sort", s => s.Sort, (s, value) => s with { Sort = value }),
+        Binding.Bool(Root, "galleryEnabled", s => s.GalleryEnabled, (s, value) => s with { GalleryEnabled = value }),
+        Binding.Enum(
+            Root,
+            "galleryPlacement",
+            s => s.GalleryPlacement,
+            (s, value) => s with { GalleryPlacement = value }),
+        Binding.Enum(
+            Root,
+            "galleryThumbnailSize",
+            s => s.GalleryThumbnailSize,
+            (s, value) => s with { GalleryThumbnailSize = value }),
+        Binding.Float(
+            Root,
+            "gallerySize",
+            AppSettings.MinimumGallerySizeDips,
+            s => s.GallerySizeDips,
+            (s, value) => s with { GallerySizeDips = value }),
+        Binding.Enum(
+            "logging",
+            "level",
+            s => s.Logging.Level,
+            (s, value) => s with { Logging = s.Logging with { Level = value } }),
+        Binding.Custom(
+            (document, s, ignored) => s with { Window = ReadWindow(document, ignored) },
+            (document, s) => WriteWindow(document, s.Window)),
+        Binding.Custom(
+            (document, s, ignored) => s with { KeyBindings = ReadKeyBindings(document, s.KeyBindings, ignored) },
+            (document, s) => WriteKeyBindings(document, s.KeyBindings)),
+    ];
 
     /// <returns>The settings, and every value that was unreadable and fell back to its default.</returns>
     internal static (AppSettings Settings, IReadOnlyList<string> Ignored) Read(string text)
     {
         var document = IniDocument.Parse(text);
         List<string> ignored = [];
-        AppSettings defaults = new();
-        AppSettings settings = new()
+        AppSettings settings = new();
+        foreach (Binding binding in Bindings)
         {
-            Theme = ReadEnum(document.Get(string.Empty, "theme"), "theme", defaults.Theme, ignored),
-            AnimationsEnabled = ReadOptionalBoolean(
-                document.Get(string.Empty, "animations"), defaults.AnimationsEnabled, ignored),
-            SingleInstance = ReadOptionalBoolean(
-                document.Get(string.Empty, "singleInstance"), defaults.SingleInstance, ignored),
-            AutoBalancePanes = ReadOptionalBoolean(
-                document.Get(string.Empty, "autoBalancePanes"), defaults.AutoBalancePanes, ignored),
-            Sort = ReadEnum(document.Get(string.Empty, "sort"), "sort", defaults.Sort, ignored),
-            GalleryEnabled = ReadOptionalBoolean(
-                document.Get(string.Empty, "galleryEnabled"), defaults.GalleryEnabled, ignored),
-            GalleryPlacement = ReadEnum(
-                document.Get(string.Empty, "galleryPlacement"), "gallery placement", defaults.GalleryPlacement, ignored),
-            GalleryThumbnailSize = ReadEnum(
-                document.Get(string.Empty, "galleryThumbnailSize"),
-                "gallery thumbnail size",
-                defaults.GalleryThumbnailSize,
-                ignored),
-            GallerySizeDips = ReadOptionalFloat(
-                document.Get(string.Empty, "gallerySize"),
-                defaults.GallerySizeDips,
-                AppSettings.MinimumGallerySizeDips,
-                ignored),
-            Window = ReadWindow(document, ignored),
-            Logging = new LoggingSettings
-            {
-                Level = ReadEnum(document.Get("logging", "level"), "log level", defaults.Logging.Level, ignored),
-            },
-            KeyBindings = ReadKeyBindings(document, ignored),
-        };
+            settings = binding.Read(document, settings, ignored);
+        }
+
+        // A malformed value costs that one setting, never the rest of the file.
+        foreach (string value in ignored)
+        {
+            Log.Warning("Settings", $"Ignored {value}.");
+        }
+
         return (settings, ignored);
     }
 
@@ -56,33 +71,10 @@ internal static class SettingsIniSerializer
     internal static string Write(AppSettings settings, string existing = "")
     {
         var document = IniDocument.Parse(existing);
-        document.Set(string.Empty, "theme", WriteEnum(settings.Theme));
-        document.Set(string.Empty, "animations", settings.AnimationsEnabled ? "true" : "false");
-        document.Set(string.Empty, "singleInstance", settings.SingleInstance ? "true" : "false");
-        document.Set(
-            string.Empty,
-            "autoBalancePanes",
-            settings.AutoBalancePanes ? "true" : "false");
-        document.Set(string.Empty, "sort", WriteEnum(settings.Sort));
-        document.Set(string.Empty, "galleryEnabled", settings.GalleryEnabled ? "true" : "false");
-        document.Set(string.Empty, "galleryPlacement", WriteEnum(settings.GalleryPlacement));
-        document.Set(string.Empty, "galleryThumbnailSize", WriteEnum(settings.GalleryThumbnailSize));
-        document.Set(string.Empty, "gallerySize", settings.GallerySizeDips.ToString(CultureInfo.InvariantCulture));
-        if (settings.Window is { } window)
+        foreach (Binding binding in Bindings)
         {
-            document.Set("window", "x", window.X.ToString(CultureInfo.InvariantCulture));
-            document.Set("window", "y", window.Y.ToString(CultureInfo.InvariantCulture));
-            document.Set("window", "width", window.Width.ToString(CultureInfo.InvariantCulture));
-            document.Set("window", "height", window.Height.ToString(CultureInfo.InvariantCulture));
-            document.Set("window", "maximized", window.Maximized ? "true" : "false");
+            binding.Write(document, settings);
         }
-        else
-        {
-            document.RemoveSection("window");
-        }
-
-        document.Set("logging", "level", WriteEnum(settings.Logging.Level));
-        WriteKeyBindings(document, settings.KeyBindings);
 
         return document.Write();
     }
@@ -95,38 +87,60 @@ internal static class SettingsIniSerializer
             return null;
         }
 
-        if (!TryReadInt(document.Get("window", "x"), out int x)
-            || !TryReadInt(document.Get("window", "y"), out int y)
-            || !TryReadInt(document.Get("window", "width"), out int width)
-            || !TryReadInt(document.Get("window", "height"), out int height))
+        if (IniValue.ParseInt(document.Get("window", "x")) is not int x
+            || IniValue.ParseInt(document.Get("window", "y")) is not int y
+            || IniValue.ParseInt(document.Get("window", "width")) is not int width
+            || IniValue.ParseInt(document.Get("window", "height")) is not int height)
         {
-            Log.Warning("Settings", "Ignored an incomplete window placement.");
-            ignored.Add("the window placement");
+            ignored.Add("an incomplete window placement");
             return null;
         }
 
-        var placement = new WindowPlacementState
+        if (width < AppSettings.MinimumWindowWidth || height < AppSettings.MinimumWindowHeight)
         {
-            X = x,
-            Y = y,
-            Width = width,
-            Height = height,
-            Maximized = ReadOptionalBoolean(document.Get("window", "maximized"), defaultValue: false, ignored),
-        };
-        return placement.Width >= MinimumWindowWidth && placement.Height >= MinimumWindowHeight
-            ? placement
-            : Fallback<WindowPlacementState?>("window size", $"{width}x{height}", null, ignored);
+            ignored.Add($"window size '{width}x{height}'");
+            return null;
+        }
+
+        bool maximized = false;
+        if (document.Get("window", "maximized") is string text)
+        {
+            if (IniValue.ParseBool(text) is bool value)
+            {
+                maximized = value;
+            }
+            else
+            {
+                ignored.Add($"window.maximized '{text}'");
+            }
+        }
+
+        return new WindowPlacementState { X = x, Y = y, Width = width, Height = height, Maximized = maximized };
     }
 
-    private static bool TryReadInt(string? value, out int result) =>
-        int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out result);
-
-    private static ViewerKeyBindings ReadKeyBindings(IniDocument document, List<string> ignored)
+    private static void WriteWindow(IniDocument document, WindowPlacementState? window)
     {
-        ViewerKeyBindings bindings = ViewerKeyBindings.Defaults;
+        if (window is null)
+        {
+            document.RemoveSection("window");
+            return;
+        }
+
+        document.Set("window", "x", IniValue.FormatInt(window.X));
+        document.Set("window", "y", IniValue.FormatInt(window.Y));
+        document.Set("window", "width", IniValue.FormatInt(window.Width));
+        document.Set("window", "height", IniValue.FormatInt(window.Height));
+        document.Set("window", "maximized", IniValue.FormatBool(window.Maximized));
+    }
+
+    private static ViewerKeyBindings ReadKeyBindings(
+        IniDocument document,
+        ViewerKeyBindings bindings,
+        List<string> ignored)
+    {
         foreach (ViewerCommand command in ViewerCommandCatalog.Commands)
         {
-            if (document.Get("keybindings", WriteEnum(command.Id)) is string value)
+            if (document.Get("keybindings", IniValue.FormatEnum(command.Id)) is string value)
             {
                 bindings = bindings.WithShortcuts(command.Id, ReadShortcuts(value, ignored));
             }
@@ -148,7 +162,6 @@ internal static class SettingsIniSerializer
             }
             else
             {
-                Log.Warning("Settings", $"Ignored unknown shortcut '{part}'.");
                 ignored.Add($"shortcut '{part}'");
             }
         }
@@ -162,72 +175,8 @@ internal static class SettingsIniSerializer
         {
             document.Set(
                 "keybindings",
-                WriteEnum(command.Id),
+                IniValue.FormatEnum(command.Id),
                 string.Join(' ', bindings.GetShortcuts(command.Id).Select(shortcut => shortcut.Text)));
         }
-    }
-
-    // Enum values are stored as their names in camelCase, so renaming a member changes the file format.
-    private static string WriteEnum<T>(T value)
-        where T : struct, Enum
-    {
-        string name = value.ToString();
-        return char.ToLowerInvariant(name[0]) + name[1..];
-    }
-
-    private static T ReadEnum<T>(string? value, string name, T defaultValue, List<string> ignored)
-        where T : struct, Enum
-    {
-        if (value is null)
-        {
-            return defaultValue;
-        }
-
-        foreach (T candidate in Enum.GetValues<T>())
-        {
-            if (WriteEnum(candidate) == value)
-            {
-                return candidate;
-            }
-        }
-
-        return Fallback(name, value, defaultValue, ignored);
-    }
-
-    private static bool ReadOptionalBoolean(string? value, bool defaultValue, List<string> ignored) => value switch
-    {
-        null => defaultValue,
-        "true" => true,
-        "false" => false,
-        _ => Fallback("boolean", value, defaultValue, ignored),
-    };
-
-    private static float ReadOptionalFloat(
-        string? value,
-        float defaultValue,
-        float minimum,
-        List<string> ignored)
-    {
-        if (value is null)
-        {
-            return defaultValue;
-        }
-
-        if (float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out float result)
-            && float.IsFinite(result)
-            && result >= minimum)
-        {
-            return result;
-        }
-
-        return Fallback("number", value, defaultValue, ignored);
-    }
-
-    // A malformed value costs that one setting, never the rest of the file.
-    private static T Fallback<T>(string name, string? value, T defaultValue, List<string> ignored)
-    {
-        Log.Warning("Settings", $"Ignored unknown {name} '{value}'.");
-        ignored.Add($"{name} '{value}'");
-        return defaultValue;
     }
 }

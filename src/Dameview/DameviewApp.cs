@@ -569,7 +569,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
 
     // One bad value is worth naming; a mangled file is not worth four toasts.
     private static string DescribeIgnored(IReadOnlyList<string> ignored) => ignored.Count == 1
-        ? $"Ignored unknown {ignored[0]} in the settings file."
+        ? $"Ignored {ignored[0]} in the settings file."
         : $"Ignored {ignored.Count} unreadable values in the settings file.";
 
     private void OpenPickedFile()
