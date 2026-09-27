@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using Dameview.Diagnostics;
 using Dameview.Imaging.Decoding;
@@ -18,12 +19,18 @@ internal readonly record struct AppInstallationRequest(
     string CurrentVersion,
     string? InstalledVersion);
 
+internal sealed class AppInUseException() : InvalidOperationException("Close Dameview before uninstalling.");
+
 internal static class AppInstallation
 {
     private const string InstallArgument = "--install";
     private const string SilentArgument = "--silent";
     private const string UninstallArgument = "--uninstall";
     private const string OldExecutablePattern = "Dameview.old.*.exe";
+
+    // Declared in the winget manifest as packageInUse.
+    private const int AppInUseExitCode = 2;
+
     private static readonly InstalledProgramRegistration InstalledProgram = new("Dameview");
     private static readonly FileAssociationRegistration FileAssociations = new("Dameview", "Dameview.Image");
 
@@ -76,6 +83,11 @@ internal static class AppInstallation
 
             Log.Info("Installation", $"Silent {action} completed.");
             return 0;
+        }
+        catch (AppInUseException exception)
+        {
+            Log.Warning("Installation", exception.Message);
+            return AppInUseExitCode;
         }
         catch (Exception exception)
         {
@@ -226,6 +238,11 @@ internal static class AppInstallation
 
     internal static void Uninstall()
     {
+        if (IsInstalledCopyRunning())
+        {
+            throw new AppInUseException();
+        }
+
         string shortcutPath = GetStartMenuShortcutPath();
         if (File.Exists(shortcutPath))
         {
@@ -276,6 +293,38 @@ internal static class AppInstallation
         };
 
         Process.Start(startInfo);
+    }
+
+    private static bool IsInstalledCopyRunning()
+    {
+        string installDirectory = Path.GetFullPath(InstallDirectory) + Path.DirectorySeparatorChar;
+        foreach (Process process in Process.GetProcesses())
+        {
+            using (process)
+            {
+                // Prefix match also covers Dameview.old.*.exe copies still running after an upgrade.
+                if (process.Id == Environment.ProcessId
+                    || !process.ProcessName.StartsWith("Dameview", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    string? path = process.MainModule?.FileName;
+                    if (path is not null && path.StartsWith(installDirectory, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+                catch (Exception exception) when (exception is Win32Exception or InvalidOperationException)
+                {
+                    // The process exited or belongs to another user.
+                }
+            }
+        }
+
+        return false;
     }
 
     private static bool IsInstalledExecutable()
