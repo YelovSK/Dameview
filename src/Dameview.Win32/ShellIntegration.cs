@@ -23,6 +23,17 @@ internal static class ShellIntegration
         ((IPersistFile)shellLink).Save(shortcutPath, true);
     }
 
+    // Blocks until an app is picked or the dialog is dismissed, which is not a failure.
+    internal static unsafe bool TryShowOpenWith(nint owner, string path)
+    {
+        fixed (char* file = path)
+        {
+            var info = new OPENASINFO { pcszFile = file, oaifInFlags = OPEN_AS_INFO_FLAGS.OAIF_EXEC };
+            HRESULT result = SHOpenWithDialog((HWND)owner, &info);
+            return result.Succeeded || result == HRESULT_FROM_WIN32(WIN32_ERROR.ERROR_CANCELLED);
+        }
+    }
+
     internal static unsafe void NotifyAssociationChanged()
     {
         SHChangeNotify(SHCNE_ID.SHCNE_ASSOCCHANGED, SHCNF_FLAGS.SHCNF_IDLIST, null, null);

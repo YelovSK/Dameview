@@ -60,6 +60,7 @@ DragQueryFile
 SHGetKnownFolderPath
 SHChangeNotify
 DROPFILES
+SHOpenWithDialog
 
 // Ole32
 CoInitializeEx

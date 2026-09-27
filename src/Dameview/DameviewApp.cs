@@ -483,6 +483,10 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
                 ShowInExplorer();
                 break;
 
+            case ViewerCommandId.OpenWith:
+                OpenWith();
+                break;
+
             case ViewerCommandId.ToggleFullscreen:
                 ToggleFullscreen();
                 break;
@@ -590,6 +594,14 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         if (DisplayedPath is { } path)
         {
             Process.Start("explorer.exe", $"/select,\"{path}\"")?.Dispose();
+        }
+    }
+
+    private void OpenWith()
+    {
+        if (DisplayedPath is { } path && !ShellIntegration.TryShowOpenWith(_window.Handle, path))
+        {
+            _toasts.Notify("Could not show the Open with dialog.", ToastSeverity.Error);
         }
     }
 
