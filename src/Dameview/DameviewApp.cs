@@ -417,6 +417,26 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     public void ExecuteCommand(ViewerCommandId command) =>
         ExecuteCommand(command, _workspace.ActivePane.ActiveSession.Viewport.ViewportCenter);
 
+    public bool CanExecuteCommand(ViewerCommandId command) => command switch
+    {
+        ViewerCommandId.ReopenClosedTab => _workspace.HasClosedTabs,
+        ViewerCommandId.PreviousTab or ViewerCommandId.NextTab => _workspace.Count > 1,
+        ViewerCommandId.PreviousImage or ViewerCommandId.NextImage =>
+            _workspace.ActiveSession.State.FolderEntries.Length > 1,
+        ViewerCommandId.FitImage
+            or ViewerCommandId.ShowActualSize
+            or ViewerCommandId.ToggleFitActualSize
+            or ViewerCommandId.CopyImage
+            or ViewerCommandId.CopyFilePath
+            or ViewerCommandId.CopyFile
+            or ViewerCommandId.ShowInFolder
+            or ViewerCommandId.OpenWith
+            or ViewerCommandId.ShowProperties
+            or ViewerCommandId.DeleteFile => DisplayedPath is not null,
+        ViewerCommandId.BalancePanes or ViewerCommandId.OptimizePaneLayout => _workspace.IsSplit,
+        _ => true,
+    };
+
     private void ExecuteCommand(ViewerCommandId command, PointF anchor)
     {
         switch (command)

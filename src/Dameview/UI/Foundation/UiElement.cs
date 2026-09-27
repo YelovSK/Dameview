@@ -333,6 +333,19 @@ internal abstract class UiElement
         InvalidateLayout();
     }
 
+    /// <summary>Puts the existing children in a new order, leaving them attached.</summary>
+    protected void SetChildOrder(IReadOnlyList<UiElement> children)
+    {
+        if (children.Count != _children.Count || children.Any(child => !ReferenceEquals(child.Parent, this)))
+        {
+            throw new ArgumentException("The order must list exactly the existing children.", nameof(children));
+        }
+
+        _children.Clear();
+        _children.AddRange(children);
+        InvalidateLayout();
+    }
+
     /// <summary>Removes a child and disconnects its subtree from the root.</summary>
     protected void RemoveChild(UiElement child)
     {

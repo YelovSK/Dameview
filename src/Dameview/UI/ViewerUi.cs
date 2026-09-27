@@ -123,6 +123,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
                 CloseModal();
                 commands.ExecuteCommand(command);
             },
+            commands.CanExecuteCommand,
             keyBindings => commands.UpdateSettings(settings => settings with { KeyBindings = keyBindings }));
 
         AddChild(_splitView);

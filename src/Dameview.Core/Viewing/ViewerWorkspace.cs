@@ -37,6 +37,9 @@ internal sealed class ViewerWorkspace : IDisposable
     internal IEnumerable<ViewerSession> Sessions =>
         EnumeratePanes(Root).SelectMany(pane => pane.Tabs).Select(tab => tab.Session);
 
+    internal bool IsSplit => Root is not ViewerPane;
+    internal bool HasClosedTabs => _closedTabs.Count > 0;
+
     internal ViewerTab ActiveTab => ActivePane.ActiveTab;
     internal ViewerSession ActiveSession => ActivePane.ActiveSession;
 

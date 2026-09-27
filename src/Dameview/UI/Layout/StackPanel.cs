@@ -37,6 +37,8 @@ internal sealed class StackPanel : UiElement
         }
     }
 
+    internal void Reorder(IReadOnlyList<UiElement> children) => SetChildOrder(children);
+
     protected override SizeF MeasureCore(SizeF availableSize)
     {
         UiElement[] visibleChildren = [.. Children.Where(child => child.IsVisible)];

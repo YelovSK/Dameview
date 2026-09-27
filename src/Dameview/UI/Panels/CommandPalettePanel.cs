@@ -20,19 +20,25 @@ internal sealed class CommandPalettePanel : ModalContent
 
     private readonly TextBlock _title;
     private readonly TextInput _filterInput;
-    private readonly CommandItem[] _items;
+    private readonly Func<ViewerCommandId, bool> _canExecute;
+    private readonly StackPanel _itemList;
     private readonly ScrollView _list;
     private readonly TextBlock _emptyMessage;
     private readonly Action<ViewerKeyBindings> _applyKeyBindings;
     private ViewerKeyBindings _keyBindings;
+
+    // In display order, which puts the commands that cannot run last.
+    private CommandItem[] _items;
     private int _selectedIndex;
 
     internal CommandPalettePanel(
         IReadOnlyList<ViewerCommand> commands,
         ViewerKeyBindings keyBindings,
         Action<ViewerCommandId> execute,
+        Func<ViewerCommandId, bool> canExecute,
         Action<ViewerKeyBindings> applyKeyBindings)
     {
+        _canExecute = canExecute;
         ArgumentOutOfRangeException.ThrowIfZero(commands.Count);
         _title = new TextBlock(
             "Commands",
@@ -51,12 +57,12 @@ internal sealed class CommandPalettePanel : ModalContent
         ];
         _keyBindings = keyBindings;
         _applyKeyBindings = applyKeyBindings;
-        var itemList = new StackPanel(
+        _itemList = new StackPanel(
             UiOrientation.Vertical,
             UiDesign.SmallSpacing,
             StackPanelDistribution.Natural,
             _items);
-        _list = new ScrollView(itemList);
+        _list = new ScrollView(_itemList);
         _emptyMessage = new TextBlock(
             "No matching commands.",
             UiTextStyle.Body,
@@ -77,7 +83,7 @@ internal sealed class CommandPalettePanel : ModalContent
     internal override SizeF PreferredSize => new(540.0f, 580.0f);
     internal override UiElement InitialFocus => _filterInput;
     internal int MatchingCommandCount => _items.Count(item => item.IsPresent);
-    internal ViewerCommandId? SelectedCommand => GetMatchingItems().ElementAtOrDefault(_selectedIndex)?.Command.Id;
+    internal ViewerCommandId? SelectedCommand => GetSelectableItems().ElementAtOrDefault(_selectedIndex)?.Command.Id;
     internal string Query => _filterInput.Text;
 
     internal bool IsRecording => Root?.KeyboardCaptor is ShortcutChip;
@@ -88,6 +94,15 @@ internal sealed class CommandPalettePanel : ModalContent
         {
             root.ReleaseKeyboard(chip);
         }
+
+        // Commands that cannot run stay listed, so their shortcuts can still be edited.
+        foreach (CommandItem item in _items)
+        {
+            item.IsEnabled = _canExecute(item.Command.Id);
+        }
+
+        _items = [.. _items.OrderBy(item => !item.IsEnabled)];
+        _itemList.Reorder(_items);
 
         if (_filterInput.Text.Length > 0)
         {
@@ -175,30 +190,30 @@ internal sealed class CommandPalettePanel : ModalContent
 
     private void MoveSelection(int offset)
     {
-        CommandItem[] matchingItems = GetMatchingItems();
-        if (matchingItems.Length == 0)
+        CommandItem[] selectableItems = GetSelectableItems();
+        if (selectableItems.Length == 0)
         {
             return;
         }
 
-        _selectedIndex = (_selectedIndex + offset + matchingItems.Length) % matchingItems.Length;
+        _selectedIndex = (_selectedIndex + offset + selectableItems.Length) % selectableItems.Length;
         UpdateSelection(scrollIntoView: true);
     }
 
     private void ExecuteSelectedCommand()
     {
-        CommandItem[] matchingItems = GetMatchingItems();
-        if (_selectedIndex >= 0 && _selectedIndex < matchingItems.Length)
+        CommandItem[] selectableItems = GetSelectableItems();
+        if (_selectedIndex >= 0 && _selectedIndex < selectableItems.Length)
         {
-            matchingItems[_selectedIndex].Execute();
+            selectableItems[_selectedIndex].Execute();
         }
     }
 
     private void UpdateSelection(bool scrollIntoView)
     {
-        CommandItem[] matchingItems = GetMatchingItems();
-        CommandItem? selected = _selectedIndex >= 0 && _selectedIndex < matchingItems.Length
-            ? matchingItems[_selectedIndex]
+        CommandItem[] selectableItems = GetSelectableItems();
+        CommandItem? selected = _selectedIndex >= 0 && _selectedIndex < selectableItems.Length
+            ? selectableItems[_selectedIndex]
             : null;
         foreach (CommandItem item in _items)
         {
@@ -211,7 +226,7 @@ internal sealed class CommandPalettePanel : ModalContent
         }
     }
 
-    private CommandItem[] GetMatchingItems() => [.. _items.Where(item => item.IsPresent)];
+    private CommandItem[] GetSelectableItems() => [.. _items.Where(item => item.IsPresent && item.IsEnabled)];
 
     internal void ApplyKeyBindings(ViewerKeyBindings keyBindings)
     {
@@ -402,7 +417,7 @@ internal sealed class CommandPalettePanel : ModalContent
                     0.0f,
                     MathF.Max(ChipPadding, ChipsLeft - ChipGap),
                     RowHeight),
-                context.Palette.PrimaryText,
+                IsEnabled ? context.Palette.PrimaryText : context.Palette.SecondaryText,
                 DrawTextOptions.Clip);
         }
 

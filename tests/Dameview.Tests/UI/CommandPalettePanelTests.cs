@@ -19,7 +19,7 @@ public sealed class CommandPalettePanelTests
             new(ViewerCommandId.NewTab, "New tab", ViewerCommandScope.Window),
             new(ViewerCommandId.CloseTab, "Close tab", ViewerCommandScope.Window),
         ];
-        var panel = new CommandPalettePanel(commands, ViewerKeyBindings.Defaults, command => executed = command, _ => { });
+        var panel = new CommandPalettePanel(commands, ViewerKeyBindings.Defaults, command => executed = command, _ => true, _ => { });
         var root = new UiRoot(panel, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(540.0f, 580.0f));
         root.SetFocus(panel.InitialFocus);
@@ -32,6 +32,36 @@ public sealed class CommandPalettePanelTests
     }
 
     [TestMethod]
+    public void CommandsThatCannotRunAreListedLastAndCannotBeSelected()
+    {
+        ViewerCommandId? executed = null;
+        ViewerCommand[] commands =
+        [
+            new(ViewerCommandId.CopyImage, "Copy image", ViewerCommandScope.Viewer),
+            new(ViewerCommandId.NewTab, "New tab", ViewerCommandScope.Window),
+            new(ViewerCommandId.CloseTab, "Close tab", ViewerCommandScope.Window),
+        ];
+        var panel = new CommandPalettePanel(
+            commands,
+            ViewerKeyBindings.Defaults,
+            command => executed = command,
+            command => command != ViewerCommandId.CopyImage,
+            _ => { });
+        var root = new UiRoot(panel, UiDpi.Default, TestTextLayouts.Shared);
+        panel.Reset();
+        root.Arrange(new SizeF(540.0f, 580.0f));
+        root.SetFocus(panel.InitialFocus);
+
+        Assert.AreEqual(3, panel.MatchingCommandCount, "Commands that cannot run stay listed.");
+        Assert.AreEqual(ViewerCommandId.NewTab, panel.SelectedCommand);
+        root.HandleKey(new WindowKeyEvent(WindowKey.Down), panel, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new WindowKeyEvent(WindowKey.Down), panel, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new WindowKeyEvent(WindowKey.Enter), panel, wrapFocus: true, directionalNavigation: true);
+
+        Assert.AreEqual(ViewerCommandId.NewTab, executed, "Selection wraps past the command that cannot run.");
+    }
+
+    [TestMethod]
     public void TextInputFiltersImmediatelyAndKeepsTheFirstResultSelected()
     {
         ViewerCommand[] commands =
@@ -40,7 +70,7 @@ public sealed class CommandPalettePanelTests
             new(ViewerCommandId.CloseTab, "Alpine", ViewerCommandScope.Window),
             new(ViewerCommandId.ShowSettings, "Beta", ViewerCommandScope.Window),
         ];
-        var panel = new CommandPalettePanel(commands, ViewerKeyBindings.Defaults, _ => { }, _ => { });
+        var panel = new CommandPalettePanel(commands, ViewerKeyBindings.Defaults, _ => { }, _ => true, _ => { });
         var root = new UiRoot(panel, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(540.0f, 580.0f));
         root.SetFocus(panel.InitialFocus);
@@ -63,7 +93,7 @@ public sealed class CommandPalettePanelTests
             new(ViewerCommandId.NewTab, "New tab", ViewerCommandScope.Window),
             new(ViewerCommandId.CloseTab, "Close tab", ViewerCommandScope.Window),
         ];
-        var panel = new CommandPalettePanel(commands, ViewerKeyBindings.Defaults, command => executed = command, _ => { });
+        var panel = new CommandPalettePanel(commands, ViewerKeyBindings.Defaults, command => executed = command, _ => true, _ => { });
         var root = new UiRoot(panel, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(540.0f, 580.0f));
         root.SetFocus(panel.InitialFocus);
@@ -209,6 +239,7 @@ public sealed class CommandPalettePanelTests
             commands,
             ViewerKeyBindings.Defaults,
             _ => { },
+            _ => true,
             applyKeyBindings);
         root = new UiRoot(panel, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(540.0f, 580.0f));
