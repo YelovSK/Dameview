@@ -59,6 +59,7 @@ HRESULT_FROM_WIN32
 DragQueryFile
 SHGetKnownFolderPath
 SHChangeNotify
+DROPFILES
 
 // Ole32
 CoInitializeEx

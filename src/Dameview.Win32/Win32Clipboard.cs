@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using Windows.Win32.Foundation;
 using Windows.Win32.System.Memory;
 using Windows.Win32.System.Ole;
+using Windows.Win32.UI.Shell;
 using static Windows.Win32.PInvoke;
 
 namespace Dameview.Win32;
@@ -29,6 +30,10 @@ internal static unsafe class Win32Clipboard
     // Text is rendered up front, so no owner window has to answer WM_RENDERFORMAT later.
     internal static bool TrySetText(string text) =>
         TrySetData(HWND.Null, CLIPBOARD_FORMAT.CF_UNICODETEXT, AllocateText(text));
+
+    // Pastes as the file itself, the same as copying it in Explorer.
+    internal static bool TrySetFile(string path) =>
+        TrySetData(HWND.Null, CLIPBOARD_FORMAT.CF_HDROP, AllocateFileList(path));
 
     internal static string? TryGetText()
     {
@@ -121,6 +126,33 @@ internal static unsafe class Win32Clipboard
 
         text.CopyTo(new Span<char>(locked, text.Length));
         locked[text.Length] = '\0';
+        _ = GlobalUnlock(memory);
+        return memory;
+    }
+
+    private static HGLOBAL AllocateFileList(string path)
+    {
+        int headerSize = sizeof(DROPFILES);
+
+        // Zeroed memory terminates both the path and the list.
+        nuint size = checked((nuint)(headerSize + (path.Length + 2) * sizeof(char)));
+        HGLOBAL memory = GlobalAlloc(
+            GLOBAL_ALLOC_FLAGS.GMEM_MOVEABLE | GLOBAL_ALLOC_FLAGS.GMEM_ZEROINIT,
+            size);
+        if (memory == HGLOBAL.Null)
+        {
+            return HGLOBAL.Null;
+        }
+
+        byte* locked = (byte*)GlobalLock(memory);
+        if (locked is null)
+        {
+            _ = GlobalFree(memory);
+            return HGLOBAL.Null;
+        }
+
+        *(DROPFILES*)locked = new DROPFILES { pFiles = (uint)headerSize, fWide = true };
+        path.CopyTo(new Span<char>(locked + headerSize, path.Length));
         _ = GlobalUnlock(memory);
         return memory;
     }

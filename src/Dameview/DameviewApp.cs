@@ -475,6 +475,10 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
                 CopyFilePath();
                 break;
 
+            case ViewerCommandId.CopyFile:
+                CopyFile();
+                break;
+
             case ViewerCommandId.ToggleFullscreen:
                 ToggleFullscreen();
                 break;
@@ -557,6 +561,23 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         else
         {
             _toasts.Notify("Could not copy the path to the clipboard.", ToastSeverity.Error);
+        }
+    }
+
+    private void CopyFile()
+    {
+        if (DisplayedPath is not { } path)
+        {
+            return;
+        }
+
+        if (Win32Clipboard.TrySetFile(path))
+        {
+            _toasts.Notify($"Copied {Path.GetFileName(path)}.", ToastSeverity.Success);
+        }
+        else
+        {
+            _toasts.Notify("Could not copy the file to the clipboard.", ToastSeverity.Error);
         }
     }
 
