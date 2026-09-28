@@ -66,7 +66,7 @@ public sealed class ViewerTabStripTests
     }
 
     [TestMethod]
-    public void AddButtonRequestsANewTab()
+    public void AddButtonNextToTheLastTabRequestsANewTab()
     {
         int additions = 0;
         var tabs = new ViewerTabStrip(
@@ -82,7 +82,12 @@ public sealed class ViewerTabStripTests
             WindowPointerEventKind.Pressed,
             new PointF(382.0f, ViewerTabStrip.HeightDips / 2.0f),
             PointerButton.Primary));
+        Assert.AreEqual(0, additions, "The right edge is empty while the tabs fit.");
 
+        root.HandlePointer(new WindowPointerEvent(
+            WindowPointerEventKind.Pressed,
+            new PointF(200.0f, ViewerTabStrip.HeightDips / 2.0f),
+            PointerButton.Primary));
         Assert.AreEqual(1, additions);
     }
 

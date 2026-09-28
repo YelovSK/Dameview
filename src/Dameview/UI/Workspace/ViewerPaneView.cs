@@ -219,7 +219,12 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     protected override void ArrangeCore(SizeF finalSize)
     {
         float tabHeight = _viewerTabs.IsVisible ? ViewerTabStrip.HeightDips : 0.0f;
-        _viewerTabs.Arrange(new RectangleF(0.0f, 0.0f, finalSize.Width, tabHeight));
+        // Inset within the tab row, so the row keeps its height for pane layout.
+        _viewerTabs.Arrange(new RectangleF(
+            UiDesign.Spacing,
+            UiDesign.SmallSpacing,
+            MathF.Max(0.0f, finalSize.Width - (2.0f * UiDesign.Spacing)),
+            MathF.Max(0.0f, tabHeight - (2.0f * UiDesign.SmallSpacing))));
         ContentBounds = new RectangleF(
             0.0f,
             tabHeight,
