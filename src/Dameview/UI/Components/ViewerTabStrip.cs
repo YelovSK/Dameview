@@ -1,4 +1,5 @@
 using System.Drawing;
+using Dameview.UI.Animation;
 using Dameview.UI.Foundation;
 using Dameview.UI.Layout;
 using Dameview.UI.Workspace;
@@ -25,6 +26,7 @@ internal sealed class ViewerTabStrip : UiElement
     private const float LabelPaddingDips = 12.0f;
     private const float WheelStepDips = 120.0f;
     private const float DragThresholdDips = 4.0f;
+    private const double LayoutResponse = 20.0;
     private static readonly UiFont LabelFont = new(UiDesign.BodyFontSize, FontWeight.SemiBold, Ellipsis: true);
     private static readonly UiFont CloseFont = new(16.0f, Alignment: TextAlignment.Center);
 
@@ -34,6 +36,10 @@ internal sealed class ViewerTabStrip : UiElement
     private readonly Action<ViewerTabInfo?, RectangleF>? _hoveredTabChanged;
     private readonly Action<int, WorkspaceDragEvent>? _dragPointer;
     private readonly ScrollOffsetController _scrollOffset = new();
+    // Drawing eases towards the layout, which hit testing follows without delay.
+    private readonly AnimatedFloat _drawnTabWidth;
+    // In tabs rather than dips, so it stays on its tab while the width animates.
+    private readonly AnimatedFloat _drawnSelection;
     private ViewerTabInfo[] _tabs = [];
     private int _selectedIndex;
     private int _hoveredIndex = -1;
@@ -61,6 +67,8 @@ internal sealed class ViewerTabStrip : UiElement
             addRequested,
             fontSize: 18.0f);
         AddChild(_addButton);
+        _drawnTabWidth = Animate(MaximumTabWidthDips, LayoutResponse);
+        _drawnSelection = Animate(selectedIndex, LayoutResponse);
         SetTabs(tabs, selectedIndex);
     }
 
@@ -111,6 +119,8 @@ internal sealed class ViewerTabStrip : UiElement
             _hoveringClose = false;
         }
 
+        _drawnTabWidth.SetTarget(TabWidth);
+        _drawnSelection.SetTarget(selectedIndex);
         _addButton.Arrange(GetAddButtonBounds());
         UpdateScrollMetrics();
         RevealSelectedTab();
@@ -236,21 +246,35 @@ internal sealed class ViewerTabStrip : UiElement
         float viewportWidth = TabViewportWidth;
         bool widthChanged = _viewportWidth != viewportWidth;
         _viewportWidth = viewportWidth;
-        _addButton.Arrange(GetAddButtonBounds());
-        UpdateScrollMetrics();
         if (widthChanged)
         {
+            // Resizing the window follows the pointer, so only a change in tabs animates.
+            _drawnTabWidth.SetValue(TabWidth);
             RevealSelectedTab();
         }
+
+        _addButton.Arrange(GetAddButtonBounds());
+        UpdateScrollMetrics();
     }
 
     protected override void DrawCore(in UiDrawContext context)
     {
         context.PushClip(new RectangleF(0.0f, 0.0f, TabViewportWidth, Bounds.Height));
         float x = -_scrollOffset.Offset;
-        float width = TabWidth;
+        float width = _drawnTabWidth.Current;
         try
         {
+            context.FillRoundedRectangle(
+                new RoundedRectangle(
+                    new RectangleF(
+                        x + (_drawnSelection.Current * (width + UiDesign.SmallSpacing)),
+                        0.0f,
+                        width,
+                        Bounds.Height),
+                    UiDesign.ControlCornerRadius,
+                    UiDesign.ControlCornerRadius),
+                context.Palette.Accent,
+                0.18f);
             for (int index = 0; index < _tabs.Length; index++)
             {
                 DrawTab(context, index, x, width);
@@ -265,6 +289,7 @@ internal sealed class ViewerTabStrip : UiElement
 
     protected override bool UpdateCore(in UiUpdateContext context)
     {
+        _addButton.Arrange(GetAddButtonBounds());
         return _scrollOffset.Update(context);
     }
 
@@ -304,18 +329,14 @@ internal sealed class ViewerTabStrip : UiElement
 
     private void DrawTab(in UiDrawContext context, int index, float x, float width)
     {
-        var bounds = new RoundedRectangle(
-            new RectangleF(x, 0.0f, width, Bounds.Height),
-            UiDesign.ControlCornerRadius,
-            UiDesign.ControlCornerRadius);
-        if (index == _selectedIndex)
-        {
-            context.FillRoundedRectangle(bounds, context.Palette.Accent, 0.18f);
-        }
-
         if (index == _hoveredIndex)
         {
-            context.FillRoundedRectangle(bounds, context.Palette.ControlHover);
+            context.FillRoundedRectangle(
+                new RoundedRectangle(
+                    new RectangleF(x, 0.0f, width, Bounds.Height),
+                    UiDesign.ControlCornerRadius,
+                    UiDesign.ControlCornerRadius),
+                context.Palette.ControlHover);
         }
 
         bool showsClose = ShowsClose(index, width);
@@ -439,7 +460,9 @@ internal sealed class ViewerTabStrip : UiElement
     private RectangleF GetAddButtonBounds()
     {
         float width = MathF.Min(AddButtonWidthDips, Bounds.Width);
-        float x = MathF.Min(ContentWidth, TabViewportWidth) + UiDesign.SmallSpacing;
+        float drawnContentWidth = _tabs.Length * (_drawnTabWidth.Current + UiDesign.SmallSpacing)
+            - UiDesign.SmallSpacing;
+        float x = MathF.Min(drawnContentWidth, TabViewportWidth) + UiDesign.SmallSpacing;
         return new RectangleF(
             MathF.Min(x, MathF.Max(0.0f, Bounds.Width - width)),
             0.0f,
