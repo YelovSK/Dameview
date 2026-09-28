@@ -45,7 +45,20 @@ This is an app made specifically for me, no one else. However, I open-source my 
 dotnet run --project src/Dameview
 ```
 
-An image path can also be passed at startup:
+## Command line
+
+```
+Dameview.exe [path]
+Dameview.exe --install [--silent]
+Dameview.exe --uninstall [--silent]
+```
+
+- `path` opens an image or folder.
+- `--install` opens the installer, which installs to `%LOCALAPPDATA%\Programs\Dameview`. Running a non-installed executable without arguments does the same.
+- `--uninstall` opens the uninstaller.
+- `--silent` installs or uninstalls without UI. Exits with `0` on success, `1` on failure, or `2` when uninstalling while Dameview is running.
+
+With `dotnet run`, pass arguments after `--`:
 
 ```powershell
 dotnet run --project src/Dameview -- "C:\path\to\image.jpg"
