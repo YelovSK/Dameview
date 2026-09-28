@@ -29,6 +29,31 @@ internal sealed class FolderNavigator
         SetCurrent(currentPath);
     }
 
+    /// <summary>Adds files found after those already known, such as a later batch of a scan.</summary>
+    internal void AddFiles(IEnumerable<FolderEntry> files)
+    {
+        NavigationEntry[] added = [.. files.Select(file => new NavigationEntry(file.FullName, file))];
+        if (added.Length == 0)
+        {
+            return;
+        }
+
+        SortFiles(added, Sort);
+        string? currentPath = _currentIndex >= 0 ? _files[_currentIndex].Path : null;
+        NavigationEntry[] known = _files;
+
+        // The current file stands in without metadata until the scan reaches it.
+        if (currentPath is not null
+            && _files[_currentIndex].Metadata is null
+            && added.Any(file => _pathComparer.Equals(file.Path, currentPath)))
+        {
+            known = [.. _files.Where((_, index) => index != _currentIndex)];
+        }
+
+        _files = Merge(known, added, Sort);
+        _currentIndex = currentPath is null ? -1 : IndexOf(currentPath);
+    }
+
     internal FolderEntry[] GetFiles() =>
         [.. _files.Where(file => file.Metadata is not null).Select(file => file.Metadata!)];
 
@@ -55,17 +80,13 @@ internal sealed class FolderNavigator
     internal void SetCurrent(string path)
     {
         string fullPath = Path.GetFullPath(path);
-        _currentIndex = Array.FindIndex(
-            _files,
-            file => _pathComparer.Equals(file.Path, fullPath));
+        _currentIndex = IndexOf(fullPath);
 
         if (_currentIndex < 0)
         {
             _files = [.. _files, new NavigationEntry(fullPath, null)];
             SortFiles(_files, Sort);
-            _currentIndex = Array.FindIndex(
-                _files,
-                file => _pathComparer.Equals(file.Path, fullPath));
+            _currentIndex = IndexOf(fullPath);
         }
     }
 
@@ -82,11 +103,12 @@ internal sealed class FolderNavigator
 
         if (currentPath is not null)
         {
-            _currentIndex = Array.FindIndex(
-                _files,
-                file => _pathComparer.Equals(file.Path, currentPath));
+            _currentIndex = IndexOf(currentPath);
         }
     }
+
+    private int IndexOf(string path) =>
+        Array.FindIndex(_files, file => _pathComparer.Equals(file.Path, path));
 
     private string? GetRelativePath(int offset)
     {
@@ -113,6 +135,22 @@ internal sealed class FolderNavigator
     private static void SortFiles(NavigationEntry[] files, FolderSort sort)
     {
         Array.Sort(files, (left, right) => Compare(left, right, sort));
+    }
+
+    private static NavigationEntry[] Merge(NavigationEntry[] left, NavigationEntry[] right, FolderSort sort)
+    {
+        var merged = new NavigationEntry[left.Length + right.Length];
+        int leftIndex = 0;
+        int rightIndex = 0;
+        for (int index = 0; index < merged.Length; index++)
+        {
+            merged[index] = rightIndex == right.Length
+                || (leftIndex < left.Length && Compare(left[leftIndex], right[rightIndex], sort) <= 0)
+                ? left[leftIndex++]
+                : right[rightIndex++];
+        }
+
+        return merged;
     }
 
     private static int Compare(NavigationEntry left, NavigationEntry right, FolderSort sort)

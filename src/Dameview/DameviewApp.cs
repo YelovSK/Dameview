@@ -112,8 +112,10 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         using var imageDecoder = new ImageDecoder();
         _decodableExtensions = imageDecoder.GetProbablySupportedExtensions();
         StartupTrace.Mark("wic");
+        HashSet<string>.AlternateLookup<ReadOnlySpan<char>> decodableExtensions =
+            _decodableExtensions.GetAlternateLookup<ReadOnlySpan<char>>();
         _folderScanner = new FolderScanner(
-            path => _decodableExtensions.Contains(Path.GetExtension(path)));
+            path => decodableExtensions.Contains(Path.GetExtension(path)));
         _workspace = new ViewerWorkspace(CreateTab);
         _settings = new SettingsService(SettingsService.DefaultPath, _uiContext, loaded: startupSettings);
         _updates = new UpdateService(
@@ -523,6 +525,10 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
                 UpdateSettings(settings => settings with { GalleryEnabled = !settings.GalleryEnabled });
                 break;
 
+            case ViewerCommandId.ToggleFlattenFolder:
+                ToggleFlattenFolder();
+                break;
+
             case ViewerCommandId.SplitRight:
                 SplitRight(_workspace.ActivePane);
                 break;
@@ -605,6 +611,15 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         {
             _toasts.Notify("Could not copy the path to the clipboard.", ToastSeverity.Error);
         }
+    }
+
+    private void ToggleFlattenFolder()
+    {
+        ViewerSession session = _workspace.ActiveSession;
+        session.ToggleFlattenFolder();
+        _toasts.Notify(
+            session.FlattensFolder ? "Including images from subfolders." : "Showing this folder only.",
+            ToastSeverity.Success);
     }
 
     private void CopyFile()

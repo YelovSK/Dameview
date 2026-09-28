@@ -73,6 +73,30 @@ public sealed class FolderNavigatorTests
         Assert.AreEqual(last, navigator.MoveToPreviousPath());
     }
 
+    [TestMethod]
+    public void BatchesMergeIntoSortOrderAndReplaceTheStandInForTheCurrentFile()
+    {
+        const string first = @"C:\images\a.jpg";
+        const string current = @"C:\images\sub\b.jpg";
+        const string nested = @"C:\images\z\c.jpg";
+        const string last = @"C:\images\d.jpg";
+        var navigator = new FolderNavigator();
+        navigator.SetCurrent(current);
+
+        navigator.AddFiles([Entry(nested), Entry(first)]);
+        Assert.IsNull(navigator.CurrentEntry);
+        navigator.AddFiles([Entry(last), Entry(current)]);
+
+        CollectionAssert.AreEqual(
+            new[] { first, current, nested, last },
+            navigator.GetFiles().Select(file => file.FullName).ToArray());
+        Assert.AreEqual(current, navigator.CurrentEntry!.FullName);
+        Assert.AreEqual(nested, navigator.GetNextPath());
+        Assert.AreEqual(first, navigator.GetPreviousPath());
+    }
+
+    private static FolderEntry Entry(string path) => new(path, 1, default, default);
+
     private sealed class FolderFiles
     {
         internal string Path => @"C:\virtual-images";

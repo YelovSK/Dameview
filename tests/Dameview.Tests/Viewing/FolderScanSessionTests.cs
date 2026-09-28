@@ -170,14 +170,67 @@ public sealed class FolderScanSessionTests
     }
 
     [TestMethod]
+    public void FlatteningRescansTheImagesFolderWithItsSubfolders()
+    {
+        using var fixture = new Fixture();
+        fixture.Session.OpenImage(Fixture.First);
+        fixture.Scanner.Complete(0, Fixture.First, Fixture.Second);
+        fixture.DeliverScan();
+
+        fixture.Session.ToggleFlattenFolder();
+        fixture.Scanner.WaitForRequest(1);
+        Assert.AreEqual(new FolderScope(@"C:\images", Recursive: true), fixture.Scanner.Requests[1].Scope);
+        Assert.HasCount(0, fixture.Session.State.FolderEntries);
+        fixture.Scanner.Complete(1, Fixture.First, Fixture.Nested);
+        fixture.DeliverScan();
+        Assert.HasCount(2, fixture.Session.State.FolderEntries);
+
+        fixture.Session.OpenImage(Fixture.Nested);
+        Assert.HasCount(2, fixture.Scanner.Requests);
+
+        // Unflattening narrows to the folder of the image being viewed, not the one flattened.
+        fixture.Session.ToggleFlattenFolder();
+        fixture.Scanner.WaitForRequest(2);
+        Assert.AreEqual(new FolderScope(@"C:\images\sub", Recursive: false), fixture.Scanner.Requests[2].Scope);
+    }
+
+    [TestMethod]
+    public void FirstScanReportsBatchesThatAddUp()
+    {
+        using var posts = new BlockingCollection<Action>();
+        using var scanner = new BatchScanner();
+        using var watcher = new FakeFolderWatcher();
+        using var monitor = new FolderMonitor(
+            scanner,
+            watcher,
+            new WindowSynchronizationContext(posts.Add),
+            debounceMilliseconds: 0,
+            progressInterval: TimeSpan.FromMilliseconds(10));
+        var updates = new List<FolderUpdate>();
+        monitor.Updated += updates.Add;
+        monitor.Open(new FolderScope(@"C:\images", Recursive: true));
+
+        scanner.Found.Add(new FolderEntry(Fixture.First, 1, default, default));
+        Assert.IsTrue(posts.TryTake(out Action? batch, TimeSpan.FromSeconds(5)));
+        batch();
+        scanner.Found.Add(new FolderEntry(Fixture.Second, 1, default, default));
+        scanner.Found.CompleteAdding();
+        while (updates.Sum(update => update.Entries.Length) < 2)
+        {
+            Assert.IsTrue(posts.TryTake(out Action? next, TimeSpan.FromSeconds(5)));
+            next();
+        }
+
+        Assert.IsTrue(updates.All(update => update.Appended));
+        Assert.AreEqual(Fixture.First, updates[0].Entries.Single().FullName);
+    }
+
+    [TestMethod]
     public void UnrelatedFileChangesDoNotTriggerAScan()
     {
         var scanner = new ExtensionScanner();
         using var watcher = new FakeFolderWatcher();
-        using var monitor = new FolderMonitor(scanner, watcher, new WindowSynchronizationContext(_ => { }), debounceMilliseconds: 0);
-        monitor.Open(@"C:\images");
-        scanner.WaitForRequests(1);
-        Assert.AreEqual(1, scanner.Requests);
+        using FolderMonitor monitor = OpenIdleMonitor(scanner, watcher);
 
         watcher.RaiseChanged(@"C:\images\notes.txt");
         Assert.AreEqual(1, scanner.Requests);
@@ -191,16 +244,25 @@ public sealed class FolderScanSessionTests
     {
         var scanner = new ExtensionScanner();
         using var watcher = new FakeFolderWatcher();
-        using var monitor = new FolderMonitor(scanner, watcher, new WindowSynchronizationContext(_ => { }), debounceMilliseconds: 0);
-        monitor.Open(@"C:\images");
-        scanner.WaitForRequests(1);
-        Assert.AreEqual(1, scanner.Requests);
+        using FolderMonitor monitor = OpenIdleMonitor(scanner, watcher);
 
         watcher.RaiseRenamed(@"C:\images\pic.txt", @"C:\images\pic.jpg");
         Assert.AreEqual(2, scanner.Requests);
 
         watcher.RaiseRenamed(@"C:\images\pic.txt", @"C:\images\notes.txt");
         Assert.AreEqual(2, scanner.Requests);
+    }
+
+    // Changes that arrive while a scan runs wait for it, so these start from a finished scan.
+    private static FolderMonitor OpenIdleMonitor(ExtensionScanner scanner, FakeFolderWatcher watcher)
+    {
+        var scanned = new TaskCompletionSource();
+        var monitor = new FolderMonitor(scanner, watcher, new WindowSynchronizationContext(post => post()), debounceMilliseconds: 0);
+        monitor.Updated += _ => scanned.TrySetResult();
+        monitor.Open(new FolderScope(@"C:\images", Recursive: false));
+        Assert.IsTrue(scanned.Task.Wait(TimeSpan.FromSeconds(5)));
+        Assert.AreEqual(1, scanner.Requests);
+        return monitor;
     }
 
     [TestMethod]
@@ -219,7 +281,7 @@ public sealed class FolderScanSessionTests
         using var monitor = new FolderMonitor(scanner, watcher, new WindowSynchronizationContext(_ => { }));
         try
         {
-            var open = Task.Run(() => monitor.Open(directory));
+            var open = Task.Run(() => monitor.Open(new FolderScope(directory, Recursive: false)));
             Assert.IsTrue(entered.Wait(TimeSpan.FromSeconds(5)));
             Assert.IsTrue(open.Wait(TimeSpan.FromSeconds(1)));
             Assert.AreEqual(0, scanner.Requests);
@@ -254,7 +316,7 @@ public sealed class FolderScanSessionTests
         using var monitor = new FolderMonitor(scanner, watcher, new WindowSynchronizationContext(_ => { }));
         try
         {
-            monitor.Open(directory);
+            monitor.Open(new FolderScope(directory, Recursive: false));
             Assert.IsTrue(entered.Wait(TimeSpan.FromSeconds(5)));
             var close = Task.Run(monitor.Close);
             Assert.IsTrue(close.Wait(TimeSpan.FromSeconds(1)));
@@ -284,7 +346,7 @@ public sealed class FolderScanSessionTests
         monitor.WatcherFailed += failures.Enqueue;
         try
         {
-            monitor.Open(directory);
+            monitor.Open(new FolderScope(directory, Recursive: false));
             scanner.WaitForRequests(1);
             Assert.IsTrue(failures.TryDequeue(out Exception? failure));
             Assert.IsInstanceOfType<InvalidOperationException>(failure);
@@ -300,6 +362,7 @@ public sealed class FolderScanSessionTests
         internal const string First = @"C:\images\a.jpg";
         internal const string Second = @"C:\images\b.jpg";
         internal const string Third = @"C:\images\c.jpg";
+        internal const string Nested = @"C:\images\sub\d.jpg";
         private readonly BlockingCollection<Action> _posts = new();
         internal FakeFolderWatcher Watcher { get; } = new();
         internal Scanner Scanner { get; } = new();
@@ -309,7 +372,7 @@ public sealed class FolderScanSessionTests
 
         internal Fixture()
         {
-            Monitor = new FolderMonitor(Scanner, Watcher, new WindowSynchronizationContext(_posts.Add), debounceMilliseconds: 0);
+            Monitor = new FolderMonitor(Scanner, Watcher, new WindowSynchronizationContext(_posts.Add), debounceMilliseconds: 0, progressInterval: Timeout.InfiniteTimeSpan);
             Session = new ViewerSession(new FolderNavigator(), Monitor, Loader);
         }
 
@@ -337,35 +400,57 @@ public sealed class FolderScanSessionTests
         private int _requests;
         internal int Requests => Volatile.Read(ref _requests);
 
-        public Task<FolderEntry[]> ScanAsync(string directoryPath, CancellationToken cancellationToken)
+        public IEnumerable<FolderEntry> Scan(FolderScope scope, CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref _requests);
-            return Task.FromResult(Array.Empty<FolderEntry>());
+            return [];
         }
 
         internal void WaitForRequests(int count) =>
             Assert.IsTrue(SpinWait.SpinUntil(() => Requests >= count, TimeSpan.FromSeconds(5)));
 
-        public bool IsProbablySupported(string path)
+        public bool WouldInclude(FolderScope scope, string path)
             => Path.GetExtension(path).Equals(".jpg", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private sealed class BatchScanner : IFolderScanner, IDisposable
+    {
+        internal BlockingCollection<FolderEntry> Found { get; } = [];
+
+        public IEnumerable<FolderEntry> Scan(FolderScope scope, CancellationToken cancellationToken) =>
+            Found.GetConsumingEnumerable(cancellationToken);
+
+        public bool WouldInclude(FolderScope scope, string path) => true;
+
+        public void Dispose() => Found.Dispose();
     }
 
     private sealed class Scanner : IFolderScanner
     {
-        internal List<(TaskCompletionSource<FolderEntry[]> Completion, CancellationToken Token)> Requests { get; } = [];
+        internal List<(TaskCompletionSource<FolderEntry[]> Completion, FolderScope Scope, CancellationToken Token)> Requests { get; } = [];
 
-        public Task<FolderEntry[]> ScanAsync(string directoryPath, CancellationToken cancellationToken)
+        public IEnumerable<FolderEntry> Scan(FolderScope scope, CancellationToken cancellationToken)
         {
             var completion = new TaskCompletionSource<FolderEntry[]>(TaskCreationOptions.RunContinuationsAsynchronously);
             lock (Requests)
             {
-                Requests.Add((completion, cancellationToken));
+                Requests.Add((completion, scope, cancellationToken));
                 Monitor.PulseAll(Requests);
             }
-            return completion.Task;
+            return Wait(completion, cancellationToken);
         }
 
-        public bool IsProbablySupported(string path) => true;
+        private static IEnumerable<FolderEntry> Wait(
+            TaskCompletionSource<FolderEntry[]> completion,
+            CancellationToken cancellationToken)
+        {
+            foreach (FolderEntry entry in completion.Task.WaitAsync(cancellationToken).GetAwaiter().GetResult())
+            {
+                yield return entry;
+            }
+        }
+
+        public bool WouldInclude(FolderScope scope, string path) => true;
 
         internal void Complete(int index, params string[] paths)
         {
@@ -438,7 +523,7 @@ internal sealed class FakeFolderWatcher : IFolderWatcher
     public void RaiseRenamed(string newPath, string oldPath) => Renamed?.Invoke(newPath, oldPath);
     public void RaiseError() => Error?.Invoke();
 
-    public void Start(string directoryPath)
+    public void Start(FolderScope scope)
     {
         OnStart?.Invoke();
     }

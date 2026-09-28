@@ -30,6 +30,7 @@ internal sealed class ViewerSession : IDisposable
     internal ViewerSessionState State { get; private set; } = new(null, null, false, null, false, []);
     internal ImageViewport Viewport { get; }
     internal ViewportAnimator Animator { get; }
+    internal bool FlattensFolder { get; private set; }
 
     internal void SetSort(FolderSort sort)
     {
@@ -88,22 +89,32 @@ internal sealed class ViewerSession : IDisposable
             return;
         }
 
-        if (string.Equals(directoryPath, _folderMonitor.CurrentDirectory, StringComparison.OrdinalIgnoreCase))
+        if (_folderMonitor.Scope?.Contains(fullPath) == true)
         {
             _folderNavigator.SetCurrent(fullPath);
             BeginImageLoad(fullPath, navigationDirection: 0);
             return;
         }
 
-        _folderNavigator.Clear();
-        State = State with
-        {
-            FolderEntries = [],
-            CurrentEntry = null,
-            FolderError = null,
-        };
+        OpenFolder(new FolderScope(directoryPath, FlattensFolder), fullPath);
         BeginImageLoad(fullPath, navigationDirection: 0);
-        _folderMonitor.Open(directoryPath);
+    }
+
+    /// <summary>
+    /// Switches between the current image's folder alone and that folder with all its subfolders.
+    /// Takes effect on the next opened image when no folder is open.
+    /// </summary>
+    internal void ToggleFlattenFolder()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        FlattensFolder = !FlattensFolder;
+        if (_folderMonitor.Scope is null || State.RequestedPath is not { } path)
+        {
+            return;
+        }
+
+        OpenFolder(new FolderScope(Path.GetDirectoryName(path)!, FlattensFolder), path);
+        StateChanged?.Invoke();
     }
 
     /// <summary>For when the graphics device the displayed bitmap lived on was replaced.</summary>
@@ -158,7 +169,14 @@ internal sealed class ViewerSession : IDisposable
 
         if (update.Error is null)
         {
-            _folderNavigator.SetFiles(update.Entries, State.RequestedPath!);
+            if (update.Appended)
+            {
+                _folderNavigator.AddFiles(update.Entries);
+            }
+            else
+            {
+                _folderNavigator.SetFiles(update.Entries, State.RequestedPath!);
+            }
         }
 
         State = update.Error is null
@@ -176,6 +194,19 @@ internal sealed class ViewerSession : IDisposable
         }
 
         StateChanged?.Invoke();
+    }
+
+    private void OpenFolder(FolderScope scope, string imagePath)
+    {
+        _folderNavigator.Clear();
+        _folderNavigator.SetCurrent(imagePath);
+        State = State with
+        {
+            FolderEntries = [],
+            CurrentEntry = null,
+            FolderError = null,
+        };
+        _folderMonitor.Open(scope);
     }
 
     private void PreloadNeighbours(int navigationDirection)

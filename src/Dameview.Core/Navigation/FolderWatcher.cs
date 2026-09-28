@@ -8,7 +8,7 @@ internal interface IFolderWatcher : IDisposable
     public event Action<string, string>? Renamed;
     public event Action? Error;
 
-    public void Start(string directoryPath);
+    public void Start(FolderScope scope);
     public void Stop();
 }
 
@@ -22,16 +22,16 @@ internal sealed class FileSystemFolderWatcher : IFolderWatcher
     public event Action<string, string>? Renamed;
     public event Action? Error;
 
-    public void Start(string directoryPath)
+    public void Start(FolderScope scope)
     {
         Stop();
-        var watcher = new FileSystemWatcher(directoryPath)
+        var watcher = new FileSystemWatcher(scope.DirectoryPath)
         {
             NotifyFilter = NotifyFilters.FileName
                 | NotifyFilters.LastWrite
                 | NotifyFilters.Size
                 | NotifyFilters.CreationTime,
-            IncludeSubdirectories = false,
+            IncludeSubdirectories = scope.Recursive,
         };
         watcher.Changed += (_, e) => Changed?.Invoke(e.FullPath);
         watcher.Created += (_, e) => Created?.Invoke(e.FullPath);

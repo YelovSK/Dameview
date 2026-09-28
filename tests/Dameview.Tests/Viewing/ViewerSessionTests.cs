@@ -44,7 +44,7 @@ public sealed class ViewerSessionTests
         using var files = new SessionFiles();
         var loader = new ManualImageLoader();
         var scanner = new ImmediateScanner();
-        var monitor = new FolderMonitor(scanner, new FakeFolderWatcher(), new WindowSynchronizationContext(_posts.Enqueue), debounceMilliseconds: 0);
+        var monitor = new FolderMonitor(scanner, new FakeFolderWatcher(), new WindowSynchronizationContext(_posts.Enqueue), debounceMilliseconds: 0, progressInterval: Timeout.InfiniteTimeSpan);
         using var session = new ViewerSession(new FolderNavigator(), monitor, loader);
         session.Viewport.SetViewportSize(800, 600);
         session.OpenImage(files.First);
@@ -232,7 +232,7 @@ public sealed class ViewerSessionTests
 
     private ViewerSession CreateSession(ManualImageLoader loader)
     {
-        var monitor = new FolderMonitor(new ImmediateScanner(), new FakeFolderWatcher(), new WindowSynchronizationContext(_posts.Enqueue), debounceMilliseconds: 0);
+        var monitor = new FolderMonitor(new ImmediateScanner(), new FakeFolderWatcher(), new WindowSynchronizationContext(_posts.Enqueue), debounceMilliseconds: 0, progressInterval: Timeout.InfiniteTimeSpan);
         var session = new ViewerSession(new FolderNavigator(), monitor, loader);
         session.Viewport.SetViewportSize(800, 600);
         return session;
@@ -253,21 +253,14 @@ public sealed class ViewerSessionTests
     {
         internal int ScanCount { get; private set; }
 
-        public bool IsProbablySupported(string path) => true;
+        public bool WouldInclude(FolderScope scope, string path) => true;
 
-        public Task<FolderEntry[]> ScanAsync(string directoryPath, CancellationToken cancellationToken)
+        public IEnumerable<FolderEntry> Scan(FolderScope scope, CancellationToken cancellationToken)
         {
             ScanCount++;
-            try
-            {
-                return Task.FromResult(new DirectoryInfo(directoryPath).GetFiles()
-                    .Select(file => new FolderEntry(file.FullName, file.Length,
-                        file.CreationTimeUtc, file.LastWriteTimeUtc)).ToArray());
-            }
-            catch (IOException exception)
-            {
-                return Task.FromException<FolderEntry[]>(exception);
-            }
+            return new DirectoryInfo(scope.DirectoryPath).GetFiles()
+                .Select(file => new FolderEntry(file.FullName, file.Length,
+                    file.CreationTimeUtc, file.LastWriteTimeUtc));
         }
     }
 

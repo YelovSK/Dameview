@@ -22,6 +22,7 @@ internal enum ViewerCommandId
     DeleteFile,
     ToggleFullscreen,
     ToggleGallery,
+    ToggleFlattenFolder,
     SplitRight,
     SplitDown,
     BalancePanes,
@@ -71,6 +72,10 @@ internal static class ViewerCommandCatalog
         new(ViewerCommandId.DeleteFile, "Delete file", ViewerCommandScope.Viewer),
         new(ViewerCommandId.ToggleFullscreen, "Toggle fullscreen", ViewerCommandScope.Window),
         new(ViewerCommandId.ToggleGallery, "Toggle gallery", ViewerCommandScope.Window),
+        new(
+            ViewerCommandId.ToggleFlattenFolder,
+            "Toggle flatten folder",
+            ViewerCommandScope.Viewer),
         new(ViewerCommandId.SplitRight, "Split right", ViewerCommandScope.Window),
         new(ViewerCommandId.SplitDown, "Split down", ViewerCommandScope.Window),
         new(ViewerCommandId.BalancePanes, "Balance pane layout", ViewerCommandScope.Window),

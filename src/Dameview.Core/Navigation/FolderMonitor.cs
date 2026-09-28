@@ -1,84 +1,89 @@
 namespace Dameview.Navigation;
 
+/// <summary>
+/// Appended entries add to those of earlier updates. Otherwise the entries are the whole folder.
+/// </summary>
 internal sealed record FolderUpdate(
     FolderEntry[] Entries,
+    bool Appended,
     string? Error);
 
 internal interface IFolderMonitor : IDisposable
 {
     public event Action<FolderUpdate>? Updated;
 
-    public string? CurrentDirectory { get; }
+    public FolderScope? Scope { get; }
 
-    public void Open(string directoryPath);
+    public void Open(FolderScope scope);
     public void Close();
 }
 
 internal sealed class FolderMonitor : IFolderMonitor
 {
     private const int DefaultDebounceMilliseconds = 150;
+    private static readonly TimeSpan DefaultProgressInterval = TimeSpan.FromMilliseconds(100);
 
     private readonly IFolderScanner _scanner;
     private readonly IFolderWatcher _watcher;
     private readonly SynchronizationContext _ownerContext;
     private readonly int _debounceMilliseconds;
+    private readonly TimeSpan _progressInterval;
     private readonly Lock _gate = new();
     private readonly Timer _debounceTimer;
     private Task _watcherTask = Task.CompletedTask;
     private CancellationTokenSource? _scanCts;
     private int _watcherVersion;
+    private bool _scanning;
+    private bool _rescanPending;
     private bool _disposed;
 
     internal FolderMonitor(
         IFolderScanner scanner,
         IFolderWatcher watcher,
         SynchronizationContext ownerContext,
-        int debounceMilliseconds = DefaultDebounceMilliseconds)
+        int debounceMilliseconds = DefaultDebounceMilliseconds,
+        TimeSpan? progressInterval = null)
     {
         _scanner = scanner;
         _watcher = watcher;
         _ownerContext = ownerContext;
         _debounceMilliseconds = debounceMilliseconds;
+        _progressInterval = progressInterval ?? DefaultProgressInterval;
         _debounceTimer = new Timer(_ => HandleDebounceTimer(), null, Timeout.Infinite, Timeout.Infinite);
-        _watcher.Changed += ScheduleDebounceIfSupported;
-        _watcher.Created += ScheduleDebounceIfSupported;
-        _watcher.Deleted += ScheduleDebounceIfSupported;
-        _watcher.Renamed += ScheduleDebounceIfSupported;
+        _watcher.Changed += ScheduleDebounceIfIncluded;
+        _watcher.Created += ScheduleDebounceIfIncluded;
+        _watcher.Deleted += ScheduleDebounceIfIncluded;
+        _watcher.Renamed += ScheduleDebounceIfIncluded;
         _watcher.Error += ScheduleDebounce;
     }
 
     public event Action<FolderUpdate>? Updated;
     internal event Action<Exception>? WatcherFailed;
 
-    public string? CurrentDirectory { get; private set; }
+    public FolderScope? Scope { get; private set; }
 
-    public void Open(string directoryPath)
+    public void Open(FolderScope scope)
     {
-        CancellationTokenSource cts;
+        CancellationToken token;
         Task watcherReady;
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            CurrentDirectory = directoryPath;
-            _scanCts?.Cancel();
-            _scanCts?.Dispose();
-            cts = new CancellationTokenSource();
-            _scanCts = cts;
+            Scope = scope;
             _debounceTimer.Change(Timeout.Infinite, Timeout.Infinite);
-            watcherReady = QueueWatcherReset(directoryPath);
+            token = BeginScan();
+            watcherReady = QueueWatcherReset(scope);
         }
 
-        _ = ScanAfterWatcherAsync(directoryPath, watcherReady, cts.Token);
+        _ = ScanAfterWatcherAsync(scope, watcherReady, token);
     }
 
     public void Close()
     {
         lock (_gate)
         {
-            CurrentDirectory = null;
-            _scanCts?.Cancel();
-            _scanCts?.Dispose();
-            _scanCts = null;
+            Scope = null;
+            CancelScan();
             _debounceTimer.Change(Timeout.Infinite, Timeout.Infinite);
             QueueWatcherReset(null);
         }
@@ -94,28 +99,26 @@ internal sealed class FolderMonitor : IFolderMonitor
             }
 
             _disposed = true;
-            CurrentDirectory = null;
-            _scanCts?.Cancel();
-            _scanCts?.Dispose();
-            _scanCts = null;
+            Scope = null;
+            CancelScan();
             _debounceTimer.Dispose();
             QueueWatcherReset(null, dispose: true);
         }
     }
 
     // Watcher operations stay ordered without making the owner thread wait for network I/O.
-    private Task QueueWatcherReset(string? directoryPath, bool dispose = false)
+    private Task QueueWatcherReset(FolderScope? scope, bool dispose = false)
     {
         int version = ++_watcherVersion;
         _watcherTask = _watcherTask.ContinueWith(
-            _ => ResetWatcher(directoryPath, version, dispose),
+            _ => ResetWatcher(scope, version, dispose),
             CancellationToken.None,
             TaskContinuationOptions.None,
             TaskScheduler.Default);
         return _watcherTask;
     }
 
-    private void ResetWatcher(string? directoryPath, int version, bool dispose)
+    private void ResetWatcher(FolderScope? scope, int version, bool dispose)
     {
         if (version != Volatile.Read(ref _watcherVersion))
         {
@@ -131,12 +134,12 @@ internal sealed class FolderMonitor : IFolderMonitor
                 return;
             }
 
-            if (directoryPath is null || version != Volatile.Read(ref _watcherVersion))
+            if (scope is null || version != Volatile.Read(ref _watcherVersion))
             {
                 return;
             }
 
-            _watcher.Start(directoryPath);
+            _watcher.Start(scope);
         }
         catch (Exception exception) when (IsRecoverableError(exception))
         {
@@ -147,30 +150,33 @@ internal sealed class FolderMonitor : IFolderMonitor
         }
     }
 
-    private async Task ScanAfterWatcherAsync(string directoryPath, Task watcherReady, CancellationToken token)
+    private async Task ScanAfterWatcherAsync(FolderScope scope, Task watcherReady, CancellationToken token)
     {
         await watcherReady.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
         if (!token.IsCancellationRequested)
         {
-            await ScanAsync(directoryPath, token).ConfigureAwait(false);
+            await ScanAsync(scope, progressive: true, token).ConfigureAwait(false);
         }
     }
 
-    private void ScheduleDebounceIfSupported(string path)
+    private void ScheduleDebounceIfIncluded(string path)
     {
-        if (_scanner.IsProbablySupported(path))
+        if (WouldInclude(path))
         {
             ScheduleDebounce();
         }
     }
 
-    private void ScheduleDebounceIfSupported(string path, string oldPath)
+    private void ScheduleDebounceIfIncluded(string path, string oldPath)
     {
-        if (_scanner.IsProbablySupported(path) || _scanner.IsProbablySupported(oldPath))
+        if (WouldInclude(path) || WouldInclude(oldPath))
         {
             ScheduleDebounce();
         }
     }
+
+    private bool WouldInclude(string path) =>
+        Scope is { } scope && _scanner.WouldInclude(scope, path);
 
     private void ScheduleDebounce()
     {
@@ -192,55 +198,139 @@ internal sealed class FolderMonitor : IFolderMonitor
 
     private void HandleDebounceTimer()
     {
-        string? directory;
-        CancellationTokenSource cts;
+        FolderScope scope;
+        CancellationToken token;
         lock (_gate)
         {
-            if (_disposed || CurrentDirectory is null)
+            if (_disposed || Scope is null)
             {
                 return;
             }
 
-            directory = CurrentDirectory;
-            _scanCts?.Cancel();
-            _scanCts?.Dispose();
-            cts = new CancellationTokenSource();
-            _scanCts = cts;
+            // Restarting the scan on every change would never let one finish in a busy tree.
+            if (_scanning)
+            {
+                _rescanPending = true;
+                return;
+            }
+
+            scope = Scope;
+            token = BeginScan();
         }
 
-        _ = ScanAsync(directory, cts.Token);
+        _ = ScanAsync(scope, progressive: false, token);
     }
 
-    private async Task ScanAsync(string directoryPath, CancellationToken token)
+    private CancellationToken BeginScan()
     {
-        FolderEntry[] files = [];
-        string? error = null;
+        CancelScan();
+        _scanCts = new CancellationTokenSource();
+        _scanning = true;
+        return _scanCts.Token;
+    }
+
+    private void CancelScan()
+    {
+        _scanCts?.Cancel();
+        _scanCts?.Dispose();
+        _scanCts = null;
+        _scanning = false;
+        _rescanPending = false;
+    }
+
+    // The first scan of a scope reports what it has found so far, so a large tree fills in
+    // gradually. Rescans replace the entries in one go, so the list never shrinks midway.
+    private async Task ScanAsync(FolderScope scope, bool progressive, CancellationToken token)
+    {
+        var found = new List<FolderEntry>();
+        IEnumerable<FolderEntry> entries = _scanner.Scan(scope, token);
+        Task<string?> enumeration = Task.Run(() => Enumerate(entries, found));
+        while (progressive)
+        {
+            var tick = Task.Delay(_progressInterval, token);
+            if (await Task.WhenAny(enumeration, tick).ConfigureAwait(false) == enumeration
+                || token.IsCancellationRequested)
+            {
+                break;
+            }
+
+            FolderEntry[] batch = Take(found);
+            if (batch.Length > 0)
+            {
+                Deliver(new FolderUpdate(batch, Appended: true, Error: null), token);
+            }
+        }
+
+        string? error;
         try
         {
-            files = await _scanner.ScanAsync(directoryPath, token).ConfigureAwait(false);
+            error = await enumeration.ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
             return;
         }
-        catch (Exception exception) when (IsRecoverableError(exception))
-        {
-            error = exception.Message;
-        }
 
-        if (token.IsCancellationRequested)
+        bool rescan;
+        lock (_gate)
         {
-            return;
-        }
-
-        PostToOwner(() =>
-        {
-            if (_disposed || token.IsCancellationRequested)
+            if (token.IsCancellationRequested)
             {
                 return;
             }
 
-            Updated?.Invoke(new FolderUpdate(files, error));
+            rescan = _rescanPending;
+            _scanning = false;
+            _rescanPending = false;
+        }
+
+        Deliver(error is null
+            ? new FolderUpdate(Take(found), Appended: progressive, Error: null)
+            : new FolderUpdate([], Appended: false, error), token);
+        if (rescan)
+        {
+            ScheduleDebounce();
+        }
+    }
+
+    private static string? Enumerate(IEnumerable<FolderEntry> entries, List<FolderEntry> found)
+    {
+        try
+        {
+            foreach (FolderEntry entry in entries)
+            {
+                lock (found)
+                {
+                    found.Add(entry);
+                }
+            }
+
+            return null;
+        }
+        catch (Exception exception) when (IsRecoverableError(exception))
+        {
+            return exception.Message;
+        }
+    }
+
+    private static FolderEntry[] Take(List<FolderEntry> found)
+    {
+        lock (found)
+        {
+            FolderEntry[] taken = [.. found];
+            found.Clear();
+            return taken;
+        }
+    }
+
+    private void Deliver(FolderUpdate update, CancellationToken token)
+    {
+        PostToOwner(() =>
+        {
+            if (!_disposed && !token.IsCancellationRequested)
+            {
+                Updated?.Invoke(update);
+            }
         });
     }
 

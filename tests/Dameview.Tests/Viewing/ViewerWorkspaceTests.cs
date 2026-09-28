@@ -759,10 +759,10 @@ public sealed class ViewerWorkspaceTests
             add { }
             remove { }
         }
-        public string? CurrentDirectory { get; private set; }
+        public FolderScope? Scope { get; private set; }
 
-        public void Open(string directoryPath) => CurrentDirectory = directoryPath;
-        public void Close() => CurrentDirectory = null;
+        public void Open(FolderScope scope) => Scope = scope;
+        public void Close() => Scope = null;
         public void Dispose() => Close();
     }
 }
