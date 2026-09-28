@@ -59,6 +59,7 @@ internal sealed class ViewerSession : IDisposable
         OpenNavigatedImage(_folderNavigator.MoveToNextPath(), direction: 1);
     }
 
+    /// <summary>Opens an image, or a folder, which then shows the first image its scan finds.</summary>
     internal void OpenImage(string path)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -66,11 +67,15 @@ internal sealed class ViewerSession : IDisposable
 
         string fullPath;
         string directoryPath;
+        bool isFolder;
         try
         {
             fullPath = Path.GetFullPath(path);
-            directoryPath = Path.GetDirectoryName(fullPath)
-                ?? throw new ArgumentException("The image path has no containing directory.", nameof(path));
+            isFolder = Directory.Exists(fullPath);
+            directoryPath = isFolder
+                ? fullPath
+                : Path.GetDirectoryName(fullPath)
+                    ?? throw new ArgumentException("The image path has no containing directory.", nameof(path));
         }
         catch (Exception exception) when (IsRecoverablePathError(exception))
         {
@@ -85,6 +90,20 @@ internal sealed class ViewerSession : IDisposable
                 FolderEntries = [],
                 CurrentEntry = null,
                 FolderError = null,
+            };
+            StateChanged?.Invoke();
+            return;
+        }
+
+        if (isFolder)
+        {
+            OpenFolder(new FolderScope(directoryPath, State.FlattensFolder), imagePath: null);
+            State = State with
+            {
+                RequestedPath = null,
+                IsLoading = true,
+                Message = $"Scanning {fullPath}…",
+                IsError = false,
             };
             StateChanged?.Invoke();
             return;
@@ -109,9 +128,11 @@ internal sealed class ViewerSession : IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         State = State with { FlattensFolder = !State.FlattensFolder };
-        if (_folderMonitor.Scope is not null && State.RequestedPath is { } path)
+        if (_folderMonitor.Scope is { } scope)
         {
-            OpenFolder(new FolderScope(Path.GetDirectoryName(path)!, State.FlattensFolder), path);
+            string? path = State.RequestedPath;
+            string directory = path is null ? scope.DirectoryPath : Path.GetDirectoryName(path)!;
+            OpenFolder(new FolderScope(directory, State.FlattensFolder), path);
         }
 
         StateChanged?.Invoke();
@@ -175,7 +196,7 @@ internal sealed class ViewerSession : IDisposable
             }
             else
             {
-                _folderNavigator.SetFiles(update.Entries, State.RequestedPath!);
+                _folderNavigator.SetFiles(update.Entries, State.RequestedPath);
             }
         }
 
@@ -194,6 +215,25 @@ internal sealed class ViewerSession : IDisposable
             State = State with { IsScanning = false, ScanDuration = Stopwatch.GetElapsedTime(_scanStarted) };
         }
 
+        // A folder opened on its own shows the first image found, or says why there is none.
+        if (State.RequestedPath is null && State.FolderEntries.Length > 0)
+        {
+            string first = State.FolderEntries[0].FullName;
+            _folderNavigator.SetCurrent(first);
+            BeginImageLoad(first, navigationDirection: 0);
+            return;
+        }
+
+        if (State.RequestedPath is null && update.ScanFinished)
+        {
+            State = State with
+            {
+                IsLoading = false,
+                Message = update.Error ?? $"No images found in {_folderMonitor.Scope?.DirectoryPath}.",
+                IsError = true,
+            };
+        }
+
         if (!State.IsLoading)
         {
             PreloadNeighbours(navigationDirection: 0);
@@ -202,7 +242,7 @@ internal sealed class ViewerSession : IDisposable
         StateChanged?.Invoke();
     }
 
-    private void OpenFolder(FolderScope scope, string imagePath)
+    private void OpenFolder(FolderScope scope, string? imagePath)
     {
         _folderNavigator.Clear();
         _folderNavigator.SetCurrent(imagePath);

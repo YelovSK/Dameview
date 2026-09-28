@@ -22,7 +22,7 @@ internal sealed class FolderNavigator
         _currentIndex = -1;
     }
 
-    internal void SetFiles(IEnumerable<FolderEntry> files, string currentPath)
+    internal void SetFiles(IEnumerable<FolderEntry> files, string? currentPath)
     {
         _files = [.. files.Select(file => new NavigationEntry(file.FullName, file))];
         SortFiles(_files, Sort);
@@ -77,8 +77,15 @@ internal sealed class FolderNavigator
         return MoveToRelativePath(-1);
     }
 
-    internal void SetCurrent(string path)
+    /// <summary>Makes a file current, adding it when the folder lacks it, or makes none current.</summary>
+    internal void SetCurrent(string? path)
     {
+        if (path is null)
+        {
+            _currentIndex = -1;
+            return;
+        }
+
         string fullPath = Path.GetFullPath(path);
         _currentIndex = IndexOf(fullPath);
 

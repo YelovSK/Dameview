@@ -195,6 +195,35 @@ public sealed class FolderScanSessionTests
     }
 
     [TestMethod]
+    public void OpeningAFolderShowsTheFirstImageItsScanFinds()
+    {
+        using var fixture = new Fixture();
+        string folder = Path.GetTempPath();
+        fixture.Session.OpenImage(folder);
+        Assert.IsNull(fixture.Session.State.RequestedPath);
+        Assert.IsTrue(fixture.Session.State.IsLoading);
+
+        fixture.Scanner.Complete(0, Fixture.Second, Fixture.First);
+        fixture.DeliverScan();
+        Assert.AreEqual(Fixture.First, fixture.Loader.Path);
+        Assert.AreEqual(Fixture.First, fixture.Session.State.CurrentEntry!.FullName);
+    }
+
+    [TestMethod]
+    public void OpeningAFolderWithoutImagesSaysSo()
+    {
+        using var fixture = new Fixture();
+        fixture.Session.OpenImage(Path.GetTempPath());
+        fixture.Scanner.Complete(0);
+        fixture.DeliverScan();
+
+        Assert.IsFalse(fixture.Session.State.IsLoading);
+        Assert.IsTrue(fixture.Session.State.IsError);
+        StringAssert.Contains(fixture.Session.State.Message!, "No images");
+        Assert.AreEqual(0, fixture.Loader.LoadCount);
+    }
+
+    [TestMethod]
     public void OpeningAFolderIsScanningUntilItsScanFinishes()
     {
         using var fixture = new Fixture();
