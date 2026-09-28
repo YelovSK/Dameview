@@ -23,17 +23,20 @@ internal sealed class ToolbarPanel : UiElement
     {
         Button[] buttons =
         [
-            new Button("←", () => commands.ShowPreviousImage(pane)),
-            new Button("→", () => commands.ShowNextImage(pane)),
+            new Button("←", () => commands.ShowPreviousImage(pane)) { ToolTip = new("Previous image") },
+            new Button("→", () => commands.ShowNextImage(pane)) { ToolTip = new("Next image") },
             new Button("Fit", () => commands.FitImage(pane)),
-            new Button("1:1", () => commands.ShowActualSize(pane)),
+            new Button("1:1", () => commands.ShowActualSize(pane)) { ToolTip = new("Actual size") },
             new Button("Split →", () => commands.SplitRight(pane)),
             new Button("Split ↓", () => commands.SplitDown(pane)),
             new Button(
                 UiTypography.SettingsIcon,
                 showSettings,
                 fontFamily: UiTypography.IconFontFamily,
-                fontSize: 16.0f),
+                fontSize: 16.0f)
+            {
+                ToolTip = new("Settings"),
+            },
         ];
         _buttonRow = new StackPanel(
             UiOrientation.Horizontal,

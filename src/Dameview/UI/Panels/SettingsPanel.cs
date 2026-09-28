@@ -92,7 +92,10 @@ internal sealed class SettingsPanel : ModalContent
             UiTypography.CloseIcon,
             close,
             fontFamily: UiTypography.IconFontFamily,
-            fontSize: 16.0f);
+            fontSize: 16.0f)
+        {
+            ToolTip = new("Close"),
+        };
 
         _themeDropdown = new Dropdown<ThemeId>(
             popupHost,

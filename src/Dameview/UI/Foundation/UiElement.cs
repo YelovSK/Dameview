@@ -25,6 +25,21 @@ internal abstract class UiElement
     internal IReadOnlyList<UiElement> Children => _children;
     internal UiVisualState VisualState { get; private set; }
     internal bool HasFocusWithin { get; private set; }
+    /// <summary>Shown after the pointer rests on this element or anything inside it.</summary>
+    internal UiToolTip? ToolTip
+    {
+        get;
+        set
+        {
+            if (field == value)
+            {
+                return;
+            }
+
+            field = value;
+            Root?.RefreshToolTip(this);
+        }
+    }
 
     internal bool IsVisible
     {

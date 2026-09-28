@@ -24,6 +24,11 @@ internal sealed class UiRoot
     internal event Action? Invalidated;
     internal event Action<WindowCursor>? CursorChanged;
     internal event Action<UiElement?>? PointerPressed;
+    /// <summary>
+    /// Reports the hovered element whenever the tooltip it should show may have changed:
+    /// the pointer moved to another element, or an element under it changed its tooltip.
+    /// </summary>
+    internal event Action<UiElement?>? ToolTipTargetChanged;
 
     internal UiElement? CapturedElement { get; private set; }
     /// <summary>The element that receives every key and text input ahead of focus and app shortcuts.</summary>
@@ -359,6 +364,15 @@ internal sealed class UiRoot
         return consumed;
     }
 
+    /// <summary>For an element whose tooltip changed while the pointer may be resting on it.</summary>
+    internal void RefreshToolTip(UiElement element)
+    {
+        if (IsWithin(_hoveredElement, element))
+        {
+            ToolTipTargetChanged?.Invoke(_hoveredElement);
+        }
+    }
+
     private void SetHovered(UiElement? element)
     {
         if (ReferenceEquals(_hoveredElement, element))
@@ -369,6 +383,7 @@ internal sealed class UiRoot
         _hoveredElement?.SetVisualState(UiVisualState.Hovered, false);
         _hoveredElement = element;
         _hoveredElement?.SetVisualState(UiVisualState.Hovered, true);
+        ToolTipTargetChanged?.Invoke(element);
     }
 
     private void UpdateCursor()

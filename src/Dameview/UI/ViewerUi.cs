@@ -28,6 +28,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private readonly UiDrawTally _drawTally = new();
     private readonly WorkspaceView _workspaceView;
     private readonly TabPreview _tabPreview;
+    private readonly ToolTipHost _toolTipHost = new();
     private readonly WorkspaceDragOverlay _dragOverlay;
     private readonly WorkspaceDragController _dragController;
     private readonly PerformanceOverlay _performanceOverlay;
@@ -134,9 +135,12 @@ internal sealed class ViewerUi : UiElement, IDisposable
         AddChild(_popupHost);
         AddChild(_performanceOverlay);
         AddChild(_toastHost);
+        AddChild(_toolTipHost);
         _root = new UiRoot(this, dpi, _textLayouts);
         _root.CursorChanged += cursor => _cursorChanged?.Invoke(cursor);
         _root.PointerPressed += HandlePointerPressed;
+        _root.PointerPressed += _ => _toolTipHost.Hide();
+        _root.ToolTipTargetChanged += _toolTipHost.Show;
 
         ApplyActivePaneState(_activePane.ActiveSession.State);
     }

@@ -73,12 +73,18 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             UiTypography.OpenFolderIcon,
             toggleFlattenFolder,
             fontFamily: UiTypography.IconFontFamily,
-            fontSize: 16.0f);
+            fontSize: 16.0f)
+        {
+            ToolTip = new("Include images from subfolders"),
+        };
         _recenterButton = new Button(
             UiTypography.LocateIcon,
             CenterSelection,
             fontFamily: UiTypography.IconFontFamily,
-            fontSize: 16.0f);
+            fontSize: 16.0f)
+        {
+            ToolTip = new("Scroll to the current image"),
+        };
         AddChild(_scrollbar);
         AddChild(_flattenButton);
         AddChild(_recenterButton);
@@ -104,7 +110,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         _pendingSelectionScroll = null;
         ApplyOrientationToState();
         ClearSlots();
-        _hoveredIndex = -1;
+        SetHoveredIndex(-1);
         _pressedIndex = -1;
         UpdateScrollMetrics();
         RefreshVisibleThumbnails();
@@ -138,7 +144,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         {
             _state.Entries = entries;
             ClearSlots();
-            _hoveredIndex = -1;
+            SetHoveredIndex(-1);
             _pressedIndex = -1;
         }
 
@@ -218,7 +224,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         _orientation = orientation;
         _scrollbar.SetOrientation(orientation);
         ApplyOrientationToState();
-        _hoveredIndex = -1;
+        SetHoveredIndex(-1);
         _pressedIndex = -1;
         InvalidateLayout();
     }
@@ -314,7 +320,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
                 int hovered = HitTestItem(input.Position);
                 bool changed = _hoveredIndex != hovered;
-                _hoveredIndex = hovered;
+                SetHoveredIndex(hovered);
                 return new UiPointerResult(Consumed: true, NeedsRepaint: changed);
 
             case WindowPointerEventKind.Pressed when input.Button == PointerButton.Primary:
@@ -387,6 +393,8 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             return false;
         }
 
+        // Items move out from under their tooltip; the next pointer move brings it back.
+        ToolTip = null;
         RefreshVisibleThumbnails();
         SetScrollbarMetrics();
         InvalidateVisual();
@@ -397,11 +405,22 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     {
         if (!HasVisualState(UiVisualState.Hovered))
         {
-            _hoveredIndex = -1;
+            SetHoveredIndex(-1);
         }
     }
 
     private int HitTestItem(PointF position) => Layout.HitTest(position, _state.ScrollOffset.Offset);
+
+    // File names are often cut short by the label, so the tooltip carries the whole name.
+    private void SetHoveredIndex(int index)
+    {
+        _hoveredIndex = index;
+        ToolTip = index >= 0
+            ? new UiToolTip(
+                _state.Entries[index].Name,
+                Layout.GetItemBounds(index, _state.ScrollOffset.Offset))
+            : null;
+    }
 
     private void RaiseDrag(string path, WorkspaceDragEventKind kind, PointF position) =>
         _dragPointer?.Invoke(path, new WorkspaceDragEvent(kind, position));
@@ -618,6 +637,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             return;
         }
 
+        ToolTip = null;
         RefreshVisibleThumbnails();
         SetScrollbarMetrics();
         InvalidateVisual();

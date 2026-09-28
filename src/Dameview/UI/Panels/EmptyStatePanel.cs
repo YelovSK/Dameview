@@ -29,7 +29,10 @@ internal sealed class EmptyStatePanel : UiElement, IDisposable
             UiTypography.SettingsIcon,
             showSettings,
             fontFamily: UiTypography.IconFontFamily,
-            fontSize: 16.0f);
+            fontSize: 16.0f)
+        {
+            ToolTip = new("Settings"),
+        };
         OpenButton = new Button("Open image", openFile);
         AddChild(OpenButton);
         AddChild(SettingsButton);

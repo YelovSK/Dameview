@@ -4,6 +4,8 @@ using Dameview.UI.Animation;
 using Dameview.UI.Foundation;
 using Dameview.UI.Presentation;
 using Vortice.Direct2D1;
+using Vortice.DirectWrite;
+using Vortice.Mathematics;
 
 namespace Dameview.UI.Components;
 
@@ -15,12 +17,16 @@ internal sealed class TabPreview : UiElement, IDisposable
     private const float MarginDips = 8.0f;
     private const float GapDips = 4.0f;
     private const float PaddingDips = 8.0f;
+    private const float CaptionHeightDips = 22.0f;
+    private static readonly UiFont CaptionFont = new(12.0f, Alignment: TextAlignment.Center, Ellipsis: true);
 
     private readonly IThumbnailImageLoader _thumbnailLoader;
     private readonly PreviewPanel _panel;
     private IDisposable? _request;
     private CachedBitmapLease? _lease;
     private string? _path;
+    // Outlives the path while the panel fades out.
+    private string _caption = string.Empty;
     private RectangleF _anchor;
     private double _hoverSeconds;
     private bool _waiting;
@@ -39,6 +45,7 @@ internal sealed class TabPreview : UiElement, IDisposable
     {
         Reset();
         _path = path;
+        _caption = Path.GetFileName(path);
         _anchor = anchor;
         _hoverSeconds = 0.0;
         _waiting = true;
@@ -169,7 +176,19 @@ internal sealed class TabPreview : UiElement, IDisposable
             var panel = new RoundedRectangle(bounds, UiDesign.PanelCornerRadius, UiDesign.PanelCornerRadius);
             context.FillRoundedRectangle(panel, context.Palette.OverlaySurface);
             context.DrawRoundedRectangle(panel, context.Palette.SurfaceBorder);
-            context.DrawBitmapFitted(bitmap, RectangleF.Inflate(bounds, -PaddingDips, -PaddingDips));
+            var content = RectangleF.Inflate(bounds, -PaddingDips, -PaddingDips);
+            var image = new RectangleF(
+                content.X,
+                content.Y,
+                content.Width,
+                MathF.Max(0.0f, content.Height - CaptionHeightDips));
+            context.DrawBitmapFitted(bitmap, image);
+            context.DrawText(
+                _owner._caption,
+                CaptionFont,
+                new Rect(content.X, image.Bottom, content.Width, CaptionHeightDips),
+                context.Palette.PrimaryText,
+                DrawTextOptions.Clip);
         }
     }
 }

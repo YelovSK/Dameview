@@ -65,7 +65,10 @@ internal sealed class ViewerTabStrip : UiElement
         _addButton = new Button(
             "+",
             addRequested,
-            fontSize: 18.0f);
+            fontSize: 18.0f)
+        {
+            ToolTip = new("New tab"),
+        };
         AddChild(_addButton);
         _drawnTabWidth = Animate(MaximumTabWidthDips, LayoutResponse);
         _drawnSelection = Animate(selectedIndex, LayoutResponse);
