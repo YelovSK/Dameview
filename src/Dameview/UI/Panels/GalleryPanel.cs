@@ -36,6 +36,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private readonly Action<string, WorkspaceDragEvent>? _dragPointer;
     private readonly Scrollbar _scrollbar;
     private readonly Button _flattenButton;
+    private readonly Button _recenterButton;
     private readonly Dictionary<string, GalleryItemSlot> _slots =
         new(StringComparer.OrdinalIgnoreCase);
     // Scratch buffers, empty between calls. They are fields only so that refreshing on every
@@ -73,8 +74,14 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             toggleFlattenFolder,
             fontFamily: UiTypography.IconFontFamily,
             fontSize: 16.0f);
+        _recenterButton = new Button(
+            UiTypography.LocateIcon,
+            CenterSelection,
+            fontFamily: UiTypography.IconFontFamily,
+            fontSize: 16.0f);
         AddChild(_scrollbar);
         AddChild(_flattenButton);
+        AddChild(_recenterButton);
     }
 
     internal override bool PreservesFocusOnPointerPress => true;
@@ -226,13 +233,16 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         RevealSelectionIfPending();
         RefreshVisibleThumbnails();
         _scrollbar.Arrange(Layout.ScrollbarBounds);
-        _flattenButton.Arrange(new RectangleF(
-            FooterPadding,
-            GridBounds.Bottom + FooterPadding,
-            FooterHeight - (2.0f * FooterPadding),
-            FooterHeight - (2.0f * FooterPadding)));
+        _flattenButton.Arrange(GetFooterButtonBounds(0.0f));
+        _recenterButton.Arrange(GetFooterButtonBounds(Bounds.Width - FooterHeight));
         SetScrollbarMetrics();
     }
+
+    private RectangleF GetFooterButtonBounds(float x) => new(
+        x + FooterPadding,
+        GridBounds.Bottom + FooterPadding,
+        FooterHeight - (2.0f * FooterPadding),
+        FooterHeight - (2.0f * FooterPadding));
 
     protected override void DrawCore(in UiDrawContext context)
     {
@@ -266,7 +276,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         context.DrawText(
             _footerText,
             FooterFont,
-            new Rect(textX, grid.Bottom, MathF.Max(0.0f, Bounds.Width - textX - FooterPadding), FooterHeight),
+            new Rect(textX, grid.Bottom, MathF.Max(0.0f, Bounds.Width - textX - FooterHeight), FooterHeight),
             context.Palette.SecondaryText,
             DrawTextOptions.Clip);
     }
