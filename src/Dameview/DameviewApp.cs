@@ -526,7 +526,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
                 break;
 
             case ViewerCommandId.ToggleFlattenFolder:
-                ToggleFlattenFolder();
+                _workspace.ActiveSession.ToggleFlattenFolder();
                 break;
 
             case ViewerCommandId.SplitRight:
@@ -611,15 +611,6 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         {
             _toasts.Notify("Could not copy the path to the clipboard.", ToastSeverity.Error);
         }
-    }
-
-    private void ToggleFlattenFolder()
-    {
-        ViewerSession session = _workspace.ActiveSession;
-        session.ToggleFlattenFolder();
-        _toasts.Notify(
-            session.FlattensFolder ? "Including images from subfolders." : "Showing this folder only.",
-            ToastSeverity.Success);
     }
 
     private void CopyFile()

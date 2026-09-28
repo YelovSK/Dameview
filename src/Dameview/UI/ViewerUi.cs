@@ -98,6 +98,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
             thumbnailLoader,
             commands.SelectImage,
             commands.OpenImageInNewTab,
+            () => commands.ExecuteCommand(ViewerCommandId.ToggleFlattenFolder),
             HandleGalleryDragPointer);
         _galleryPanel.Bind(GetGalleryState(_activePane.ActiveTab));
         _splitView = new SplitView(
@@ -549,7 +550,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private void ApplyActivePaneState(ViewerSessionState state)
     {
         _splitView.SecondPaneVisible = _chromeVisible && _galleryEnabled && ShouldShowGallery(state);
-        _galleryPanel.ApplyState(state.FolderEntries, state.RequestedPath);
+        _galleryPanel.ApplyState(state);
     }
 
     private static bool ShouldShowGallery(ViewerSessionState state)

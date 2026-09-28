@@ -2,10 +2,12 @@ namespace Dameview.Navigation;
 
 /// <summary>
 /// Appended entries add to those of earlier updates. Otherwise the entries are the whole folder.
+/// A scan sends updates until one that has finished it.
 /// </summary>
 internal sealed record FolderUpdate(
     FolderEntry[] Entries,
     bool Appended,
+    bool ScanFinished,
     string? Error);
 
 internal interface IFolderMonitor : IDisposable
@@ -257,7 +259,7 @@ internal sealed class FolderMonitor : IFolderMonitor
             FolderEntry[] batch = Take(found);
             if (batch.Length > 0)
             {
-                Deliver(new FolderUpdate(batch, Appended: true, Error: null), token);
+                Deliver(new FolderUpdate(batch, Appended: true, ScanFinished: false, Error: null), token);
             }
         }
 
@@ -285,8 +287,8 @@ internal sealed class FolderMonitor : IFolderMonitor
         }
 
         Deliver(error is null
-            ? new FolderUpdate(Take(found), Appended: progressive, Error: null)
-            : new FolderUpdate([], Appended: false, error), token);
+            ? new FolderUpdate(Take(found), Appended: progressive, ScanFinished: true, Error: null)
+            : new FolderUpdate([], Appended: false, ScanFinished: true, error), token);
         if (rescan)
         {
             ScheduleDebounce();

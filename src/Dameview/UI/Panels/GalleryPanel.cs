@@ -3,10 +3,12 @@ using System.Numerics;
 using Dameview.Imaging.Loading;
 using Dameview.Navigation;
 using Dameview.Settings;
+using Dameview.UI.Components;
 using Dameview.UI.Foundation;
 using Dameview.UI.Layout;
 using Dameview.UI.Presentation;
 using Dameview.UI.Workspace;
+using Dameview.Viewing;
 using Dameview.Win32.Input;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
@@ -22,7 +24,10 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     // Labels are laid out at widths rounded down to this step, so resizing the panel reshapes
     // them only when the width crosses a step rather than on every pointer move.
     private const float LabelWidthStep = 8.0f;
+    private const float FooterHeight = 32.0f;
+    private const float FooterPadding = 4.0f;
     private static readonly UiFont LabelFont = new(12.0f, Alignment: TextAlignment.Center, Ellipsis: true);
+    private static readonly UiFont FooterFont = new(12.0f, Ellipsis: true);
 
     private ID2D1DeviceContext _thumbnailScaleContext;
     private readonly IThumbnailImageLoader _thumbnailLoader;
@@ -30,6 +35,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private readonly Action<string> _openInNewTab;
     private readonly Action<string, WorkspaceDragEvent>? _dragPointer;
     private readonly Scrollbar _scrollbar;
+    private readonly Button _flattenButton;
     private readonly Dictionary<string, GalleryItemSlot> _slots =
         new(StringComparer.OrdinalIgnoreCase);
     // Scratch buffers, empty between calls. They are fields only so that refreshing on every
@@ -37,6 +43,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private readonly HashSet<string> _visiblePaths = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<string> _stalePaths = [];
     private GalleryPanelState _state = new();
+    private string _footerText = string.Empty;
     private GalleryThumbnailSize _thumbnailSize = GalleryThumbnailSize.Medium;
     private UiOrientation _orientation = UiOrientation.Vertical;
     private SelectionScrollAlignment? _pendingSelectionScroll;
@@ -52,6 +59,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         IThumbnailImageLoader thumbnailLoader,
         Action<string> openImage,
         Action<string> openInNewTab,
+        Action toggleFlattenFolder,
         Action<string, WorkspaceDragEvent>? dragPointer = null)
     {
         _thumbnailScaleContext = CreateScaleContext(deviceContext);
@@ -60,14 +68,23 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         _openInNewTab = openInNewTab;
         _dragPointer = dragPointer;
         _scrollbar = new Scrollbar(SetScrollOffset);
+        _flattenButton = new Button(
+            UiTypography.OpenFolderIcon,
+            toggleFlattenFolder,
+            fontFamily: UiTypography.IconFontFamily,
+            fontSize: 16.0f);
         AddChild(_scrollbar);
+        AddChild(_flattenButton);
     }
 
     internal override bool PreservesFocusOnPointerPress => true;
     internal override WindowCursor Cursor => _hoveredIndex >= 0 ? WindowCursor.Pointer : WindowCursor.Default;
 
     private GalleryLayout Layout =>
-        new(Bounds.Size, _orientation, _thumbnailSize, _state.Entries.Length);
+        new(GridBounds.Size, _orientation, _thumbnailSize, _state.Entries.Length);
+
+    private RectangleF GridBounds =>
+        new(0.0f, 0.0f, Bounds.Width, MathF.Max(0.0f, Bounds.Height - FooterHeight));
 
     internal void Bind(GalleryPanelState state)
     {
@@ -87,8 +104,18 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         InvalidateVisual();
     }
 
-    internal void ApplyState(FolderEntry[] entries, string? selectedPath)
+    internal void ApplyState(ViewerSessionState session)
     {
+        string footerText = GetFooterText(session);
+        if (_footerText != footerText || _flattenButton.IsSelected != session.FlattensFolder)
+        {
+            _footerText = footerText;
+            _flattenButton.IsSelected = session.FlattensFolder;
+            InvalidateVisual();
+        }
+
+        FolderEntry[] entries = session.FolderEntries;
+        string? selectedPath = session.RequestedPath;
         bool entriesChanged = !ReferenceEquals(_state.Entries, entries);
         bool selectionChanged = !string.Equals(
             _state.SelectedPath,
@@ -199,6 +226,11 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         RevealSelectionIfPending();
         RefreshVisibleThumbnails();
         _scrollbar.Arrange(Layout.ScrollbarBounds);
+        _flattenButton.Arrange(new RectangleF(
+            FooterPadding,
+            GridBounds.Bottom + FooterPadding,
+            FooterHeight - (2.0f * FooterPadding),
+            FooterHeight - (2.0f * FooterPadding)));
         SetScrollbarMetrics();
     }
 
@@ -216,13 +248,37 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         context.FillRoundedRectangle(panel, context.Palette.Surface);
         context.DrawRoundedRectangle(panel, context.Palette.SurfaceBorder);
 
+        RectangleF grid = GridBounds;
         GalleryLayout layout = Layout;
         float scrollOffset = _state.ScrollOffset.Offset;
         (int first, int lastExclusive) = layout.GetVisibleRange(scrollOffset);
+        context.PushClip(grid);
         for (int index = first; index < lastExclusive; index++)
         {
             DrawItem(context, layout.GetItemBounds(index, scrollOffset), index);
         }
+
+        context.PopClip();
+        context.FillRoundedRectangle(
+            new RoundedRectangle(new RectangleF(0.0f, grid.Bottom, Bounds.Width, 1.0f), 0.0f, 0.0f),
+            context.Palette.SurfaceBorder);
+        float textX = FooterHeight + FooterPadding;
+        context.DrawText(
+            _footerText,
+            FooterFont,
+            new Rect(textX, grid.Bottom, MathF.Max(0.0f, Bounds.Width - textX - FooterPadding), FooterHeight),
+            context.Palette.SecondaryText,
+            DrawTextOptions.Clip);
+    }
+
+    private static string GetFooterText(ViewerSessionState session)
+    {
+        int count = session.FolderEntries.Length;
+        string images = count == 1 ? "1 image" : $"{count:N0} images";
+        TimeSpan duration = session.ScanDuration;
+        return session.IsScanning ? $"{images} · Scanning…"
+            : duration < TimeSpan.FromSeconds(1) ? $"{images} · {duration.TotalMilliseconds:0} ms"
+            : $"{images} · {duration.TotalSeconds:0.00} s";
     }
 
     internal override UiPointerResult OnPointerEvent(in WindowPointerEvent input)

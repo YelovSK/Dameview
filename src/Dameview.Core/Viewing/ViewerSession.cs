@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Dameview.Imaging.Loading;
 using Dameview.Navigation;
 
@@ -11,6 +12,7 @@ internal sealed class ViewerSession : IDisposable
     private readonly FolderNavigator _folderNavigator;
     private readonly IFolderMonitor _folderMonitor;
     private readonly IImageLoader _imageLoader;
+    private long _scanStarted;
     private bool _disposed;
 
     internal ViewerSession(
@@ -30,7 +32,6 @@ internal sealed class ViewerSession : IDisposable
     internal ViewerSessionState State { get; private set; } = new(null, null, false, null, false, []);
     internal ImageViewport Viewport { get; }
     internal ViewportAnimator Animator { get; }
-    internal bool FlattensFolder { get; private set; }
 
     internal void SetSort(FolderSort sort)
     {
@@ -96,7 +97,7 @@ internal sealed class ViewerSession : IDisposable
             return;
         }
 
-        OpenFolder(new FolderScope(directoryPath, FlattensFolder), fullPath);
+        OpenFolder(new FolderScope(directoryPath, State.FlattensFolder), fullPath);
         BeginImageLoad(fullPath, navigationDirection: 0);
     }
 
@@ -107,13 +108,12 @@ internal sealed class ViewerSession : IDisposable
     internal void ToggleFlattenFolder()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        FlattensFolder = !FlattensFolder;
-        if (_folderMonitor.Scope is null || State.RequestedPath is not { } path)
+        State = State with { FlattensFolder = !State.FlattensFolder };
+        if (_folderMonitor.Scope is not null && State.RequestedPath is { } path)
         {
-            return;
+            OpenFolder(new FolderScope(Path.GetDirectoryName(path)!, State.FlattensFolder), path);
         }
 
-        OpenFolder(new FolderScope(Path.GetDirectoryName(path)!, FlattensFolder), path);
         StateChanged?.Invoke();
     }
 
@@ -188,6 +188,12 @@ internal sealed class ViewerSession : IDisposable
             }
             : State with { FolderEntries = [], CurrentEntry = null, FolderError = update.Error };
 
+        // Rescans after a change finish too, but only the scan that opened the folder is timed.
+        if (update.ScanFinished && State.IsScanning)
+        {
+            State = State with { IsScanning = false, ScanDuration = Stopwatch.GetElapsedTime(_scanStarted) };
+        }
+
         if (!State.IsLoading)
         {
             PreloadNeighbours(navigationDirection: 0);
@@ -205,7 +211,9 @@ internal sealed class ViewerSession : IDisposable
             FolderEntries = [],
             CurrentEntry = null,
             FolderError = null,
+            IsScanning = true,
         };
+        _scanStarted = Stopwatch.GetTimestamp();
         _folderMonitor.Open(scope);
     }
 
@@ -322,7 +330,8 @@ internal sealed class ViewerSession : IDisposable
 
 // DisplayedImage retains the resources needed to recreate its presentation without
 // resetting the viewport. Its representation is owned by the session and must not
-// be disposed by consumers.
+// be disposed by consumers. ScanDuration belongs to the last scan that opened a folder and
+// means nothing while IsScanning.
 internal sealed record ViewerSessionState(
     string? RequestedPath,
     ImageLoaded? DisplayedImage,
@@ -331,4 +340,7 @@ internal sealed record ViewerSessionState(
     bool IsError,
     FolderEntry[] FolderEntries,
     FolderEntry? CurrentEntry = null,
-    string? FolderError = null);
+    string? FolderError = null,
+    bool FlattensFolder = false,
+    bool IsScanning = false,
+    TimeSpan ScanDuration = default);

@@ -195,6 +195,23 @@ public sealed class FolderScanSessionTests
     }
 
     [TestMethod]
+    public void OpeningAFolderIsScanningUntilItsScanFinishes()
+    {
+        using var fixture = new Fixture();
+        fixture.Session.OpenImage(Fixture.First);
+        Assert.IsTrue(fixture.Session.State.IsScanning);
+
+        fixture.Scanner.Complete(0, Fixture.First, Fixture.Second);
+        fixture.DeliverScan();
+        Assert.IsFalse(fixture.Session.State.IsScanning);
+        Assert.IsGreaterThan(TimeSpan.Zero, fixture.Session.State.ScanDuration);
+
+        fixture.Session.ToggleFlattenFolder();
+        Assert.IsTrue(fixture.Session.State.FlattensFolder);
+        Assert.IsTrue(fixture.Session.State.IsScanning);
+    }
+
+    [TestMethod]
     public void FirstScanReportsBatchesThatAddUp()
     {
         using var posts = new BlockingCollection<Action>();
@@ -215,13 +232,16 @@ public sealed class FolderScanSessionTests
         batch();
         scanner.Found.Add(new FolderEntry(Fixture.Second, 1, default, default));
         scanner.Found.CompleteAdding();
-        while (updates.Sum(update => update.Entries.Length) < 2)
+        while (!updates[^1].ScanFinished)
         {
             Assert.IsTrue(posts.TryTake(out Action? next, TimeSpan.FromSeconds(5)));
             next();
         }
 
+        Assert.AreEqual(2, updates.Sum(update => update.Entries.Length));
         Assert.IsTrue(updates.All(update => update.Appended));
+        Assert.IsFalse(updates[0].ScanFinished);
+        Assert.IsTrue(updates[^1].ScanFinished);
         Assert.AreEqual(Fixture.First, updates[0].Entries.Single().FullName);
     }
 
