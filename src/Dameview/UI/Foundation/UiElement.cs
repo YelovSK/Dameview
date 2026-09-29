@@ -51,7 +51,12 @@ internal abstract class UiElement
                 return;
             }
 
-            if (!value)
+            if (value)
+            {
+                // Hidden subtrees don't update, so anything retargeted meanwhile would replay on show.
+                SettleAnimationsTree();
+            }
+            else
             {
                 Root?.DisconnectSubtree(this);
             }
@@ -179,6 +184,22 @@ internal abstract class UiElement
         }
 
         return continues;
+    }
+
+    private void SettleAnimationsTree()
+    {
+        foreach (AnimatedFloat animation in _animations)
+        {
+            animation.SetValue(animation.Target);
+        }
+
+        foreach (UiElement child in _children)
+        {
+            if (child.IsVisible)
+            {
+                child.SettleAnimationsTree();
+            }
+        }
     }
 
     /// <summary>Settles the transition at once, e.g. when the element is about to appear somewhere new.</summary>
