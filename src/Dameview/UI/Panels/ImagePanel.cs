@@ -44,6 +44,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
         _presentationCache = new ImagePresentationCache(deviceContext);
         _viewport = viewport;
         _animator = animator;
+        _animator.Started += InvalidateVisual;
     }
 
     internal float ZoomPercentage => _viewport.Scale * 100.0f;
@@ -89,7 +90,9 @@ internal sealed class ImagePanel : UiElement, IDisposable
         _pointerPressed = false;
         _isPanning = false;
         _viewport = viewport;
+        _animator.Started -= InvalidateVisual;
         _animator = animator;
+        _animator.Started += InvalidateVisual;
         _animator.Reset();
         _viewport.SetViewportSize(_viewportPixelSize.Width, _viewportPixelSize.Height);
     }
@@ -415,6 +418,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
 
     public void Dispose()
     {
+        _animator.Started -= InvalidateVisual;
         DetachAnimation();
         _presentationCache.Dispose();
         ClearCachedImage();

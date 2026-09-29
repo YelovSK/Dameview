@@ -30,15 +30,13 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     internal ViewerPaneView(
         ID2D1DeviceContext deviceContext,
         ViewerPane pane,
-        IViewerCommands commands,
+        ICommandRunner commands,
         Action<int> selectTab,
-        Action<int> closeTab,
-        Action addTab,
-        Action openFile,
-        Action showSettings,
         Action<ViewerPane, ViewerTabInfo?, RectangleF> hoveredTabChanged,
         Action<ViewerPane, int, WorkspaceDragEvent> tabDragPointer)
     {
+        void Run(Command command, ViewerTab target) => commands.Execute(command, CommandContext.For(target));
+
         Pane = pane;
         _hoveredTabChanged = hoveredTabChanged;
         ViewerTab tab = pane.ActiveTab;
@@ -52,16 +50,16 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             [new ViewerTabInfo("Dameview", null)],
             0,
             selectTab,
-            closeTab,
-            addTab,
+            index => Run(AppCommands.CloseTab, pane.Tabs[index]),
+            () => Run(AppCommands.NewTab, pane.ActiveTab),
             HandleHoveredTabChanged,
             (index, input) => tabDragPointer(Pane, index, TranslateTabStripEvent(input)));
         _emptyStatePanel = new EmptyStatePanel(
             deviceContext,
-            openFile,
-            showSettings);
+            () => Run(AppCommands.OpenFile, pane.ActiveTab),
+            () => Run(AppCommands.ShowSettings, pane.ActiveTab));
         _contentOverlay = new Overlay(_imagePanel, _emptyStatePanel);
-        _toolbarPanel = new ToolbarPanel(commands, pane, showSettings);
+        _toolbarPanel = new ToolbarPanel(commands, pane);
         _statusPanel = new StatusPanel();
         _activePaneIndicator = new ActivePaneIndicator { IsVisible = false };
 

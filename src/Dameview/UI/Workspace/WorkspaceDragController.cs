@@ -15,7 +15,7 @@ internal sealed class WorkspaceDragController
     private readonly UiElement _coordinateSpace;
     private readonly WorkspaceView _workspaceView;
     private readonly WorkspaceDragOverlay _overlay;
-    private readonly IAppCommands _commands;
+    private readonly IViewerActions _commands;
     private WorkspaceDragPayload? _payload;
     private WorkspaceDropTarget? _target;
 
@@ -23,7 +23,7 @@ internal sealed class WorkspaceDragController
         UiElement coordinateSpace,
         WorkspaceView workspaceView,
         WorkspaceDragOverlay overlay,
-        IAppCommands commands)
+        IViewerActions commands)
     {
         _coordinateSpace = coordinateSpace;
         _workspaceView = workspaceView;

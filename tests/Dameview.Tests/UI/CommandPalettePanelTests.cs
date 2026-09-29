@@ -13,11 +13,11 @@ public sealed class CommandPalettePanelTests
     [TestMethod]
     public void ArrowKeysSelectACommandAndEnterExecutesIt()
     {
-        ViewerCommandId? executed = null;
-        ViewerCommand[] commands =
+        Command? executed = null;
+        Command[] commands =
         [
-            new(ViewerCommandId.NewTab, "New tab", ViewerCommandScope.Window),
-            new(ViewerCommandId.CloseTab, "Close tab", ViewerCommandScope.Window),
+            AppCommands.NewTab,
+            AppCommands.CloseTab,
         ];
         var panel = new CommandPalettePanel(commands, ViewerKeyBindings.Defaults, command => executed = command, _ => true, _ => { });
         var root = new UiRoot(panel, UiDpi.Default, TestTextLayouts.Shared);
@@ -28,24 +28,24 @@ public sealed class CommandPalettePanelTests
         Assert.AreSame(panel.InitialFocus, root.FocusedElement);
         root.HandleKey(new WindowKeyEvent(WindowKey.Enter), panel, wrapFocus: true, directionalNavigation: true);
 
-        Assert.AreEqual(ViewerCommandId.CloseTab, executed);
+        Assert.AreEqual(AppCommands.CloseTab, executed);
     }
 
     [TestMethod]
     public void CommandsThatCannotRunAreListedLastAndCannotBeSelected()
     {
-        ViewerCommandId? executed = null;
-        ViewerCommand[] commands =
+        Command? executed = null;
+        Command[] commands =
         [
-            new(ViewerCommandId.CopyImage, "Copy image", ViewerCommandScope.Viewer),
-            new(ViewerCommandId.NewTab, "New tab", ViewerCommandScope.Window),
-            new(ViewerCommandId.CloseTab, "Close tab", ViewerCommandScope.Window),
+            AppCommands.CopyImage,
+            AppCommands.NewTab,
+            AppCommands.CloseTab,
         ];
         var panel = new CommandPalettePanel(
             commands,
             ViewerKeyBindings.Defaults,
             command => executed = command,
-            command => command != ViewerCommandId.CopyImage,
+            command => command != AppCommands.CopyImage,
             _ => { });
         var root = new UiRoot(panel, UiDpi.Default, TestTextLayouts.Shared);
         panel.Reset();
@@ -53,45 +53,45 @@ public sealed class CommandPalettePanelTests
         root.SetFocus(panel.InitialFocus);
 
         Assert.AreEqual(3, panel.MatchingCommandCount, "Commands that cannot run stay listed.");
-        Assert.AreEqual(ViewerCommandId.NewTab, panel.SelectedCommand);
+        Assert.AreEqual(AppCommands.NewTab, panel.SelectedCommand);
         root.HandleKey(new WindowKeyEvent(WindowKey.Down), panel, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Down), panel, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Enter), panel, wrapFocus: true, directionalNavigation: true);
 
-        Assert.AreEqual(ViewerCommandId.NewTab, executed, "Selection wraps past the command that cannot run.");
+        Assert.AreEqual(AppCommands.NewTab, executed, "Selection wraps past the command that cannot run.");
     }
 
     [TestMethod]
     public void TextInputFiltersImmediatelyAndKeepsTheFirstResultSelected()
     {
-        ViewerCommand[] commands =
+        Command[] commands =
         [
-            new(ViewerCommandId.NewTab, "Alpha", ViewerCommandScope.Window),
-            new(ViewerCommandId.CloseTab, "Alpine", ViewerCommandScope.Window),
-            new(ViewerCommandId.ShowSettings, "Beta", ViewerCommandScope.Window),
+            AppCommands.NewTab,
+            AppCommands.CloseTab,
+            AppCommands.ShowSettings,
         ];
         var panel = new CommandPalettePanel(commands, ViewerKeyBindings.Defaults, _ => { }, _ => true, _ => { });
         var root = new UiRoot(panel, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(540.0f, 580.0f));
         root.SetFocus(panel.InitialFocus);
 
-        root.HandleTextInput("a");
+        root.HandleTextInput("t");
         Assert.AreEqual(3, panel.MatchingCommandCount);
-        root.HandleTextInput("l");
+        root.HandleTextInput("a");
 
-        Assert.AreEqual("al", panel.Query);
+        Assert.AreEqual("ta", panel.Query);
         Assert.AreEqual(2, panel.MatchingCommandCount);
-        Assert.AreEqual(ViewerCommandId.NewTab, panel.SelectedCommand);
+        Assert.AreEqual(AppCommands.NewTab, panel.SelectedCommand);
     }
 
     [TestMethod]
     public void EmptyResultsCannotExecuteAndResetRestoresTheCatalog()
     {
-        ViewerCommandId? executed = null;
-        ViewerCommand[] commands =
+        Command? executed = null;
+        Command[] commands =
         [
-            new(ViewerCommandId.NewTab, "New tab", ViewerCommandScope.Window),
-            new(ViewerCommandId.CloseTab, "Close tab", ViewerCommandScope.Window),
+            AppCommands.NewTab,
+            AppCommands.CloseTab,
         ];
         var panel = new CommandPalettePanel(commands, ViewerKeyBindings.Defaults, command => executed = command, _ => true, _ => { });
         var root = new UiRoot(panel, UiDpi.Default, TestTextLayouts.Shared);
@@ -109,7 +109,7 @@ public sealed class CommandPalettePanelTests
 
         Assert.AreEqual(string.Empty, panel.Query);
         Assert.AreEqual(2, panel.MatchingCommandCount);
-        Assert.AreEqual(ViewerCommandId.NewTab, panel.SelectedCommand);
+        Assert.AreEqual(AppCommands.NewTab, panel.SelectedCommand);
     }
     [TestMethod]
     public void RecordingReplacesTheSlotTheCaptureStartedFrom()
@@ -125,7 +125,7 @@ public sealed class CommandPalettePanelTests
         Assert.IsNotNull(applied);
         CollectionAssert.AreEqual(
             new[] { new ViewerCommandShortcut(WindowKey.G, Control: true) },
-            applied.GetShortcuts(ViewerCommandId.NewTab).ToArray());
+            applied.GetShortcuts(AppCommands.NewTab).ToArray());
     }
 
     [TestMethod]
@@ -188,7 +188,7 @@ public sealed class CommandPalettePanelTests
         Assert.IsNotNull(applied);
         Assert.AreEqual(
             new ViewerCommandShortcut(WindowKey.G, Control: true),
-            applied.GetShortcuts(ViewerCommandId.NewTab)[^1]);
+            applied.GetShortcuts(AppCommands.NewTab)[^1]);
     }
 
     [TestMethod]
@@ -203,7 +203,7 @@ public sealed class CommandPalettePanelTests
         Assert.IsNotNull(applied);
         CollectionAssert.AreEqual(
             new[] { new ViewerCommandShortcut(WindowKey.Delete) },
-            applied.GetShortcuts(ViewerCommandId.NewTab).ToArray());
+            applied.GetShortcuts(AppCommands.NewTab).ToArray());
     }
 
     [TestMethod]
@@ -234,7 +234,7 @@ public sealed class CommandPalettePanelTests
         Action<ViewerKeyBindings> applyKeyBindings,
         out UiRoot root)
     {
-        ViewerCommand[] commands = [new(ViewerCommandId.NewTab, "New tab", ViewerCommandScope.Window)];
+        Command[] commands = [AppCommands.NewTab];
         var panel = new CommandPalettePanel(
             commands,
             ViewerKeyBindings.Defaults,

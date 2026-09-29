@@ -1,20 +1,43 @@
+using System.Reflection;
 using Dameview.Commands;
 using Dameview.Win32.Input;
 
 namespace Dameview.Tests.Commands;
 
 [TestClass]
-public sealed class ViewerCommandCatalogTests
+public sealed class AppCommandsTests
 {
     [TestMethod]
-    public void CatalogDefinesEveryCommandExactlyOnce()
+    public void EveryCommandIsListedOnceWithALabel()
     {
-        ViewerCommandId[] expected = Enum.GetValues<ViewerCommandId>();
-        ViewerCommandId[] actual = [.. ViewerCommandCatalog.Commands.Select(command => command.Id)];
+        Command[] declared =
+        [
+            .. typeof(AppCommands)
+                .GetFields(BindingFlags.Static | BindingFlags.NonPublic)
+                .Where(field => field.FieldType == typeof(Command))
+                .Select(field => (Command)field.GetValue(null)!),
+        ];
 
-        CollectionAssert.AreEquivalent(expected, actual);
-        Assert.HasCount(expected.Length, actual.Distinct());
-        Assert.IsFalse(ViewerCommandCatalog.Commands.Any(command => string.IsNullOrWhiteSpace(command.Label)));
+        CollectionAssert.AreEquivalent(declared, AppCommands.All.ToArray());
+        Assert.HasCount(AppCommands.All.Count, AppCommands.All.Select(command => command.Id).Distinct());
+        Assert.IsFalse(AppCommands.All.Any(command => string.IsNullOrWhiteSpace(command.Label)));
+    }
+
+    // The ids name key bindings in the settings file, so renaming one loses a user's shortcuts.
+    [TestMethod]
+    public void CommandIdsStayAsTheSettingsFileKnowsThem()
+    {
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "openFile", "newTab", "closeTab", "reopenClosedTab", "previousTab", "nextTab",
+                "previousImage", "nextImage", "fitImage", "showActualSize", "toggleFitActualSize",
+                "copyImage", "copyFilePath", "copyFile", "showInFolder", "openWith", "showProperties",
+                "deleteFile", "toggleFullscreen", "toggleGallery", "toggleFlattenFolder", "splitRight",
+                "splitDown", "balancePanes", "optimizePaneLayout", "togglePerformanceOverlay",
+                "showSettings", "openDataFolder", "showCommandPalette",
+            },
+            AppCommands.All.Select(command => command.Id).ToArray());
     }
 
     [TestMethod]
@@ -24,28 +47,28 @@ public sealed class ViewerCommandCatalogTests
         // shortcut cannot fail this test for a reason that has nothing to do with scopes.
         ViewerCommandShortcut shared = new(WindowKey.F3, Control: true);
         ViewerKeyBindings bindings = ViewerKeyBindings.Defaults
-            .WithShortcut(ViewerCommandId.SplitDown, shared)
-            .WithShortcut(ViewerCommandId.FitImage, shared);
+            .WithShortcut(AppCommands.SplitDown, shared)
+            .WithShortcut(AppCommands.FitImage, shared);
 
         Assert.IsTrue(bindings.TryGetCommand(
-            ViewerCommandScope.Window,
+            CommandScope.Window,
             new WindowKeyEvent(WindowKey.F3, Control: true),
-            out ViewerCommandId window));
-        Assert.AreEqual(ViewerCommandId.SplitDown, window);
+            out Command? window));
+        Assert.AreEqual(AppCommands.SplitDown, window);
 
         Assert.IsTrue(bindings.TryGetCommand(
-            ViewerCommandScope.Viewer,
+            CommandScope.Viewer,
             new WindowKeyEvent(WindowKey.F3, Control: true),
-            out ViewerCommandId viewer));
-        Assert.AreEqual(ViewerCommandId.FitImage, viewer);
+            out Command? viewer));
+        Assert.AreEqual(AppCommands.FitImage, viewer);
 
-        ViewerKeyBindings unbound = bindings.WithShortcuts(ViewerCommandId.FitImage, []);
+        ViewerKeyBindings unbound = bindings.WithShortcuts(AppCommands.FitImage, []);
         Assert.IsFalse(unbound.TryGetCommand(
-            ViewerCommandScope.Viewer,
+            CommandScope.Viewer,
             new WindowKeyEvent(WindowKey.F3, Control: true),
             out _));
         Assert.IsTrue(unbound.TryGetCommand(
-            ViewerCommandScope.Window,
+            CommandScope.Window,
             new WindowKeyEvent(WindowKey.F3, Control: true),
             out _),
             "Unbinding in one scope leaves the other scope's command alone.");
@@ -65,23 +88,23 @@ public sealed class ViewerCommandCatalogTests
     public void AssigningAShortcutTakesItFromTheCommandThatHeldIt()
     {
         ViewerCommandShortcut newTab = new(WindowKey.T, Control: true);
-        ViewerKeyBindings bindings = ViewerKeyBindings.Defaults.WithShortcut(ViewerCommandId.CloseTab, newTab);
+        ViewerKeyBindings bindings = ViewerKeyBindings.Defaults.WithShortcut(AppCommands.CloseTab, newTab);
 
-        Assert.IsFalse(ViewerKeyBindings.Defaults.GetShortcuts(ViewerCommandId.NewTab).Count == 0);
-        Assert.IsEmpty(bindings.GetShortcuts(ViewerCommandId.NewTab));
-        Assert.Contains(newTab, bindings.GetShortcuts(ViewerCommandId.CloseTab));
-        Assert.IsTrue(bindings.TryGetCommand(ViewerCommandScope.Window, new WindowKeyEvent(WindowKey.T, Control: true), out ViewerCommandId command));
-        Assert.AreEqual(ViewerCommandId.CloseTab, command);
+        Assert.IsFalse(ViewerKeyBindings.Defaults.GetShortcuts(AppCommands.NewTab).Count == 0);
+        Assert.IsEmpty(bindings.GetShortcuts(AppCommands.NewTab));
+        Assert.Contains(newTab, bindings.GetShortcuts(AppCommands.CloseTab));
+        Assert.IsTrue(bindings.TryGetCommand(CommandScope.Window, new WindowKeyEvent(WindowKey.T, Control: true), out Command? command));
+        Assert.AreEqual(AppCommands.CloseTab, command);
     }
 
     [TestMethod]
     public void AssigningAShortcutACommandAlreadyHasDoesNotRepeatIt()
     {
-        ViewerCommandShortcut newTab = ViewerKeyBindings.Defaults.GetShortcuts(ViewerCommandId.NewTab)[0];
+        ViewerCommandShortcut newTab = ViewerKeyBindings.Defaults.GetShortcuts(AppCommands.NewTab)[0];
         ViewerKeyBindings bindings = ViewerKeyBindings.Defaults
-            .WithShortcut(ViewerCommandId.NewTab, newTab);
+            .WithShortcut(AppCommands.NewTab, newTab);
 
-        Assert.HasCount(1, bindings.GetShortcuts(ViewerCommandId.NewTab).Where(s => s == newTab));
+        Assert.HasCount(1, bindings.GetShortcuts(AppCommands.NewTab).Where(s => s == newTab));
     }
 
     [TestMethod]
@@ -89,10 +112,10 @@ public sealed class ViewerCommandCatalogTests
     {
         // FitImage is a Viewer command and NewTab a Window one, so Ctrl+T can serve both.
         ViewerCommandShortcut shortcut = new(WindowKey.T, Control: true);
-        ViewerKeyBindings bindings = ViewerKeyBindings.Defaults.WithShortcut(ViewerCommandId.FitImage, shortcut);
+        ViewerKeyBindings bindings = ViewerKeyBindings.Defaults.WithShortcut(AppCommands.FitImage, shortcut);
 
-        Assert.Contains(shortcut, bindings.GetShortcuts(ViewerCommandId.NewTab));
-        Assert.Contains(shortcut, bindings.GetShortcuts(ViewerCommandId.FitImage));
+        Assert.Contains(shortcut, bindings.GetShortcuts(AppCommands.NewTab));
+        Assert.Contains(shortcut, bindings.GetShortcuts(AppCommands.FitImage));
     }
 
     [TestMethod]

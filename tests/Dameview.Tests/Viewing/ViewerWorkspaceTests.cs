@@ -38,11 +38,28 @@ public sealed class ViewerWorkspaceTests
         ViewerSession original = pane.ActiveSession;
         original.OpenImage(@"C:\first\image.png");
 
-        workspace.DuplicateActiveTab(pane);
+        workspace.DuplicateTab(pane.ActiveTab);
 
         Assert.AreEqual(2, pane.Count);
         Assert.AreEqual(1, pane.ActiveIndex);
         Assert.AreNotSame(original, pane.ActiveSession);
+        Assert.AreEqual(@"C:\first\image.png", pane.ActiveSession.State.RequestedPath);
+    }
+
+    [TestMethod]
+    public void DuplicatingABackgroundTabCopiesItsImageRatherThanTheActiveOne()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane pane = workspace.ActivePane;
+        ViewerTab background = pane.ActiveTab;
+        background.Session.OpenImage(@"C:\first\image.png");
+        workspace.OpenImageInNewTab(@"C:\second\image.png");
+        workspace.SelectTab(pane, 1);
+
+        workspace.DuplicateTab(background);
+
+        Assert.AreEqual(3, pane.Count);
+        Assert.AreEqual(2, pane.ActiveIndex);
         Assert.AreEqual(@"C:\first\image.png", pane.ActiveSession.State.RequestedPath);
     }
 

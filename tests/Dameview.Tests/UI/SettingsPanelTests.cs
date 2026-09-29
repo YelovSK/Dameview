@@ -158,7 +158,7 @@ public sealed class SettingsPanelTests
         Assert.AreEqual(1, activations);
     }
 
-    private sealed class TestSettingsCommands : ISettingsCommands
+    private sealed class TestSettingsCommands : ISettingsActions
     {
         internal Action? Activate { get; init; }
 

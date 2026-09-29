@@ -138,11 +138,11 @@ internal static class SettingsIniSerializer
         ViewerKeyBindings bindings,
         List<string> ignored)
     {
-        foreach (ViewerCommand command in ViewerCommandCatalog.Commands)
+        foreach (Command command in AppCommands.All)
         {
-            if (document.Get("keybindings", IniValue.FormatEnum(command.Id)) is string value)
+            if (document.Get("keybindings", command.Id) is string value)
             {
-                bindings = bindings.WithShortcuts(command.Id, ReadShortcuts(value, ignored));
+                bindings = bindings.WithShortcuts(command, ReadShortcuts(value, ignored));
             }
         }
 
@@ -171,12 +171,12 @@ internal static class SettingsIniSerializer
 
     private static void WriteKeyBindings(IniDocument document, ViewerKeyBindings bindings)
     {
-        foreach (ViewerCommand command in ViewerCommandCatalog.Commands)
+        foreach (Command command in AppCommands.All)
         {
             document.Set(
                 "keybindings",
-                IniValue.FormatEnum(command.Id),
-                string.Join(' ', bindings.GetShortcuts(command.Id).Select(shortcut => shortcut.Text)));
+                command.Id,
+                string.Join(' ', bindings.GetShortcuts(command).Select(shortcut => shortcut.Text)));
         }
     }
 }

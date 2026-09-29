@@ -24,7 +24,7 @@ using Vortice.Direct3D11;
 
 namespace Dameview;
 
-internal sealed class DameviewApp : IAppCommands, IDisposable
+internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
 {
     private const long RenderBitmapCacheCapacityBytes = 256L * 1024L * 1024L;
     private const long ThumbnailBitmapCacheCapacityBytes = 64L * 1024L * 1024L;
@@ -46,9 +46,9 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
     private readonly SettingsService _settings;
     private readonly UpdateService _updates;
     private readonly ToastService _toasts = new();
+    private readonly FileActions _files;
     private Task<ID3D11Device>? _pendingHardwareDevice;
     private long _memorySampled;
-    private CancellationTokenSource? _copyImageCancellation;
     private int _pointerX;
     private int _pointerY;
 
@@ -102,6 +102,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             _uiContext,
             _imageBackend,
             new ImageRepresentationPolicy(checked((int)_renderer.DeviceContext.MaximumBitmapSize)));
+        _files = new FileActions(_window.Handle, _imageLoadService, _toasts);
         _renderBitmapCache = new RenderBitmapCache(RenderBitmapCacheCapacityBytes);
         _thumbnailBitmapCache = new RenderBitmapCache(ThumbnailBitmapCacheCapacityBytes);
         _thumbnailImageLoader = new ThumbnailImageLoader(
@@ -214,8 +215,7 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _updates.Changed -= HandleUpdateChanged;
         _updates.UpdateDownloaded -= HandleUpdateDownloaded;
         _settings.Dispose();
-        _copyImageCancellation?.Cancel();
-        _copyImageCancellation?.Dispose();
+        _files.Dispose();
         // Closing before the hardware device arrives leaves nothing else to own it.
         _ = _pendingHardwareDevice?.ContinueWith(
             static completed => completed.Result.Dispose(),
@@ -231,59 +231,6 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _thumbnailCoordinator.Dispose();
         _renderer.Dispose();
         _window.Dispose();
-    }
-
-    public void ShowPreviousImage(ViewerPane pane)
-    {
-        pane.ActiveSession.ShowPreviousImage();
-    }
-
-    public void ShowNextImage(ViewerPane pane)
-    {
-        pane.ActiveSession.ShowNextImage();
-    }
-
-    public void FitImage(ViewerPane pane)
-    {
-        if (pane.ActiveSession.Animator.Fit())
-        {
-            _window.RequestRepaint();
-        }
-    }
-
-    private void ShowActualSize(ViewerPane pane, PointF anchor)
-    {
-        if (pane.ActiveSession.Animator.ShowActualSizeAt(anchor.X, anchor.Y))
-        {
-            _window.RequestRepaint();
-        }
-    }
-
-    public void ShowActualSize(ViewerPane pane) =>
-        ShowActualSize(pane, pane.ActiveSession.Viewport.ViewportCenter);
-
-    private void ToggleFitActualSize(ViewerPane pane, PointF anchor)
-    {
-        if (pane.ActiveSession.Animator.ToggleFitAndActualSizeAt(anchor.X, anchor.Y))
-        {
-            _window.RequestRepaint();
-        }
-    }
-
-    public void SplitRight(ViewerPane pane)
-    {
-        if (!_ui.IsClosingPane)
-        {
-            _workspace.SplitPane(pane, WorkspaceSplitOrientation.Horizontal);
-        }
-    }
-
-    public void SplitDown(ViewerPane pane)
-    {
-        if (!_ui.IsClosingPane)
-        {
-            _workspace.SplitPane(pane, WorkspaceSplitOrientation.Vertical);
-        }
     }
 
     public void OpenImage(string path)
@@ -359,19 +306,9 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         _workspace.SelectPane(pane);
     }
 
-    public void DuplicateActiveTab(ViewerPane pane)
-    {
-        _workspace.DuplicateActiveTab(pane);
-    }
-
     public void SelectTab(ViewerPane pane, int index)
     {
         _workspace.SelectTab(pane, index);
-    }
-
-    public void CloseTab(ViewerPane pane, int index)
-    {
-        CloseTabOrPane(pane, index);
     }
 
     private void HandleKeyPress(WindowKeyEvent input)
@@ -384,9 +321,9 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         }
 
         ViewerKeyBindings keyBindings = _settings.Current.KeyBindings;
-        if (keyBindings.TryGetCommand(ViewerCommandScope.Window, input, out ViewerCommandId command))
+        if (keyBindings.TryGetCommand(CommandScope.Window, input, out Command? command))
         {
-            ExecuteCommand(command);
+            Execute(command, ActiveContext);
             return;
         }
 
@@ -402,9 +339,10 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
             return;
         }
 
-        if (keyBindings.TryGetCommand(ViewerCommandScope.Viewer, input, out command))
+        if (keyBindings.TryGetCommand(CommandScope.Viewer, input, out command))
         {
-            ExecuteCommand(command, _ui.GetImageViewportPoint(new PointF(_pointerX, _pointerY)));
+            PointF anchor = _ui.GetImageViewportPoint(new PointF(_pointerX, _pointerY));
+            Execute(command, CommandContext.For(_workspace.ActiveTab, anchor));
         }
     }
 
@@ -416,169 +354,32 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         }
     }
 
-    public void ExecuteCommand(ViewerCommandId command) =>
-        ExecuteCommand(command, _workspace.ActivePane.ActiveSession.Viewport.ViewportCenter);
+    public CommandContext ActiveContext => CommandContext.For(_workspace.ActiveTab);
 
-    public bool CanExecuteCommand(ViewerCommandId command) => command switch
+    public bool CanExecute(Command command, CommandContext context) => command.CanExecute(this, context);
+
+    public void Execute(Command command, CommandContext context) => command.Execute(this, context);
+
+    ViewerWorkspace ICommandHost.Workspace => _workspace;
+
+    ViewerUi ICommandHost.Ui => _ui;
+
+    FileActions ICommandHost.Files => _files;
+
+    void ICommandHost.CloseTab(ViewerTab tab)
     {
-        ViewerCommandId.ReopenClosedTab => _workspace.HasClosedTabs,
-        ViewerCommandId.PreviousTab or ViewerCommandId.NextTab => _workspace.Count > 1,
-        ViewerCommandId.PreviousImage or ViewerCommandId.NextImage =>
-            _workspace.ActiveSession.State.FolderEntries.Length > 1,
-        ViewerCommandId.FitImage
-            or ViewerCommandId.ShowActualSize
-            or ViewerCommandId.ToggleFitActualSize
-            or ViewerCommandId.CopyImage
-            or ViewerCommandId.CopyFilePath
-            or ViewerCommandId.CopyFile
-            or ViewerCommandId.ShowInFolder
-            or ViewerCommandId.OpenWith
-            or ViewerCommandId.ShowProperties
-            or ViewerCommandId.DeleteFile => DisplayedPath is not null,
-        ViewerCommandId.BalancePanes or ViewerCommandId.OptimizePaneLayout => _workspace.IsSplit,
-        _ => true,
-    };
-
-    private void ExecuteCommand(ViewerCommandId command, PointF anchor)
-    {
-        switch (command)
-        {
-            case ViewerCommandId.OpenFile:
-                OpenPickedFile();
-                break;
-
-            case ViewerCommandId.NewTab:
-                _workspace.DuplicateActiveTab(_workspace.ActivePane);
-                break;
-
-            case ViewerCommandId.CloseTab:
-                CloseTabOrPane(_workspace.ActivePane, _workspace.ActiveIndex);
-                break;
-
-            case ViewerCommandId.ReopenClosedTab:
-                _workspace.ReopenClosedTab();
-                break;
-
-            case ViewerCommandId.PreviousTab:
-                _workspace.SelectRelativeTab(-1);
-                break;
-
-            case ViewerCommandId.NextTab:
-                _workspace.SelectRelativeTab(1);
-                break;
-
-            case ViewerCommandId.PreviousImage:
-                ShowPreviousImage(_workspace.ActivePane);
-                _ui.CenterGallerySelection();
-                break;
-
-            case ViewerCommandId.NextImage:
-                ShowNextImage(_workspace.ActivePane);
-                _ui.CenterGallerySelection();
-                break;
-
-            case ViewerCommandId.FitImage:
-                FitImage(_workspace.ActivePane);
-                break;
-
-            case ViewerCommandId.ShowActualSize:
-                ShowActualSize(_workspace.ActivePane, anchor);
-                break;
-
-            case ViewerCommandId.ToggleFitActualSize:
-                ToggleFitActualSize(_workspace.ActivePane, anchor);
-                break;
-
-            case ViewerCommandId.CopyImage:
-                CopyImage();
-                break;
-
-            case ViewerCommandId.CopyFilePath:
-                CopyFilePath();
-                break;
-
-            case ViewerCommandId.CopyFile:
-                CopyFile();
-                break;
-
-            case ViewerCommandId.ShowInFolder:
-                ShowInFolder();
-                break;
-
-            case ViewerCommandId.OpenWith:
-                OpenWith();
-                break;
-
-            case ViewerCommandId.ShowProperties:
-                ShowProperties();
-                break;
-
-            case ViewerCommandId.DeleteFile:
-                DeleteFile();
-                break;
-
-            case ViewerCommandId.ToggleFullscreen:
-                ToggleFullscreen();
-                break;
-
-            case ViewerCommandId.ToggleGallery:
-                UpdateSettings(settings => settings with { GalleryEnabled = !settings.GalleryEnabled });
-                break;
-
-            case ViewerCommandId.ToggleFlattenFolder:
-                _workspace.ActiveSession.ToggleFlattenFolder();
-                break;
-
-            case ViewerCommandId.SplitRight:
-                SplitRight(_workspace.ActivePane);
-                break;
-
-            case ViewerCommandId.SplitDown:
-                SplitDown(_workspace.ActivePane);
-                break;
-
-            case ViewerCommandId.BalancePanes:
-                _workspace.BalancePanes();
-                break;
-
-            case ViewerCommandId.OptimizePaneLayout:
-                if (!_ui.IsClosingPane)
-                {
-                    _workspace.OptimizePaneLayout(_ui.PaneLayoutArea);
-                }
-
-                break;
-
-            case ViewerCommandId.TogglePerformanceOverlay:
-                _performanceMonitor.Enabled = _ui.TogglePerformanceOverlay();
-                break;
-
-            case ViewerCommandId.ShowSettings:
-                _ui.ShowSettings();
-                break;
-
-            case ViewerCommandId.OpenDataFolder:
-                Process.Start(new ProcessStartInfo(Path.GetDirectoryName(SettingsService.DefaultPath)!)
-                {
-                    UseShellExecute = true,
-                })?.Dispose();
-                break;
-
-            case ViewerCommandId.ShowCommandPalette:
-                _ui.ShowCommandPalette();
-                break;
-
-            default:
-                throw new ArgumentOutOfRangeException(nameof(command), command, null);
-        }
+        ViewerPane pane = _workspace.PaneOf(tab);
+        CloseTabOrPane(pane, pane.IndexOf(tab));
     }
+
+    void ICommandHost.TogglePerformanceOverlay() => _performanceMonitor.Enabled = _ui.TogglePerformanceOverlay();
 
     // One bad value is worth naming; a mangled file is not worth four toasts.
     private static string DescribeIgnored(IReadOnlyList<string> ignored) => ignored.Count == 1
         ? $"Ignored {ignored[0]} in the settings file."
         : $"Ignored {ignored.Count} unreadable values in the settings file.";
 
-    private void OpenPickedFile()
+    public void OpenPickedFile()
     {
         try
         {
@@ -594,150 +395,12 @@ internal sealed class DameviewApp : IAppCommands, IDisposable
         }
     }
 
-    private string? DisplayedPath => _workspace.ActiveSession.State.DisplayedImage?.Path;
-
-    private void CopyFilePath()
-    {
-        if (DisplayedPath is not { } path)
-        {
-            return;
-        }
-
-        if (Win32Clipboard.TrySetText(path))
-        {
-            _toasts.Notify($"Copied the path of {Path.GetFileName(path)}.", ToastSeverity.Success);
-        }
-        else
-        {
-            _toasts.Notify("Could not copy the path to the clipboard.", ToastSeverity.Error);
-        }
-    }
-
-    private void CopyFile()
-    {
-        if (DisplayedPath is not { } path)
-        {
-            return;
-        }
-
-        if (Win32Clipboard.TrySetFile(path))
-        {
-            _toasts.Notify($"Copied {Path.GetFileName(path)}.", ToastSeverity.Success);
-        }
-        else
-        {
-            _toasts.Notify("Could not copy the file to the clipboard.", ToastSeverity.Error);
-        }
-    }
-
-    private void ShowInFolder()
-    {
-        if (DisplayedPath is { } path)
-        {
-            ShellIntegration.ShowInFolder(path);
-        }
-    }
-
-    private void OpenWith()
-    {
-        if (DisplayedPath is { } path && !ShellIntegration.TryShowOpenWith(_window.Handle, path))
-        {
-            _toasts.Notify("Could not show the Open with dialog.", ToastSeverity.Error);
-        }
-    }
-
-    private void ShowProperties()
-    {
-        if (DisplayedPath is { } path && !ShellIntegration.TryShowProperties(_window.Handle, path))
-        {
-            _toasts.Notify("Could not show the file properties.", ToastSeverity.Error);
-        }
-    }
-
-    private void DeleteFile()
-    {
-        if (DisplayedPath is { } path && ShellIntegration.TryMoveToRecycleBin(_window.Handle, path))
-        {
-            _toasts.Notify($"Moved {Path.GetFileName(path)} to the Recycle Bin.", ToastSeverity.Success);
-            ExecuteCommand(ViewerCommandId.NextImage);
-        }
-    }
-
-    private void CopyImage()
-    {
-        string? path = DisplayedPath;
-        if (path is null)
-        {
-            return;
-        }
-
-        _copyImageCancellation?.Cancel();
-        _copyImageCancellation?.Dispose();
-        var cancellation = new CancellationTokenSource();
-        _copyImageCancellation = cancellation;
-
-        _imageLoadService.DecodeTemporary(path, (image, error) =>
-        {
-            try
-            {
-                if (cancellation.IsCancellationRequested)
-                {
-                    return;
-                }
-
-                if (error is not null)
-                {
-                    Log.Error(
-                        "Clipboard",
-                        $"Could not decode '{Path.GetFileName(path)}' for clipboard copy.",
-                        error);
-                    _toasts.Notify(
-                        $"Could not read {Path.GetFileName(path)} to copy it.",
-                        ToastSeverity.Error);
-                    return;
-                }
-
-                if (image is null)
-                {
-                    return;
-                }
-
-                if (!Win32Clipboard.TrySetImage(
-                        _window.Handle,
-                        image.Width,
-                        image.Height,
-                        image.Stride,
-                        image.Span))
-                {
-                    Log.Warning("Clipboard", $"Could not copy '{Path.GetFileName(path)}' to the clipboard.");
-                    _toasts.Notify(
-                        $"Could not copy {Path.GetFileName(path)} to the clipboard.",
-                        ToastSeverity.Error);
-                    return;
-                }
-
-                _toasts.Notify(
-                    $"Copied {Path.GetFileName(path)} to the clipboard.",
-                    ToastSeverity.Success);
-            }
-            finally
-            {
-                image?.Dispose();
-                if (ReferenceEquals(_copyImageCancellation, cancellation))
-                {
-                    _copyImageCancellation = null;
-                    cancellation.Dispose();
-                }
-            }
-        }, cancellation.Token);
-    }
-
     public void ActivateUpdate() => _updates.Activate();
 
     public void UpdateSettings(Func<AppSettings, AppSettings> change) =>
         _settings.Update(change(_settings.Current));
 
-    private void ToggleFullscreen()
+    public void ToggleFullscreen()
     {
         _window.ToggleFullscreen();
         _ui.SetFullscreen(_window.IsFullscreen);

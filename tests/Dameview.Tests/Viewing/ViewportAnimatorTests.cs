@@ -32,6 +32,22 @@ public sealed class ViewportAnimatorTests
     }
 
     [TestMethod]
+    public void StartingAnAnimationIsAnnouncedButAMoveThatIsAlreadyDoneIsNot()
+    {
+        var viewport = new ImageViewport(1000, 800);
+        viewport.SetImageSize(2000, 1600);
+        var animator = new ViewportAnimator(viewport, new ManualTimeProvider());
+        int started = 0;
+        animator.Started += () => started++;
+
+        Assert.IsFalse(animator.Fit(), "A fresh viewport already fits.");
+        Assert.AreEqual(0, started);
+
+        Assert.IsTrue(animator.ShowActualSizeAt(500.0f, 400.0f));
+        Assert.AreEqual(1, started);
+    }
+
+    [TestMethod]
     public void ReleasingAPanContinuesWithMomentum()
     {
         var timeProvider = new ManualTimeProvider();

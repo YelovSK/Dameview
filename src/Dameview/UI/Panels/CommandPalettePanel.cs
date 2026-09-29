@@ -20,7 +20,7 @@ internal sealed class CommandPalettePanel : ModalContent
 
     private readonly TextBlock _title;
     private readonly TextInput _filterInput;
-    private readonly Func<ViewerCommandId, bool> _canExecute;
+    private readonly Func<Command, bool> _canExecute;
     private readonly StackPanel _itemList;
     private readonly ScrollView _list;
     private readonly TextBlock _emptyMessage;
@@ -32,10 +32,10 @@ internal sealed class CommandPalettePanel : ModalContent
     private int _selectedIndex;
 
     internal CommandPalettePanel(
-        IReadOnlyList<ViewerCommand> commands,
+        IReadOnlyList<Command> commands,
         ViewerKeyBindings keyBindings,
-        Action<ViewerCommandId> execute,
-        Func<ViewerCommandId, bool> canExecute,
+        Action<Command> execute,
+        Func<Command, bool> canExecute,
         Action<ViewerKeyBindings> applyKeyBindings)
     {
         _canExecute = canExecute;
@@ -51,9 +51,9 @@ internal sealed class CommandPalettePanel : ModalContent
         [
             .. commands.Select(command => new CommandItem(
                 command,
-                () => execute(command.Id),
-                (slot, shortcut) => RecordShortcut(command.Id, slot, shortcut),
-                slot => RemoveShortcut(command.Id, slot))),
+                () => execute(command),
+                (slot, shortcut) => RecordShortcut(command, slot, shortcut),
+                slot => RemoveShortcut(command, slot))),
         ];
         _keyBindings = keyBindings;
         _applyKeyBindings = applyKeyBindings;
@@ -83,7 +83,7 @@ internal sealed class CommandPalettePanel : ModalContent
     internal override SizeF PreferredSize => new(540.0f, 580.0f);
     internal override UiElement InitialFocus => _filterInput;
     internal int MatchingCommandCount => _items.Count(item => item.IsPresent);
-    internal ViewerCommandId? SelectedCommand => GetSelectableItems().ElementAtOrDefault(_selectedIndex)?.Command.Id;
+    internal Command? SelectedCommand => GetSelectableItems().ElementAtOrDefault(_selectedIndex)?.Command;
     internal string Query => _filterInput.Text;
 
     internal bool IsRecording => Root?.KeyboardCaptor is ShortcutChip;
@@ -98,7 +98,7 @@ internal sealed class CommandPalettePanel : ModalContent
         // Commands that cannot run stay listed, so their shortcuts can still be edited.
         foreach (CommandItem item in _items)
         {
-            item.IsEnabled = _canExecute(item.Command.Id);
+            item.IsEnabled = _canExecute(item.Command);
         }
 
         _items = [.. _items.OrderBy(item => !item.IsEnabled)];
@@ -234,12 +234,12 @@ internal sealed class CommandPalettePanel : ModalContent
         RefreshShortcuts();
     }
 
-    private void RecordShortcut(ViewerCommandId command, int slot, ViewerCommandShortcut shortcut) =>
+    private void RecordShortcut(Command command, int slot, ViewerCommandShortcut shortcut) =>
         Apply(_keyBindings
             .WithShortcuts(command, Without(_keyBindings.GetShortcuts(command), slot))
             .WithShortcut(command, shortcut));
 
-    private void RemoveShortcut(ViewerCommandId command, int slot)
+    private void RemoveShortcut(Command command, int slot)
     {
         IReadOnlyList<ViewerCommandShortcut> existing = _keyBindings.GetShortcuts(command);
         if (slot < existing.Count)
@@ -270,7 +270,7 @@ internal sealed class CommandPalettePanel : ModalContent
     {
         foreach (CommandItem item in _items)
         {
-            item.SetShortcuts(_keyBindings.GetShortcuts(item.Command.Id));
+            item.SetShortcuts(_keyBindings.GetShortcuts(item.Command));
         }
 
         InvalidateLayout();
@@ -291,7 +291,7 @@ internal sealed class CommandPalettePanel : ModalContent
         private readonly List<ShortcutChip> _chips = [];
 
         internal CommandItem(
-            ViewerCommand command,
+            Command command,
             Action execute,
             Action<int, ViewerCommandShortcut> recordShortcut,
             Action<int> removeShortcut)
@@ -306,7 +306,7 @@ internal sealed class CommandPalettePanel : ModalContent
             Transition = new UiTransition(Fade: true, Collapse: true, Response: 25.0);
         }
 
-        internal ViewerCommand Command { get; }
+        internal Command Command { get; }
         private float ChipsLeft { get; set; }
         internal bool IsSelected
         {

@@ -112,16 +112,20 @@ internal sealed class ViewerWorkspace : IDisposable
         }
     }
 
-    internal void DuplicateActiveTab(ViewerPane pane)
+    internal ViewerPane PaneOf(ViewerTab tab) =>
+        EnumeratePanes(Root).FirstOrDefault(pane => pane.Tabs.Contains(tab))
+        ?? throw new ArgumentException("The tab is not in the workspace.", nameof(tab));
+
+    internal void DuplicateTab(ViewerTab tab)
     {
-        EnsureContains(pane);
-        string? path = pane.ActiveSession.State.RequestedPath;
-        ViewerTab tab = CreateTab();
-        pane.AddTab(tab);
+        ViewerPane pane = PaneOf(tab);
+        string? path = tab.Session.State.RequestedPath;
+        ViewerTab duplicate = CreateTab();
+        pane.AddTab(duplicate);
         pane.SelectTab(pane.Count - 1);
         if (path is not null)
         {
-            tab.Session.OpenImage(path);
+            duplicate.Session.OpenImage(path);
         }
     }
 

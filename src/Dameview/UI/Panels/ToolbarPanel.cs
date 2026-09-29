@@ -16,22 +16,23 @@ internal sealed class ToolbarPanel : UiElement
 
     private readonly StackPanel _buttonRow;
 
-    internal ToolbarPanel(
-        IViewerCommands commands,
-        ViewerPane pane,
-        Action showSettings)
+    internal ToolbarPanel(ICommandRunner commands, ViewerPane pane)
     {
+        void Run(Command command) => commands.Execute(command, CommandContext.For(pane.ActiveTab));
+        Button CommandButton(string text, Command command) =>
+            new(text, () => Run(command)) { ToolTip = new(command.Label) };
+
         Button[] buttons =
         [
-            new Button("←", () => commands.ShowPreviousImage(pane)) { ToolTip = new("Previous image") },
-            new Button("→", () => commands.ShowNextImage(pane)) { ToolTip = new("Next image") },
-            new Button("Fit", () => commands.FitImage(pane)),
-            new Button("1:1", () => commands.ShowActualSize(pane)) { ToolTip = new("Actual size") },
-            new Button("Split →", () => commands.SplitRight(pane)),
-            new Button("Split ↓", () => commands.SplitDown(pane)),
+            CommandButton("←", AppCommands.PreviousImage),
+            CommandButton("→", AppCommands.NextImage),
+            CommandButton("Fit", AppCommands.FitImage),
+            CommandButton("1:1", AppCommands.ShowActualSize),
+            CommandButton("Split →", AppCommands.SplitRight),
+            CommandButton("Split ↓", AppCommands.SplitDown),
             new Button(
                 UiTypography.SettingsIcon,
-                showSettings,
+                () => Run(AppCommands.ShowSettings),
                 fontFamily: UiTypography.IconFontFamily,
                 fontSize: 16.0f)
             {

@@ -37,6 +37,9 @@ internal sealed class ViewportAnimator
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
+    /// <summary>Raised when an animation begins, so whoever draws the viewport can start updating it.</summary>
+    internal event Action? Started;
+
     internal bool IsAnimating => _zooming || _transforming || (!_panning && HasMomentum);
 
     internal void Reset()
@@ -73,6 +76,7 @@ internal sealed class ViewportAnimator
         _zoomViewportY = viewportY;
         _zoomImagePosition = _viewport.ViewportToImage(viewportX, viewportY);
         _zooming = true;
+        Started?.Invoke();
         return true;
     }
 
@@ -127,7 +131,13 @@ internal sealed class ViewportAnimator
             _velocityY = 0.0;
         }
 
-        return HasMomentum;
+        if (!HasMomentum)
+        {
+            return false;
+        }
+
+        Started?.Invoke();
+        return true;
     }
 
     internal bool Fit()
@@ -227,6 +237,7 @@ internal sealed class ViewportAnimator
         }
 
         _transforming = true;
+        Started?.Invoke();
         return true;
     }
 

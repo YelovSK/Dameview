@@ -69,12 +69,12 @@ internal sealed class SettingsPanel : ModalContent
     private readonly TextBlock _updateStatus;
     private readonly Button _updateButton;
     private readonly PopupHost _popupHost;
-    private readonly ISettingsCommands _commands;
+    private readonly ISettingsActions _commands;
 
     internal SettingsPanel(
         PopupHost popupHost,
         Action close,
-        ISettingsCommands commands)
+        ISettingsActions commands)
     {
         _popupHost = popupHost;
         _commands = commands;

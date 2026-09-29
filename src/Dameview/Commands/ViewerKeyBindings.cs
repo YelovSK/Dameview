@@ -1,52 +1,32 @@
+using System.Diagnostics.CodeAnalysis;
 using Dameview.Win32.Input;
 
 namespace Dameview.Commands;
 
 internal sealed class ViewerKeyBindings : IEquatable<ViewerKeyBindings>
 {
-    internal static ViewerKeyBindings Defaults { get; } = new(new Dictionary<ViewerCommandId, ViewerCommandShortcut[]>
-    {
-        [ViewerCommandId.OpenFile] = [new(WindowKey.O, Control: true)],
-        [ViewerCommandId.NewTab] = [new(WindowKey.T, Control: true)],
-        [ViewerCommandId.CloseTab] = [new(WindowKey.W, Control: true)],
-        [ViewerCommandId.ReopenClosedTab] = [new(WindowKey.T, Control: true, Shift: true)],
-        [ViewerCommandId.PreviousTab] = [new(WindowKey.Tab, Control: true, Shift: true)],
-        [ViewerCommandId.NextTab] = [new(WindowKey.Tab, Control: true)],
-        [ViewerCommandId.PreviousImage] = [new(WindowKey.Left)],
-        [ViewerCommandId.NextImage] = [new(WindowKey.Right)],
-        [ViewerCommandId.FitImage] = [new(WindowKey.F)],
-        [ViewerCommandId.ShowActualSize] = [new(WindowKey.Number1), new(WindowKey.Numpad1)],
-        [ViewerCommandId.ToggleFitActualSize] = [new(WindowKey.Z)],
-        [ViewerCommandId.CopyImage] = [new(WindowKey.C, Control: true)],
-        [ViewerCommandId.CopyFilePath] = [new(WindowKey.C, Control: true, Shift: true)],
-        [ViewerCommandId.DeleteFile] = [new(WindowKey.Delete, Control: true)],
-        [ViewerCommandId.ToggleFullscreen] = [new(WindowKey.F11), new(WindowKey.F, Control: true)],
-        [ViewerCommandId.SplitRight] = [new(WindowKey.S, Control: true, Shift: true)],
-        [ViewerCommandId.SplitDown] = [new(WindowKey.S, Control: true)],
-        [ViewerCommandId.TogglePerformanceOverlay] = [new(WindowKey.F3)],
-        [ViewerCommandId.ShowSettings] = [new(WindowKey.Comma, Control: true)],
-        [ViewerCommandId.ShowCommandPalette] = [new(WindowKey.P, Control: true, Shift: true)],
-        [ViewerCommandId.ToggleGallery] = [new(WindowKey.G, Control: true)],
-    });
+    internal static ViewerKeyBindings Defaults { get; } = new(AppCommands.All
+        .Where(command => command.DefaultShortcuts.Count > 0)
+        .ToDictionary(command => command, command => command.DefaultShortcuts.ToArray()));
 
-    private readonly Dictionary<ViewerCommandId, ViewerCommandShortcut[]> _shortcuts;
+    private readonly Dictionary<Command, ViewerCommandShortcut[]> _shortcuts;
 
-    private ViewerKeyBindings(Dictionary<ViewerCommandId, ViewerCommandShortcut[]> shortcuts)
+    private ViewerKeyBindings(Dictionary<Command, ViewerCommandShortcut[]> shortcuts)
     {
         _shortcuts = shortcuts;
     }
 
-    internal IReadOnlyList<ViewerCommandShortcut> GetShortcuts(ViewerCommandId command) =>
+    internal IReadOnlyList<ViewerCommandShortcut> GetShortcuts(Command command) =>
         _shortcuts.TryGetValue(command, out ViewerCommandShortcut[]? shortcuts) ? shortcuts : [];
 
     internal bool TryGetCommand(
-        ViewerCommandScope scope,
+        CommandScope scope,
         WindowKeyEvent input,
-        out ViewerCommandId command)
+        [NotNullWhen(true)] out Command? command)
     {
-        foreach ((ViewerCommandId candidate, ViewerCommandShortcut[] shortcuts) in _shortcuts)
+        foreach ((Command candidate, ViewerCommandShortcut[] shortcuts) in _shortcuts)
         {
-            if (ViewerCommandCatalog.GetScope(candidate) == scope
+            if (candidate.Scope == scope
                 && shortcuts.Any(shortcut => shortcut.Matches(input)))
             {
                 command = candidate;
@@ -54,18 +34,18 @@ internal sealed class ViewerKeyBindings : IEquatable<ViewerKeyBindings>
             }
         }
 
-        command = default;
+        command = null;
         return false;
     }
 
     // Assigning a shortcut takes it from whichever command holds it in the same scope.
-    internal ViewerKeyBindings WithShortcut(ViewerCommandId command, ViewerCommandShortcut shortcut)
+    internal ViewerKeyBindings WithShortcut(Command command, ViewerCommandShortcut shortcut)
     {
-        ViewerCommandScope scope = ViewerCommandCatalog.GetScope(command);
-        Dictionary<ViewerCommandId, ViewerCommandShortcut[]> shortcuts = new(_shortcuts);
-        foreach (ViewerCommandId holder in _shortcuts.Keys)
+        CommandScope scope = command.Scope;
+        Dictionary<Command, ViewerCommandShortcut[]> shortcuts = new(_shortcuts);
+        foreach (Command holder in _shortcuts.Keys)
         {
-            if (ViewerCommandCatalog.GetScope(holder) == scope)
+            if (holder.Scope == scope)
             {
                 shortcuts[holder] = [.. shortcuts[holder].Where(existing => existing != shortcut)];
             }
@@ -81,10 +61,10 @@ internal sealed class ViewerKeyBindings : IEquatable<ViewerKeyBindings>
     }
 
     internal ViewerKeyBindings WithShortcuts(
-        ViewerCommandId command,
+        Command command,
         IEnumerable<ViewerCommandShortcut> shortcuts)
     {
-        Dictionary<ViewerCommandId, ViewerCommandShortcut[]> updated = new(_shortcuts);
+        Dictionary<Command, ViewerCommandShortcut[]> updated = new(_shortcuts);
         ViewerCommandShortcut[] assigned = [.. shortcuts];
 
         // An unbound command holds no entry, so that it compares equal to one that was
@@ -108,7 +88,7 @@ internal sealed class ViewerKeyBindings : IEquatable<ViewerKeyBindings>
             return false;
         }
 
-        foreach ((ViewerCommandId command, ViewerCommandShortcut[] shortcuts) in _shortcuts)
+        foreach ((Command command, ViewerCommandShortcut[] shortcuts) in _shortcuts)
         {
             if (!other._shortcuts.TryGetValue(command, out ViewerCommandShortcut[]? others)
                 || !shortcuts.AsSpan().SequenceEqual(others))
@@ -126,7 +106,7 @@ internal sealed class ViewerKeyBindings : IEquatable<ViewerKeyBindings>
     {
         // Order-independent so it matches Equals, which does not care about command order.
         int hash = _shortcuts.Count;
-        foreach ((ViewerCommandId command, ViewerCommandShortcut[] shortcuts) in _shortcuts)
+        foreach ((Command command, ViewerCommandShortcut[] shortcuts) in _shortcuts)
         {
             hash ^= HashCode.Combine(command, shortcuts.Length);
         }

@@ -57,7 +57,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         ViewerWorkspace workspace,
         float dpi,
         UiTheme theme,
-        IAppCommands commands,
+        IAppActions app,
         IThumbnailImageLoader thumbnailLoader,
         PerformanceMonitor performanceMonitor,
         ToastService toasts,
@@ -66,7 +66,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _deviceContext = deviceContext;
         _brush = deviceContext.CreateSolidColorBrush(default(Color4));
         _textLayouts = new UiTextLayoutCache(directWriteFactory);
-        _selectPane = commands.SelectPane;
+        _selectPane = app.SelectPane;
         Palette = theme;
         _animationClock = new UiAnimationClock(timeProvider);
         _activePane = workspace.ActivePane;
@@ -77,19 +77,15 @@ internal sealed class ViewerUi : UiElement, IDisposable
             pane => new ViewerPaneView(
                 _deviceContext,
                 pane,
-                commands,
-                index => commands.SelectTab(pane, index),
-                index => commands.CloseTab(pane, index),
-                () => commands.DuplicateActiveTab(pane),
-                () => commands.ExecuteCommand(ViewerCommandId.OpenFile),
-                ShowSettings,
+                app,
+                index => app.SelectTab(pane, index),
                 ShowTabPreview,
                 HandleTabDragPointer));
         _activePaneView = FindPaneView(_activePane)
             ?? throw new InvalidOperationException("The active pane view was not created.");
         _workspaceView.SetActivePane(_activePane);
         _dragOverlay = new WorkspaceDragOverlay(thumbnailLoader);
-        _dragController = new WorkspaceDragController(this, _workspaceView, _dragOverlay, commands);
+        _dragController = new WorkspaceDragController(this, _workspaceView, _dragOverlay, app);
         _performanceOverlay = new PerformanceOverlay(performanceMonitor)
         {
             IsVisible = false,
@@ -97,9 +93,9 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _galleryPanel = new GalleryPanel(
             deviceContext,
             thumbnailLoader,
-            commands.SelectImage,
-            commands.OpenImageInNewTab,
-            () => commands.ExecuteCommand(ViewerCommandId.ToggleFlattenFolder),
+            app.SelectImage,
+            app.OpenImageInNewTab,
+            () => app.Execute(AppCommands.ToggleFlattenFolder, app.ActiveContext),
             HandleGalleryDragPointer);
         _galleryPanel.Bind(GetGalleryState(_activePane.ActiveTab));
         _splitView = new SplitView(
@@ -108,7 +104,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
             initialDividerOffsetDips: GalleryPanel.DefaultSizeDips);
         _splitView.ResizeStarted += _galleryPanel.BeginLiveResize;
         _splitView.ResizeCompleted += _galleryPanel.EndLiveResize;
-        _splitView.ResizeCompleted += () => commands.UpdateSettings(
+        _splitView.ResizeCompleted += () => app.UpdateSettings(
             settings => settings with { GallerySizeDips = _splitView.DividerOffsetDips });
         _modalHost = new ModalHost();
         _toastHost = new ToastHost(toasts);
@@ -116,17 +112,17 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _settingsPanel = new SettingsPanel(
             _popupHost,
             CloseModal,
-            commands);
+            app);
         _commandPalettePanel = new CommandPalettePanel(
-            ViewerCommandCatalog.Commands,
+            AppCommands.All,
             ViewerKeyBindings.Defaults,
             command =>
             {
                 CloseModal();
-                commands.ExecuteCommand(command);
+                app.Execute(command, app.ActiveContext);
             },
-            commands.CanExecuteCommand,
-            keyBindings => commands.UpdateSettings(settings => settings with { KeyBindings = keyBindings }));
+            command => app.CanExecute(command, app.ActiveContext),
+            keyBindings => app.UpdateSettings(settings => settings with { KeyBindings = keyBindings }));
 
         AddChild(_splitView);
         AddChild(_tabPreview);
