@@ -107,8 +107,6 @@ internal sealed class ViewerUi : UiElement, IDisposable
             _workspaceView,
             _galleryPanel,
             initialDividerOffsetDips: GalleryPanel.DefaultSizeDips);
-        _splitView.ResizeStarted += _galleryPanel.BeginLiveResize;
-        _splitView.ResizeCompleted += _galleryPanel.EndLiveResize;
         _splitView.ResizeCompleted += () => app.UpdateSettings(
             settings => settings with { GallerySizeDips = _splitView.DividerOffsetDips });
         _modalHost = new ModalHost();
@@ -366,6 +364,10 @@ internal sealed class ViewerUi : UiElement, IDisposable
     internal bool HandleTextInput(string text) => _root.HandleTextInput(text);
 
     internal void SetDpi(float dpi) => _root.SetDpi(dpi);
+
+    internal void BeginResize() => _root.BeginResize();
+
+    internal void EndResize() => _root.EndResize();
 
     internal bool Update()
     {

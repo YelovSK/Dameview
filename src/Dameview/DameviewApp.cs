@@ -157,6 +157,9 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         _window.Shown += HandleWindowShown;
         _window.RenderFrame += HandleRenderFrame;
         _window.Resized += HandleResize;
+        // Moving the window counts as well, which is harmless: nothing is rescaled by a move.
+        _window.SizeMoveStarted += _ui.BeginResize;
+        _window.SizeMoveEnded += _ui.EndResize;
         _window.DpiChanged += HandleDpiChanged;
         _window.FileDragInput += HandleFileDragInput;
         _window.CopyDataReceived += HandleExternalInstanceMessage;

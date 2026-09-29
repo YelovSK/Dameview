@@ -34,7 +34,6 @@ internal sealed class SplitView : UiElement, ISplitResizerTarget
         DividerOffsetDips = initialDividerOffsetDips;
         Edge = edge;
         _resizer = new SplitResizer(this);
-        _resizer.ResizeStarted += () => ResizeStarted?.Invoke();
         _resizer.ResizeCompleted += () => ResizeCompleted?.Invoke();
         // Collapsing slides the pane in from its edge while the first pane gives way.
         _secondPane.Transition = new UiTransition(Collapse: true);
@@ -44,8 +43,6 @@ internal sealed class SplitView : UiElement, ISplitResizerTarget
         AddChild(_resizer);
     }
 
-    /// <summary>Raised when the user begins dragging the splitter.</summary>
-    internal event Action? ResizeStarted;
     /// <summary>Raised when the user finishes or cancels dragging the splitter.</summary>
     internal event Action? ResizeCompleted;
 

@@ -64,6 +64,8 @@ internal sealed unsafe class AppWindow : IDisposable
     internal event Action? Shown;
     internal event Action? Closed;
     internal event Action<int, int>? Resized;
+    internal event Action? SizeMoveStarted;
+    internal event Action? SizeMoveEnded;
     internal event Action<float>? DpiChanged;
     internal event Action<WindowFileDragEvent>? FileDragInput;
     internal event Action<WindowKeyEvent>? KeyPressed;
@@ -706,6 +708,14 @@ internal sealed unsafe class AppWindow : IDisposable
                 ClientHeight = unchecked((ushort)((long)lParam >> 16));
                 Resized?.Invoke(ClientWidth, ClientHeight);
                 RenderRequestedFrame();
+                return default;
+
+            case WM_ENTERSIZEMOVE:
+                SizeMoveStarted?.Invoke();
+                return default;
+
+            case WM_EXITSIZEMOVE:
+                SizeMoveEnded?.Invoke();
                 return default;
 
             case WM_DPICHANGED:

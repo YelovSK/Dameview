@@ -53,7 +53,6 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private string? _pressedPath;
     private PointF _pressPosition;
     private bool _dragging;
-    private bool _liveResize;
 
     internal GalleryPanel(
         ID2D1DeviceContext deviceContext,
@@ -166,25 +165,6 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     {
         _pendingSelectionScroll = SelectionScrollAlignment.Center;
         RevealSelectionIfPending();
-    }
-
-    /// <summary>
-    /// Enters interactive-resize mode. While active, thumbnails are stretched
-    /// from their cached source bitmaps so that each pointer move does not rebuild GPU bitmaps.
-    /// </summary>
-    internal void BeginLiveResize() => _liveResize = true;
-
-    /// <summary>Leaves interactive-resize mode and rebuilds thumbnails at the final size.</summary>
-    internal void EndLiveResize()
-    {
-        if (!_liveResize)
-        {
-            return;
-        }
-
-        _liveResize = false;
-        RefreshVisibleThumbnails();
-        InvalidateVisual();
     }
 
     internal void RecreateDeviceResources(ID2D1DeviceContext deviceContext)
@@ -492,9 +472,9 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         ID2D1Bitmap1 bitmap;
         float width;
         float height;
-        if (_liveResize)
+        if (Root?.IsResizing == true)
         {
-            // Stretching the source avoids rebuilding a GPU bitmap on every pointer move.
+            // Stretching the source avoids rebuilding a GPU bitmap on every size step.
             bitmap = source;
             float scale = MathF.Min(
                 bounds.Width / source.Size.Width,

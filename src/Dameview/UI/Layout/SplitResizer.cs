@@ -18,8 +18,6 @@ internal sealed class SplitResizer(ISplitResizerTarget target) : UiElement
     private float _dragStartPointer;
     private float _dragStartPosition;
 
-    /// <summary>Raised when an interactive resize begins.</summary>
-    internal event Action? ResizeStarted;
     /// <summary>Raised once an interactive resize finishes or is cancelled.</summary>
     internal event Action? ResizeCompleted;
 
@@ -66,7 +64,6 @@ internal sealed class SplitResizer(ISplitResizerTarget target) : UiElement
                 _dragStartPointer = GetPointerCoordinate(input.Position);
                 _dragStartPosition = target.DividerPosition;
                 Root?.BeginResize();
-                ResizeStarted?.Invoke();
                 return new UiPointerResult(Consumed: true, CapturePointer: true, NeedsRepaint: true);
 
             case WindowPointerEventKind.Moved when _dragging:

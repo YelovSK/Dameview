@@ -124,7 +124,7 @@ public sealed class SplitViewTests
     }
 
     [TestMethod]
-    public void DraggingTheSplitterRaisesResizeLifecycleEvents()
+    public void DraggingTheSplitterMarksTheRootAsResizing()
     {
         var splitView = new SplitView(
             new FixedContent(),
@@ -136,29 +136,27 @@ public sealed class SplitViewTests
         var root = new UiRoot(splitView, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(1000.0f, 800.0f));
 
-        int started = 0;
         int completed = 0;
-        splitView.ResizeStarted += () => started++;
         splitView.ResizeCompleted += () => completed++;
 
         root.HandlePointer(new WindowPointerEvent(
             WindowPointerEventKind.Pressed,
             new PointF(800.0f, 400.0f),
             PointerButton.Primary));
-        Assert.AreEqual(1, started);
+        Assert.IsTrue(root.IsResizing);
         Assert.AreEqual(0, completed);
 
         root.HandlePointer(new WindowPointerEvent(
             WindowPointerEventKind.Moved,
             new PointF(760.0f, 400.0f)));
-        Assert.AreEqual(1, started);
+        Assert.IsTrue(root.IsResizing);
         Assert.AreEqual(0, completed);
 
         root.HandlePointer(new WindowPointerEvent(
             WindowPointerEventKind.Released,
             new PointF(760.0f, 400.0f),
             PointerButton.Primary));
-        Assert.AreEqual(1, started);
+        Assert.IsFalse(root.IsResizing);
         Assert.AreEqual(1, completed);
     }
 
