@@ -241,20 +241,71 @@ public sealed class FolderScanSessionTests
     }
 
     [TestMethod]
+    public void ASecondSessionOnTheSameFolderReusesItsEntries()
+    {
+        using var fixture = new Fixture();
+        fixture.Session.OpenImage(Fixture.First);
+        fixture.Scanner.Complete(0, Fixture.First, Fixture.Second);
+        fixture.DeliverScan();
+
+        using ViewerSession second = fixture.CreateSession(new Loader());
+        second.OpenImage(Fixture.Second);
+        fixture.DeliverScan();
+
+        Assert.HasCount(1, fixture.Scanner.Requests);
+        Assert.HasCount(2, second.State.FolderEntries);
+        Assert.AreEqual(Fixture.Second, second.State.CurrentEntry!.FullName);
+        Assert.IsFalse(second.State.IsScanning);
+    }
+
+    [TestMethod]
+    public void SessionsOpeningAFolderDuringItsScanShareIt()
+    {
+        using var fixture = new Fixture();
+        fixture.Session.OpenImage(Fixture.First);
+        using ViewerSession second = fixture.CreateSession(new Loader());
+        second.OpenImage(Fixture.Second);
+
+        fixture.Scanner.Complete(0, Fixture.First, Fixture.Second);
+        fixture.DeliverScan();
+
+        Assert.HasCount(1, fixture.Scanner.Requests);
+        Assert.HasCount(2, fixture.Session.State.FolderEntries);
+        Assert.HasCount(2, second.State.FolderEntries);
+    }
+
+    [TestMethod]
+    public void AFolderIsWatchedUntilTheLastSessionLeavesIt()
+    {
+        using var fixture = new Fixture();
+        fixture.Session.OpenImage(Fixture.First);
+        ViewerSession second = fixture.CreateSession(new Loader());
+        second.OpenImage(Fixture.Second);
+        fixture.Scanner.WaitForRequest(0);
+        CancellationToken scan = fixture.Scanner.Requests[0].Token;
+
+        fixture.Session.OpenImage(@"C:\other-folder\a.jpg");
+        Assert.IsFalse(scan.IsCancellationRequested);
+        second.Dispose();
+        Assert.IsTrue(scan.IsCancellationRequested);
+    }
+
+    [TestMethod]
     public void FirstScanReportsBatchesThatAddUp()
     {
         using var posts = new BlockingCollection<Action>();
         using var scanner = new BatchScanner();
         using var watcher = new FakeFolderWatcher();
-        using var monitor = new FolderMonitor(
+        using var source = new FolderSource(
+            new FolderScope(@"C:\images", Recursive: true),
             scanner,
             watcher,
             new WindowSynchronizationContext(posts.Add),
             debounceMilliseconds: 0,
             progressInterval: TimeSpan.FromMilliseconds(10));
         var updates = new List<FolderUpdate>();
-        monitor.Updated += updates.Add;
-        monitor.Open(new FolderScope(@"C:\images", Recursive: true));
+        source.Updated += updates.Add;
+        source.Start();
 
         scanner.Found.Add(new FolderEntry(Fixture.First, 1, default, default));
         Assert.IsTrue(posts.TryTake(out Action? batch, TimeSpan.FromSeconds(5)));
@@ -272,6 +323,8 @@ public sealed class FolderScanSessionTests
         Assert.IsFalse(updates[0].ScanFinished);
         Assert.IsTrue(updates[^1].ScanFinished);
         Assert.AreEqual(Fixture.First, updates[0].Entries.Single().FullName);
+        Assert.HasCount(2, source.Snapshot!.Entries);
+        Assert.IsTrue(source.Snapshot.ScanFinished);
     }
 
     [TestMethod]
@@ -279,7 +332,7 @@ public sealed class FolderScanSessionTests
     {
         var scanner = new ExtensionScanner();
         using var watcher = new FakeFolderWatcher();
-        using FolderMonitor monitor = OpenIdleMonitor(scanner, watcher);
+        using FolderSource source = StartIdleSource(scanner, watcher);
 
         watcher.RaiseChanged(@"C:\images\notes.txt");
         Assert.AreEqual(1, scanner.Requests);
@@ -293,7 +346,7 @@ public sealed class FolderScanSessionTests
     {
         var scanner = new ExtensionScanner();
         using var watcher = new FakeFolderWatcher();
-        using FolderMonitor monitor = OpenIdleMonitor(scanner, watcher);
+        using FolderSource source = StartIdleSource(scanner, watcher);
 
         watcher.RaiseRenamed(@"C:\images\pic.txt", @"C:\images\pic.jpg");
         Assert.AreEqual(2, scanner.Requests);
@@ -303,19 +356,24 @@ public sealed class FolderScanSessionTests
     }
 
     // Changes that arrive while a scan runs wait for it, so these start from a finished scan.
-    private static FolderMonitor OpenIdleMonitor(ExtensionScanner scanner, FakeFolderWatcher watcher)
+    private static FolderSource StartIdleSource(ExtensionScanner scanner, FakeFolderWatcher watcher)
     {
         var scanned = new TaskCompletionSource();
-        var monitor = new FolderMonitor(scanner, watcher, new WindowSynchronizationContext(post => post()), debounceMilliseconds: 0);
-        monitor.Updated += _ => scanned.TrySetResult();
-        monitor.Open(new FolderScope(@"C:\images", Recursive: false));
+        var source = new FolderSource(
+            new FolderScope(@"C:\images", Recursive: false),
+            scanner,
+            watcher,
+            new WindowSynchronizationContext(post => post()),
+            debounceMilliseconds: 0);
+        source.Updated += _ => scanned.TrySetResult();
+        source.Start();
         Assert.IsTrue(scanned.Task.Wait(TimeSpan.FromSeconds(5)));
         Assert.AreEqual(1, scanner.Requests);
-        return monitor;
+        return source;
     }
 
     [TestMethod]
-    public void SlowWatcherDoesNotBlockOpen()
+    public void SlowWatcherDoesNotBlockStart()
     {
         string directory = Path.Combine(Path.GetTempPath(), $"Dameview-watch-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
@@ -327,12 +385,12 @@ public sealed class FolderScanSessionTests
             release.Wait();
         } };
         var scanner = new ExtensionScanner();
-        using var monitor = new FolderMonitor(scanner, watcher, new WindowSynchronizationContext(_ => { }));
+        using FolderSource source = CreateSource(directory, scanner, watcher);
         try
         {
-            var open = Task.Run(() => monitor.Open(new FolderScope(directory, Recursive: false)));
+            var start = Task.Run(source.Start);
             Assert.IsTrue(entered.Wait(TimeSpan.FromSeconds(5)));
-            Assert.IsTrue(open.Wait(TimeSpan.FromSeconds(1)));
+            Assert.IsTrue(start.Wait(TimeSpan.FromSeconds(1)));
             Assert.AreEqual(0, scanner.Requests);
             release.Set();
             scanner.WaitForRequests(1);
@@ -345,13 +403,13 @@ public sealed class FolderScanSessionTests
     }
 
     [TestMethod]
-    public void ClosingDuringWatcherStartupCancelsTheScan()
+    public void DisposingDuringWatcherStartupCancelsTheScan()
     {
         string directory = Path.Combine(Path.GetTempPath(), $"Dameview-watch-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
         using var entered = new ManualResetEventSlim();
         using var release = new ManualResetEventSlim();
-        int stops = 0;
+        using var disposed = new ManualResetEventSlim();
         using var watcher = new FakeFolderWatcher
         {
             OnStart = () =>
@@ -359,18 +417,18 @@ public sealed class FolderScanSessionTests
                 entered.Set();
                 release.Wait();
             },
-            OnStop = () => Interlocked.Increment(ref stops),
+            OnDispose = disposed.Set,
         };
         var scanner = new ExtensionScanner();
-        using var monitor = new FolderMonitor(scanner, watcher, new WindowSynchronizationContext(_ => { }));
+        using FolderSource source = CreateSource(directory, scanner, watcher);
         try
         {
-            monitor.Open(new FolderScope(directory, Recursive: false));
+            source.Start();
             Assert.IsTrue(entered.Wait(TimeSpan.FromSeconds(5)));
-            var close = Task.Run(monitor.Close);
-            Assert.IsTrue(close.Wait(TimeSpan.FromSeconds(1)));
+            var dispose = Task.Run(source.Dispose);
+            Assert.IsTrue(dispose.Wait(TimeSpan.FromSeconds(1)));
             release.Set();
-            Assert.IsTrue(SpinWait.SpinUntil(() => Volatile.Read(ref stops) >= 2, TimeSpan.FromSeconds(5)));
+            Assert.IsTrue(disposed.Wait(TimeSpan.FromSeconds(5)));
             Assert.AreEqual(0, scanner.Requests);
         }
         finally
@@ -391,11 +449,11 @@ public sealed class FolderScanSessionTests
         };
         var failures = new ConcurrentQueue<Exception>();
         var scanner = new ExtensionScanner();
-        using var monitor = new FolderMonitor(scanner, watcher, new WindowSynchronizationContext(_ => { }));
-        monitor.WatcherFailed += failures.Enqueue;
+        using FolderSource source = CreateSource(directory, scanner, watcher);
+        source.WatcherFailed += failures.Enqueue;
         try
         {
-            monitor.Open(new FolderScope(directory, Recursive: false));
+            source.Start();
             scanner.WaitForRequests(1);
             Assert.IsTrue(failures.TryDequeue(out Exception? failure));
             Assert.IsInstanceOfType<InvalidOperationException>(failure);
@@ -405,6 +463,9 @@ public sealed class FolderScanSessionTests
             Directory.Delete(directory);
         }
     }
+
+    private static FolderSource CreateSource(string directory, ExtensionScanner scanner, FakeFolderWatcher watcher) =>
+        new(new FolderScope(directory, Recursive: false), scanner, watcher, new WindowSynchronizationContext(_ => { }));
 
     private sealed class Fixture : IDisposable
     {
@@ -416,14 +477,19 @@ public sealed class FolderScanSessionTests
         internal FakeFolderWatcher Watcher { get; } = new();
         internal Scanner Scanner { get; } = new();
         internal Loader Loader { get; } = new();
-        internal FolderMonitor Monitor { get; }
+        private readonly FolderSources _sources;
         internal ViewerSession Session { get; }
 
         internal Fixture()
         {
-            Monitor = new FolderMonitor(Scanner, Watcher, new WindowSynchronizationContext(_posts.Add), debounceMilliseconds: 0, progressInterval: Timeout.InfiniteTimeSpan);
-            Session = new ViewerSession(new FolderNavigator(), Monitor, Loader);
+            var context = new WindowSynchronizationContext(_posts.Add);
+            _sources = new FolderSources(
+                scope => new FolderSource(scope, Scanner, Watcher, context, debounceMilliseconds: 0, progressInterval: Timeout.InfiniteTimeSpan),
+                context);
+            Session = CreateSession(Loader);
         }
+
+        internal ViewerSession CreateSession(Loader loader) => new(new FolderNavigator(), new FolderMonitor(_sources), loader);
 
         internal Action TakeScan()
         {
@@ -438,7 +504,6 @@ public sealed class FolderScanSessionTests
 
         public void Dispose()
         {
-            Monitor.Dispose();
             Session.Dispose();
             _posts.Dispose();
         }
@@ -559,7 +624,7 @@ public sealed class FolderScanSessionTests
 internal sealed class FakeFolderWatcher : IFolderWatcher
 {
     internal Action? OnStart { get; init; }
-    internal Action? OnStop { get; init; }
+    internal Action? OnDispose { get; init; }
     public event Action<string>? Changed;
     public event Action<string>? Created;
     public event Action<string>? Deleted;
@@ -579,10 +644,10 @@ internal sealed class FakeFolderWatcher : IFolderWatcher
 
     public void Stop()
     {
-        OnStop?.Invoke();
     }
 
     public void Dispose()
     {
+        OnDispose?.Invoke();
     }
 }

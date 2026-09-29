@@ -44,8 +44,7 @@ public sealed class ViewerSessionTests
         using var files = new SessionFiles();
         var loader = new ManualImageLoader();
         var scanner = new ImmediateScanner();
-        var monitor = new FolderMonitor(scanner, new FakeFolderWatcher(), new WindowSynchronizationContext(_posts.Enqueue), debounceMilliseconds: 0, progressInterval: Timeout.InfiniteTimeSpan);
-        using var session = new ViewerSession(new FolderNavigator(), monitor, loader);
+        using var session = new ViewerSession(new FolderNavigator(), CreateMonitor(scanner), loader);
         session.Viewport.SetViewportSize(800, 600);
         session.OpenImage(files.First);
         DeliverFolder(session);
@@ -232,10 +231,17 @@ public sealed class ViewerSessionTests
 
     private ViewerSession CreateSession(ManualImageLoader loader)
     {
-        var monitor = new FolderMonitor(new ImmediateScanner(), new FakeFolderWatcher(), new WindowSynchronizationContext(_posts.Enqueue), debounceMilliseconds: 0, progressInterval: Timeout.InfiniteTimeSpan);
-        var session = new ViewerSession(new FolderNavigator(), monitor, loader);
+        var session = new ViewerSession(new FolderNavigator(), CreateMonitor(new ImmediateScanner()), loader);
         session.Viewport.SetViewportSize(800, 600);
         return session;
+    }
+
+    private FolderMonitor CreateMonitor(IFolderScanner scanner)
+    {
+        var context = new WindowSynchronizationContext(_posts.Enqueue);
+        return new FolderMonitor(new FolderSources(
+            scope => new FolderSource(scope, scanner, new FakeFolderWatcher(), context, debounceMilliseconds: 0, progressInterval: Timeout.InfiniteTimeSpan),
+            context));
     }
 
     private void DeliverFolder(ViewerSession session)

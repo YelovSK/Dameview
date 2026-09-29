@@ -40,7 +40,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
     private readonly RenderBitmapCache _renderBitmapCache;
     private readonly RenderBitmapCache _thumbnailBitmapCache;
     private readonly ThumbnailImageLoader _thumbnailImageLoader;
-    private readonly IFolderScanner _folderScanner;
+    private readonly FolderSources _folderSources;
     private readonly HashSet<string> _decodableExtensions;
     private readonly ViewerWorkspace _workspace;
     private readonly SettingsService _settings;
@@ -115,8 +115,17 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         StartupTrace.Mark("wic");
         HashSet<string>.AlternateLookup<ReadOnlySpan<char>> decodableExtensions =
             _decodableExtensions.GetAlternateLookup<ReadOnlySpan<char>>();
-        _folderScanner = new FolderScanner(
+        var folderScanner = new FolderScanner(
             path => decodableExtensions.Contains(Path.GetExtension(path)));
+        _folderSources = new FolderSources(
+            scope =>
+            {
+                var source = new FolderSource(scope, folderScanner, new FileSystemFolderWatcher(), _uiContext);
+                source.WatcherFailed += exception =>
+                    Log.Error("Folder", "Folder watcher failed.", exception);
+                return source;
+            },
+            _uiContext);
         _workspace = new ViewerWorkspace(CreateTab);
         _settings = new SettingsService(SettingsService.DefaultPath, _uiContext, loaded: startupSettings);
         _updates = new UpdateService(
@@ -540,15 +549,9 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
             () => _renderer.DeviceContext,
             _thumbnailImageLoader,
             _uiContext);
-        var folderMonitor = new FolderMonitor(
-            _folderScanner,
-            new FileSystemFolderWatcher(),
-            _uiContext);
-        folderMonitor.WatcherFailed += exception =>
-            Log.Error("Folder", "Folder watcher failed.", exception);
         var session = new ViewerSession(
             new FolderNavigator(),
-            folderMonitor,
+            new FolderMonitor(_folderSources),
             imageLoader);
         return new ViewerTab(session);
     }

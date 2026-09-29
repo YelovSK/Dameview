@@ -21,4 +21,12 @@ internal sealed record FolderScope(string DirectoryPath, bool Recursive)
                 || Path.EndsInDirectorySeparator(DirectoryPath)
                 || parent[DirectoryPath.Length] == Path.DirectorySeparatorChar);
     }
+
+    public bool Equals(FolderScope? other) =>
+        other is not null
+        && Recursive == other.Recursive
+        && string.Equals(DirectoryPath, other.DirectoryPath, StringComparison.OrdinalIgnoreCase);
+
+    public override int GetHashCode() =>
+        HashCode.Combine(StringComparer.OrdinalIgnoreCase.GetHashCode(DirectoryPath), Recursive);
 }
