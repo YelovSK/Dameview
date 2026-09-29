@@ -28,7 +28,7 @@ public sealed class PresentationImageLoaderTests
             TestPolicy);
         using ImageLoadClient producer = service.CreateClient();
         using var cache = new RenderBitmapCache(1024, _ => { });
-        using var loader = CreateLoader(producer, cache);
+        using PresentationImageLoader loader = CreateLoader(producer, cache);
         ImageLoaded? first = null;
 
         loader.Load("image", result =>
@@ -64,7 +64,7 @@ public sealed class PresentationImageLoaderTests
         using ImageLoadClient producer = service.CreateClient();
         using var cache = new RenderBitmapCache(4, _ => { });
         using CachedBitmapLease current = cache.AddAndAcquire("current", null!, 1, 1);
-        using var loader = CreateLoader(producer, cache);
+        using PresentationImageLoader loader = CreateLoader(producer, cache);
 
         loader.Preload(["next"]);
 

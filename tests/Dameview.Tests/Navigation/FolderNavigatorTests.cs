@@ -99,7 +99,7 @@ public sealed class FolderNavigatorTests
 
     private sealed class FolderFiles
     {
-        internal string Path => @"C:\virtual-images";
+        internal const string Path = @"C:\virtual-images";
         internal List<FolderEntry> Files { get; } = [];
 
         internal string CreateFile(string name, int size)

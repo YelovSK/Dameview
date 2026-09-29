@@ -62,7 +62,7 @@ internal static class AppUpdateApplier
         startInfo.ArgumentList.Add(Path.GetFullPath(updatePath));
         try
         {
-            using var helper = Process.Start(startInfo)
+            using Process helper = Process.Start(startInfo)
                 ?? throw new InvalidOperationException("Could not start the temporary updater.");
             Log.Info("Updates", $"Updater process {helper.Id} started; closing viewer.");
         }

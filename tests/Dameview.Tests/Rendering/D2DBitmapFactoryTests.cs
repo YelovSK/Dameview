@@ -54,7 +54,7 @@ public sealed class D2DBitmapFactoryTests
     private static DecodedImage CreateImage(int width, int height)
     {
         int stride = width * 4;
-        var pixels = new byte[stride * height];
+        byte[] pixels = new byte[stride * height];
         for (int i = 0; i < pixels.Length; i++)
         {
             // Premultiplied alpha: keep the colour channels at or below the alpha channel.

@@ -1,0 +1,10 @@
+<Project>
+
+  <PropertyGroup>
+    <!-- IDE0005 only runs on build with a documentation file. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- The file brings doc-completeness warnings along, which are not wanted. -->
+    <NoWarn>$(NoWarn);CS1573;CS1591</NoWarn>
+  </PropertyGroup>
+
+</Project>

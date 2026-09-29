@@ -70,6 +70,11 @@ dotnet_style_prefer_auto_properties = true:warning
 csharp_style_prefer_foreach = true:warning
 csharp_style_prefer_primary_constructors = true:warning
 
+# Performance and cancellation hygiene that tests do not need.
+[tests/**.cs]
+dotnet_diagnostic.CA1861.severity = none
+dotnet_diagnostic.CA2016.severity = none
+
 [*.{json,md,slnx,xml}]
 indent_style = space
 indent_size = 2

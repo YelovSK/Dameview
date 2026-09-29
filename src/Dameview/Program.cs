@@ -52,7 +52,7 @@ internal static class Program
             StartupTrace.Mark("mode");
             AppSettings startupSettings = SettingsService.LoadForStartup();
             StartupTrace.Mark("settings");
-            using var instance = startupSettings.SingleInstance
+            using SingleInstanceHost? instance = startupSettings.SingleInstance
                 ? SingleInstanceHost.AcquireOrForward(args)
                 : null;
             if (instance is null)

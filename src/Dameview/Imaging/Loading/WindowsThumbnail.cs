@@ -51,7 +51,7 @@ internal static unsafe partial class WindowsThumbnail
             int width = source.Size.Width;
             int height = source.Size.Height;
             int stride = checked(width * 4);
-            DecodedImageUpload pixels = DecodedImageUpload.Allocate(width, height, stride);
+            var pixels = DecodedImageUpload.Allocate(width, height, stride);
             try
             {
                 converter.CopyPixels((uint)stride, pixels.Span);

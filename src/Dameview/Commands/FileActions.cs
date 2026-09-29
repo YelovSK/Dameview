@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Dameview.Diagnostics;
 using Dameview.Imaging.Loading;
 using Dameview.Notifications;
@@ -44,6 +45,7 @@ internal sealed class FileActions : IDisposable
         }
     }
 
+    [SuppressMessage("Performance", "CA1822", Justification = "Part of the instance API commands use through the host.")]
     internal void ShowInFolder(string path) => ShellIntegration.ShowInFolder(path);
 
     internal void OpenWith(string path)

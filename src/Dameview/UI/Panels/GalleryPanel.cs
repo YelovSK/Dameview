@@ -1,5 +1,4 @@
 using System.Drawing;
-using System.Numerics;
 using Dameview.Imaging.Loading;
 using Dameview.Navigation;
 using Dameview.Settings;

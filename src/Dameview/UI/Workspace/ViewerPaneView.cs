@@ -233,7 +233,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             MathF.Max(0.0f, finalSize.Height - tabHeight));
         _contentOverlay.Arrange(ContentBounds);
 
-        ViewerLayout layout = ViewerLayout.Calculate(
+        var layout = ViewerLayout.Calculate(
             ContentBounds.Size,
             statusWidthDips: _statusPanel.DesiredSize.Width,
             statusHeightDips: _statusPanel.DesiredSize.Height,

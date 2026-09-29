@@ -64,7 +64,7 @@ internal static class D2DBitmapFactory
         try
         {
             int stride = checked((int)mapped.Pitch);
-            var pixels = new byte[(long)stride * pixelSize.Height];
+            byte[] pixels = new byte[(long)stride * pixelSize.Height];
             Marshal.Copy(mapped.Bits, pixels, 0, pixels.Length);
             return new DecodedImage(pixelSize.Width, pixelSize.Height, stride, pixels);
         }

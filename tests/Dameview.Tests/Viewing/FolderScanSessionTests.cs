@@ -473,7 +473,7 @@ public sealed class FolderScanSessionTests
         internal const string Second = @"C:\images\b.jpg";
         internal const string Third = @"C:\images\c.jpg";
         internal const string Nested = @"C:\images\sub\d.jpg";
-        private readonly BlockingCollection<Action> _posts = new();
+        private readonly BlockingCollection<Action> _posts = [];
         internal FakeFolderWatcher Watcher { get; } = new();
         internal Scanner Scanner { get; } = new();
         internal Loader Loader { get; } = new();
