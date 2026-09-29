@@ -133,7 +133,7 @@ internal sealed class Dropdown<T> : InteractiveControl
         }
 
         SetVisualState(UiVisualState.Open, true);
-        _popupHost.Show(this, _popupList, _popupList.PreferredSize(Bounds.Width), OnPopupClosed);
+        _popupHost.Show(this, _popupList, OnPopupClosed);
     }
 
     protected override void OnVisualStateChanged()
@@ -190,6 +190,7 @@ internal sealed class Dropdown<T> : InteractiveControl
         private const float HorizontalPadding = 4.0f;
         private const float VerticalPadding = 2.0f;
         private const float ItemHeight = 40.0f;
+        private const float MinimumWidth = 160.0f;
 
         private readonly Button[] _buttons;
         private readonly StackPanel _column;
@@ -229,19 +230,14 @@ internal sealed class Dropdown<T> : InteractiveControl
 
         internal void SetLabel(int index, string label) => _buttons[index].Label = label;
 
-        internal SizeF PreferredSize(float anchorWidth)
-        {
-            float height = 2.0f * VerticalPadding + _buttons.Length * ItemHeight;
-            return new SizeF(MathF.Max(160.0f, anchorWidth), height);
-        }
-
+        // The host widens the list to its dropdown.
         protected override SizeF MeasureCore(SizeF availableSize)
         {
-            var contentSize = new SizeF(
-                MathF.Max(0.0f, availableSize.Width - 2.0f * HorizontalPadding),
-                MathF.Max(0.0f, availableSize.Height - 2.0f * VerticalPadding));
-            _column.Measure(contentSize);
-            return availableSize;
+            var size = new SizeF(MinimumWidth, 2.0f * VerticalPadding + _buttons.Length * ItemHeight);
+            _column.Measure(new SizeF(
+                size.Width - 2.0f * HorizontalPadding,
+                size.Height - 2.0f * VerticalPadding));
+            return size;
         }
 
         protected override void ArrangeCore(SizeF finalSize)

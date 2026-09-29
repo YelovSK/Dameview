@@ -18,6 +18,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
     private ID2D1DeviceContext _deviceContext;
     private ID2D1DeviceContext _scaleContext;
     private readonly ImagePresentationCache _presentationCache;
+    private readonly Action<PointF> _contextMenuRequested;
     private ImageViewport _viewport;
     private ViewportAnimator _animator;
     private const float PanStartThresholdDips = 4.0f;
@@ -37,8 +38,10 @@ internal sealed class ImagePanel : UiElement, IDisposable
     internal ImagePanel(
         ID2D1DeviceContext deviceContext,
         ImageViewport viewport,
-        ViewportAnimator animator)
+        ViewportAnimator animator,
+        Action<PointF> contextMenuRequested)
     {
+        _contextMenuRequested = contextMenuRequested;
         _deviceContext = deviceContext;
         _scaleContext = CreateScaleContext(deviceContext);
         _presentationCache = new ImagePresentationCache(deviceContext);
@@ -405,6 +408,10 @@ internal sealed class ImagePanel : UiElement, IDisposable
                 _pointerPressed = false;
                 _isPanning = false;
                 _animator.ToggleFitAndActualSizeAt(ToPixels(input.Position.X), ToPixels(input.Position.Y));
+                return new UiPointerResult(Consumed: true, NeedsRepaint: true);
+
+            case WindowPointerEventKind.Pressed when input.Button == PointerButton.Secondary:
+                _contextMenuRequested(input.Position);
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
             case WindowPointerEventKind.Wheel:

@@ -8,6 +8,7 @@ internal sealed class UiRoot
 {
     private readonly UiElement _content;
     private UiElement? _hoveredElement;
+    private PointerButton _captureButton;
     private SizeF _pixelSize;
     private bool _layoutDirty = true;
     private int _activeResizes;
@@ -99,6 +100,12 @@ internal sealed class UiRoot
 
         UiElement? hit = _content.HitTest(input.Position);
         SetHovered(hit);
+
+        // Another button's clicks during a drag would end or redirect it.
+        if (CapturedElement is not null && IsOtherButton(input.Button))
+        {
+            return true;
+        }
 
         UiElement? target = CapturedElement ?? hit;
         if (input.Kind == WindowPointerEventKind.Pressed)
@@ -351,6 +358,7 @@ internal sealed class UiRoot
             if (result.CapturePointer && input.Kind == WindowPointerEventKind.Pressed)
             {
                 CapturedElement = element;
+                _captureButton = input.Button;
                 element.SetVisualState(UiVisualState.Pressed, true);
             }
 
@@ -399,6 +407,11 @@ internal sealed class UiRoot
     }
 
     private WindowCursor _cursor;
+
+    private bool IsOtherButton(PointerButton button) =>
+        button != PointerButton.None
+        && _captureButton != PointerButton.None
+        && button != _captureButton;
 
     private static UiElement? FindFocusable(UiElement? element)
     {

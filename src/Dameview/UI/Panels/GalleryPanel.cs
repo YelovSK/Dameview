@@ -34,6 +34,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private readonly Action<string> _openImage;
     private readonly Action<string> _openInNewTab;
     private readonly Action<string, WorkspaceDragEvent>? _dragPointer;
+    private readonly Action<string, PointF>? _contextMenuRequested;
     private readonly Scrollbar _scrollbar;
     private readonly Button _flattenButton;
     private readonly Button _recenterButton;
@@ -61,13 +62,15 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         Action<string> openImage,
         Action<string> openInNewTab,
         Action toggleFlattenFolder,
-        Action<string, WorkspaceDragEvent>? dragPointer = null)
+        Action<string, WorkspaceDragEvent>? dragPointer = null,
+        Action<string, PointF>? contextMenuRequested = null)
     {
         _thumbnailScaleContext = CreateScaleContext(deviceContext);
         _thumbnailLoader = thumbnailLoader;
         _openImage = openImage;
         _openInNewTab = openInNewTab;
         _dragPointer = dragPointer;
+        _contextMenuRequested = contextMenuRequested;
         _scrollbar = new Scrollbar(SetScrollOffset);
         _flattenButton = new Button(
             UiTypography.OpenFolderIcon,
@@ -338,6 +341,15 @@ internal sealed class GalleryPanel : UiElement, IDisposable
                 if (middleClicked >= 0)
                 {
                     _openInNewTab(_state.Entries[middleClicked].FullName);
+                }
+
+                return new UiPointerResult(Consumed: true);
+
+            case WindowPointerEventKind.Pressed when input.Button == PointerButton.Secondary:
+                int rightClicked = HitTestItem(input.Position);
+                if (rightClicked >= 0)
+                {
+                    _contextMenuRequested?.Invoke(_state.Entries[rightClicked].FullName, input.Position);
                 }
 
                 return new UiPointerResult(Consumed: true);

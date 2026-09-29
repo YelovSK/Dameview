@@ -35,6 +35,7 @@ internal sealed class ViewerTabStrip : UiElement
     private readonly Action<int> _closeRequested;
     private readonly Action<ViewerTabInfo?, RectangleF>? _hoveredTabChanged;
     private readonly Action<int, WorkspaceDragEvent>? _dragPointer;
+    private readonly Action<int, PointF>? _contextMenuRequested;
     private readonly ScrollOffsetController _scrollOffset = new();
     // Drawing eases towards the layout, which hit testing follows without delay.
     private readonly AnimatedFloat _drawnTabWidth;
@@ -56,12 +57,14 @@ internal sealed class ViewerTabStrip : UiElement
         Action<int> closeRequested,
         Action addRequested,
         Action<ViewerTabInfo?, RectangleF>? hoveredTabChanged = null,
-        Action<int, WorkspaceDragEvent>? dragPointer = null)
+        Action<int, WorkspaceDragEvent>? dragPointer = null,
+        Action<int, PointF>? contextMenuRequested = null)
     {
         _selectionChanged = selectionChanged;
         _closeRequested = closeRequested;
         _hoveredTabChanged = hoveredTabChanged;
         _dragPointer = dragPointer;
+        _contextMenuRequested = contextMenuRequested;
         _addButton = new Button(
             "+",
             addRequested,
@@ -197,6 +200,15 @@ internal sealed class ViewerTabStrip : UiElement
                 }
 
                 return new UiPointerResult(Consumed: true, NeedsRepaint: index >= 0);
+
+            case WindowPointerEventKind.Pressed when input.Button == PointerButton.Secondary:
+                if (index >= 0)
+                {
+                    _hoveredTabChanged?.Invoke(null, RectangleF.Empty);
+                    _contextMenuRequested?.Invoke(index, input.Position);
+                }
+
+                return new UiPointerResult(Consumed: true);
 
             case WindowPointerEventKind.Released:
                 if (_dragging)

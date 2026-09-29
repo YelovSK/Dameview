@@ -9,11 +9,14 @@ namespace Dameview.UI.Components;
 // owned by the control that created it.
 internal sealed class PopupHost : UiElement
 {
+    private const float Margin = 8.0f;
+
     private UiElement? _anchor;
+    // A point within the anchor to open from, or the whole anchor when absent.
+    private PointF? _anchorPoint;
     private UiElement? _content;
     private Action? _closed;
     private readonly PopupPresenter _presenter;
-    private SizeF _preferredSize;
     private bool _outsidePressed;
 
     internal PopupHost()
@@ -27,16 +30,24 @@ internal sealed class PopupHost : UiElement
     internal override bool IsHitTestVisible => IsOpen;
     internal override bool PreservesFocusOnPointerPress => true;
 
-    internal void Show(UiElement anchor, UiElement content, SizeF preferredSize, Action closed)
+    /// <summary>Opens content, sized by its own measure, beside the anchor and at least as wide.</summary>
+    internal void Show(UiElement anchor, UiElement content, Action closed) =>
+        Show(anchor, anchorPoint: null, content, closed);
+
+    /// <summary>Opens content at a point in the anchor's coordinates, as a context menu does.</summary>
+    internal void ShowAt(UiElement anchor, PointF point, UiElement content, Action closed) =>
+        Show(anchor, point, content, closed);
+
+    private void Show(UiElement anchor, PointF? anchorPoint, UiElement content, Action closed)
     {
         ArgumentNullException.ThrowIfNull(anchor);
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(closed);
         RemoveContent(invokeClosed: true);
         _anchor = anchor;
+        _anchorPoint = anchorPoint;
         _content = content;
         _closed = closed;
-        _preferredSize = preferredSize;
         _outsidePressed = false;
         _presenter.SetContent(content);
         IsVisible = true;
@@ -70,7 +81,9 @@ internal sealed class PopupHost : UiElement
 
     protected override SizeF MeasureCore(SizeF availableSize)
     {
-        _presenter.Measure(_preferredSize);
+        _presenter.Measure(new SizeF(
+            MathF.Max(0.0f, availableSize.Width - 2.0f * Margin),
+            MathF.Max(0.0f, availableSize.Height - 2.0f * Margin)));
         return availableSize;
     }
 
@@ -87,21 +100,26 @@ internal sealed class PopupHost : UiElement
             return;
         }
 
-        const float margin = 8.0f;
         const float gap = 4.0f;
         RectangleF anchor = _anchor.GetBoundsRelativeTo(this);
-        float availableWidth = MathF.Max(0.0f, finalSize.Width - 2.0f * margin);
-        float availableHeight = MathF.Max(0.0f, finalSize.Height - 2.0f * margin);
-        float width = MathF.Min(MathF.Max(anchor.Width, _preferredSize.Width), availableWidth);
-        float height = MathF.Min(_preferredSize.Height, availableHeight);
-        float x = Math.Clamp(anchor.Left, margin, MathF.Max(margin, finalSize.Width - margin - width));
-        float below = finalSize.Height - margin - (anchor.Bottom + gap);
-        float above = anchor.Top - gap - margin;
+        if (_anchorPoint is { } point)
+        {
+            anchor = new RectangleF(anchor.X + point.X, anchor.Y + point.Y, 0.0f, 0.0f);
+        }
+
+        SizeF desired = _content.DesiredSize;
+        float availableWidth = MathF.Max(0.0f, finalSize.Width - 2.0f * Margin);
+        float availableHeight = MathF.Max(0.0f, finalSize.Height - 2.0f * Margin);
+        float width = MathF.Min(MathF.Max(anchor.Width, desired.Width), availableWidth);
+        float height = MathF.Min(desired.Height, availableHeight);
+        float x = Math.Clamp(anchor.Left, Margin, MathF.Max(Margin, finalSize.Width - Margin - width));
+        float below = finalSize.Height - Margin - (anchor.Bottom + gap);
+        float above = anchor.Top - gap - Margin;
         bool opensBelow = below >= height || below >= above;
         float y = opensBelow
             ? anchor.Bottom + gap
             : anchor.Top - gap - height;
-        y = Math.Clamp(y, margin, MathF.Max(margin, finalSize.Height - margin - height));
+        y = Math.Clamp(y, Margin, MathF.Max(Margin, finalSize.Height - Margin - height));
         // The popup unrolls from its anchor as it enters and rolls back up as it leaves.
         float visibleHeight = height * _presenter.LayoutPresence;
         _presenter.Arrange(new RectangleF(x, opensBelow ? y : y + height - visibleHeight, width, visibleHeight));
@@ -134,8 +152,11 @@ internal sealed class PopupHost : UiElement
                 Close();
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
-            case WindowPointerEventKind.Pressed
-                when input.Button == PointerButton.Primary && !insidePopup:
+            case WindowPointerEventKind.Wheel when !insidePopup:
+                Close();
+                return new UiPointerResult(Consumed: true, NeedsRepaint: true);
+
+            case WindowPointerEventKind.Pressed when !insidePopup:
                 _outsidePressed = true;
                 return new UiPointerResult(Consumed: true, CapturePointer: true);
 
@@ -162,6 +183,7 @@ internal sealed class PopupHost : UiElement
 
         Action? closed = invokeClosed ? _closed : null;
         _anchor = null;
+        _anchorPoint = null;
         _content = null;
         _closed = null;
         _outsidePressed = false;

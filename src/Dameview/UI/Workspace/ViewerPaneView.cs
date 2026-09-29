@@ -31,6 +31,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         ID2D1DeviceContext deviceContext,
         ViewerPane pane,
         ICommandRunner commands,
+        ViewerContextMenus contextMenus,
         Action<int> selectTab,
         Action<ViewerPane, ViewerTabInfo?, RectangleF> hoveredTabChanged,
         Action<ViewerPane, int, WorkspaceDragEvent> tabDragPointer)
@@ -45,7 +46,8 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         _imagePanel = new ImagePanel(
             deviceContext,
             session.Viewport,
-            session.Animator);
+            session.Animator,
+            point => contextMenus.ShowForImage(Pane.ActiveTab, _imagePanel!, point));
         _viewerTabs = new ViewerTabStrip(
             [new ViewerTabInfo("Dameview", null)],
             0,
@@ -53,7 +55,8 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             index => Run(AppCommands.CloseTab, pane.Tabs[index]),
             () => Run(AppCommands.NewTab, pane.ActiveTab),
             HandleHoveredTabChanged,
-            (index, input) => tabDragPointer(Pane, index, TranslateTabStripEvent(input)));
+            (index, input) => tabDragPointer(Pane, index, TranslateTabStripEvent(input)),
+            (index, point) => contextMenus.ShowForTab(Pane.Tabs[index], _viewerTabs!, point));
         _emptyStatePanel = new EmptyStatePanel(
             deviceContext,
             () => Run(AppCommands.OpenFile, pane.ActiveTab),

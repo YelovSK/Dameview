@@ -39,6 +39,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private readonly ModalHost _modalHost;
     private readonly ToastHost _toastHost;
     private readonly PopupHost _popupHost;
+    private readonly ViewerContextMenus _contextMenus;
     private readonly UiAnimationClock _animationClock;
     private readonly UiRoot _root;
     private readonly Action<ViewerPane> _selectPane;
@@ -71,6 +72,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _animationClock = new UiAnimationClock(timeProvider);
         _activePane = workspace.ActivePane;
         _tabPreview = new TabPreview(thumbnailLoader);
+        _popupHost = new PopupHost();
+        _contextMenus = new ViewerContextMenus(_popupHost, app);
         _workspaceView = new WorkspaceView(
             workspace.Root,
             // Reads the field, so panes opened after a device switch use the live context.
@@ -78,6 +81,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
                 _deviceContext,
                 pane,
                 app,
+                _contextMenus,
                 index => app.SelectTab(pane, index),
                 ShowTabPreview,
                 HandleTabDragPointer));
@@ -96,7 +100,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
             app.SelectImage,
             app.OpenImageInNewTab,
             () => app.Execute(AppCommands.ToggleFlattenFolder, app.ActiveContext),
-            HandleGalleryDragPointer);
+            HandleGalleryDragPointer,
+            (path, point) => _contextMenus.ShowForGalleryItem(path, _galleryPanel!, point));
         _galleryPanel.Bind(GetGalleryState(_activePane.ActiveTab));
         _splitView = new SplitView(
             _workspaceView,
@@ -108,7 +113,6 @@ internal sealed class ViewerUi : UiElement, IDisposable
             settings => settings with { GallerySizeDips = _splitView.DividerOffsetDips });
         _modalHost = new ModalHost();
         _toastHost = new ToastHost(toasts);
-        _popupHost = new PopupHost();
         _settingsPanel = new SettingsPanel(
             _popupHost,
             CloseModal,
@@ -260,8 +264,11 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _root.InvalidateVisual();
     }
 
-    internal void ApplyKeyBindings(ViewerKeyBindings keyBindings) =>
+    internal void ApplyKeyBindings(ViewerKeyBindings keyBindings)
+    {
         _commandPalettePanel.ApplyKeyBindings(keyBindings);
+        _contextMenus.KeyBindings = keyBindings;
+    }
 
     internal void ApplySettings(AppSettings settings)
     {

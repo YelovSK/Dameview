@@ -52,6 +52,29 @@ public sealed class UiRootTests
     }
 
     [TestMethod]
+    public void AnotherButtonCannotEndOrJoinACapture()
+    {
+        var child = new TestElement(input => new UiPointerResult(
+            Consumed: true,
+            CapturePointer: input.Kind == WindowPointerEventKind.Pressed));
+        var content = new TestContainer(child, new RectangleF(100, 200, 80, 40));
+        var root = new UiRoot(content, UiDpi.Default, TestTextLayouts.Shared);
+        root.Arrange(new SizeF(800, 600));
+        root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, 110, 210));
+
+        root.HandlePointer(new WindowPointerEvent(
+            WindowPointerEventKind.Pressed, new PointF(120, 220), PointerButton.Secondary));
+        root.HandlePointer(new WindowPointerEvent(
+            WindowPointerEventKind.Released, new PointF(120, 220), PointerButton.Secondary));
+
+        Assert.HasCount(1, child.Events);
+        Assert.AreSame(child, root.CapturedElement);
+
+        root.HandlePointer(Pointer(WindowPointerEventKind.Released, 110, 210));
+        Assert.IsNull(root.CapturedElement);
+    }
+
+    [TestMethod]
     public void CancellationClearsCaptureAndCannotActivateALateRelease()
     {
         int clicks = 0;

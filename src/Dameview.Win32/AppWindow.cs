@@ -677,6 +677,22 @@ internal sealed unsafe class AppWindow : IDisposable
                     PointerButton.Middle));
                 return default;
 
+            // Nothing double-clicks this button, so the second click is just another press.
+            case WM_RBUTTONDOWN:
+            case WM_RBUTTONDBLCLK:
+                PointerInput?.Invoke(new WindowPointerEvent(
+                    WindowPointerEventKind.Pressed,
+                    new PointF(GetX(lParam), GetY(lParam)),
+                    PointerButton.Secondary));
+                return default;
+
+            case WM_RBUTTONUP:
+                PointerInput?.Invoke(new WindowPointerEvent(
+                    WindowPointerEventKind.Released,
+                    new PointF(GetX(lParam), GetY(lParam)),
+                    PointerButton.Secondary));
+                return default;
+
             case WM_MOUSEWHEEL:
                 var wheelPoint = new Point(GetX(lParam), GetY(lParam));
                 _ = ScreenToClient(window, ref wheelPoint);

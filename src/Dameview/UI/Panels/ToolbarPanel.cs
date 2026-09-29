@@ -28,8 +28,6 @@ internal sealed class ToolbarPanel : UiElement
             CommandButton("→", AppCommands.NextImage),
             CommandButton("Fit", AppCommands.FitImage),
             CommandButton("1:1", AppCommands.ShowActualSize),
-            CommandButton("Split →", AppCommands.SplitRight),
-            CommandButton("Split ↓", AppCommands.SplitDown),
             new Button(
                 UiTypography.SettingsIcon,
                 () => Run(AppCommands.ShowSettings),
