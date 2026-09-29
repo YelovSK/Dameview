@@ -33,7 +33,6 @@ internal sealed class FolderSource : IDisposable
     private bool _rescanPending;
     private bool _scanFinished;
     private string? _error;
-    private bool _updated;
     private bool _disposed;
 
     internal FolderSource(
@@ -58,16 +57,16 @@ internal sealed class FolderSource : IDisposable
         _watcher.Error += ScheduleDebounce;
     }
 
-    /// <summary>Raised after the update is applied to <see cref="Snapshot"/>.</summary>
+    /// <summary>Raised after the update is applied to <see cref="CreateSnapshot"/>.</summary>
     internal event Action<FolderUpdate>? Updated;
     internal event Action<Exception>? WatcherFailed;
 
     internal FolderScope Scope { get; }
 
-    /// <summary>Everything found so far as one update, or null before the first update.</summary>
-    internal FolderUpdate? Snapshot => _updated
-        ? new FolderUpdate([.. _entries], Appended: false, _scanFinished, _error)
-        : null;
+    internal bool HasUpdates { get; private set; }
+
+    /// <summary>Everything found so far as one update.</summary>
+    internal FolderUpdate CreateSnapshot() => new([.. _entries], Appended: false, _scanFinished, _error);
 
     // The scan waits for the watcher, so that no change between the two goes unseen.
     internal void Start()
@@ -321,7 +320,7 @@ internal sealed class FolderSource : IDisposable
         _entries.AddRange(update.Entries);
         _error = update.Error;
         _scanFinished |= update.ScanFinished;
-        _updated = true;
+        HasUpdates = true;
     }
 
     private void PostToOwner(Action action) => _ownerContext.Post(_ => action(), null);

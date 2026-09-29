@@ -107,4 +107,14 @@ public sealed class FolderScannerTests
         Assert.IsTrue(new FolderScope(@"C:\", Recursive: true).Contains(@"C:\images\a.jpg"));
         Assert.IsFalse(new FolderScope(@"C:\", Recursive: true).Contains(@"D:\a.jpg"));
     }
+
+    [TestMethod]
+    public void ScopesDifferingOnlyInCasingOrTrailingSeparatorAreEqual()
+    {
+        var scope = new FolderScope(@"C:\images", Recursive: false);
+        Assert.AreEqual(scope, new FolderScope(@"C:\IMAGES\", Recursive: false));
+        Assert.AreEqual(scope.GetHashCode(), new FolderScope(@"c:\images\", Recursive: false).GetHashCode());
+        Assert.AreNotEqual(scope, new FolderScope(@"C:\images", Recursive: true));
+        Assert.AreEqual(@"C:\", new FolderScope(@"C:\", Recursive: false).DirectoryPath);
+    }
 }

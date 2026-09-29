@@ -3,6 +3,9 @@ namespace Dameview.Navigation;
 /// <summary>The folder whose images a session navigates, optionally including every subfolder.</summary>
 internal sealed record FolderScope(string DirectoryPath, bool Recursive)
 {
+    // So that C:\images and C:\images\ are the same scope. A root keeps its separator.
+    public string DirectoryPath { get; } = Path.TrimEndingDirectorySeparator(DirectoryPath);
+
     internal bool Contains(string filePath)
     {
         string? parent = Path.GetDirectoryName(filePath);

@@ -323,8 +323,9 @@ public sealed class FolderScanSessionTests
         Assert.IsFalse(updates[0].ScanFinished);
         Assert.IsTrue(updates[^1].ScanFinished);
         Assert.AreEqual(Fixture.First, updates[0].Entries.Single().FullName);
-        Assert.HasCount(2, source.Snapshot!.Entries);
-        Assert.IsTrue(source.Snapshot.ScanFinished);
+        FolderUpdate snapshot = source.CreateSnapshot();
+        Assert.HasCount(2, snapshot.Entries);
+        Assert.IsTrue(snapshot.ScanFinished);
     }
 
     [TestMethod]

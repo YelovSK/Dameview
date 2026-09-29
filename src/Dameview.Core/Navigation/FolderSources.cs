@@ -26,7 +26,7 @@ internal sealed class FolderSources(
 
         var subscription = new Subscription(this, shared, updated);
         shared.Subscriptions.Add(subscription);
-        if (shared.Source.Snapshot is null)
+        if (!shared.Source.HasUpdates)
         {
             subscription.Joined = true;
         }
@@ -43,7 +43,7 @@ internal sealed class FolderSources(
         if (!subscription.Released)
         {
             subscription.Joined = true;
-            subscription.Updated(subscription.Shared.Source.Snapshot!);
+            subscription.Updated(subscription.Shared.Source.CreateSnapshot());
         }
     }
 
