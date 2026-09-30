@@ -4,7 +4,6 @@ using Dameview.Commands;
 using Dameview.Diagnostics;
 using Dameview.Notifications;
 using Dameview.Settings;
-using Dameview.UI.Animation;
 using Dameview.UI.Components;
 using Dameview.UI.Foundation;
 using Dameview.UI.Layout;
@@ -16,16 +15,12 @@ using Dameview.Viewing;
 using Dameview.Win32.Input;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
-using Vortice.Mathematics;
 
 namespace Dameview.UI;
 
 internal sealed class ViewerUi : UiElement, IDisposable
 {
-    private ID2D1DeviceContext _deviceContext;
-    private ID2D1SolidColorBrush _brush;
-    private readonly UiTextLayoutCache _textLayouts;
-    private readonly UiDrawTally _drawTally = new();
+    private readonly UiHost _host;
     private readonly WorkspaceView _workspaceView;
     private readonly TabPreview _tabPreview;
     private readonly ToolTipHost _toolTipHost = new();
@@ -40,8 +35,6 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private readonly ToastHost _toastHost;
     private readonly PopupHost _popupHost;
     private readonly ViewerContextMenus _contextMenus;
-    private readonly UiAnimationClock _animationClock;
-    private readonly UiRoot _root;
     private readonly Action<ViewerPane> _selectPane;
     // A ConditionalWeakTable could tie these states to tab reachability, but explicit
     // disposal keeps this UI ownership visible and deterministic.
@@ -66,21 +59,17 @@ internal sealed class ViewerUi : UiElement, IDisposable
         ToastService toasts,
         TimeProvider? timeProvider = null)
     {
-        _deviceContext = deviceContext;
-        _brush = deviceContext.CreateSolidColorBrush(default(Color4));
-        _textLayouts = new UiTextLayoutCache(directWriteFactory);
+        _host = new UiHost(this, deviceContext, directWriteFactory, dpi, theme, timeProvider);
         _selectPane = app.SelectPane;
-        Palette = theme;
-        _animationClock = new UiAnimationClock(timeProvider);
         _activePane = workspace.ActivePane;
         _tabPreview = new TabPreview(thumbnailLoader);
         _popupHost = new PopupHost();
         _contextMenus = new ViewerContextMenus(_popupHost, app);
         _workspaceView = new WorkspaceView(
             workspace.Root,
-            // Reads the field, so panes opened after a device switch use the live context.
+            // Reads the host, so panes opened after a device switch use the live context.
             pane => new ViewerPaneView(
-                _deviceContext,
+                _host.DeviceContext,
                 pane,
                 app,
                 _contextMenus,
@@ -137,19 +126,18 @@ internal sealed class ViewerUi : UiElement, IDisposable
         AddChild(_performanceOverlay);
         AddChild(_toastHost);
         AddChild(_toolTipHost);
-        _root = new UiRoot(this, dpi, _textLayouts);
-        _root.CursorChanged += cursor => _cursorChanged?.Invoke(cursor);
-        _root.PointerPressed += HandlePointerPressed;
-        _root.PointerPressed += _ => _toolTipHost.Hide();
-        _root.ToolTipTargetChanged += _toolTipHost.Show;
+        _host.Root.CursorChanged += cursor => _cursorChanged?.Invoke(cursor);
+        _host.Root.PointerPressed += HandlePointerPressed;
+        _host.Root.PointerPressed += _ => _toolTipHost.Hide();
+        _host.Root.ToolTipTargetChanged += _toolTipHost.Show;
 
         ApplyActivePaneState(_activePane.ActiveSession.State);
     }
 
     internal event Action? Invalidated
     {
-        add => _root.Invalidated += value;
-        remove => _root.Invalidated -= value;
+        add => _host.Root.Invalidated += value;
+        remove => _host.Root.Invalidated -= value;
     }
 
     private Action<WindowCursor>? _cursorChanged;
@@ -160,32 +148,36 @@ internal sealed class ViewerUi : UiElement, IDisposable
         remove => _cursorChanged -= value;
     }
 
-    internal UiTheme Palette { get; set; }
+    internal UiTheme Palette
+    {
+        get => _host.Palette;
+        set => _host.Palette = value;
+    }
     internal TimeSpan? NextAnimationFrameDelay =>
         _workspaceView.NextAnimationFrameDelay
         ?? (_performanceOverlay.IsVisible ? PerformanceOverlay.HeartbeatInterval : null);
     internal bool IsClosingPane => _workspaceView.IsClosingPane;
     internal PaneLayoutArea PaneLayoutArea => new(
-        MathF.Max(1.0f, _root.DipsToPixels(_workspaceView.Bounds.Width)),
-        MathF.Max(1.0f, _root.DipsToPixels(_workspaceView.Bounds.Height)),
-        _root.DipsToPixels(SplitPanel.SplitterSizeDips),
-        _chromeVisible ? _root.DipsToPixels(ViewerPaneView.TabRowHeightDips) : 0.0f,
-        _root.DipsToPixels(SplitPanel.MinimumPaneSizeDips));
+        MathF.Max(1.0f, _host.Root.DipsToPixels(_workspaceView.Bounds.Width)),
+        MathF.Max(1.0f, _host.Root.DipsToPixels(_workspaceView.Bounds.Height)),
+        _host.Root.DipsToPixels(SplitPanel.SplitterSizeDips),
+        _chromeVisible ? _host.Root.DipsToPixels(ViewerPaneView.TabRowHeightDips) : 0.0f,
+        _host.Root.DipsToPixels(SplitPanel.MinimumPaneSizeDips));
 
     internal PointF GetImageViewportPoint(PointF nativePoint)
     {
         PointF point = new(
-            UiDpi.PixelsToDips(nativePoint.X, _root.Dpi),
-            UiDpi.PixelsToDips(nativePoint.Y, _root.Dpi));
+            UiDpi.PixelsToDips(nativePoint.X, _host.Root.Dpi),
+            UiDpi.PixelsToDips(nativePoint.Y, _host.Root.Dpi));
         RectangleF paneBounds = _activePaneView.GetBoundsRelativeTo(this);
         return _activePaneView.GetImageViewportPoint(
             new PointF(point.X - paneBounds.X, point.Y - paneBounds.Y),
-            _root.Dpi);
+            _host.Root.Dpi);
     }
 
     internal void BindActivePane(ViewerPane pane)
     {
-        _root.ClearPointer();
+        _host.Root.ClearPointer();
         _activePane = pane;
         if (FindPaneView(pane) is { } paneView)
         {
@@ -201,7 +193,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     internal void ApplyLayout(WorkspaceNode root, WorkspaceSplit? openingSplit)
     {
-        _root.ClearPointer();
+        _host.Root.ClearPointer();
         _tabPreview.Hide();
         _workspaceView.ApplyLayout(root, openingSplit);
         foreach (ViewerPaneView paneView in _workspaceView.PaneViews)
@@ -216,21 +208,21 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     internal void ApplyPaneRatios(WorkspaceNode root)
     {
-        _root.ClearPointer();
+        _host.Root.ClearPointer();
         _tabPreview.Hide();
         _workspaceView.ApplyPaneRatios(root);
     }
 
     internal bool BeginClosePane(ViewerPane pane, Action completed)
     {
-        _root.ClearPointer();
+        _host.Root.ClearPointer();
         _tabPreview.Hide();
         return _workspaceView.BeginClosePane(pane, completed);
     }
 
     internal void BindTab(ViewerPane pane, ViewerTab tab)
     {
-        _root.ClearPointer();
+        _host.Root.ClearPointer();
         FindPaneView(pane)?.BindTab(tab);
         if (ReferenceEquals(pane, _activePane))
         {
@@ -248,21 +240,17 @@ internal sealed class ViewerUi : UiElement, IDisposable
             ApplyActivePaneState(state);
         }
 
-        _root.InvalidateVisual();
+        _host.Root.InvalidateVisual();
     }
 
     internal void RecreateDeviceResources(ID2D1DeviceContext deviceContext)
     {
-        _deviceContext = deviceContext;
-        _brush.Dispose();
-        _brush = deviceContext.CreateSolidColorBrush(default(Color4));
+        _host.RecreateDeviceResources(deviceContext);
         _galleryPanel.RecreateDeviceResources(deviceContext);
         foreach (ViewerPaneView paneView in _workspaceView.PaneViews)
         {
             paneView.RecreateDeviceResources(deviceContext);
         }
-
-        _root.InvalidateVisual();
     }
 
     internal void ApplyKeyBindings(ViewerKeyBindings keyBindings)
@@ -293,8 +281,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
         }
 
         _animationsEnabled = settings.AnimationsEnabled;
-        _animationClock.Reset();
-        _root.InvalidateVisual();
+        _host.ResetClock();
+        _host.Root.InvalidateVisual();
     }
 
     internal void ApplyUpdateState(UpdateState state) => _settingsPanel.ApplyUpdateState(state);
@@ -320,17 +308,17 @@ internal sealed class ViewerUi : UiElement, IDisposable
     internal bool TogglePerformanceOverlay()
     {
         _performanceOverlay.IsVisible = !_performanceOverlay.IsVisible;
-        _root.InvalidateVisual();
+        _host.Root.InvalidateVisual();
         return _performanceOverlay.IsVisible;
     }
 
-    internal bool HandleCapturedKey(WindowKeyEvent input) => _root.HandleCapturedKey(input);
+    internal bool HandleCapturedKey(WindowKeyEvent input) => _host.Root.HandleCapturedKey(input);
 
     internal bool HandleKey(WindowKeyEvent input)
     {
         if (input.Key == WindowKey.Escape && _dragController.IsActive)
         {
-            _root.CancelPointer();
+            _host.Root.CancelPointer();
             return true;
         }
 
@@ -354,7 +342,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
                 return _modalHost.HandleEscape();
             }
 
-            _root.HandleKey(
+            _host.Root.HandleKey(
                 input,
                 _modalHost.Content!,
                 wrapFocus: true,
@@ -362,31 +350,30 @@ internal sealed class ViewerUi : UiElement, IDisposable
             return true;
         }
 
-        return _root.HandleKey(
+        return _host.Root.HandleKey(
             input,
             _activePaneView.FocusScope,
             wrapFocus: false,
             directionalNavigation: false);
     }
 
-    internal bool HandleTextInput(string text) => _root.HandleTextInput(text);
+    internal bool HandleTextInput(string text) => _host.Root.HandleTextInput(text);
 
-    internal void SetDpi(float dpi) => _root.SetDpi(dpi);
+    internal void SetDpi(float dpi) => _host.Root.SetDpi(dpi);
 
-    internal void BeginResize() => _root.BeginResize();
+    internal void BeginResize() => _host.Root.BeginResize();
 
-    internal void EndResize() => _root.EndResize();
+    internal void EndResize() => _host.Root.EndResize();
 
     internal bool Update()
     {
-        UiUpdateContext context = _animationClock.GetNextFrame(_animationsEnabled);
-        bool continues = _root.Update(context);
+        bool continues = _host.Update(_animationsEnabled);
         _workspaceView.CompletePendingClose();
         // Only real animation work counts: a heartbeat that merely keeps the overlay ticking
         // must not hold the clock open, or the next animation starts with a frame's backlog.
         if (!continues && _workspaceView.NextAnimationFrameDelay is null)
         {
-            _animationClock.Reset();
+            _host.ResetClock();
         }
 
         return continues;
@@ -401,28 +388,25 @@ internal sealed class ViewerUi : UiElement, IDisposable
     /// later one, and some of what a frame submits is paid here rather than in EndDraw.
     /// </remarks>
     internal TimeSpan LastDrawTime { get; private set; }
-    internal int LayoutPasses => _root.LayoutPasses;
-    internal int LastDrawnElements => _drawTally.Elements;
-    internal int LastDrawOperations => _drawTally.Operations;
+    internal int LayoutPasses => _host.Root.LayoutPasses;
+    internal int LastDrawnElements => _host.LastDrawnElements;
+    internal int LastDrawOperations => _host.LastDrawOperations;
 
     internal void DrawFrame(SizeF pixelSize)
     {
         _workspaceView.UpdateStatuses();
 
         long layoutStarted = Stopwatch.GetTimestamp();
-        _root.Arrange(pixelSize);
+        _host.Root.Arrange(pixelSize);
         LastLayoutTime = Stopwatch.GetElapsedTime(layoutStarted);
 
         // The tree is arranged by now, so this only walks and draws it.
-        _drawTally.Reset();
-        var context = new UiDrawContext(
-            _deviceContext, _brush, _textLayouts, _drawTally, Palette, _root.Dpi);
         long drawStarted = Stopwatch.GetTimestamp();
-        _root.Draw(context, pixelSize);
+        _host.Draw(pixelSize);
         LastDrawTime = Stopwatch.GetElapsedTime(drawStarted);
     }
 
-    internal bool HandlePointer(in WindowPointerEvent input) => _root.HandlePointer(input);
+    internal bool HandlePointer(in WindowPointerEvent input) => _host.Root.HandlePointer(input);
 
     internal void HandleFileDrag(in WindowFileDragEvent input)
     {
@@ -435,16 +419,15 @@ internal sealed class ViewerUi : UiElement, IDisposable
             _ => throw new ArgumentOutOfRangeException(nameof(input)),
         };
         var position = new PointF(
-            UiDpi.PixelsToDips(input.Position.X, _root.Dpi),
-            UiDpi.PixelsToDips(input.Position.Y, _root.Dpi));
+            UiDpi.PixelsToDips(input.Position.X, _host.Root.Dpi),
+            UiDpi.PixelsToDips(input.Position.Y, _host.Root.Dpi));
         _dragController.HandleExternalFiles(input.Paths, new WorkspaceDragEvent(kind, position));
     }
 
     // Every child is a layer covering the whole window, stacked in the order they were added.
     public void Dispose()
     {
-        _root.ClearPointer();
-        _root.SetFocus(null);
+        _host.Dispose();
         _modalHost.Close();
         _popupHost.Close();
         _dragController.Cancel();
@@ -459,8 +442,6 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _tabPreview.Dispose();
         _galleryPanel.Dispose();
         _workspaceView.Dispose();
-        _textLayouts.Dispose();
-        _brush.Dispose();
     }
 
     private void ShowTabPreview(ViewerPane pane, ViewerTabInfo? tab, RectangleF tabBounds)
@@ -526,11 +507,11 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     private void ShowModal(ModalContent content, Action dismiss)
     {
-        _root.ClearPointer();
-        _root.SetFocus(null);
+        _host.Root.ClearPointer();
+        _host.Root.SetFocus(null);
         _popupHost.Close();
         _modalHost.Show(content, dismiss);
-        _root.SetFocus(content.InitialFocus);
+        _host.Root.SetFocus(content.InitialFocus);
     }
 
     private void CloseModal()
@@ -540,8 +521,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
             return;
         }
 
-        _root.ClearPointer();
-        _root.SetFocus(null);
+        _host.Root.ClearPointer();
+        _host.Root.SetFocus(null);
         _popupHost.Close();
         _modalHost.Close();
     }

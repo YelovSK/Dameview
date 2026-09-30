@@ -1,24 +1,18 @@
 using System.Drawing;
 using Dameview.Installation;
 using Dameview.Settings;
-using Dameview.UI.Animation;
 using Dameview.UI.Components;
 using Dameview.UI.Foundation;
 using Dameview.UI.Layout;
 using Dameview.Win32.Input;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
-using Vortice.Mathematics;
 
 namespace Dameview.UI;
 
 internal sealed class InstallerUi : UiElement, IDisposable
 {
-    private readonly ID2D1DeviceContext _deviceContext;
-    private readonly ID2D1SolidColorBrush _brush;
-    private readonly UiTextLayoutCache _textLayouts;
-    // Counted but never shown: the installer has no performance overlay to read it.
-    private readonly UiDrawTally _drawTally = new();
+    private readonly UiHost _host;
     private readonly AppInstallationRequest _request;
     private readonly TextBlock _title;
     private readonly TextBlock _description;
@@ -27,8 +21,6 @@ internal sealed class InstallerUi : UiElement, IDisposable
     private readonly Button _primaryButton;
     private readonly Button _secondaryButton;
     private readonly Button _uninstallButton;
-    private readonly UiAnimationClock _animationClock = new();
-    private readonly UiRoot _root;
 
     internal InstallerUi(
         ID2D1DeviceContext deviceContext,
@@ -39,9 +31,7 @@ internal sealed class InstallerUi : UiElement, IDisposable
         Action secondaryAction,
         Action uninstall)
     {
-        _deviceContext = deviceContext;
-        _brush = deviceContext.CreateSolidColorBrush(default(Color4));
-        _textLayouts = new UiTextLayoutCache(directWriteFactory);
+        _host = new UiHost(this, deviceContext, directWriteFactory, dpi, Themes.Dark.Palette);
         _request = request;
         (string title, string description) = GetCopy(request);
         _title = new TextBlock(
@@ -107,30 +97,29 @@ internal sealed class InstallerUi : UiElement, IDisposable
             MaxHeight = 320.0f,
             Margin = new UiThickness(UiDesign.WindowMargin),
         });
-        _root = new UiRoot(this, dpi, _textLayouts);
-        _root.SetFocus(_primaryButton);
+        _host.Root.SetFocus(_primaryButton);
     }
 
     internal event Action? Invalidated
     {
-        add => _root.Invalidated += value;
-        remove => _root.Invalidated -= value;
+        add => _host.Root.Invalidated += value;
+        remove => _host.Root.Invalidated -= value;
     }
 
     internal event Action<WindowCursor>? CursorChanged
     {
-        add => _root.CursorChanged += value;
-        remove => _root.CursorChanged -= value;
+        add => _host.Root.CursorChanged += value;
+        remove => _host.Root.CursorChanged -= value;
     }
 
-    internal UiTheme Palette { get; } = Themes.Dark.Palette;
+    internal UiTheme Palette => _host.Palette;
 
     internal void ShowError(string message)
     {
         _status.Text = message;
         _status.Tone = UiTextTone.Error;
         _status.IsVisible = true;
-        _root.InvalidateVisual();
+        _host.Root.InvalidateVisual();
     }
 
     internal void ShowUninstallConfirmation()
@@ -144,8 +133,8 @@ internal sealed class InstallerUi : UiElement, IDisposable
         _secondaryButton.Label = "Back";
         _secondaryButton.IsVisible = true;
         _uninstallButton.IsVisible = false;
-        _root.SetFocus(_primaryButton);
-        _root.InvalidateLayout();
+        _host.Root.SetFocus(_primaryButton);
+        _host.Root.InvalidateLayout();
     }
 
     internal void ShowInstallationActions()
@@ -160,8 +149,8 @@ internal sealed class InstallerUi : UiElement, IDisposable
         _secondaryButton.Label = "Run Portable";
         _secondaryButton.IsVisible = true;
         _uninstallButton.IsVisible = true;
-        _root.SetFocus(_primaryButton);
-        _root.InvalidateLayout();
+        _host.Root.SetFocus(_primaryButton);
+        _host.Root.InvalidateLayout();
     }
 
     internal void ShowUninstallComplete()
@@ -172,45 +161,33 @@ internal sealed class InstallerUi : UiElement, IDisposable
         _primaryButton.Label = "Close";
         _secondaryButton.IsVisible = false;
         _uninstallButton.IsVisible = false;
-        _root.SetFocus(_primaryButton);
-        _root.InvalidateLayout();
+        _host.Root.SetFocus(_primaryButton);
+        _host.Root.InvalidateLayout();
     }
 
     internal bool HandleKey(WindowKeyEvent input) =>
-        _root.HandleKey(input, this, wrapFocus: true, directionalNavigation: true);
+        _host.Root.HandleKey(input, this, wrapFocus: true, directionalNavigation: true);
 
-    internal void SetDpi(float dpi) => _root.SetDpi(dpi);
+    internal void SetDpi(float dpi) => _host.Root.SetDpi(dpi);
 
     internal bool Update()
     {
-        UiUpdateContext context = _animationClock.GetNextFrame();
-        bool continues = _root.Update(context);
+        bool continues = _host.Update();
         if (!continues)
         {
-            _animationClock.Reset();
+            _host.ResetClock();
         }
 
         return continues;
     }
 
-    internal void DrawFrame(SizeF pixelSize)
-    {
-        var context = new UiDrawContext(
-            _deviceContext, _brush, _textLayouts, _drawTally, Palette, _root.Dpi);
-        _root.Draw(context, pixelSize);
-    }
+    internal void DrawFrame(SizeF pixelSize) => _host.Draw(pixelSize);
 
-    internal bool HandlePointer(in WindowPointerEvent input) => _root.HandlePointer(input);
+    internal bool HandlePointer(in WindowPointerEvent input) => _host.Root.HandlePointer(input);
 
     protected override bool HitTestCore(PointF position) => false;
 
-    public void Dispose()
-    {
-        _root.ClearPointer();
-        _root.SetFocus(null);
-        _textLayouts.Dispose();
-        _brush.Dispose();
-    }
+    public void Dispose() => _host.Dispose();
 
     private static (string Title, string Description) GetCopy(AppInstallationRequest request)
     {
