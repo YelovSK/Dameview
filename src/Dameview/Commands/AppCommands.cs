@@ -69,13 +69,13 @@ internal static class AppCommands
 
     internal static readonly Command ShowActualSize = Command.ForTab(
         "showActualSize", "Show actual size", CommandScope.Viewer,
-        (_, tab, anchor) => tab.Session.Animator.ShowActualSizeAt(anchor.X, anchor.Y),
+        (_, tab, anchor) => tab.Session.Animator.ShowActualSizeAt(anchor),
         ShowsImage,
         [new(WindowKey.Number1), new(WindowKey.Numpad1)]);
 
     internal static readonly Command ToggleFitActualSize = Command.ForTab(
         "toggleFitActualSize", "Toggle fit and actual size", CommandScope.Viewer,
-        (_, tab, anchor) => tab.Session.Animator.ToggleFitAndActualSizeAt(anchor.X, anchor.Y),
+        (_, tab, anchor) => tab.Session.Animator.ToggleFitAndActualSizeAt(anchor),
         ShowsImage,
         [new(WindowKey.Z)]);
 

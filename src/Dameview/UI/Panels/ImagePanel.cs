@@ -97,7 +97,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
         _animator = animator;
         _animator.Started += InvalidateVisual;
         _animator.Reset();
-        _viewport.SetViewportSize(_viewportPixelSize.Width, _viewportPixelSize.Height);
+        _viewport.SetViewportSize(_viewportPixelSize);
     }
 
     internal void SetImage(ImageRepresentation image, bool isPreview)
@@ -207,7 +207,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
         _viewportPixelSize = pixelSize;
         _presentationCache.Clear();
         _animator.Reset();
-        _viewport.SetViewportSize(pixelSize.Width, pixelSize.Height);
+        _viewport.SetViewportSize(pixelSize);
     }
 
     private void SetAnimation(AnimatedImagePlayer animation)
@@ -367,9 +367,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
                 return new UiPointerResult(Consumed: true, CapturePointer: true);
 
             case WindowPointerEventKind.Moved when _pointerPressed:
-                PointF pointer = new(
-                    ToPixels(input.Position.X),
-                    ToPixels(input.Position.Y));
+                PointF pointer = ToPixels(input.Position);
                 if (!_isPanning)
                 {
                     float threshold = ToPixels(PanStartThresholdDips);
@@ -381,10 +379,10 @@ internal sealed class ImagePanel : UiElement, IDisposable
                     }
 
                     _isPanning = true;
-                    _animator.BeginPan(_panStart.X, _panStart.Y);
+                    _animator.BeginPan(_panStart);
                 }
 
-                _animator.PanTo(pointer.X, pointer.Y);
+                _animator.PanTo(pointer);
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
             case WindowPointerEventKind.Released when _pointerPressed:
@@ -407,7 +405,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
             case WindowPointerEventKind.DoubleClicked when input.Button == PointerButton.Primary:
                 _pointerPressed = false;
                 _isPanning = false;
-                _animator.ToggleFitAndActualSizeAt(ToPixels(input.Position.X), ToPixels(input.Position.Y));
+                _animator.ToggleFitAndActualSizeAt(ToPixels(input.Position));
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
             case WindowPointerEventKind.Pressed when input.Button == PointerButton.Secondary:
@@ -415,7 +413,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
             case WindowPointerEventKind.Wheel:
-                _animator.ZoomAt(ToPixels(input.Position.X), ToPixels(input.Position.Y), input.WheelDelta);
+                _animator.ZoomAt(ToPixels(input.Position), input.WheelDelta);
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
             default:
@@ -471,4 +469,6 @@ internal sealed class ImagePanel : UiElement, IDisposable
     }
 
     private float ToPixels(float value) => Root?.DipsToPixels(value) ?? value;
+
+    private PointF ToPixels(PointF point) => new(ToPixels(point.X), ToPixels(point.Y));
 }

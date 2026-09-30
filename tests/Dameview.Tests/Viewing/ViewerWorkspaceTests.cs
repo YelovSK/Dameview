@@ -13,9 +13,9 @@ public sealed class ViewerWorkspaceTests
     {
         using var workspace = new ViewerWorkspace(CreateTab);
         ViewerSession first = workspace.ActiveSession;
-        first.Viewport.SetViewportSize(800, 600);
-        first.Viewport.SetImageSize(1600, 1200);
-        first.Viewport.SetActualSizeAt(400, 300, first.Viewport.ImageCenter);
+        first.Viewport.SetViewportSize(new Size(800, 600));
+        first.Viewport.SetImageSize(new Size(1600, 1200));
+        first.Viewport.SetActualSizeAt(new PointF(400, 300), first.Viewport.ImageCenter);
 
         workspace.OpenImageInNewTab(@"C:\second\image.png");
 

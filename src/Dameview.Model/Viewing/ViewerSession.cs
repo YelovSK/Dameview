@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Drawing;
 using Dameview.Imaging.Loading;
 using Dameview.Navigation;
 
@@ -24,7 +25,7 @@ internal sealed class ViewerSession : IDisposable
         _imageLoader = imageLoader;
         _folderMonitor = folderMonitor;
         _folderMonitor.Updated += HandleFolderUpdated;
-        Viewport = new ImageViewport(0, 0);
+        Viewport = new ImageViewport(Size.Empty);
         Animator = new ViewportAnimator(Viewport);
     }
 
@@ -322,18 +323,14 @@ internal sealed class ViewerSession : IDisposable
                 case ImageLoaded { IsPreview: true } preview:
                     previousImage = State.DisplayedImage;
                     Animator.Reset();
-                    Viewport.SetImageSize(
-                        preview.Representation.Width,
-                        preview.Representation.Height);
+                    Viewport.SetImageSize(new Size(preview.Representation.Width, preview.Representation.Height));
                     State = State with { DisplayedImage = preview };
                     break;
 
                 case ImageLoaded loaded:
                     previousImage = State.DisplayedImage;
                     Animator.Reset();
-                    Viewport.SetImageSize(
-                        loaded.Representation.Width,
-                        loaded.Representation.Height);
+                    Viewport.SetImageSize(new Size(loaded.Representation.Width, loaded.Representation.Height));
                     State = State with
                     {
                         RequestedPath = loaded.Path,

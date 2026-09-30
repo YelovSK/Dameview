@@ -42,7 +42,7 @@ internal sealed class ViewportAnimator
         StopMomentum();
     }
 
-    internal bool ZoomAt(float viewportX, float viewportY, int wheelDelta)
+    internal bool ZoomAt(PointF viewportPoint, int wheelDelta)
     {
         if (wheelDelta == 0)
         {
@@ -60,34 +60,34 @@ internal sealed class ViewportAnimator
             return false;
         }
 
-        _zoom = new Zoom(targetScale, AnchorAt(viewportX, viewportY));
+        _zoom = new Zoom(targetScale, AnchorAt(viewportPoint));
         Started?.Invoke();
         return true;
     }
 
-    internal void BeginPan(float pointerX, float pointerY)
+    internal void BeginPan(PointF pointer)
     {
         _zoom = null;
         _transform = null;
-        _pan = new Pan(new PointF(pointerX, pointerY), _timeProvider.GetTimestamp());
+        _pan = new Pan(pointer, _timeProvider.GetTimestamp());
         StopMomentum();
     }
 
-    internal bool PanTo(float pointerX, float pointerY)
+    internal bool PanTo(PointF pointer)
     {
         if (_pan is not { } pan)
         {
             return false;
         }
 
-        var delta = new Vector2(pointerX - pan.Pointer.X, pointerY - pan.Pointer.Y);
+        var delta = new Vector2(pointer.X - pan.Pointer.X, pointer.Y - pan.Pointer.Y);
         long timestamp = _timeProvider.GetTimestamp();
         double elapsed = _timeProvider.GetElapsedTime(pan.Timestamp, timestamp).TotalSeconds;
 
-        _viewport.PanBy(delta.X, delta.Y);
+        _viewport.PanBy(delta);
         TrackPointerVelocity(delta, elapsed);
 
-        _pan = new Pan(new PointF(pointerX, pointerY), timestamp);
+        _pan = new Pan(pointer, timestamp);
         return delta != Vector2.Zero;
     }
 
@@ -118,7 +118,7 @@ internal sealed class ViewportAnimator
 
     internal bool Fit() => StartTransform(new Transform(_viewport.FitScale, _viewport.ImageCenter, Anchor: null));
 
-    internal bool ShowActualSizeAt(float viewportX, float viewportY)
+    internal bool ShowActualSizeAt(PointF viewportPoint)
     {
         Reset();
         if (!_viewport.HasImage)
@@ -126,18 +126,18 @@ internal sealed class ViewportAnimator
             return false;
         }
 
-        ZoomAnchor anchor = AnchorAt(viewportX, viewportY);
-        PointF targetCenter = _viewport.GetCenterAtScale(1.0f, viewportX, viewportY, anchor.Image);
+        ZoomAnchor anchor = AnchorAt(viewportPoint);
+        PointF targetCenter = _viewport.GetCenterAtScale(1.0f, anchor.Viewport, anchor.Image);
         return StartTransform(new Transform(1.0f, targetCenter, anchor));
     }
 
-    internal bool ToggleFitAndActualSizeAt(float viewportX, float viewportY)
+    internal bool ToggleFitAndActualSizeAt(PointF viewportPoint)
     {
         ViewportMode mode = _transform?.TargetMode
             ?? (_zoom is not null ? ViewportMode.Custom : _viewport.Mode);
         if (mode == ViewportMode.Fit)
         {
-            return ShowActualSizeAt(viewportX, viewportY);
+            return ShowActualSizeAt(viewportPoint);
         }
 
         return Fit();
@@ -163,8 +163,7 @@ internal sealed class ViewportAnimator
 
     private bool HasMomentum => _velocity.Length() >= MinimumMomentumSpeed;
 
-    private ZoomAnchor AnchorAt(float viewportX, float viewportY) =>
-        new(new PointF(viewportX, viewportY), _viewport.ViewportToImage(viewportX, viewportY));
+    private ZoomAnchor AnchorAt(PointF viewportPoint) => new(viewportPoint, _viewport.ViewportToImage(viewportPoint));
 
     private void StopMomentum()
     {
@@ -289,7 +288,7 @@ internal sealed class ViewportAnimator
         _transform = null;
         if (transform.Anchor is { } anchor)
         {
-            _viewport.SetActualSizeAt(anchor.Viewport.X, anchor.Viewport.Y, anchor.Image);
+            _viewport.SetActualSizeAt(anchor.Viewport, anchor.Image);
         }
         else
         {
@@ -297,8 +296,7 @@ internal sealed class ViewportAnimator
         }
     }
 
-    private void SetScaleAt(float scale, ZoomAnchor anchor) =>
-        _viewport.SetScaleAt(scale, anchor.Viewport.X, anchor.Viewport.Y, anchor.Image);
+    private void SetScaleAt(float scale, ZoomAnchor anchor) => _viewport.SetScaleAt(scale, anchor.Viewport, anchor.Image);
 
     private static PointF ImageCenterToViewport(
         PointF imageCenter,
@@ -320,8 +318,7 @@ internal sealed class ViewportAnimator
         }
 
         double decay = Math.Exp(-MomentumFriction * elapsed);
-        Vector2 step = _velocity * (float)((1.0 - decay) / MomentumFriction);
-        _viewport.PanBy(step.X, step.Y);
+        _viewport.PanBy(_velocity * (float)((1.0 - decay) / MomentumFriction));
         _velocity *= (float)decay;
     }
 

@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Numerics;
 using Dameview.Viewing;
 
 namespace Dameview.Tests.Viewing;
@@ -10,17 +11,17 @@ public sealed class ViewportAnimatorTests
     public void ZoomApproachesItsTargetAndKeepsThePointerAnchored()
     {
         var timeProvider = new ManualTimeProvider();
-        var viewport = new ImageViewport(1000, 800);
-        viewport.SetImageSize(2000, 1600);
+        var viewport = new ImageViewport(new Size(1000, 800));
+        viewport.SetImageSize(new Size(2000, 1600));
         var animator = new ViewportAnimator(viewport, timeProvider);
-        PointF imagePosition = viewport.ViewportToImage(600.0f, 400.0f);
+        PointF imagePosition = viewport.ViewportToImage(new PointF(600.0f, 400.0f));
 
-        Assert.IsTrue(animator.ZoomAt(600.0f, 400.0f, 120));
+        Assert.IsTrue(animator.ZoomAt(new PointF(600.0f, 400.0f), 120));
         Assert.IsTrue(animator.Update(0.016));
 
         Assert.IsGreaterThan(0.5f, viewport.Scale);
         Assert.IsLessThan(0.6f, viewport.Scale);
-        Assert.AreEqual(imagePosition.X, viewport.ViewportToImage(600.0f, 400.0f).X, 0.001f);
+        Assert.AreEqual(imagePosition.X, viewport.ViewportToImage(new PointF(600.0f, 400.0f)).X, 0.001f);
 
         for (int frame = 0; frame < 100 && animator.IsAnimating; frame++)
         {
@@ -34,8 +35,8 @@ public sealed class ViewportAnimatorTests
     [TestMethod]
     public void StartingAnAnimationIsAnnouncedButAMoveThatIsAlreadyDoneIsNot()
     {
-        var viewport = new ImageViewport(1000, 800);
-        viewport.SetImageSize(2000, 1600);
+        var viewport = new ImageViewport(new Size(1000, 800));
+        viewport.SetImageSize(new Size(2000, 1600));
         var animator = new ViewportAnimator(viewport, new ManualTimeProvider());
         int started = 0;
         animator.Started += () => started++;
@@ -43,7 +44,7 @@ public sealed class ViewportAnimatorTests
         Assert.IsFalse(animator.Fit(), "A fresh viewport already fits.");
         Assert.AreEqual(0, started);
 
-        Assert.IsTrue(animator.ShowActualSizeAt(500.0f, 400.0f));
+        Assert.IsTrue(animator.ShowActualSizeAt(new PointF(500.0f, 400.0f)));
         Assert.AreEqual(1, started);
     }
 
@@ -51,16 +52,16 @@ public sealed class ViewportAnimatorTests
     public void ReleasingAPanContinuesWithMomentum()
     {
         var timeProvider = new ManualTimeProvider();
-        var viewport = new ImageViewport(500, 500);
-        viewport.SetImageSize(2000, 2000);
-        viewport.SetActualSizeAt(viewport.ViewportCenter.X, viewport.ViewportCenter.Y, viewport.ImageCenter);
+        var viewport = new ImageViewport(new Size(500, 500));
+        viewport.SetImageSize(new Size(2000, 2000));
+        viewport.SetActualSizeAt(viewport.ViewportCenter, viewport.ImageCenter);
         var animator = new ViewportAnimator(viewport, timeProvider);
 
-        animator.BeginPan(0.0f, 0.0f);
+        animator.BeginPan(new PointF(0.0f, 0.0f));
         timeProvider.Advance(TimeSpan.FromMilliseconds(10));
-        animator.PanTo(50.0f, 0.0f);
+        animator.PanTo(new PointF(50.0f, 0.0f));
         timeProvider.Advance(TimeSpan.FromMilliseconds(10));
-        animator.PanTo(100.0f, 0.0f);
+        animator.PanTo(new PointF(100.0f, 0.0f));
         float positionAtRelease = viewport.GetDestinationRectangle().X;
 
         Assert.IsTrue(animator.EndPan());
@@ -72,13 +73,13 @@ public sealed class ViewportAnimatorTests
     [TestMethod]
     public void BeginningAPanCancelsZoomAnimation()
     {
-        var viewport = new ImageViewport(1000, 800);
-        viewport.SetImageSize(2000, 1600);
+        var viewport = new ImageViewport(new Size(1000, 800));
+        viewport.SetImageSize(new Size(2000, 1600));
         var animator = new ViewportAnimator(viewport, new ManualTimeProvider());
 
-        Assert.IsTrue(animator.ZoomAt(600.0f, 400.0f, 120));
+        Assert.IsTrue(animator.ZoomAt(new PointF(600.0f, 400.0f), 120));
 
-        animator.BeginPan(600.0f, 400.0f);
+        animator.BeginPan(new PointF(600.0f, 400.0f));
 
         Assert.IsFalse(animator.IsAnimating);
     }
@@ -87,41 +88,41 @@ public sealed class ViewportAnimatorTests
     public void BeginningZoomCancelsPanMomentum()
     {
         var timeProvider = new ManualTimeProvider();
-        var viewport = new ImageViewport(500, 500);
-        viewport.SetImageSize(2000, 2000);
-        viewport.SetActualSizeAt(viewport.ViewportCenter.X, viewport.ViewportCenter.Y, viewport.ImageCenter);
+        var viewport = new ImageViewport(new Size(500, 500));
+        viewport.SetImageSize(new Size(2000, 2000));
+        viewport.SetActualSizeAt(viewport.ViewportCenter, viewport.ImageCenter);
         var animator = new ViewportAnimator(viewport, timeProvider);
 
-        animator.BeginPan(0.0f, 0.0f);
+        animator.BeginPan(new PointF(0.0f, 0.0f));
         timeProvider.Advance(TimeSpan.FromMilliseconds(10));
-        animator.PanTo(100.0f, 0.0f);
+        animator.PanTo(new PointF(100.0f, 0.0f));
         Assert.IsTrue(animator.EndPan());
-        float centerBeforeZoom = viewport.ViewportToImage(250.0f, 250.0f).X;
+        float centerBeforeZoom = viewport.ViewportToImage(new PointF(250.0f, 250.0f)).X;
 
-        Assert.IsTrue(animator.ZoomAt(250.0f, 250.0f, 120));
+        Assert.IsTrue(animator.ZoomAt(new PointF(250.0f, 250.0f), 120));
         animator.Update(0.016);
 
-        Assert.AreEqual(centerBeforeZoom, viewport.ViewportToImage(250.0f, 250.0f).X, 0.001f);
+        Assert.AreEqual(centerBeforeZoom, viewport.ViewportToImage(new PointF(250.0f, 250.0f)).X, 0.001f);
     }
 
     [TestMethod]
     public void ReversingAnActivePanDoesNotAmplifyItsFirstPointerMove()
     {
         var timeProvider = new ManualTimeProvider();
-        var viewport = new ImageViewport(500, 500);
-        viewport.SetImageSize(2000, 2000);
-        viewport.SetActualSizeAt(viewport.ViewportCenter.X, viewport.ViewportCenter.Y, viewport.ImageCenter);
+        var viewport = new ImageViewport(new Size(500, 500));
+        viewport.SetImageSize(new Size(2000, 2000));
+        viewport.SetActualSizeAt(viewport.ViewportCenter, viewport.ImageCenter);
         var animator = new ViewportAnimator(viewport, timeProvider);
 
-        animator.BeginPan(0.0f, 0.0f);
+        animator.BeginPan(new PointF(0.0f, 0.0f));
         timeProvider.Advance(TimeSpan.FromMilliseconds(10));
-        animator.PanTo(100.0f, 0.0f);
+        animator.PanTo(new PointF(100.0f, 0.0f));
         Assert.IsTrue(animator.EndPan());
         animator.Update(0.016);
 
-        animator.BeginPan(100.0f, 0.0f);
+        animator.BeginPan(new PointF(100.0f, 0.0f));
         timeProvider.Advance(TimeSpan.FromMilliseconds(1));
-        animator.PanTo(98.0f, 0.0f);
+        animator.PanTo(new PointF(98.0f, 0.0f));
         float positionAtRelease = viewport.GetDestinationRectangle().X;
 
         Assert.IsTrue(animator.EndPan());
@@ -133,23 +134,23 @@ public sealed class ViewportAnimatorTests
     public void ActualSizeAnimatesScaleTowardThePointer()
     {
         var timeProvider = new ManualTimeProvider();
-        var viewport = new ImageViewport(1000, 800);
-        viewport.SetImageSize(2000, 1600);
+        var viewport = new ImageViewport(new Size(1000, 800));
+        viewport.SetImageSize(new Size(2000, 1600));
         var animator = new ViewportAnimator(viewport, timeProvider);
-        PointF imagePosition = viewport.ViewportToImage(600.0f, 400.0f);
+        PointF imagePosition = viewport.ViewportToImage(new PointF(600.0f, 400.0f));
 
-        Assert.IsTrue(animator.ShowActualSizeAt(600.0f, 400.0f));
+        Assert.IsTrue(animator.ShowActualSizeAt(new PointF(600.0f, 400.0f)));
         Assert.IsTrue(animator.Update(0.016));
 
         Assert.IsGreaterThan(0.5f, viewport.Scale);
         Assert.IsLessThan(1.0f, viewport.Scale);
-        Assert.AreEqual(imagePosition.X, viewport.ViewportToImage(600.0f, 400.0f).X, 0.001f);
+        Assert.AreEqual(imagePosition.X, viewport.ViewportToImage(new PointF(600.0f, 400.0f)).X, 0.001f);
 
         AdvanceUntilComplete(animator);
 
         Assert.AreEqual(ViewportMode.ActualSize, viewport.Mode);
         Assert.AreEqual(1.0f, viewport.Scale);
-        Assert.AreEqual(imagePosition.X, viewport.ViewportToImage(600.0f, 400.0f).X, 0.001f);
+        Assert.AreEqual(imagePosition.X, viewport.ViewportToImage(new PointF(600.0f, 400.0f)).X, 0.001f);
         Assert.AreEqual(-600.0f, viewport.GetDestinationRectangle().X, 0.001f);
         Assert.AreEqual(-400.0f, viewport.GetDestinationRectangle().Y, 0.001f);
     }
@@ -161,10 +162,10 @@ public sealed class ViewportAnimatorTests
         // destination instead of scaling it would move one edge ahead of the others.
         AssertEdgesMoveTogether(
             _ => { },
-            animator => animator.ShowActualSizeAt(750.0f, 600.0f),
+            animator => animator.ShowActualSizeAt(new PointF(750.0f, 600.0f)),
             new RectangleF(-750.0f, -200.0f, 2000.0f, 1000.0f));
         AssertEdgesMoveTogether(
-            viewport => viewport.SetActualSizeAt(750.0f, 600.0f, new PointF(1500.0f, 900.0f)),
+            viewport => viewport.SetActualSizeAt(new PointF(750.0f, 600.0f), new PointF(1500.0f, 900.0f)),
             animator => animator.Fit(),
             new RectangleF(0.0f, 150.0f, 1000.0f, 500.0f));
     }
@@ -172,15 +173,15 @@ public sealed class ViewportAnimatorTests
     [TestMethod]
     public void TogglingSwapsBetweenFitAndActualSize()
     {
-        var viewport = new ImageViewport(1000, 800);
-        viewport.SetImageSize(2000, 1000);
+        var viewport = new ImageViewport(new Size(1000, 800));
+        viewport.SetImageSize(new Size(2000, 1000));
         var animator = new ViewportAnimator(viewport, new ManualTimeProvider());
 
-        Assert.IsTrue(animator.ToggleFitAndActualSizeAt(500.0f, 400.0f));
+        Assert.IsTrue(animator.ToggleFitAndActualSizeAt(new PointF(500.0f, 400.0f)));
         animator.Update(0.0, animationsEnabled: false);
         Assert.AreEqual(ViewportMode.ActualSize, viewport.Mode);
 
-        Assert.IsTrue(animator.ToggleFitAndActualSizeAt(500.0f, 400.0f));
+        Assert.IsTrue(animator.ToggleFitAndActualSizeAt(new PointF(500.0f, 400.0f)));
         animator.Update(0.0, animationsEnabled: false);
         Assert.AreEqual(ViewportMode.Fit, viewport.Mode);
     }
@@ -188,15 +189,15 @@ public sealed class ViewportAnimatorTests
     [TestMethod]
     public void TogglingMidAnimationReadsWhereTheViewportIsHeaded()
     {
-        var viewport = new ImageViewport(1000, 800);
-        viewport.SetImageSize(2000, 1000);
+        var viewport = new ImageViewport(new Size(1000, 800));
+        viewport.SetImageSize(new Size(2000, 1000));
         var animator = new ViewportAnimator(viewport, new ManualTimeProvider());
 
         // Still animating toward actual size, so a second toggle must turn back to fit
         // rather than read the viewport's current mode and start over.
-        Assert.IsTrue(animator.ToggleFitAndActualSizeAt(500.0f, 400.0f));
+        Assert.IsTrue(animator.ToggleFitAndActualSizeAt(new PointF(500.0f, 400.0f)));
         Assert.IsTrue(animator.Update(0.016));
-        Assert.IsTrue(animator.ToggleFitAndActualSizeAt(500.0f, 400.0f));
+        Assert.IsTrue(animator.ToggleFitAndActualSizeAt(new PointF(500.0f, 400.0f)));
         animator.Update(0.0, animationsEnabled: false);
 
         Assert.AreEqual(ViewportMode.Fit, viewport.Mode);
@@ -205,14 +206,14 @@ public sealed class ViewportAnimatorTests
     [TestMethod]
     public void TogglingAPannedImageFitsItRatherThanZoomingFurther()
     {
-        var viewport = new ImageViewport(1000, 800);
-        viewport.SetImageSize(2000, 1000);
-        viewport.SetActualSizeAt(500.0f, 400.0f, viewport.ImageCenter);
-        viewport.PanBy(50.0f, 20.0f);
+        var viewport = new ImageViewport(new Size(1000, 800));
+        viewport.SetImageSize(new Size(2000, 1000));
+        viewport.SetActualSizeAt(new PointF(500.0f, 400.0f), viewport.ImageCenter);
+        viewport.PanBy(new Vector2(50.0f, 20.0f));
         Assert.AreEqual(ViewportMode.Custom, viewport.Mode);
         var animator = new ViewportAnimator(viewport, new ManualTimeProvider());
 
-        Assert.IsTrue(animator.ToggleFitAndActualSizeAt(500.0f, 400.0f));
+        Assert.IsTrue(animator.ToggleFitAndActualSizeAt(new PointF(500.0f, 400.0f)));
         animator.Update(0.0, animationsEnabled: false);
 
         Assert.AreEqual(ViewportMode.Fit, viewport.Mode);
@@ -223,8 +224,8 @@ public sealed class ViewportAnimatorTests
         Func<ViewportAnimator, bool> begin,
         RectangleF target)
     {
-        var viewport = new ImageViewport(1000, 800);
-        viewport.SetImageSize(2000, 1000);
+        var viewport = new ImageViewport(new Size(1000, 800));
+        viewport.SetImageSize(new Size(2000, 1000));
         arrange(viewport);
         var animator = new ViewportAnimator(viewport, new ManualTimeProvider());
         RectangleF start = viewport.GetDestinationRectangle();
@@ -243,10 +244,10 @@ public sealed class ViewportAnimatorTests
     public void FitAnimatesScaleAndRecentersAPannedImage()
     {
         var timeProvider = new ManualTimeProvider();
-        var viewport = new ImageViewport(1000, 800);
-        viewport.SetImageSize(2000, 1600);
-        viewport.SetActualSizeAt(viewport.ViewportCenter.X, viewport.ViewportCenter.Y, viewport.ImageCenter);
-        viewport.PanBy(200.0f, 100.0f);
+        var viewport = new ImageViewport(new Size(1000, 800));
+        viewport.SetImageSize(new Size(2000, 1600));
+        viewport.SetActualSizeAt(viewport.ViewportCenter, viewport.ImageCenter);
+        viewport.PanBy(new Vector2(200.0f, 100.0f));
         var animator = new ViewportAnimator(viewport, timeProvider);
 
         Assert.IsTrue(animator.Fit());
@@ -261,11 +262,11 @@ public sealed class ViewportAnimatorTests
     [TestMethod]
     public void DisabledAnimationsCompleteZoomImmediately()
     {
-        var viewport = new ImageViewport(1000, 800);
-        viewport.SetImageSize(2000, 1600);
+        var viewport = new ImageViewport(new Size(1000, 800));
+        viewport.SetImageSize(new Size(2000, 1600));
         var animator = new ViewportAnimator(viewport, new ManualTimeProvider());
 
-        Assert.IsTrue(animator.ZoomAt(600.0f, 400.0f, 120));
+        Assert.IsTrue(animator.ZoomAt(new PointF(600.0f, 400.0f), 120));
         Assert.IsFalse(animator.Update(0.0, animationsEnabled: false));
 
         Assert.IsFalse(animator.IsAnimating);
@@ -276,14 +277,14 @@ public sealed class ViewportAnimatorTests
     public void DisabledAnimationsCancelPanMomentum()
     {
         var timeProvider = new ManualTimeProvider();
-        var viewport = new ImageViewport(500, 500);
-        viewport.SetImageSize(2000, 2000);
-        viewport.SetActualSizeAt(viewport.ViewportCenter.X, viewport.ViewportCenter.Y, viewport.ImageCenter);
+        var viewport = new ImageViewport(new Size(500, 500));
+        viewport.SetImageSize(new Size(2000, 2000));
+        viewport.SetActualSizeAt(viewport.ViewportCenter, viewport.ImageCenter);
         var animator = new ViewportAnimator(viewport, timeProvider);
 
-        animator.BeginPan(0.0f, 0.0f);
+        animator.BeginPan(new PointF(0.0f, 0.0f));
         timeProvider.Advance(TimeSpan.FromMilliseconds(10));
-        animator.PanTo(100.0f, 0.0f);
+        animator.PanTo(new PointF(100.0f, 0.0f));
         Assert.IsTrue(animator.EndPan());
         RectangleF positionAtRelease = viewport.GetDestinationRectangle();
 

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Drawing;
+using System.Numerics;
 using Dameview.Imaging;
 using Dameview.Imaging.Animation;
 using Dameview.Imaging.Loading;
@@ -23,7 +24,7 @@ public sealed class ViewerSessionTests
         session.OpenImage(files.First);
         DeliverFolder(session);
         loader.Complete(CreateImage());
-        session.Viewport.SetActualSizeAt(400, 300, session.Viewport.ImageCenter);
+        session.Viewport.SetActualSizeAt(new PointF(400, 300), session.Viewport.ImageCenter);
         ImageLoaded? displayed = session.State.DisplayedImage;
         PointF center = session.Viewport.Center;
         session.SetSort(FolderSort.NameDescending);
@@ -45,7 +46,7 @@ public sealed class ViewerSessionTests
         var loader = new ManualImageLoader();
         var scanner = new ImmediateScanner();
         using var session = new ViewerSession(new FolderNavigator(), CreateMonitor(scanner), loader);
-        session.Viewport.SetViewportSize(800, 600);
+        session.Viewport.SetViewportSize(new Size(800, 600));
         session.OpenImage(files.First);
         DeliverFolder(session);
         loader.Complete(CreateImage());
@@ -73,8 +74,8 @@ public sealed class ViewerSessionTests
         Assert.IsNull(session.State.DisplayedImage);
         var image = new DecodedImage(1600, 1200, 6400, new byte[6400 * 1200]);
         loader.Complete(image);
-        session.Viewport.SetActualSizeAt(400, 300, session.Viewport.ImageCenter);
-        session.Viewport.PanBy(100, 50);
+        session.Viewport.SetActualSizeAt(new PointF(400, 300), session.Viewport.ImageCenter);
+        session.Viewport.PanBy(new Vector2(100, 50));
         PointF center = session.Viewport.Center;
         ViewportMode mode = session.Viewport.Mode;
         ImageLoaded? displayed = session.State.DisplayedImage;
@@ -232,7 +233,7 @@ public sealed class ViewerSessionTests
     private ViewerSession CreateSession(ManualImageLoader loader)
     {
         var session = new ViewerSession(new FolderNavigator(), CreateMonitor(new ImmediateScanner()), loader);
-        session.Viewport.SetViewportSize(800, 600);
+        session.Viewport.SetViewportSize(new Size(800, 600));
         return session;
     }
 

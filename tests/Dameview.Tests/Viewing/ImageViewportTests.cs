@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Numerics;
 using Dameview.Viewing;
 
 namespace Dameview.Tests.Viewing;
@@ -9,9 +10,9 @@ public sealed class ImageViewportTests
     [TestMethod]
     public void FitCentersTheImageWithoutUpscaling()
     {
-        var viewport = new ImageViewport(800, 600);
+        var viewport = new ImageViewport(new Size(800, 600));
 
-        viewport.SetImageSize(1600, 800);
+        viewport.SetImageSize(new Size(1600, 800));
 
         Assert.AreEqual(ViewportMode.Fit, viewport.Mode);
         Assert.AreEqual(0.5f, viewport.Scale);
@@ -21,13 +22,13 @@ public sealed class ImageViewportTests
     [TestMethod]
     public void FitUpscalesASmallImageWhileActualSizeRemainsAvailable()
     {
-        var viewport = new ImageViewport(800, 600);
-        viewport.SetImageSize(400, 200);
+        var viewport = new ImageViewport(new Size(800, 600));
+        viewport.SetImageSize(new Size(400, 200));
 
         Assert.AreEqual(2.0f, viewport.Scale);
         AssertRectangle(new RectangleF(0.0f, 100.0f, 800.0f, 400.0f), viewport.GetDestinationRectangle());
 
-        viewport.SetActualSizeAt(viewport.ViewportCenter.X, viewport.ViewportCenter.Y, viewport.ImageCenter);
+        viewport.SetActualSizeAt(viewport.ViewportCenter, viewport.ImageCenter);
 
         Assert.AreEqual(ViewportMode.ActualSize, viewport.Mode);
         Assert.AreEqual(1.0f, viewport.Scale);
@@ -37,10 +38,10 @@ public sealed class ImageViewportTests
     [TestMethod]
     public void ActualSizeUsesOneScreenPixelPerImagePixel()
     {
-        var viewport = new ImageViewport(800, 600);
-        viewport.SetImageSize(1600, 800);
+        var viewport = new ImageViewport(new Size(800, 600));
+        viewport.SetImageSize(new Size(1600, 800));
 
-        viewport.SetActualSizeAt(viewport.ViewportCenter.X, viewport.ViewportCenter.Y, viewport.ImageCenter);
+        viewport.SetActualSizeAt(viewport.ViewportCenter, viewport.ImageCenter);
 
         Assert.AreEqual(ViewportMode.ActualSize, viewport.Mode);
         Assert.AreEqual(1.0f, viewport.Scale);
@@ -50,13 +51,13 @@ public sealed class ImageViewportTests
     [TestMethod]
     public void ZoomKeepsTheImagePositionUnderThePointer()
     {
-        var viewport = new ImageViewport(1000, 800);
-        viewport.SetImageSize(2000, 1600);
-        PointF before = viewport.ViewportToImage(600.0f, 400.0f);
+        var viewport = new ImageViewport(new Size(1000, 800));
+        viewport.SetImageSize(new Size(2000, 1600));
+        PointF before = viewport.ViewportToImage(new PointF(600.0f, 400.0f));
 
-        viewport.SetScaleAt(viewport.GetZoomScale(viewport.Scale, 120), 600.0f, 400.0f, before);
+        viewport.SetScaleAt(viewport.GetZoomScale(viewport.Scale, 120), new PointF(600.0f, 400.0f), before);
 
-        PointF after = viewport.ViewportToImage(600.0f, 400.0f);
+        PointF after = viewport.ViewportToImage(new PointF(600.0f, 400.0f));
         Assert.AreEqual(ViewportMode.Custom, viewport.Mode);
         Assert.AreEqual(before.X, after.X, 0.001f);
         Assert.AreEqual(before.Y, after.Y, 0.001f);
@@ -65,11 +66,11 @@ public sealed class ImageViewportTests
     [TestMethod]
     public void PanningCannotMoveTheImagePastItsEdge()
     {
-        var viewport = new ImageViewport(500, 500);
-        viewport.SetImageSize(1000, 1000);
-        viewport.SetActualSizeAt(viewport.ViewportCenter.X, viewport.ViewportCenter.Y, viewport.ImageCenter);
+        var viewport = new ImageViewport(new Size(500, 500));
+        viewport.SetImageSize(new Size(1000, 1000));
+        viewport.SetActualSizeAt(viewport.ViewportCenter, viewport.ImageCenter);
 
-        viewport.PanBy(10_000.0f, 10_000.0f);
+        viewport.PanBy(new Vector2(10_000.0f, 10_000.0f));
 
         AssertRectangle(new RectangleF(0.0f, 0.0f, 1000.0f, 1000.0f), viewport.GetDestinationRectangle());
     }
@@ -77,10 +78,10 @@ public sealed class ImageViewportTests
     [TestMethod]
     public void DraggingAFittedImageKeepsFitMode()
     {
-        var viewport = new ImageViewport(500, 500);
-        viewport.SetImageSize(1000, 500);
+        var viewport = new ImageViewport(new Size(500, 500));
+        viewport.SetImageSize(new Size(1000, 500));
 
-        viewport.PanBy(100.0f, 100.0f);
+        viewport.PanBy(new Vector2(100.0f, 100.0f));
 
         Assert.AreEqual(ViewportMode.Fit, viewport.Mode);
     }
@@ -88,14 +89,14 @@ public sealed class ImageViewportTests
     [TestMethod]
     public void ResizingRecalculatesFitButPreservesActualSize()
     {
-        var viewport = new ImageViewport(1000, 1000);
-        viewport.SetImageSize(2000, 1000);
+        var viewport = new ImageViewport(new Size(1000, 1000));
+        viewport.SetImageSize(new Size(2000, 1000));
 
-        viewport.SetViewportSize(500, 500);
+        viewport.SetViewportSize(new Size(500, 500));
         Assert.AreEqual(0.25f, viewport.Scale);
 
-        viewport.SetActualSizeAt(viewport.ViewportCenter.X, viewport.ViewportCenter.Y, viewport.ImageCenter);
-        viewport.SetViewportSize(700, 600);
+        viewport.SetActualSizeAt(viewport.ViewportCenter, viewport.ImageCenter);
+        viewport.SetViewportSize(new Size(700, 600));
         Assert.AreEqual(1.0f, viewport.Scale);
         Assert.AreEqual(ViewportMode.ActualSize, viewport.Mode);
     }
@@ -115,8 +116,8 @@ public sealed class ImageViewportTests
     {
         foreach ((int imageWidth, int imageHeight) in new[] { (2000, 1000), (300, 240), (4000, 4000), (600, 5000) })
         {
-            var viewport = new ImageViewport(1000, 800);
-            viewport.SetImageSize(imageWidth, imageHeight);
+            var viewport = new ImageViewport(new Size(1000, 800));
+            viewport.SetImageSize(new Size(imageWidth, imageHeight));
             var random = new Random(20260920);
 
             for (int step = 0; step < 400; step++)
@@ -128,14 +129,14 @@ public sealed class ImageViewportTests
                     float scale = viewport.GetZoomScale(viewport.Scale, delta);
                     float x = (float)random.NextDouble() * 1000.0f;
                     float y = (float)random.NextDouble() * 800.0f;
-                    viewport.SetScaleAt(scale, x, y, viewport.ViewportToImage(x, y));
+                    viewport.SetScaleAt(scale, new PointF(x, y), viewport.ViewportToImage(new PointF(x, y)));
                     operation = $"zoom {delta} at {x}x{y}";
                 }
                 else
                 {
                     float dx = ((float)random.NextDouble() - 0.5f) * 4000.0f;
                     float dy = ((float)random.NextDouble() - 0.5f) * 4000.0f;
-                    viewport.PanBy(dx, dy);
+                    viewport.PanBy(new Vector2(dx, dy));
                     operation = $"pan {dx}x{dy}";
                 }
 

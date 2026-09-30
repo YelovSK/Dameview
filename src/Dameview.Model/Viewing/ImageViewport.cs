@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Numerics;
 
 namespace Dameview.Viewing;
 
@@ -7,32 +8,28 @@ internal sealed class ImageViewport
     private const float MaximumScale = 64.0f;
     private const double ZoomStep = 1.2;
 
-    private float _viewportWidth;
-    private float _viewportHeight;
-    private float _imageWidth;
-    private float _imageHeight;
-    private float _centerX;
-    private float _centerY;
+    private SizeF _viewportSize;
+    private SizeF _imageSize;
+    private PointF _center;
 
-    internal ImageViewport(int viewportWidth, int viewportHeight)
+    internal ImageViewport(Size viewportSize)
     {
-        SetViewportSize(viewportWidth, viewportHeight);
+        SetViewportSize(viewportSize);
     }
 
     internal ViewportMode Mode { get; private set; } = ViewportMode.Fit;
     internal float Scale { get; private set; } = 1.0f;
-    internal PointF Center => new(_centerX, _centerY);
-    internal PointF ImageCenter => new(_imageWidth / 2.0f, _imageHeight / 2.0f);
-    internal PointF ViewportCenter => new(_viewportWidth / 2.0f, _viewportHeight / 2.0f);
+    internal PointF Center => _center;
+    internal PointF ImageCenter => new(_imageSize.Width / 2.0f, _imageSize.Height / 2.0f);
+    internal PointF ViewportCenter => new(_viewportSize.Width / 2.0f, _viewportSize.Height / 2.0f);
     internal float FitScale => GetFitScale();
 
-    internal void SetViewportSize(int width, int height)
+    internal void SetViewportSize(Size size)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(width);
-        ArgumentOutOfRangeException.ThrowIfNegative(height);
+        ArgumentOutOfRangeException.ThrowIfNegative(size.Width);
+        ArgumentOutOfRangeException.ThrowIfNegative(size.Height);
 
-        _viewportWidth = width;
-        _viewportHeight = height;
+        _viewportSize = size;
 
         if (!HasImage)
         {
@@ -49,13 +46,12 @@ internal sealed class ImageViewport
         }
     }
 
-    internal void SetImageSize(int width, int height)
+    internal void SetImageSize(Size size)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(size.Width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(size.Height);
 
-        _imageWidth = width;
-        _imageHeight = height;
+        _imageSize = size;
         Fit();
     }
 
@@ -63,7 +59,7 @@ internal sealed class ImageViewport
     {
         Mode = ViewportMode.Fit;
         Scale = GetFitScale();
-        CenterImage();
+        _center = ImageCenter;
     }
 
     internal float GetZoomScale(float scale, int wheelDelta)
@@ -77,11 +73,8 @@ internal sealed class ImageViewport
         return Math.Clamp(scale * zoomFactor, GetMinimumScale(), MaximumScale);
     }
 
-    internal void SetScaleAt(
-        float scale,
-        float viewportX,
-        float viewportY,
-        PointF imagePosition)
+    /// <summary>Changes the scale while keeping <paramref name="imagePoint"/> under <paramref name="viewportPoint"/>.</summary>
+    internal void SetScaleAt(float scale, PointF viewportPoint, PointF imagePoint)
     {
         if (!HasImage)
         {
@@ -98,31 +91,22 @@ internal sealed class ImageViewport
         }
 
         Scale = newScale;
-        PointF center = GetCenterAtScale(
-            Scale,
-            viewportX,
-            viewportY,
-            imagePosition);
-        _centerX = center.X;
-        _centerY = center.Y;
+        _center = GetCenterAtScale(Scale, viewportPoint, imagePoint);
         Mode = ViewportMode.Custom;
     }
 
-    internal PointF GetCenterAtScale(
-        float scale,
-        float viewportX,
-        float viewportY,
-        PointF imagePosition)
+    internal PointF GetCenterAtScale(float scale, PointF viewportPoint, PointF imagePoint)
     {
         if (!HasImage)
         {
-            return Center;
+            return _center;
         }
 
         float clampedScale = Math.Clamp(scale, GetMinimumScale(), MaximumScale);
+        PointF viewportCenter = ViewportCenter;
         var center = new PointF(
-            imagePosition.X - ((viewportX - (_viewportWidth / 2.0f)) / clampedScale),
-            imagePosition.Y - ((viewportY - (_viewportHeight / 2.0f)) / clampedScale));
+            imagePoint.X - ((viewportPoint.X - viewportCenter.X) / clampedScale),
+            imagePoint.Y - ((viewportPoint.Y - viewportCenter.Y) / clampedScale));
         return ClampCenter(center, clampedScale);
     }
 
@@ -134,88 +118,74 @@ internal sealed class ImageViewport
         }
 
         Scale = Math.Clamp(scale, GetMinimumScale(), MaximumScale);
-        _centerX = center.X;
-        _centerY = center.Y;
+        _center = center;
         Mode = ViewportMode.Custom;
     }
 
-    internal void SetActualSizeAt(
-        float viewportX,
-        float viewportY,
-        PointF imagePosition)
+    internal void SetActualSizeAt(PointF viewportPoint, PointF imagePoint)
     {
         if (!HasImage)
         {
             return;
         }
 
-        SetScaleAt(1.0f, viewportX, viewportY, imagePosition);
+        SetScaleAt(1.0f, viewportPoint, imagePoint);
         Mode = ViewportMode.ActualSize;
     }
 
-    internal void PanBy(float deltaX, float deltaY)
+    internal void PanBy(Vector2 delta)
     {
         if (!HasImage
-            || ((_imageWidth * Scale) <= _viewportWidth
-                && (_imageHeight * Scale) <= _viewportHeight))
+            || ((_imageSize.Width * Scale) <= _viewportSize.Width
+                && (_imageSize.Height * Scale) <= _viewportSize.Height))
         {
             return;
         }
 
-        _centerX -= deltaX / Scale;
-        _centerY -= deltaY / Scale;
+        _center = new PointF(_center.X - (delta.X / Scale), _center.Y - (delta.Y / Scale));
         Mode = ViewportMode.Custom;
         ClampCenter();
     }
 
     internal RectangleF GetDestinationRectangle()
     {
-        float width = _imageWidth * Scale;
-        float height = _imageHeight * Scale;
-        float x = (_viewportWidth / 2.0f) - (_centerX * Scale);
-        float y = (_viewportHeight / 2.0f) - (_centerY * Scale);
-        return new RectangleF(x, y, width, height);
+        PointF viewportCenter = ViewportCenter;
+        return new RectangleF(
+            viewportCenter.X - (_center.X * Scale),
+            viewportCenter.Y - (_center.Y * Scale),
+            _imageSize.Width * Scale,
+            _imageSize.Height * Scale);
     }
 
-    internal PointF ViewportToImage(float viewportX, float viewportY)
+    internal PointF ViewportToImage(PointF viewportPoint)
     {
-        float imageX = _centerX + ((viewportX - (_viewportWidth / 2.0f)) / Scale);
-        float imageY = _centerY + ((viewportY - (_viewportHeight / 2.0f)) / Scale);
-        return new PointF(imageX, imageY);
+        PointF viewportCenter = ViewportCenter;
+        return new PointF(
+            _center.X + ((viewportPoint.X - viewportCenter.X) / Scale),
+            _center.Y + ((viewportPoint.Y - viewportCenter.Y) / Scale));
     }
 
-    internal bool HasImage => _imageWidth > 0.0f && _imageHeight > 0.0f;
+    internal bool HasImage => _imageSize.Width > 0.0f && _imageSize.Height > 0.0f;
 
     private float GetFitScale()
     {
-        if (!HasImage || _viewportWidth <= 0.0f || _viewportHeight <= 0.0f)
+        if (!HasImage || _viewportSize.Width <= 0.0f || _viewportSize.Height <= 0.0f)
         {
             return 1.0f;
         }
 
-        return Math.Min(_viewportWidth / _imageWidth, _viewportHeight / _imageHeight);
+        return Math.Min(_viewportSize.Width / _imageSize.Width, _viewportSize.Height / _imageSize.Height);
     }
 
     private float GetMinimumScale() => Math.Min(1.0f, GetFitScale());
 
-    private void CenterImage()
-    {
-        _centerX = _imageWidth / 2.0f;
-        _centerY = _imageHeight / 2.0f;
-    }
-
-    private void ClampCenter()
-    {
-        PointF center = ClampCenter(Center, Scale);
-        _centerX = center.X;
-        _centerY = center.Y;
-    }
+    private void ClampCenter() => _center = ClampCenter(_center, Scale);
 
     private PointF ClampCenter(PointF center, float scale)
     {
         return new PointF(
-            ClampAxis(center.X, _imageWidth, _viewportWidth, scale),
-            ClampAxis(center.Y, _imageHeight, _viewportHeight, scale));
+            ClampAxis(center.X, _imageSize.Width, _viewportSize.Width, scale),
+            ClampAxis(center.Y, _imageSize.Height, _viewportSize.Height, scale));
     }
 
     private static float ClampAxis(
