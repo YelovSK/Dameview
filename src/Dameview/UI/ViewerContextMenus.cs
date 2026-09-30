@@ -39,6 +39,7 @@ internal sealed class ViewerContextMenus
             Group(context, AppCommands.FitImage, AppCommands.ShowActualSize),
             Group(context, AppCommands.SplitRight, AppCommands.SplitDown),
             [Item(AppCommands.DeleteFile, context, tone: UiButtonTone.Danger)],
+            [AllCommandsItem(context)],
         ]);
     }
 
@@ -65,8 +66,14 @@ internal sealed class ViewerContextMenus
                 Item(AppCommands.ReopenClosedTab, context),
             ],
             Group(context, AppCommands.CopyFilePath, AppCommands.ShowInFolder),
+            [AllCommandsItem(context)],
         ]);
     }
+
+    // The palette acts on the active tab whatever was clicked, so it is the one global item these
+    // menus offer, there for anyone who does not know its shortcut.
+    private ContextMenuItem AllCommandsItem(CommandContext context) =>
+        Item(AppCommands.ShowCommandPalette, context, label: "All commands…");
 
     private void Show(UiElement anchor, PointF point, IReadOnlyList<ContextMenuItem>[] groups) =>
         ContextMenu.Show(_popupHost, anchor, point, groups);

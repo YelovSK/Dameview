@@ -1,8 +1,10 @@
 using System.Drawing;
+using Dameview.Commands;
 using Dameview.Imaging.Decoding;
 using Dameview.Rendering;
 using Dameview.UI.Components;
 using Dameview.UI.Foundation;
+using Dameview.Viewing;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
 using Vortice.Mathematics;
@@ -11,48 +13,61 @@ namespace Dameview.UI.Panels;
 
 internal sealed class EmptyStatePanel : UiElement, IDisposable
 {
-    private const float ButtonWidth = 104.0f;
-    private const float ButtonHeight = 36.0f;
+    private const float CardHeight = 408.0f;
+    private const float RowWidth = 280.0f;
     private static readonly UiFont TitleFont = new(30.0f, FontWeight.SemiBold, TextAlignment.Center, Wrapping: WordWrapping.Wrap);
     private static readonly UiFont BodyFont = new(15.0f, FontWeight.Normal, TextAlignment.Center, Wrapping: WordWrapping.Wrap);
     private static readonly UiFont CaptionFont = new(12.0f, FontWeight.Medium, TextAlignment.Center, Wrapping: WordWrapping.Wrap);
 
+    private readonly CommandRow[] _rows;
     private ID2D1Bitmap1 _icon;
 
     internal EmptyStatePanel(
         ID2D1DeviceContext deviceContext,
-        Action openFile,
-        Action showSettings)
+        ICommandRunner commands,
+        ViewerPane pane,
+        ViewerKeyBindings keyBindings)
     {
         _icon = LoadApplicationIcon(deviceContext);
-        SettingsButton = new Button(
-            UiTypography.SettingsIcon,
-            showSettings,
-            fontFamily: UiTypography.IconFontFamily,
-            fontSize: 16.0f)
+        CommandRow Row(Command command) =>
+            new(command, () => commands.Execute(command, CommandContext.For(pane.ActiveTab)));
+
+        _rows = [Row(AppCommands.OpenFile), Row(AppCommands.ShowCommandPalette), Row(AppCommands.ShowSettings)];
+        foreach (CommandRow row in _rows)
         {
-            ToolTip = new("Settings"),
-        };
-        OpenButton = new Button("Open image", openFile);
-        AddChild(OpenButton);
-        AddChild(SettingsButton);
+            AddChild(row);
+        }
+
+        ApplyKeyBindings(keyBindings);
     }
 
-    private Button OpenButton { get; }
-    private Button SettingsButton { get; }
+    internal void ApplyKeyBindings(ViewerKeyBindings keyBindings)
+    {
+        foreach (CommandRow row in _rows)
+        {
+            row.Shortcut = keyBindings.GetShortcuts(row.Command) is [var first, ..] ? first.Text : null;
+        }
+    }
 
     protected override SizeF MeasureCore(SizeF availableSize)
     {
-        OpenButton.Measure(new SizeF(ButtonWidth, ButtonHeight));
-        SettingsButton.Measure(new SizeF(ButtonWidth, ButtonHeight));
+        foreach (CommandRow row in _rows)
+        {
+            row.Measure(new SizeF(RowWidth, CommandRow.Height));
+        }
+
         return availableSize;
     }
 
     protected override void ArrangeCore(SizeF finalSize)
     {
         EmptyStateLayout layout = CalculateLayout(finalSize);
-        OpenButton.Arrange(layout.OpenButton);
-        SettingsButton.Arrange(layout.SettingsButton);
+        float y = layout.Commands.Y;
+        foreach (CommandRow row in _rows)
+        {
+            row.Arrange(new RectangleF(layout.Commands.X, y, layout.Commands.Width, CommandRow.Height));
+            y += CommandRow.Height + UiDesign.SmallSpacing;
+        }
     }
 
     protected override void DrawCore(in UiDrawContext context)
@@ -126,23 +141,82 @@ internal sealed class EmptyStatePanel : UiElement, IDisposable
     private static EmptyStateLayout CalculateLayout(SizeF size)
     {
         float cardWidth = MathF.Min(560.0f, MathF.Max(280.0f, size.Width - 48.0f));
-        float cardHeight = MathF.Min(330.0f, MathF.Max(260.0f, size.Height - 96.0f));
         float cardX = (size.Width - cardWidth) / 2.0f;
-        float cardY = (size.Height - cardHeight) / 2.0f;
-        var card = new RectangleF(cardX, cardY, cardWidth, cardHeight);
-        var caption = new RectangleF((size.Width - 254.0f) / 2.0f, card.Bottom - 100.0f, 254.0f, 32.0f);
-        float row = caption.Bottom + 12.0f;
-        float left = (size.Width - ((2.0f * ButtonWidth) + UiDesign.SmallSpacing)) / 2.0f;
-        return new EmptyStateLayout(
-            card,
-            caption,
-            new RectangleF(left, row, ButtonWidth, ButtonHeight),
-            new RectangleF(left + ButtonWidth + UiDesign.SmallSpacing, row, ButtonWidth, ButtonHeight));
+        float cardY = (size.Height - CardHeight) / 2.0f;
+        var card = new RectangleF(cardX, cardY, cardWidth, CardHeight);
+        float rowWidth = MathF.Min(RowWidth, cardWidth - 48.0f);
+        var commands = new RectangleF(
+            (size.Width - rowWidth) / 2.0f,
+            card.Y + 216.0f,
+            rowWidth,
+            (3.0f * CommandRow.Height) + (2.0f * UiDesign.SmallSpacing));
+        var caption = new RectangleF((size.Width - 254.0f) / 2.0f, commands.Bottom + 16.0f, 254.0f, 32.0f);
+        return new EmptyStateLayout(card, commands, caption);
     }
 
     private readonly record struct EmptyStateLayout(
         RectangleF Card,
-        RectangleF Caption,
-        RectangleF OpenButton,
-        RectangleF SettingsButton);
+        RectangleF Commands,
+        RectangleF Caption);
+
+    private sealed class CommandRow : InteractiveControl
+    {
+        internal const float Height = 36.0f;
+
+        private const float TextPadding = 14.0f;
+        private static readonly UiFont LabelFont = new(UiDesign.BodyFontSize, FontWeight.SemiBold);
+        private static readonly UiFont ShortcutFont = new(12.0f, Alignment: TextAlignment.Trailing);
+
+        private readonly Action _execute;
+
+        internal CommandRow(Command command, Action execute)
+        {
+            Command = command;
+            _execute = execute;
+        }
+
+        internal Command Command { get; }
+
+        internal string? Shortcut
+        {
+            get;
+            set
+            {
+                if (field != value)
+                {
+                    field = value;
+                    InvalidateVisual();
+                }
+            }
+        }
+
+        protected override SizeF MeasureCore(SizeF availableSize) => new(availableSize.Width, Height);
+
+        protected override void DrawCore(in UiDrawContext context)
+        {
+            var background = new RoundedRectangle(
+                new RectangleF(0.0f, 0.0f, Bounds.Width, Bounds.Height),
+                UiDesign.ControlCornerRadius,
+                UiDesign.ControlCornerRadius);
+            context.FillRoundedRectangle(background, context.Palette.ControlSurface);
+            if (HoverAmount > 0.0f)
+            {
+                context.FillRoundedRectangle(background, context.Palette.ControlHover, HoverAmount);
+            }
+
+            if (PressedAmount > 0.0f)
+            {
+                context.FillRoundedRectangle(background, context.Palette.ControlPressed, PressedAmount);
+            }
+
+            var text = new Rect(TextPadding, 0.0f, MathF.Max(0.0f, Bounds.Width - 2.0f * TextPadding), Bounds.Height);
+            context.DrawText(Command.Label, LabelFont, text, context.Palette.PrimaryText, DrawTextOptions.Clip);
+            if (Shortcut is { } shortcut)
+            {
+                context.DrawText(shortcut, ShortcutFont, text, context.Palette.SecondaryText, DrawTextOptions.Clip);
+            }
+        }
+
+        protected override void Activate() => _execute();
+    }
 }

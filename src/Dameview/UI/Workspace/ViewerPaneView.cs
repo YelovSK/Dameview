@@ -34,7 +34,8 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         ViewerContextMenus contextMenus,
         Action<int> selectTab,
         Action<ViewerPane, ViewerTabInfo?, RectangleF> hoveredTabChanged,
-        Action<ViewerPane, int, WorkspaceDragEvent> tabDragPointer)
+        Action<ViewerPane, int, WorkspaceDragEvent> tabDragPointer,
+        ViewerKeyBindings keyBindings)
     {
         void Run(Command command, ViewerTab target) => commands.Execute(command, CommandContext.For(target));
 
@@ -57,10 +58,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             HandleHoveredTabChanged,
             (index, input) => tabDragPointer(Pane, index, TranslateTabStripEvent(input)),
             (index, point) => contextMenus.ShowForTab(Pane.Tabs[index], _viewerTabs!, point));
-        _emptyStatePanel = new EmptyStatePanel(
-            deviceContext,
-            () => Run(AppCommands.OpenFile, pane.ActiveTab),
-            () => Run(AppCommands.ShowSettings, pane.ActiveTab));
+        _emptyStatePanel = new EmptyStatePanel(deviceContext, commands, pane, keyBindings);
         _contentOverlay = new Overlay(_imagePanel, _emptyStatePanel);
         _toolbarPanel = new ToolbarPanel(commands, pane);
         _statusPanel = new StatusPanel();
@@ -101,6 +99,9 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         _chromeVisible = visible;
         UpdateChromeVisibility();
     }
+
+    internal void ApplyKeyBindings(ViewerKeyBindings keyBindings) =>
+        _emptyStatePanel.ApplyKeyBindings(keyBindings);
 
     internal bool ShowActivePaneIndicator
     {

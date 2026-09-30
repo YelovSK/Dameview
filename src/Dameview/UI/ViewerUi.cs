@@ -51,6 +51,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private bool _animationsEnabled = true;
     private bool _galleryEnabled = true;
     private bool _chromeVisible = true;
+    // Read when a pane view is created, so panes opened later show the current bindings.
+    private ViewerKeyBindings _keyBindings = ViewerKeyBindings.Defaults;
 
     internal ViewerUi(
         ID2D1DeviceContext deviceContext,
@@ -84,7 +86,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
                 _contextMenus,
                 index => app.SelectTab(pane, index),
                 ShowTabPreview,
-                HandleTabDragPointer));
+                HandleTabDragPointer,
+                _keyBindings));
         _activePaneView = FindPaneView(_activePane)
             ?? throw new InvalidOperationException("The active pane view was not created.");
         _workspaceView.SetActivePane(_activePane);
@@ -266,6 +269,11 @@ internal sealed class ViewerUi : UiElement, IDisposable
     {
         _commandPalettePanel.ApplyKeyBindings(keyBindings);
         _contextMenus.KeyBindings = keyBindings;
+        _keyBindings = keyBindings;
+        foreach (ViewerPaneView paneView in _workspaceView.PaneViews)
+        {
+            paneView.ApplyKeyBindings(keyBindings);
+        }
     }
 
     internal void ApplySettings(AppSettings settings)
