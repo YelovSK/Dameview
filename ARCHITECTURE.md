@@ -83,6 +83,8 @@ The UI is a retained tree rooted at `ViewerUi` and managed by `UiRoot`. Each `Ui
 
 Layout uses a measure-and-arrange pass in device-independent pixels. `UiRoot` reruns layout when the surface size or DPI changes, or when an element invalidates layout.
 
+`UiElement.Measure` and `Arrange` apply the element's margin, alignment and max size around `MeasureCore`/`ArrangeCore`, so containers only hand children slots. By default an element overlays its children across its whole area. Panels compose `StackPanel`, `Overlay` and `Surface`, and override the core methods only for real layout logic such as virtualization or anchored popups. Hidden children aren't laid out, so their bounds go stale.
+
 `AppWindow` reports pointer positions in physical pixels. `UiRoot` converts them to device-independent pixels, hit-tests the tree from front to back, and bubbles pointer events from the target through its ancestors. The root also owns hover, keyboard focus, pointer capture, cursor selection, focus navigation, and routing of key and text input.
 
 `ViewerUi.Update` advances animations and reports whether another frame is needed. During rendering, `UiDrawContext` walks the tree recursively and applies each element's position, clip, and inherited opacity before drawing it with Direct2D. `D2DRenderer` owns the graphics device, swap chain, and frame lifecycle. UI objects may retain element-specific Direct2D resources that are expensive to recreate. Text is described by `UiFont` values, and the root's `UiTextLayoutCache` owns the DirectWrite formats and layouts behind them. `UiDrawContext` is frame-local and carries borrowed drawing state through the tree.
