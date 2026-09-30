@@ -1,7 +1,7 @@
 using System.Drawing;
 using Dameview.Notifications;
-using Dameview.UI.Components;
 using Dameview.UI.Foundation;
+using Dameview.UI.Panels;
 
 namespace Dameview.Tests.UI;
 

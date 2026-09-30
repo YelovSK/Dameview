@@ -1,14 +1,14 @@
 using System.Drawing;
 using Dameview.UI.Animation;
+using Dameview.UI.Components;
 using Dameview.UI.Foundation;
 using Dameview.UI.Layout;
-using Dameview.UI.Workspace;
 using Dameview.Win32.Input;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
 using Vortice.Mathematics;
 
-namespace Dameview.UI.Components;
+namespace Dameview.UI.Workspace;
 
 internal sealed class ViewerTabStrip : UiElement
 {

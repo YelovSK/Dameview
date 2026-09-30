@@ -1,7 +1,7 @@
 using Dameview.Installation;
 using Dameview.Rendering;
+using Dameview.Settings;
 using Dameview.UI;
-using Dameview.UI.Foundation;
 using Dameview.Win32;
 using Dameview.Win32.Input;
 using Vortice.Direct3D;
@@ -26,7 +26,7 @@ internal sealed class InstallerApp : IDisposable
             : "Install Dameview";
         _window = new AppWindow(title, 580, 435);
         _window.CenterOnPrimaryMonitor();
-        _window.SetTitleBarTheme(dark: true, UiTheme.Default.WindowCaptionColor, UiTheme.Default.WindowTextColor);
+        _window.SetTitleBarTheme(dark: true, Themes.Dark.Palette.WindowCaptionColor, Themes.Dark.Palette.WindowTextColor);
         _renderer = new D2DRenderer(
             _window.Handle,
             _window.ClientWidth,

@@ -1,5 +1,6 @@
 using System.Drawing;
 using Dameview.Installation;
+using Dameview.Settings;
 using Dameview.UI.Animation;
 using Dameview.UI.Components;
 using Dameview.UI.Foundation;
@@ -122,7 +123,7 @@ internal sealed class InstallerUi : UiElement, IDisposable
         remove => _root.CursorChanged -= value;
     }
 
-    internal UiTheme Palette { get; } = UiTheme.Default;
+    internal UiTheme Palette { get; } = Themes.Dark.Palette;
 
     internal void ShowError(string message)
     {

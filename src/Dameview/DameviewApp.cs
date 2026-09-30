@@ -12,7 +12,6 @@ using Dameview.Notifications;
 using Dameview.Rendering;
 using Dameview.Settings;
 using Dameview.UI;
-using Dameview.UI.Foundation;
 using Dameview.UI.Presentation;
 using Dameview.Updates;
 using Dameview.Viewing;
@@ -60,7 +59,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         _window = new AppWindow("Dameview", 1100, 720, startupSettings.Window);
         _uiContext = new WindowSynchronizationContext(_window.Post);
         SynchronizationContext.SetSynchronizationContext(_uiContext);
-        _window.SetTitleBarTheme(dark: true, UiTheme.Default.WindowCaptionColor, UiTheme.Default.WindowTextColor);
+        _window.SetTitleBarTheme(dark: true, Themes.Dark.Palette.WindowCaptionColor, Themes.Dark.Palette.WindowTextColor);
         _pointerX = _window.ClientWidth / 2;
         _pointerY = _window.ClientHeight / 2;
         StartupTrace.Mark("window");
@@ -138,7 +137,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
             _renderer.DirectWriteFactory,
             _workspace,
             _window.Dpi,
-            UiTheme.Default,
+            Themes.Dark.Palette,
             this,
             _thumbnailImageLoader,
             _performanceMonitor,

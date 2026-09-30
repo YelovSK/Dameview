@@ -5,7 +5,7 @@ using Dameview.UI.Foundation;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
 
-namespace Dameview.UI.Components;
+namespace Dameview.UI.Panels;
 
 internal sealed class PerformanceOverlay : UiElement
 {

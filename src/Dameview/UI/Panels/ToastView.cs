@@ -1,12 +1,13 @@
 using System.Drawing;
 using Dameview.Notifications;
 using Dameview.UI.Animation;
+using Dameview.UI.Components;
 using Dameview.UI.Foundation;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
 using Vortice.Mathematics;
 
-namespace Dameview.UI.Components;
+namespace Dameview.UI.Panels;
 
 /// <summary>One message in the toast stack, which slides in and fades out on its way back.</summary>
 internal sealed class ToastView : UiElement

@@ -1,12 +1,13 @@
 using System.Drawing;
 using Dameview.Commands;
+using Dameview.UI.Components;
 using Dameview.UI.Foundation;
 using Dameview.Win32.Input;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
 using Vortice.Mathematics;
 
-namespace Dameview.UI.Components;
+namespace Dameview.UI.Panels;
 
 internal sealed class ShortcutChip : InteractiveControl
 {

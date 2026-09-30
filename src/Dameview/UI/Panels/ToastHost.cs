@@ -2,7 +2,7 @@ using System.Drawing;
 using Dameview.Notifications;
 using Dameview.UI.Foundation;
 
-namespace Dameview.UI.Components;
+namespace Dameview.UI.Panels;
 
 /// <summary>Stacks the current toasts in a corner, above everything the window is showing.</summary>
 internal sealed class ToastHost : UiElement, IDisposable
