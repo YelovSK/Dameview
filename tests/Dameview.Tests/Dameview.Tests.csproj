@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../src/Dameview.Core/Dameview.Core.csproj" />
+    <ProjectReference Include="../../src/Dameview.Model/Dameview.Model.csproj" />
     <ProjectReference Include="../../src/Dameview.UI/Dameview.UI.csproj" />
     <ProjectReference Include="../../src/Dameview.Win32/Dameview.Win32.csproj" />
     <ProjectReference Include="../../src/Dameview/Dameview.csproj" />

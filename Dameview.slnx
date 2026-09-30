@@ -1,5 +1,5 @@
 <Solution>
-  <Project Path="src/Dameview.Core/Dameview.Core.csproj" />
+  <Project Path="src/Dameview.Model/Dameview.Model.csproj" />
   <Project Path="src/Dameview.UI/Dameview.UI.csproj" />
   <Project Path="src/Dameview.Win32/Dameview.Win32.csproj" />
   <Project Path="src/Dameview/Dameview.csproj" />

@@ -6,22 +6,22 @@ Dameview is a Windows image viewer distributed as a single Native AOT executable
 
 Production code is split into four projects:
 
-- `Dameview.Core` contains application state and logic that does not depend on Windows, rendering, or UI code.
-- `Dameview.Win32` contains low-level Windows mechanisms such as windowing, input translation, COM-initialized worker queues, the WinHTTP transport, and shell integration. These mechanisms do not depend on Core or the executable's application model.
+- `Dameview.Model` is the model of what is being viewed: the workspace, panes and tabs, folder navigation, viewports, and image representations. It does not depend on Windows, rendering, or UI code. App services without platform dependencies, such as settings, commands, and notifications, still belong in the executable.
+- `Dameview.Win32` contains low-level Windows mechanisms such as windowing, input translation, COM-initialized worker queues, the WinHTTP transport, and shell integration. These mechanisms do not depend on Model or the executable's application model.
 - `Dameview.UI` is the app-independent UI framework: the element tree, layout, animation, and generic controls. It draws with Direct2D and takes input from Win32, but knows nothing of the app's panels, settings, or themes.
 - `Dameview` is the executable. It contains the frontend and application-specific workflows, and references all three libraries.
 
 The project graph is deliberately one-way:
 
 ```text
-Dameview -> Dameview.Core
+Dameview -> Dameview.Model
 Dameview -> Dameview.UI -> Dameview.Win32
 Dameview -> Dameview.Win32
 ```
 
 `Dameview.Win32` is not intended to contain every Windows-specific implementation. WIC decoding and Direct2D rendering remain in the executable because they implement Dameview's imaging and presentation workflows.
 
-Within a project, folders and namespaces group related responsibilities; they are not independent layers and do not have a separately enforced dependency graph. Some responsibilities span projects, with platform-neutral state and policy in Core and application-specific implementations in the executable.
+Within a project, folders and namespaces group related responsibilities; they are not independent layers and do not have a separately enforced dependency graph. Some responsibilities span projects, with the viewing model in Model and its Windows and GPU implementations in the executable.
 
 ## Runtime flow
 
@@ -43,13 +43,13 @@ The names below are responsibility areas, generally reflected by folders and nam
 
 `Viewing` owns the workspace, panes, tabs, viewing sessions, and viewport state. The workspace is the source of truth for its layout and active content; the UI presents that state rather than duplicating it.
 
-`Imaging` turns files into image representations suitable for presentation. Core contains the representations and policies used by viewing. The executable contains loading coordination, WIC decoding, animated-image handling, thumbnails, caching, and tiled-image support.
+`Imaging` turns files into image representations suitable for presentation. Model contains the representations and policies used by viewing. The executable contains loading coordination, WIC decoding, animated-image handling, thumbnails, caching, and tiled-image support.
 
 `UI` owns layout, interaction, animation, and drawing. `Rendering` owns the Direct2D and Direct3D infrastructure and frame lifecycle. Logical viewing state and decodable image data live outside both so they survive graphics-resource recreation.
 
 `Commands` defines the application actions exposed by the viewer and maps keyboard shortcuts to those actions. Each command is defined whole in `AppCommands`: its settings id, label, shortcut scope, default shortcuts, when it can run, and what it does. A command is invoked with a `CommandContext` naming its target, such as a tab or an image file: shortcuts and the command palette aim at the active tab, while a button aims at its own pane's tab and a context menu at whatever was right-clicked, such as a background tab or a gallery item. Commands work through `ICommandHost`, which `DameviewApp` implements; the UI runs them through `ICommandRunner`. Direct manipulation such as selecting or dragging tabs is not a command and goes through `IViewerActions`.
 
-`Settings` owns persisted application preferences and delivers changes to the running application. The executable applies those preferences to Core state, UI presentation, and native window behavior.
+`Settings` owns persisted application preferences and delivers changes to the running application. The executable applies those preferences to the viewing model, UI presentation, and native window behavior.
 
 `Updates` owns release discovery, download state, and update handoff. `Installation` owns Dameview's install, uninstall, registration, and relaunch workflows. Both use native mechanisms from `Dameview.Win32` while keeping application policy in the executable.
 
