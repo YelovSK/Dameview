@@ -4,16 +4,18 @@ Dameview is a Windows image viewer distributed as a single Native AOT executable
 
 ## Project boundaries
 
-Production code is split into three projects:
+Production code is split into four projects:
 
 - `Dameview.Core` contains application state and logic that does not depend on Windows, rendering, or UI code.
 - `Dameview.Win32` contains low-level Windows mechanisms such as windowing, input translation, COM-initialized worker queues, the WinHTTP transport, and shell integration. These mechanisms do not depend on Core or the executable's application model.
-- `Dameview` is the executable. It contains the frontend and application-specific workflows, and references both libraries.
+- `Dameview.UI` is the app-independent UI framework: the element tree, layout, animation, and generic controls. It draws with Direct2D and takes input from Win32, but knows nothing of the app's panels, settings, or themes.
+- `Dameview` is the executable. It contains the frontend and application-specific workflows, and references all three libraries.
 
 The project graph is deliberately one-way:
 
 ```text
 Dameview -> Dameview.Core
+Dameview -> Dameview.UI -> Dameview.Win32
 Dameview -> Dameview.Win32
 ```
 

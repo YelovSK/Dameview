@@ -229,7 +229,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             && input.Position.Y >= ContentBounds.Y
             && input.Position.Y <= ContentBounds.Y
                 + UiDesign.WindowMargin
-                + UiDesign.ToolbarHeight
+                + ToolbarPanel.HeightDips
                 + 28.0f;
         UpdateChromeVisibility();
     }

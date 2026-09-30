@@ -29,6 +29,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../Dameview.Core/Dameview.Core.csproj" />
+    <ProjectReference Include="../Dameview.UI/Dameview.UI.csproj" />
     <ProjectReference Include="../Dameview.Win32/Dameview.Win32.csproj" />
   </ItemGroup>
 

@@ -10,6 +10,9 @@ namespace Dameview.UI.Panels;
 
 internal sealed class ToolbarPanel : UiElement
 {
+    internal const float HeightDips = 46.0f;
+    private const float WidthDips = 342.0f;
+
     internal ToolbarPanel(ICommandRunner commands, ViewerPane pane)
     {
         void Run(Command command) => commands.Execute(command, CommandContext.For(pane.ActiveTab));
@@ -41,9 +44,9 @@ internal sealed class ToolbarPanel : UiElement
         {
             Fill = UiSurfaceFill.Overlay,
         });
-        MaxWidth = UiDesign.ToolbarWidth;
-        MaxHeight = UiDesign.ToolbarHeight;
-        Transition = new UiTransition(Fade: true, HiddenOffset: new PointF(0.0f, -UiDesign.ToolbarHeight), Response: 14.0);
+        MaxWidth = WidthDips;
+        MaxHeight = HeightDips;
+        Transition = new UiTransition(Fade: true, HiddenOffset: new PointF(0.0f, -HeightDips), Response: 14.0);
         IsPresent = false;
     }
 }
