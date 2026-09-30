@@ -80,7 +80,7 @@ internal sealed class ViewportAnimator
             return false;
         }
 
-        var delta = new Vector2(pointer.X - pan.Pointer.X, pointer.Y - pan.Pointer.Y);
+        Vector2 delta = pointer - pan.Pointer;
         long timestamp = _timeProvider.GetTimestamp();
         double elapsed = _timeProvider.GetElapsedTime(pan.Timestamp, timestamp).TotalSeconds;
 
@@ -259,20 +259,12 @@ internal sealed class ViewportAnimator
             viewportCenter,
             transform.TargetCenter,
             transform.TargetScale);
-        PointF screenCenter = new(
-            (float)(currentScreenCenter.X + ((targetScreenCenter.X - currentScreenCenter.X) * blend)),
-            (float)(currentScreenCenter.Y + ((targetScreenCenter.Y - currentScreenCenter.Y) * blend)));
-        PointF center = new(
-            imageCenter.X - ((screenCenter.X - viewportCenter.X) / scale),
-            imageCenter.Y - ((screenCenter.Y - viewportCenter.Y) / scale));
+        PointF screenCenter = currentScreenCenter + ((targetScreenCenter - currentScreenCenter) * (float)blend);
+        PointF center = imageCenter - ((screenCenter - viewportCenter) / scale);
 
-        float centerDistanceX = screenCenter.X - targetScreenCenter.X;
-        float centerDistanceY = screenCenter.Y - targetScreenCenter.Y;
         bool scaleComplete = Math.Abs(scale - transform.TargetScale)
             <= transform.TargetScale * ZoomCompletionRatio;
-        bool centerComplete = Math.Sqrt(
-            (centerDistanceX * centerDistanceX) + (centerDistanceY * centerDistanceY))
-            <= CenterCompletionDistance;
+        bool centerComplete = (screenCenter - targetScreenCenter).Length() <= CenterCompletionDistance;
 
         if (scaleComplete && centerComplete)
         {
@@ -302,12 +294,8 @@ internal sealed class ViewportAnimator
         PointF imageCenter,
         PointF viewportCenter,
         PointF center,
-        float scale)
-    {
-        return new PointF(
-            viewportCenter.X + ((imageCenter.X - center.X) * scale),
-            viewportCenter.Y + ((imageCenter.Y - center.Y) * scale));
-    }
+        float scale) =>
+        viewportCenter + ((imageCenter - center) * scale);
 
     private void UpdateMomentum(double elapsed)
     {

@@ -103,10 +103,7 @@ internal sealed class ImageViewport
         }
 
         float clampedScale = Math.Clamp(scale, GetMinimumScale(), MaximumScale);
-        PointF viewportCenter = ViewportCenter;
-        var center = new PointF(
-            imagePoint.X - ((viewportPoint.X - viewportCenter.X) / clampedScale),
-            imagePoint.Y - ((viewportPoint.Y - viewportCenter.Y) / clampedScale));
+        PointF center = imagePoint - ((viewportPoint - ViewportCenter) / clampedScale);
         return ClampCenter(center, clampedScale);
     }
 
@@ -142,28 +139,20 @@ internal sealed class ImageViewport
             return;
         }
 
-        _center = new PointF(_center.X - (delta.X / Scale), _center.Y - (delta.Y / Scale));
+        _center -= delta / Scale;
         Mode = ViewportMode.Custom;
         ClampCenter();
     }
 
     internal RectangleF GetDestinationRectangle()
     {
-        PointF viewportCenter = ViewportCenter;
-        return new RectangleF(
-            viewportCenter.X - (_center.X * Scale),
-            viewportCenter.Y - (_center.Y * Scale),
-            _imageSize.Width * Scale,
-            _imageSize.Height * Scale);
+        // We want _center to show up in the middle of the viewport.
+        // The image's top-left corner is then that far up and left of the middle, times the zoom.
+        PointF location = ViewportCenter - ((_center - PointF.Empty) * Scale);
+        return new RectangleF(location, _imageSize * Scale);
     }
 
-    internal PointF ViewportToImage(PointF viewportPoint)
-    {
-        PointF viewportCenter = ViewportCenter;
-        return new PointF(
-            _center.X + ((viewportPoint.X - viewportCenter.X) / Scale),
-            _center.Y + ((viewportPoint.Y - viewportCenter.Y) / Scale));
-    }
+    internal PointF ViewportToImage(PointF viewportPoint) => _center + ((viewportPoint - ViewportCenter) / Scale);
 
     internal bool HasImage => _imageSize.Width > 0.0f && _imageSize.Height > 0.0f;
 
