@@ -15,7 +15,7 @@ public sealed class UiTransitionTests
     {
         var element = new Box { Transition = new UiTransition(Fade: true) };
         var root = new UiRoot(
-            new StackPanel(UiOrientation.Vertical, 0.0f, StackPanelDistribution.Natural, element),
+            new StackPanel(UiOrientation.Vertical, element),
             UiDpi.Default,
             TestTextLayouts.Shared);
         root.Arrange(WindowSize);
@@ -50,7 +50,7 @@ public sealed class UiTransitionTests
         var collapsing = new Box { Transition = new UiTransition(Collapse: true) };
         var last = new Box();
         var root = new UiRoot(
-            new StackPanel(UiOrientation.Vertical, 10.0f, StackPanelDistribution.Natural, first, collapsing, last),
+            new StackPanel(UiOrientation.Vertical, first, collapsing, last) { Spacing = 10.0f },
             UiDpi.Default,
             TestTextLayouts.Shared);
         root.Arrange(WindowSize);
@@ -75,7 +75,7 @@ public sealed class UiTransitionTests
     {
         var first = new Box();
         var collapsing = new Box { Transition = new UiTransition(Collapse: true) };
-        var stack = new StackPanel(UiOrientation.Vertical, 10.0f, StackPanelDistribution.Natural, first, collapsing);
+        var stack = new StackPanel(UiOrientation.Vertical, first, collapsing) { Spacing = 10.0f };
         var root = new UiRoot(stack, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(WindowSize);
 

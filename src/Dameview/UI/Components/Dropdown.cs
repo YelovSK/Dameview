@@ -209,11 +209,10 @@ internal sealed class Dropdown<T> : InteractiveControl
                     backgroundInsetY: 2.0f);
             }
 
-            _column = new StackPanel(
-                UiOrientation.Vertical,
-                0.0f,
-                StackPanelDistribution.Equal,
-                _buttons);
+            _column = new StackPanel(UiOrientation.Vertical, _buttons)
+            {
+                Distribution = StackPanelDistribution.Equal,
+            };
             AddChild(_column);
         }
 

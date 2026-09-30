@@ -13,10 +13,6 @@ namespace Dameview.UI;
 
 internal sealed class InstallerUi : UiElement, IDisposable
 {
-    private const float PanelWidth = 500.0f;
-    private const float PanelHeight = 320.0f;
-    private const float PanelPadding = 24.0f;
-
     private readonly ID2D1DeviceContext _deviceContext;
     private readonly ID2D1SolidColorBrush _brush;
     private readonly UiTextLayoutCache _textLayouts;
@@ -30,10 +26,8 @@ internal sealed class InstallerUi : UiElement, IDisposable
     private readonly Button _primaryButton;
     private readonly Button _secondaryButton;
     private readonly Button _uninstallButton;
-    private readonly StackPanel _buttons;
     private readonly UiAnimationClock _animationClock = new();
     private readonly UiRoot _root;
-    private RectangleF _panelBounds;
 
     internal InstallerUi(
         ID2D1DeviceContext deviceContext,
@@ -87,20 +81,31 @@ internal sealed class InstallerUi : UiElement, IDisposable
             tone: UiButtonTone.Danger)
         {
             IsVisible = request.Action is AppInstallationAction.Update or AppInstallationAction.Reinstall,
+            MaxWidth = 140.0f,
         };
-        _buttons = new StackPanel(
-            UiOrientation.Horizontal,
-            UiDesign.Spacing,
-            StackPanelDistribution.Equal,
-            _primaryButton,
-            _secondaryButton);
 
-        AddChild(_title);
-        AddChild(_description);
-        AddChild(_location);
-        AddChild(_status);
-        AddChild(_buttons);
-        AddChild(_uninstallButton);
+        // Takes the slack even while the status is hidden, which keeps the buttons at the bottom.
+        var statusArea = new Overlay(_status);
+        var buttons = new StackPanel(UiOrientation.Horizontal, _primaryButton, _secondaryButton)
+        {
+            Spacing = UiDesign.Spacing,
+            Distribution = StackPanelDistribution.Equal,
+        };
+        var content = new StackPanel(
+            UiOrientation.Vertical,
+            _title, _description, _location, statusArea, buttons, _uninstallButton)
+        {
+            Spacing = UiDesign.Spacing,
+            Fill = statusArea,
+            Margin = new UiThickness(24.0f),
+        };
+
+        AddChild(new Surface(content)
+        {
+            MaxWidth = 500.0f,
+            MaxHeight = 320.0f,
+            Margin = new UiThickness(UiDesign.WindowMargin),
+        });
         _root = new UiRoot(this, dpi, _textLayouts);
         _root.SetFocus(_primaryButton);
     }
@@ -195,62 +200,6 @@ internal sealed class InstallerUi : UiElement, IDisposable
     }
 
     internal bool HandlePointer(in WindowPointerEvent input) => _root.HandlePointer(input);
-
-    protected override SizeF MeasureCore(SizeF availableSize)
-    {
-        float contentWidth = MathF.Max(0.0f, MathF.Min(PanelWidth, availableSize.Width) - 2.0f * PanelPadding);
-        _title.Measure(new SizeF(contentWidth, 36.0f));
-        _description.Measure(new SizeF(contentWidth, 48.0f));
-        _location.Measure(new SizeF(contentWidth, 24.0f));
-        _status.Measure(new SizeF(contentWidth, 48.0f));
-        _buttons.Measure(new SizeF(contentWidth, 36.0f));
-        _uninstallButton.Measure(new SizeF(140.0f, 36.0f));
-        return availableSize;
-    }
-
-    protected override void ArrangeCore(SizeF finalSize)
-    {
-        float width = MathF.Min(PanelWidth, MathF.Max(0.0f, finalSize.Width - 2.0f * UiDesign.WindowMargin));
-        float height = MathF.Min(PanelHeight, MathF.Max(0.0f, finalSize.Height - 2.0f * UiDesign.WindowMargin));
-        _panelBounds = new RectangleF(
-            (finalSize.Width - width) / 2.0f,
-            (finalSize.Height - height) / 2.0f,
-            width,
-            height);
-
-        float x = _panelBounds.X + PanelPadding;
-        float y = _panelBounds.Y + PanelPadding;
-        float contentWidth = MathF.Max(0.0f, width - 2.0f * PanelPadding);
-        _title.Arrange(new RectangleF(x, y, contentWidth, 36.0f));
-        y += 44.0f;
-        _description.Arrange(new RectangleF(x, y, contentWidth, 48.0f));
-        y += 56.0f;
-        _location.Arrange(new RectangleF(x, y, contentWidth, 24.0f));
-        y += 32.0f;
-        _status.Arrange(new RectangleF(x, y, contentWidth, 48.0f));
-        float footerY = _panelBounds.Bottom - PanelPadding - 36.0f;
-        float buttonsY = _uninstallButton.IsVisible ? footerY - 44.0f : footerY;
-        _buttons.Arrange(new RectangleF(
-            x,
-            buttonsY,
-            contentWidth,
-            36.0f));
-        _uninstallButton.Arrange(new RectangleF(
-            _panelBounds.X + (_panelBounds.Width - 140.0f) / 2.0f,
-            footerY,
-            140.0f,
-            36.0f));
-    }
-
-    protected override void DrawCore(in UiDrawContext context)
-    {
-        var panel = new RoundedRectangle(
-            _panelBounds,
-            UiDesign.PanelCornerRadius,
-            UiDesign.PanelCornerRadius);
-        context.FillRoundedRectangle(panel, context.Palette.Surface);
-        context.DrawRoundedRectangle(panel, context.Palette.SurfaceBorder);
-    }
 
     protected override bool HitTestCore(PointF position) => false;
 

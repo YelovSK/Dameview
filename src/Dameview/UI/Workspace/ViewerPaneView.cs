@@ -14,6 +14,11 @@ namespace Dameview.UI.Workspace;
 // Presents the active tab of one viewer pane. Shared application chrome remains in ViewerUi.
 internal sealed class ViewerPaneView : UiElement, IDisposable
 {
+    private static readonly UiThickness TabStripMargin = new(UiDesign.Spacing, UiDesign.SmallSpacing);
+
+    /// <summary>The height the tab strip takes from the top of a pane while it is shown.</summary>
+    internal const float TabRowHeightDips = ViewerTabStrip.HeightDips + (2.0f * UiDesign.SmallSpacing);
+
     private readonly ImagePanel _imagePanel;
     private readonly ViewerTabStrip _viewerTabs;
     private readonly EmptyStatePanel _emptyStatePanel;
@@ -57,17 +62,30 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             () => Run(AppCommands.NewTab, pane.ActiveTab),
             HandleHoveredTabChanged,
             (index, input) => tabDragPointer(Pane, index, TranslateTabStripEvent(input)),
-            (index, point) => contextMenus.ShowForTab(Pane.Tabs[index], _viewerTabs!, point));
+            (index, point) => contextMenus.ShowForTab(Pane.Tabs[index], _viewerTabs!, point))
+        {
+            Margin = TabStripMargin,
+        };
         _emptyStatePanel = new EmptyStatePanel(deviceContext, commands, pane, keyBindings);
-        _contentOverlay = new Overlay(_imagePanel, _emptyStatePanel);
-        _toolbarPanel = new ToolbarPanel(commands, pane);
-        _statusPanel = new StatusPanel();
+        _toolbarPanel = new ToolbarPanel(commands, pane)
+        {
+            HorizontalAlignment = UiAlignment.Center,
+            VerticalAlignment = UiAlignment.Start,
+            Margin = new UiThickness(UiDesign.WindowMargin),
+        };
+        _statusPanel = new StatusPanel
+        {
+            HorizontalAlignment = UiAlignment.Center,
+            VerticalAlignment = UiAlignment.End,
+            Margin = new UiThickness(UiDesign.WindowMargin),
+        };
+        _contentOverlay = new Overlay(_imagePanel, _emptyStatePanel, _toolbarPanel, _statusPanel);
         _activePaneIndicator = new ActivePaneIndicator { IsVisible = false };
 
-        AddChild(_viewerTabs);
-        AddChild(_contentOverlay);
-        AddChild(_toolbarPanel);
-        AddChild(_statusPanel);
+        AddChild(new StackPanel(UiOrientation.Vertical, _viewerTabs, _contentOverlay)
+        {
+            Fill = _contentOverlay,
+        });
         AddChild(_activePaneIndicator);
 
         UpdateChromeVisibility();
@@ -82,7 +100,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     internal bool HasStatus => HasImage
         || _state.Message is not null
         || _state.FolderError is not null;
-    internal RectangleF ContentBounds { get; private set; }
+    internal RectangleF ContentBounds => _contentOverlay.GetBoundsRelativeTo(this);
     internal UiElement FocusScope => HasImage ? _toolbarPanel : _emptyStatePanel;
 
     internal TimeSpan? NextAnimationFrameDelay => _imagePanel.NextAnimationFrameDelay;
@@ -197,55 +215,6 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             message,
             animationError is not null || _state.IsError || _state.FolderError is not null));
         UpdateChromeVisibility();
-    }
-
-    protected override SizeF MeasureCore(SizeF availableSize)
-    {
-        float tabHeight = _viewerTabs.IsVisible
-            ? _viewerTabs.Measure(new SizeF(availableSize.Width, ViewerTabStrip.HeightDips)).Height
-            : 0.0f;
-        var contentSize = new SizeF(
-            availableSize.Width,
-            MathF.Max(0.0f, availableSize.Height - tabHeight));
-        _contentOverlay.Measure(contentSize);
-        if (_statusPanel.IsVisible)
-        {
-            _statusPanel.Measure(new SizeF(
-                MathF.Max(0.0f, contentSize.Width - (2.0f * UiDesign.WindowMargin)),
-                StatusPanel.HeightDips));
-        }
-
-        return availableSize;
-    }
-
-    protected override void ArrangeCore(SizeF finalSize)
-    {
-        float tabHeight = _viewerTabs.IsVisible ? ViewerTabStrip.HeightDips : 0.0f;
-        // Inset within the tab row, so the row keeps its height for pane layout.
-        _viewerTabs.Arrange(new RectangleF(
-            UiDesign.Spacing,
-            UiDesign.SmallSpacing,
-            MathF.Max(0.0f, finalSize.Width - (2.0f * UiDesign.Spacing)),
-            MathF.Max(0.0f, tabHeight - (2.0f * UiDesign.SmallSpacing))));
-        ContentBounds = new RectangleF(
-            0.0f,
-            tabHeight,
-            finalSize.Width,
-            MathF.Max(0.0f, finalSize.Height - tabHeight));
-        _contentOverlay.Arrange(ContentBounds);
-
-        var layout = ViewerLayout.Calculate(
-            ContentBounds.Size,
-            statusWidthDips: _statusPanel.DesiredSize.Width,
-            statusHeightDips: _statusPanel.DesiredSize.Height,
-            toolbarWidthDips: ToolbarPanel.WidthDips);
-        RectangleF status = layout.Status;
-        status.Offset(ContentBounds.Location);
-        _statusPanel.Arrange(status);
-        RectangleF toolbar = layout.Toolbar;
-        toolbar.Offset(ContentBounds.Location);
-        _toolbarPanel.Arrange(toolbar);
-        _activePaneIndicator.Arrange(new RectangleF(PointF.Empty, finalSize));
     }
 
     protected override bool HitTestCore(PointF position) => false;

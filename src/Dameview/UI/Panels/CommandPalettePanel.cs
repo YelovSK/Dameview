@@ -6,18 +6,11 @@ using Dameview.UI.Foundation;
 using Dameview.UI.Layout;
 using Dameview.Win32.Input;
 using Vortice.Direct2D1;
-using Vortice.DirectWrite;
-using Vortice.Mathematics;
 
 namespace Dameview.UI.Panels;
 
 internal sealed class CommandPalettePanel : ModalContent
 {
-    private const float Padding = 16.0f;
-    private const float TitleHeight = 36.0f;
-    private const float InputHeight = 38.0f;
-    private const float SectionGap = 8.0f;
-
     private readonly TextBlock _title;
     private readonly TextInput _filterInput;
     private readonly Func<Command, bool> _canExecute;
@@ -57,11 +50,10 @@ internal sealed class CommandPalettePanel : ModalContent
         ];
         _keyBindings = keyBindings;
         _applyKeyBindings = applyKeyBindings;
-        _itemList = new StackPanel(
-            UiOrientation.Vertical,
-            UiDesign.SmallSpacing,
-            StackPanelDistribution.Natural,
-            _items);
+        _itemList = new StackPanel(UiOrientation.Vertical, _items)
+        {
+            Spacing = UiDesign.SmallSpacing,
+        };
         _list = new ScrollView(_itemList);
         _emptyMessage = new TextBlock(
             "No matching commands.",
@@ -72,10 +64,13 @@ internal sealed class CommandPalettePanel : ModalContent
             IsVisible = false,
         };
 
-        AddChild(_title);
-        AddChild(_filterInput);
-        AddChild(_list);
-        AddChild(_emptyMessage);
+        var results = new Overlay(_list, _emptyMessage);
+        AddChild(new StackPanel(UiOrientation.Vertical, _title, _filterInput, results)
+        {
+            Spacing = UiDesign.Spacing,
+            Fill = results,
+            Margin = new UiThickness(UiDesign.LargeSpacing),
+        });
         RefreshShortcuts();
         ApplyFilter(string.Empty);
     }
@@ -140,40 +135,6 @@ internal sealed class CommandPalettePanel : ModalContent
                 return false;
         }
     }
-
-    protected override SizeF MeasureCore(SizeF availableSize)
-    {
-        float contentWidth = MathF.Max(0.0f, availableSize.Width - (2.0f * Padding));
-        _title.Measure(new SizeF(contentWidth, TitleHeight));
-        _filterInput.Measure(new SizeF(contentWidth, InputHeight));
-        _list.Measure(new SizeF(contentWidth, CalculateListHeight(availableSize.Height)));
-        _emptyMessage.Measure(new SizeF(contentWidth, CalculateListHeight(availableSize.Height)));
-        return PreferredSize;
-    }
-
-    protected override void ArrangeCore(SizeF finalSize)
-    {
-        float contentWidth = MathF.Max(0.0f, finalSize.Width - (2.0f * Padding));
-        _title.Arrange(new RectangleF(Padding, Padding, contentWidth, TitleHeight));
-        _filterInput.Arrange(new RectangleF(
-            Padding,
-            Padding + TitleHeight + SectionGap,
-            contentWidth,
-            InputHeight));
-        float listTop = Padding + TitleHeight + SectionGap + InputHeight + SectionGap;
-        float listHeight = CalculateListHeight(finalSize.Height);
-        _list.Arrange(new RectangleF(
-            Padding,
-            listTop,
-            contentWidth,
-            listHeight));
-        _emptyMessage.Arrange(new RectangleF(Padding, listTop, contentWidth, listHeight));
-    }
-
-    private static float CalculateListHeight(float panelHeight) =>
-        MathF.Max(
-            0.0f,
-            panelHeight - (2.0f * Padding) - TitleHeight - InputHeight - (2.0f * SectionGap));
 
     private void ApplyFilter(string query)
     {
@@ -278,16 +239,15 @@ internal sealed class CommandPalettePanel : ModalContent
 
     private sealed class CommandItem : InteractiveControl
     {
-        private const float ChipGap = 4.0f;
-        private const float AddButtonWidth = 26.0f;
-        private const float ChipPadding = 12.0f;
         private const float RowHeight = 40.0f;
-        private static readonly UiFont LabelFont = new(UiDesign.BodyFontSize, FontWeight.Medium);
+        private const float AddButtonWidth = 26.0f;
 
         private readonly Action _execute;
         private readonly Action<int, ViewerCommandShortcut> _recordShortcut;
         private readonly Action<int> _removeShortcut;
-        private readonly Button _addButton;
+        private readonly TextBlock _label;
+        private readonly StackPanel _chipRow;
+        private readonly StackPanel _row;
         private readonly List<ShortcutChip> _chips = [];
 
         internal CommandItem(
@@ -300,14 +260,33 @@ internal sealed class CommandPalettePanel : ModalContent
             _execute = execute;
             _recordShortcut = recordShortcut;
             _removeShortcut = removeShortcut;
-            _addButton = new Button("+", () => AddChip().BeginRecording());
-            AddChild(_addButton);
+            _label = new TextBlock(command.Label, UiTextStyle.Label, UiTextTone.Primary, UiTextWrapping.NoWrap)
+            {
+                VerticalAlignment = UiAlignment.Center,
+            };
+            _chipRow = new StackPanel(UiOrientation.Horizontal)
+            {
+                Spacing = UiDesign.SmallSpacing,
+                VerticalAlignment = UiAlignment.Center,
+            };
+            var addButton = new Button("+", () => AddChip().BeginRecording())
+            {
+                MaxWidth = AddButtonWidth,
+                MaxHeight = ShortcutChip.Height,
+                VerticalAlignment = UiAlignment.Center,
+            };
+            _row = new StackPanel(UiOrientation.Horizontal, _label, _chipRow, addButton)
+            {
+                Spacing = UiDesign.SmallSpacing,
+                Fill = _label,
+                Margin = new UiThickness(12.0f, 0.0f),
+            };
+            AddChild(_row);
             // Items that stop matching the filter fade and collapse out of the list.
             Transition = new UiTransition(Fade: true, Collapse: true, Response: 25.0);
         }
 
         internal Command Command { get; }
-        private float ChipsLeft { get; set; }
         internal bool IsSelected
         {
             get => HasVisualState(UiVisualState.Selected);
@@ -329,7 +308,7 @@ internal sealed class CommandPalettePanel : ModalContent
                 // which can set the shortcuts again.
                 ShortcutChip chip = _chips[^1];
                 _chips.RemoveAt(_chips.Count - 1);
-                RemoveChild(chip);
+                _chipRow.Remove(chip);
             }
 
             while (_chips.Count < shortcuts.Count)
@@ -341,8 +320,6 @@ internal sealed class CommandPalettePanel : ModalContent
             {
                 _chips[slot].Shortcut = shortcuts[slot];
             }
-
-            InvalidateLayout();
         }
 
         private ShortcutChip AddChip()
@@ -352,40 +329,22 @@ internal sealed class CommandPalettePanel : ModalContent
                 shortcut => _recordShortcut(slot, shortcut),
                 () => _removeShortcut(slot));
             _chips.Add(chip);
-            AddChild(chip);
+            _chipRow.Add(chip);
             return chip;
         }
 
-        protected override SizeF MeasureCore(SizeF availableSize)
-        {
-            float width = float.IsFinite(availableSize.Width) ? availableSize.Width : 320.0f;
-            foreach (ShortcutChip chip in _chips)
-            {
-                chip.Measure(new SizeF(width, ShortcutChip.Height));
-            }
-
-            _addButton.Measure(new SizeF(AddButtonWidth, ShortcutChip.Height));
-            return new SizeF(MathF.Max(0.0f, width), RowHeight);
-        }
+        protected override SizeF MeasureCore(SizeF availableSize) =>
+            new(_row.Measure(availableSize).Width, RowHeight);
 
         // The row keeps its full height while the item collapses, so the shrinking bounds clip it
         // from below instead of squashing it.
-        protected override void ArrangeCore(SizeF finalSize)
+        protected override void ArrangeCore(SizeF finalSize) =>
+            _row.Arrange(new RectangleF(0.0f, 0.0f, finalSize.Width, RowHeight));
+
+        protected override void OnVisualStateChanged()
         {
-            float top = (RowHeight - ShortcutChip.Height) / 2.0f;
-            float right = finalSize.Width - ChipPadding - AddButtonWidth;
-            _addButton.Arrange(new RectangleF(right, top, AddButtonWidth, ShortcutChip.Height));
-            right -= ChipGap;
-
-            for (int index = _chips.Count - 1; index >= 0; index--)
-            {
-                float width = _chips[index].DesiredSize.Width;
-                right -= width;
-                _chips[index].Arrange(new RectangleF(right, top, width, ShortcutChip.Height));
-                right -= ChipGap;
-            }
-
-            ChipsLeft = right;
+            base.OnVisualStateChanged();
+            _label.Tone = IsEnabled ? UiTextTone.Primary : UiTextTone.Secondary;
         }
 
         protected override void DrawCore(in UiDrawContext context)
@@ -408,17 +367,6 @@ internal sealed class CommandPalettePanel : ModalContent
             {
                 context.FillRoundedRectangle(background, context.Palette.ControlPressed, PressedAmount);
             }
-
-            context.DrawText(
-                Command.Label,
-                LabelFont,
-                new Rect(
-                    ChipPadding,
-                    0.0f,
-                    MathF.Max(ChipPadding, ChipsLeft - ChipGap),
-                    RowHeight),
-                IsEnabled ? context.Palette.PrimaryText : context.Palette.SecondaryText,
-                DrawTextOptions.Clip);
         }
 
         protected override void Activate() => Execute();

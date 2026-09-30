@@ -12,7 +12,7 @@ namespace Dameview.UI.Components;
 
 internal sealed class ViewerTabStrip : UiElement
 {
-    internal const float HeightDips = 40.0f;
+    internal const float HeightDips = 32.0f;
 
     // Tabs share the strip down to the minimum width, then scroll. Below that a label
     // would be little more than an ellipsis.
@@ -83,7 +83,9 @@ internal sealed class ViewerTabStrip : UiElement
 
     internal int GetInsertionIndex(PointF position)
     {
-        if (position.X < 0.0f
+        // A hidden strip keeps the bounds it last had, but takes no tabs.
+        if (!IsVisible
+            || position.X < 0.0f
             || position.X >= TabViewportWidth
             || position.Y < 0.0f
             || position.Y >= Bounds.Height)

@@ -9,7 +9,7 @@ namespace Dameview.UI.Components;
 // owned by the control that created it.
 internal sealed class PopupHost : UiElement
 {
-    private const float Margin = 8.0f;
+    private const float EdgeMargin = 8.0f;
 
     private UiElement? _anchor;
     // A point within the anchor to open from, or the whole anchor when absent.
@@ -82,8 +82,8 @@ internal sealed class PopupHost : UiElement
     protected override SizeF MeasureCore(SizeF availableSize)
     {
         _presenter.Measure(new SizeF(
-            MathF.Max(0.0f, availableSize.Width - 2.0f * Margin),
-            MathF.Max(0.0f, availableSize.Height - 2.0f * Margin)));
+            MathF.Max(0.0f, availableSize.Width - 2.0f * EdgeMargin),
+            MathF.Max(0.0f, availableSize.Height - 2.0f * EdgeMargin)));
         return availableSize;
     }
 
@@ -108,18 +108,18 @@ internal sealed class PopupHost : UiElement
         }
 
         SizeF desired = _content.DesiredSize;
-        float availableWidth = MathF.Max(0.0f, finalSize.Width - 2.0f * Margin);
-        float availableHeight = MathF.Max(0.0f, finalSize.Height - 2.0f * Margin);
+        float availableWidth = MathF.Max(0.0f, finalSize.Width - 2.0f * EdgeMargin);
+        float availableHeight = MathF.Max(0.0f, finalSize.Height - 2.0f * EdgeMargin);
         float width = MathF.Min(MathF.Max(anchor.Width, desired.Width), availableWidth);
         float height = MathF.Min(desired.Height, availableHeight);
-        float x = Math.Clamp(anchor.Left, Margin, MathF.Max(Margin, finalSize.Width - Margin - width));
-        float below = finalSize.Height - Margin - (anchor.Bottom + gap);
-        float above = anchor.Top - gap - Margin;
+        float x = Math.Clamp(anchor.Left, EdgeMargin, MathF.Max(EdgeMargin, finalSize.Width - EdgeMargin - width));
+        float below = finalSize.Height - EdgeMargin - (anchor.Bottom + gap);
+        float above = anchor.Top - gap - EdgeMargin;
         bool opensBelow = below >= height || below >= above;
         float y = opensBelow
             ? anchor.Bottom + gap
             : anchor.Top - gap - height;
-        y = Math.Clamp(y, Margin, MathF.Max(Margin, finalSize.Height - Margin - height));
+        y = Math.Clamp(y, EdgeMargin, MathF.Max(EdgeMargin, finalSize.Height - EdgeMargin - height));
         // The popup unrolls from its anchor as it enters and rolls back up as it leaves.
         float visibleHeight = height * _presenter.LayoutPresence;
         _presenter.Arrange(new RectangleF(x, opensBelow ? y : y + height - visibleHeight, width, visibleHeight));

@@ -4,6 +4,7 @@ using Dameview.Navigation;
 using Dameview.Settings;
 using Dameview.UI.Components;
 using Dameview.UI.Foundation;
+using Dameview.UI.Layout;
 using Dameview.UI.Panels;
 using Dameview.Updates;
 using Dameview.Win32.Input;
@@ -113,6 +114,7 @@ public sealed class SettingsPanelTests
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
+        UiElement dropdown = root.FocusedElement!;
         root.HandleKey(new WindowKeyEvent(WindowKey.Enter), settings, wrapFocus: true, directionalNavigation: true);
         root.Arrange(size);
         for (int frame = 0; frame < 30; frame++)
@@ -121,13 +123,26 @@ public sealed class SettingsPanelTests
             root.Arrange(size);
         }
 
-        UiElement sortingScrollView = settings.Children[3].Children[2];
-        RectangleF scrollBounds = sortingScrollView.GetBoundsRelativeTo(scene);
+        RectangleF scrollBounds = FindAncestor<ScrollView>(dropdown).GetBoundsRelativeTo(scene);
         RectangleF popupBounds = popupHost.Children[0].GetBoundsRelativeTo(scene);
 
         Assert.IsTrue(popupHost.IsOpen);
         Assert.IsGreaterThan(scrollBounds.Top, popupBounds.Bottom);
         Assert.IsLessThan(scrollBounds.Top, popupBounds.Top);
+    }
+
+    private static T FindAncestor<T>(UiElement element)
+        where T : UiElement
+    {
+        for (UiElement? current = element.Parent; current is not null; current = current.Parent)
+        {
+            if (current is T match)
+            {
+                return match;
+            }
+        }
+
+        throw new InvalidOperationException($"No {typeof(T).Name} contains the element.");
     }
 
     [TestMethod]

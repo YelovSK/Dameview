@@ -169,7 +169,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         MathF.Max(1.0f, _root.DipsToPixels(_workspaceView.Bounds.Width)),
         MathF.Max(1.0f, _root.DipsToPixels(_workspaceView.Bounds.Height)),
         _root.DipsToPixels(SplitPanel.SplitterSizeDips),
-        _chromeVisible ? _root.DipsToPixels(ViewerTabStrip.HeightDips) : 0.0f,
+        _chromeVisible ? _root.DipsToPixels(ViewerPaneView.TabRowHeightDips) : 0.0f,
         _root.DipsToPixels(SplitPanel.MinimumPaneSizeDips));
 
     internal PointF GetImageViewportPoint(PointF nativePoint)
@@ -441,24 +441,6 @@ internal sealed class ViewerUi : UiElement, IDisposable
     }
 
     // Every child is a layer covering the whole window, stacked in the order they were added.
-    protected override SizeF MeasureCore(SizeF availableSize)
-    {
-        foreach (UiElement layer in Children)
-        {
-            layer.Measure(availableSize);
-        }
-
-        return availableSize;
-    }
-
-    protected override void ArrangeCore(SizeF finalSize)
-    {
-        foreach (UiElement layer in Children)
-        {
-            layer.Arrange(new RectangleF(PointF.Empty, finalSize));
-        }
-    }
-
     public void Dispose()
     {
         _root.ClearPointer();

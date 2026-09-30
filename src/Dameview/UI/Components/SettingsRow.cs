@@ -6,32 +6,15 @@ namespace Dameview.UI.Components;
 
 internal sealed class SettingsRow : UiElement
 {
-    private readonly TextBlock _label;
-    private readonly StackPanel _stack;
-
     internal SettingsRow(
         string label,
         UiElement content)
     {
-        _label = new TextBlock(
-            label,
-            UiTextStyle.Body,
-            UiTextTone.Secondary,
-            UiTextWrapping.NoWrap);
-        _stack = new StackPanel(
-            UiOrientation.Vertical,
-            UiDesign.SmallSpacing,
-            StackPanelDistribution.Natural,
-            _label,
-            content);
-        AddChild(_stack);
-    }
-
-    protected override SizeF MeasureCore(SizeF availableSize) => _stack.Measure(availableSize);
-
-    protected override void ArrangeCore(SizeF finalSize)
-    {
-        _stack.Arrange(new RectangleF(PointF.Empty, finalSize));
+        var labelText = new TextBlock(label, UiTextStyle.Body, UiTextTone.Secondary, UiTextWrapping.NoWrap);
+        AddChild(new StackPanel(UiOrientation.Vertical, labelText, content)
+        {
+            Spacing = UiDesign.SmallSpacing,
+        });
     }
 
     protected override bool HitTestCore(PointF position) => false;

@@ -11,7 +11,6 @@ namespace Dameview.UI.Components;
 internal sealed class TabStrip : UiElement
 {
     private readonly TabItem[] _items;
-    private readonly StackPanel _row;
     private readonly Action<int> _selectionChanged;
     private int _selectedIndex;
 
@@ -35,12 +34,11 @@ internal sealed class TabStrip : UiElement
             _items[index].SetVisualState(UiVisualState.Selected, index == selectedIndex);
         }
 
-        _row = new StackPanel(
-            UiOrientation.Horizontal,
-            UiDesign.SmallSpacing,
-            StackPanelDistribution.Equal,
-            _items);
-        AddChild(_row);
+        AddChild(new StackPanel(UiOrientation.Horizontal, _items)
+        {
+            Spacing = UiDesign.SmallSpacing,
+            Distribution = StackPanelDistribution.Equal,
+        });
     }
 
     internal int SelectedIndex
@@ -50,21 +48,6 @@ internal sealed class TabStrip : UiElement
     }
 
     internal UiElement SelectedTab => _items[_selectedIndex];
-
-    protected override SizeF MeasureCore(SizeF availableSize)
-    {
-        float width = float.IsFinite(availableSize.Width)
-            ? availableSize.Width
-            : _items.Length * 96.0f;
-        var size = new SizeF(MathF.Max(0.0f, width), 36.0f);
-        _row.Measure(size);
-        return size;
-    }
-
-    protected override void ArrangeCore(SizeF finalSize)
-    {
-        _row.Arrange(new RectangleF(PointF.Empty, finalSize));
-    }
 
     protected override bool HitTestCore(PointF position) => false;
 

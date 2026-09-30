@@ -95,6 +95,7 @@ internal sealed class SettingsPanel : ModalContent
             fontSize: 16.0f)
         {
             ToolTip = new("Close"),
+            MaxWidth = 72.0f,
         };
 
         _themeDropdown = new Dropdown<ThemeId>(
@@ -173,53 +174,38 @@ internal sealed class SettingsPanel : ModalContent
             UiTextWrapping.Wrap);
         _updateButton = new Button("Check for updates", _commands.ActivateUpdate);
 
-        var appearanceContent = new StackPanel(
-            UiOrientation.Vertical,
-            UiDesign.LargeSpacing,
-            StackPanelDistribution.Natural,
-            _themeRow,
-            _animationsToggle);
-        var layoutContent = new StackPanel(
-            UiOrientation.Vertical,
-            UiDesign.LargeSpacing,
-            StackPanelDistribution.Natural,
+        static ScrollView Page(params UiElement[] settings) =>
+            new(new StackPanel(UiOrientation.Vertical, settings) { Spacing = UiDesign.LargeSpacing });
+
+        _appearancePage = Page(_themeRow, _animationsToggle);
+        _layoutPage = Page(
             _galleryEnabledToggle,
             _galleryPlacementRow,
             _galleryThumbnailSizeRow,
             _autoBalancePanesToggle);
-        var behaviorContent = new StackPanel(
-            UiOrientation.Vertical,
-            UiDesign.LargeSpacing,
-            StackPanelDistribution.Natural,
-            _singleInstanceToggle);
-        var sortingContent = new StackPanel(
-            UiOrientation.Vertical,
-            UiDesign.LargeSpacing,
-            StackPanelDistribution.Natural,
-            _sortFieldRow,
-            _sortDirectionRow);
-        var updatesContent = new StackPanel(
-            UiOrientation.Vertical,
-            UiDesign.LargeSpacing,
-            StackPanelDistribution.Natural,
-            _updateStatus,
-            _updateButton);
-        _appearancePage = new ScrollView(appearanceContent);
-        _layoutPage = new ScrollView(layoutContent);
-        _behaviorPage = new ScrollView(behaviorContent);
-        _sortingPage = new ScrollView(sortingContent);
-        _updatesPage = new ScrollView(updatesContent);
-        _pages = new Overlay(_appearancePage, _layoutPage, _sortingPage, _behaviorPage, _updatesPage);
+        _behaviorPage = Page(_singleInstanceToggle);
+        _sortingPage = Page(_sortFieldRow, _sortDirectionRow);
+        _updatesPage = Page(_updateStatus, _updateButton);
+        _pages = new Overlay(_appearancePage, _layoutPage, _sortingPage, _behaviorPage, _updatesPage)
+        {
+            Margin = new UiThickness(0.0f, UiDesign.SmallSpacing, 0.0f, 0.0f),
+        };
         _tabs = new TabStrip(
             ["Appearance", "Layout", "Sorting", "Behavior", "Updates"],
             (int)SettingsTab.Appearance,
             SelectTab);
 
-        AddChild(_title);
-        AddChild(_closeButton);
-        AddChild(_tabs);
-        AddChild(_pages);
-        AddChild(_message);
+        var header = new StackPanel(UiOrientation.Horizontal, _title, _closeButton)
+        {
+            Spacing = UiDesign.Spacing,
+            Fill = _title,
+        };
+        AddChild(new StackPanel(UiOrientation.Vertical, header, _tabs, _pages, _message)
+        {
+            Spacing = 12.0f,
+            Fill = _pages,
+            Margin = new UiThickness(24.0f, 20.0f, 24.0f, 12.0f),
+        });
 
         SelectTab((int)SettingsTab.Appearance);
         ApplySettings(new AppSettings());
@@ -275,39 +261,6 @@ internal sealed class SettingsPanel : ModalContent
             _ => throw new InvalidOperationException("Unknown update status."),
         };
         InvalidateLayout();
-    }
-
-    protected override SizeF MeasureCore(SizeF availableSize)
-    {
-        float contentWidth = MathF.Max(0.0f, availableSize.Width - 48.0f);
-        float bodyHeight = CalculateBodyHeight(availableSize.Height);
-        _title.Measure(new SizeF(MathF.Max(0.0f, availableSize.Width - 140.0f), 36.0f));
-        _closeButton.Measure(new SizeF(72.0f, 36.0f));
-        _tabs.Measure(new SizeF(contentWidth, 36.0f));
-        _pages.Measure(new SizeF(contentWidth, bodyHeight));
-        _message.Measure(new SizeF(contentWidth, 40.0f));
-        return PreferredSize;
-    }
-
-    protected override void ArrangeCore(SizeF finalSize)
-    {
-        float contentWidth = MathF.Max(0.0f, finalSize.Width - 48.0f);
-        float closeWidth = MathF.Min(72.0f, contentWidth);
-        _title.Arrange(new RectangleF(24.0f, 20.0f, MathF.Max(0.0f, finalSize.Width - 140.0f), 36.0f));
-        _closeButton.Arrange(new RectangleF(MathF.Max(24.0f, finalSize.Width - 96.0f), 20.0f, closeWidth, 36.0f));
-        _tabs.Arrange(new RectangleF(24.0f, 68.0f, contentWidth, 36.0f));
-        _pages.Arrange(new RectangleF(24.0f, 120.0f, contentWidth, CalculateBodyHeight(finalSize.Height)));
-
-        bool showMessage = finalSize.Height >= 300.0f;
-        _message.Arrange(showMessage
-            ? new RectangleF(24.0f, finalSize.Height - 52.0f, contentWidth, 40.0f)
-            : new RectangleF(24.0f, finalSize.Height, contentWidth, 0.0f));
-    }
-
-    private static float CalculateBodyHeight(float panelHeight)
-    {
-        float bottom = panelHeight >= 300.0f ? panelHeight - 64.0f : panelHeight - 12.0f;
-        return MathF.Max(0.0f, bottom - 120.0f);
     }
 
     private void SelectTab(int index)

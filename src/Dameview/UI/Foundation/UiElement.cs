@@ -148,18 +148,110 @@ internal abstract class UiElement
         ? transition.HiddenScale + ((1.0f - transition.HiddenScale) * Presence)
         : 1.0f;
 
-    /// <summary>Measures this element and stores the size it would like to occupy.</summary>
+    /// <summary>Space kept clear around the element within the slot its parent gives it.</summary>
+    internal UiThickness Margin
+    {
+        get;
+        set
+        {
+            field = value;
+            InvalidateLayout();
+        }
+    }
+
+    /// <summary>How the element fills or sits in the width of its slot.</summary>
+    internal UiAlignment HorizontalAlignment
+    {
+        get;
+        set
+        {
+            field = value;
+            InvalidateLayout();
+        }
+    }
+
+    /// <summary>How the element fills or sits in the height of its slot.</summary>
+    internal UiAlignment VerticalAlignment
+    {
+        get;
+        set
+        {
+            field = value;
+            InvalidateLayout();
+        }
+    }
+
+    /// <summary>The widest the element becomes, even when stretched; any slot left over centers it.</summary>
+    internal float MaxWidth
+    {
+        get;
+        set
+        {
+            field = value;
+            InvalidateLayout();
+        }
+    } = float.PositiveInfinity;
+
+    /// <summary>The tallest the element becomes, even when stretched; any slot left over centers it.</summary>
+    internal float MaxHeight
+    {
+        get;
+        set
+        {
+            field = value;
+            InvalidateLayout();
+        }
+    } = float.PositiveInfinity;
+
+    /// <summary>Measures this element and stores the size it would like to occupy, margin included.</summary>
     internal SizeF Measure(SizeF availableSize)
     {
-        DesiredSize = MeasureCore(availableSize);
+        SizeF content = MeasureCore(new SizeF(
+            MathF.Min(MaxWidth, MathF.Max(0.0f, availableSize.Width - Margin.Horizontal)),
+            MathF.Min(MaxHeight, MathF.Max(0.0f, availableSize.Height - Margin.Vertical))));
+        DesiredSize = new SizeF(
+            MathF.Min(MaxWidth, content.Width) + Margin.Horizontal,
+            MathF.Min(MaxHeight, content.Height) + Margin.Vertical);
         return DesiredSize;
     }
 
-    /// <summary>Assigns the element's bounds and arranges its descendants.</summary>
-    internal void Arrange(RectangleF bounds)
+    /// <summary>Places the element in the slot its parent gives it and arranges its descendants.</summary>
+    internal void Arrange(RectangleF slot)
     {
-        Bounds = bounds;
-        ArrangeCore(bounds.Size);
+        (float x, float width) = Place(
+            slot.X + Margin.Left,
+            slot.Width - Margin.Horizontal,
+            DesiredSize.Width - Margin.Horizontal,
+            MaxWidth,
+            HorizontalAlignment);
+        (float y, float height) = Place(
+            slot.Y + Margin.Top,
+            slot.Height - Margin.Vertical,
+            DesiredSize.Height - Margin.Vertical,
+            MaxHeight,
+            VerticalAlignment);
+        Bounds = new RectangleF(x, y, width, height);
+        ArrangeCore(Bounds.Size);
+    }
+
+    private static (float Start, float Length) Place(
+        float start,
+        float available,
+        float desired,
+        float max,
+        UiAlignment alignment)
+    {
+        available = MathF.Max(0.0f, available);
+        float length = MathF.Min(max, alignment == UiAlignment.Stretch
+            ? available
+            : MathF.Min(MathF.Max(0.0f, desired), available));
+        float offset = alignment switch
+        {
+            UiAlignment.Start => 0.0f,
+            UiAlignment.End => available - length,
+            _ => (available - length) / 2.0f,
+        };
+        return (start + offset, length);
     }
 
     /// <summary>Updates this element and all visible descendants.</summary>
@@ -417,10 +509,36 @@ internal abstract class UiElement
     protected void InvalidateVisual() => Root?.InvalidateVisual();
     /// <summary>Requests layout and a redraw from the owning root.</summary>
     protected void InvalidateLayout() => Root?.InvalidateLayout();
-    /// <summary>Calculates the desired size for this element.</summary>
-    protected virtual SizeF MeasureCore(SizeF availableSize) => SizeF.Empty;
-    /// <summary>Arranges children after this element has received its final size.</summary>
-    protected virtual void ArrangeCore(SizeF finalSize) { }
+    /// <summary>Calculates the desired size for this element, by default the largest of its visible children.</summary>
+    protected virtual SizeF MeasureCore(SizeF availableSize)
+    {
+        float width = 0.0f;
+        float height = 0.0f;
+        foreach (UiElement child in _children)
+        {
+            if (child.IsVisible)
+            {
+                SizeF desired = child.Measure(availableSize);
+                width = MathF.Max(width, desired.Width);
+                height = MathF.Max(height, desired.Height);
+            }
+        }
+
+        return new SizeF(width, height);
+    }
+
+    /// <summary>Arranges children after this element has received its final size, by default each over all of it.</summary>
+    protected virtual void ArrangeCore(SizeF finalSize)
+    {
+        var slot = new RectangleF(PointF.Empty, finalSize);
+        foreach (UiElement child in _children)
+        {
+            if (child.IsVisible)
+            {
+                child.Arrange(slot);
+            }
+        }
+    }
     /// <summary>Advances animation or other time-dependent state.</summary>
     /// <returns><see langword="true"/> while another update is needed.</returns>
     protected virtual bool UpdateCore(in UiUpdateContext context) => false;

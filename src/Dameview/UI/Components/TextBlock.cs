@@ -9,7 +9,10 @@ namespace Dameview.UI.Components;
 internal enum UiTextStyle
 {
     Body,
+    Label,
     Heading,
+    Title,
+    Caption,
 }
 
 internal enum UiTextTone
@@ -37,15 +40,25 @@ internal sealed class TextBlock : UiElement
         string text,
         UiTextStyle style,
         UiTextTone tone,
-        UiTextWrapping wrapping)
+        UiTextWrapping wrapping,
+        TextAlignment alignment = TextAlignment.Leading)
     {
         _text = text;
         _tone = tone;
         _wrapping = wrapping;
-        _lineHeight = style == UiTextStyle.Heading ? 36.0f : 24.0f;
+        (float fontSize, FontWeight weight, _lineHeight) = style switch
+        {
+            UiTextStyle.Body => (UiDesign.BodyFontSize, FontWeight.Normal, 24.0f),
+            UiTextStyle.Label => (UiDesign.BodyFontSize, FontWeight.Medium, 24.0f),
+            UiTextStyle.Heading => (UiDesign.HeadingFontSize, FontWeight.SemiBold, 36.0f),
+            UiTextStyle.Title => (UiDesign.TitleFontSize, FontWeight.SemiBold, 44.0f),
+            UiTextStyle.Caption => (UiDesign.CaptionFontSize, FontWeight.Medium, 16.0f),
+            _ => throw new ArgumentOutOfRangeException(nameof(style)),
+        };
         _font = new UiFont(
-            style == UiTextStyle.Heading ? UiDesign.HeadingFontSize : UiDesign.BodyFontSize,
-            style == UiTextStyle.Heading ? FontWeight.SemiBold : FontWeight.Normal,
+            fontSize,
+            weight,
+            alignment,
             VerticalAlignment: ParagraphAlignment.Near,
             Wrapping: wrapping == UiTextWrapping.Wrap ? WordWrapping.Wrap : WordWrapping.NoWrap);
     }
@@ -82,15 +95,16 @@ internal sealed class TextBlock : UiElement
 
     protected override SizeF MeasureCore(SizeF availableSize)
     {
-        float width = float.IsFinite(availableSize.Width) ? availableSize.Width : 0.0f;
-        width = MathF.Max(0.0f, width);
-        if (_wrapping == UiTextWrapping.NoWrap || width == 0.0f || Text.Length == 0)
+        float maxWidth = float.IsFinite(availableSize.Width) ? MathF.Max(0.0f, availableSize.Width) : 10_000.0f;
+        if (maxWidth == 0.0f || Text.Length == 0)
         {
-            return new SizeF(width, _lineHeight);
+            return new SizeF(0.0f, _lineHeight);
         }
 
-        float height = TextLayouts.Get(Text, _font, new SizeF(width, 100_000.0f)).Metrics.Height;
-        return new SizeF(width, MathF.Max(_lineHeight, height));
+        TextMetrics metrics =TextLayouts.Get(Text, _font, new SizeF(maxWidth, 100_000.0f)).Metrics;
+        return new SizeF(
+            MathF.Min(maxWidth, MathF.Ceiling(metrics.WidthIncludingTrailingWhitespace)),
+            _wrapping == UiTextWrapping.Wrap ? MathF.Max(_lineHeight, metrics.Height) : _lineHeight);
     }
 
     protected override void DrawCore(in UiDrawContext context)

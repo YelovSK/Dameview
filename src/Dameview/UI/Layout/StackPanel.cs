@@ -18,24 +18,35 @@ internal enum StackPanelDistribution
 internal sealed class StackPanel : UiElement
 {
     private readonly UiOrientation _orientation;
-    private readonly StackPanelDistribution _distribution;
-    private readonly float _spacing;
 
-    internal StackPanel(
-        UiOrientation orientation,
-        float spacing,
-        StackPanelDistribution distribution,
-        params UiElement[] children)
+    internal StackPanel(UiOrientation orientation, params UiElement[] children)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(spacing);
         _orientation = orientation;
-        _spacing = spacing;
-        _distribution = distribution;
         foreach (UiElement child in children)
         {
             AddChild(child);
         }
     }
+
+    /// <summary>The gap between neighboring children, which shrinks when a stack is too short for it.</summary>
+    internal float Spacing
+    {
+        get;
+        init
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+            field = value;
+        }
+    }
+
+    internal StackPanelDistribution Distribution { get; init; } = StackPanelDistribution.Natural;
+
+    /// <summary>The child that takes whatever length the others leave, instead of its own, in a natural stack.</summary>
+    internal UiElement? Fill { get; init; }
+
+    internal void Add(UiElement child) => AddChild(child);
+
+    internal void Remove(UiElement child) => RemoveChild(child);
 
     internal void Reorder(IReadOnlyList<UiElement> children) => SetChildOrder(children);
 
@@ -49,7 +60,7 @@ internal sealed class StackPanel : UiElement
 
         float availableMain = Main(availableSize);
         float spacing = EffectiveSpacing(availableMain, visibleChildren.Length);
-        float itemConstraint = _distribution == StackPanelDistribution.Equal
+        float itemConstraint = Distribution == StackPanelDistribution.Equal
             && float.IsFinite(availableMain)
                 ? MathF.Max(0.0f, (availableMain - spacing * (visibleChildren.Length - 1))
                     / visibleChildren.Length)
@@ -58,19 +69,31 @@ internal sealed class StackPanel : UiElement
         float desiredCross = 0.0f;
         foreach (UiElement child in visibleChildren)
         {
+            if (child == Fill)
+            {
+                continue;
+            }
+
             SizeF desired = child.Measure(Size(itemConstraint, Cross(availableSize)));
-            desiredMain = _distribution == StackPanelDistribution.Equal
+            desiredMain = Distribution == StackPanelDistribution.Equal
                 ? MathF.Max(desiredMain, Main(desired))
                 : desiredMain + (Main(desired) * GetLayoutPresence(child));
             desiredCross = MathF.Max(desiredCross, Cross(desired));
         }
 
-        if (_distribution == StackPanelDistribution.Equal)
+        if (Distribution == StackPanelDistribution.Equal)
         {
             desiredMain *= visibleChildren.Length;
         }
 
         desiredMain += GetGapsAfter(visibleChildren, spacing).Sum();
+        if (Fill is { IsVisible: true } fill)
+        {
+            SizeF desired = fill.Measure(Size(MathF.Max(0.0f, availableMain - desiredMain), Cross(availableSize)));
+            desiredMain += Main(desired);
+            desiredCross = MathF.Max(desiredCross, Cross(desired));
+        }
+
         return Size(desiredMain, desiredCross);
     }
 
@@ -89,13 +112,27 @@ internal sealed class StackPanel : UiElement
             0.0f,
             (finalMain - spacing * (visibleChildren.Length - 1)) / visibleChildren.Length);
         float[] gaps = GetGapsAfter(visibleChildren, spacing);
+        float[] lengths = new float[visibleChildren.Length];
+        float fillLength = finalMain;
+        for (int index = 0; index < visibleChildren.Length; index++)
+        {
+            UiElement child = visibleChildren[index];
+            if (child != Fill)
+            {
+                lengths[index] = Distribution == StackPanelDistribution.Equal
+                    ? equalLength
+                    : MathF.Max(0.0f, Main(child.DesiredSize)) * GetLayoutPresence(child);
+                fillLength -= lengths[index];
+            }
+
+            fillLength -= gaps[index];
+        }
+
         float position = 0.0f;
         for (int index = 0; index < visibleChildren.Length; index++)
         {
             UiElement child = visibleChildren[index];
-            float length = _distribution == StackPanelDistribution.Equal
-                ? equalLength
-                : MathF.Max(0.0f, Main(child.DesiredSize)) * GetLayoutPresence(child);
+            float length = child == Fill ? MathF.Max(0.0f, fillLength) : lengths[index];
             child.Arrange(CreateBounds(position, length, finalCross));
             position += length + gaps[index];
         }
@@ -103,7 +140,7 @@ internal sealed class StackPanel : UiElement
 
     // A collapsing child gives up its slot. Equal slots cannot shrink one child.
     private float GetLayoutPresence(UiElement child) =>
-        _distribution == StackPanelDistribution.Natural ? child.LayoutPresence : 1.0f;
+        Distribution == StackPanelDistribution.Natural ? child.LayoutPresence : 1.0f;
 
     // A gap shrinks with the child before it and with whatever still follows it, so a collapsing
     // child takes one gap with it and the stack always ends exactly at its last child.
@@ -138,7 +175,7 @@ internal sealed class StackPanel : UiElement
     private float EffectiveSpacing(float availableMain, int childCount)
     {
         return childCount <= 1 || !float.IsFinite(availableMain)
-            ? _spacing
-            : MathF.Min(_spacing, MathF.Max(0.0f, availableMain) / (childCount - 1));
+            ? Spacing
+            : MathF.Min(Spacing, MathF.Max(0.0f, availableMain) / (childCount - 1));
     }
 }

@@ -21,4 +21,16 @@ public sealed class TextBlockTests
 
         Assert.IsGreaterThan(24.0f, desiredSize.Height);
     }
+
+    [TestMethod]
+    public void MeasuresToItsTextRatherThanTheAvailableWidth()
+    {
+        var text = new TextBlock("Short", UiTextStyle.Body, UiTextTone.Primary, UiTextWrapping.NoWrap);
+        _ = new UiRoot(text, UiDpi.Default, TestTextLayouts.Shared);
+
+        SizeF desiredSize = text.Measure(new SizeF(392.0f, float.PositiveInfinity));
+
+        Assert.IsGreaterThan(0.0f, desiredSize.Width);
+        Assert.IsLessThan(100.0f, desiredSize.Width);
+    }
 }
