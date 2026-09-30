@@ -12,8 +12,8 @@ internal static class StartupTrace
 {
     private const int Capacity = 32;
 
-    private static readonly string[] _stages = new string[Capacity];
-    private static readonly long[] _timestamps = new long[Capacity];
+    private static readonly string[] Stages = new string[Capacity];
+    private static readonly long[] Timestamps = new long[Capacity];
     private static long _processCreated;
     private static int _count;
     private static bool _reported;
@@ -33,8 +33,8 @@ internal static class StartupTrace
             return;
         }
 
-        _stages[_count] = stage;
-        _timestamps[_count] = Stopwatch.GetTimestamp();
+        Stages[_count] = stage;
+        Timestamps[_count] = Stopwatch.GetTimestamp();
         _count++;
     }
 
@@ -50,12 +50,12 @@ internal static class StartupTrace
         long previous = _processCreated;
         for (int i = 0; i < _count; i++)
         {
-            double stage = Stopwatch.GetElapsedTime(previous, _timestamps[i]).TotalMilliseconds;
-            double total = Stopwatch.GetElapsedTime(_processCreated, _timestamps[i]).TotalMilliseconds;
+            double stage = Stopwatch.GetElapsedTime(previous, Timestamps[i]).TotalMilliseconds;
+            double total = Stopwatch.GetElapsedTime(_processCreated, Timestamps[i]).TotalMilliseconds;
             Log.Debug("Startup", string.Create(
                 CultureInfo.InvariantCulture,
-                $"{_stages[i]} +{stage:F1} = {total:F1} ms"));
-            previous = _timestamps[i];
+                $"{Stages[i]} +{stage:F1} = {total:F1} ms"));
+            previous = Timestamps[i];
         }
     }
 }
