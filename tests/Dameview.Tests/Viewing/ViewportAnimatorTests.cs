@@ -303,6 +303,31 @@ public sealed class ViewportAnimatorTests
         Assert.IsFalse(animator.IsAnimating);
     }
 
+    [TestMethod]
+    public void ZoomPastAWindowEdgeMovesTheImageFromTheStart()
+    {
+        // At fit, this wide image fills the window's width but not its height.
+        var viewport = new ImageViewport(new Size(1000, 800));
+        viewport.SetImageSize(new Size(2000, 1000));
+        var animator = new ViewportAnimator(viewport);
+        float middleBefore = GetMiddleY(viewport);
+
+        // Three wheel steps near the top make the image taller than the window.
+        Assert.IsTrue(animator.ZoomAt(new PointF(500.0f, 100.0f), 360));
+        Assert.IsTrue(animator.Update(0.016));
+
+        // The image is still shorter than the window, but it already moves toward where it ends up,
+        // instead of staying centered and then turning once it gets tall enough.
+        Assert.IsLessThan(0.8f, viewport.Scale);
+        Assert.AreNotEqual(middleBefore, GetMiddleY(viewport), 0.5f);
+    }
+
+    private static float GetMiddleY(ImageViewport viewport)
+    {
+        RectangleF image = viewport.GetDestinationRectangle();
+        return image.Y + (image.Height / 2.0f);
+    }
+
     private static float GetProgress(float start, float current, float target)
     {
         return (current - start) / (target - start);
