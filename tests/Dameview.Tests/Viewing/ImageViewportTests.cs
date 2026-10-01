@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Numerics;
+using Dameview.Imaging;
 using Dameview.Viewing;
 
 namespace Dameview.Tests.Viewing;
@@ -99,6 +100,50 @@ public sealed class ImageViewportTests
         viewport.SetViewportSize(new Size(700, 600));
         Assert.AreEqual(1.0f, viewport.Scale);
         Assert.AreEqual(ViewportMode.ActualSize, viewport.Mode);
+    }
+
+    [TestMethod]
+    public void FitsTheImageAsItIsShown()
+    {
+        var viewport = new ImageViewport(new Size(800, 600));
+
+        viewport.SetImageSize(new Size(2000, 1000), ImageOrientation.FromExif(6));
+
+        Assert.AreEqual(0.3f, viewport.Scale, 0.0001f);
+        AssertRectangle(new RectangleF(250.0f, 0.0f, 300.0f, 600.0f), viewport.GetDestinationRectangle());
+        AssertMapsTo(viewport, new Vector2(0.0f, 0.0f), new PointF(550.0f, 0.0f));
+    }
+
+    [TestMethod]
+    public void TurningAFittedImageFitsItAgain()
+    {
+        var viewport = new ImageViewport(new Size(800, 600));
+        viewport.SetImageSize(new Size(2000, 1000));
+
+        viewport.SetOrientation(viewport.Orientation.RotateClockwise());
+
+        Assert.AreEqual(ViewportMode.Fit, viewport.Mode);
+        AssertRectangle(new RectangleF(250.0f, 0.0f, 300.0f, 600.0f), viewport.GetDestinationRectangle());
+    }
+
+    [TestMethod]
+    public void TurningAZoomedImageKeepsTheSameSpotInTheMiddle()
+    {
+        var viewport = new ImageViewport(new Size(800, 600));
+        viewport.SetImageSize(new Size(2000, 1000));
+        viewport.SetScaleAt(2.0f, viewport.ViewportCenter, new PointF(700.0f, 400.0f));
+
+        viewport.SetOrientation(viewport.Orientation.RotateClockwise().FlipHorizontal());
+
+        Assert.AreEqual(2.0f, viewport.Scale);
+        AssertMapsTo(viewport, new Vector2(700.0f, 400.0f), viewport.ViewportCenter);
+    }
+
+    private static void AssertMapsTo(ImageViewport viewport, Vector2 storedPoint, PointF expected)
+    {
+        var actual = Vector2.Transform(storedPoint, viewport.GetImageTransform(new SizeF(2000.0f, 1000.0f)));
+        Assert.AreEqual(expected.X, actual.X, 0.001f);
+        Assert.AreEqual(expected.Y, actual.Y, 0.001f);
     }
 
     private static void AssertRectangle(RectangleF expected, RectangleF actual)

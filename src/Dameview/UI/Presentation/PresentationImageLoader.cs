@@ -232,7 +232,7 @@ internal sealed class PresentationImageLoader : IImageLoader
         try
         {
             bitmap = _createUploadBitmap(upload);
-            lease = _cache.AddAndAcquire(path, bitmap, upload.Width, upload.Height);
+            lease = _cache.AddAndAcquire(path, bitmap, upload.Width, upload.Height, upload.Orientation);
             bitmap = null;
         }
         catch (Exception exception)
@@ -306,7 +306,7 @@ internal sealed class PresentationImageLoader : IImageLoader
             }
 
             bitmap = _createUploadBitmap(upload.Upload);
-            _cache.AddInactive(loaded.Path, bitmap, upload.Width, upload.Height);
+            _cache.AddInactive(loaded.Path, bitmap, upload.Width, upload.Height, upload.Orientation);
             bitmap = null;
         }
         catch

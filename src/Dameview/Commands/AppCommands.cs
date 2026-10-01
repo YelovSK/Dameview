@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Dameview.Imaging;
 using Dameview.Settings;
 using Dameview.Viewing;
 using Dameview.Win32.Input;
@@ -78,6 +79,26 @@ internal static class AppCommands
         (_, tab, anchor) => tab.Session.Animator.ToggleFitAndActualSizeAt(anchor),
         ShowsImage,
         [new(WindowKey.Z)]);
+
+    internal static readonly Command RotateLeft = ForOrientation(
+        "rotateLeft", "Rotate left",
+        static orientation => orientation.RotateCounterclockwise(),
+        new(WindowKey.L));
+
+    internal static readonly Command RotateRight = ForOrientation(
+        "rotateRight", "Rotate right",
+        static orientation => orientation.RotateClockwise(),
+        new(WindowKey.R));
+
+    internal static readonly Command FlipHorizontal = ForOrientation(
+        "flipHorizontal", "Flip horizontally",
+        static orientation => orientation.FlipHorizontal(),
+        new(WindowKey.H));
+
+    internal static readonly Command FlipVertical = ForOrientation(
+        "flipVertical", "Flip vertically",
+        static orientation => orientation.FlipVertical(),
+        new(WindowKey.V));
 
     internal static readonly Command CopyImage = Command.ForImage(
         "copyImage", "Copy image", CommandScope.Viewer,
@@ -186,6 +207,10 @@ internal static class AppCommands
         FitImage,
         ShowActualSize,
         ToggleFitActualSize,
+        RotateLeft,
+        RotateRight,
+        FlipHorizontal,
+        FlipVertical,
         CopyImage,
         CopyFilePath,
         CopyFile,
@@ -209,6 +234,17 @@ internal static class AppCommands
     private static bool HasOtherImages(ViewerTab tab) => tab.Session.State.FolderEntries.Length > 1;
 
     private static bool ShowsImage(ViewerTab tab) => tab.Session.State.DisplayedImage is not null;
+
+    private static Command ForOrientation(
+        string id,
+        string label,
+        Func<ImageOrientation, ImageOrientation> change,
+        ViewerCommandShortcut shortcut) =>
+        Command.ForTab(
+            id, label, CommandScope.Viewer,
+            (_, tab) => tab.Session.ChangeOrientation(change),
+            ShowsImage,
+            [shortcut]);
 
     private static void Split(ICommandHost host, ViewerTab tab, WorkspaceSplitOrientation orientation)
     {

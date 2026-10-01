@@ -5,18 +5,6 @@ using Vortice.WIC;
 
 namespace Dameview.Imaging.Decoding;
 
-internal enum ExifOrientation : ushort
-{
-    Normal = 1,
-    MirrorHorizontal = 2,
-    Rotate180 = 3,
-    MirrorVertical = 4,
-    Transpose = 5,
-    Rotate90Clockwise = 6,
-    Transverse = 7,
-    Rotate270Clockwise = 8,
-}
-
 internal sealed class ImageDecoder : IImageDecoder
 {
     private const int BytesPerPixel = 4;
@@ -28,6 +16,7 @@ internal sealed class ImageDecoder : IImageDecoder
     {
         _uploadPool = uploadPool;
     }
+
     internal DecodedImage Decode(string path)
     {
         using IWICBitmapDecoder decoder = CreateDecoder(path, DecodeOptions.CacheOnLoad);
@@ -50,23 +39,23 @@ internal sealed class ImageDecoder : IImageDecoder
         cancellationToken.ThrowIfCancellationRequested();
         using IWICBitmapDecoder decoder = CreateDecoder(path, DecodeOptions.CacheOnLoad);
         using IWICBitmapFrameDecode frame = decoder.GetFrame(0);
-        ExifOrientation orientation = GetExifOrientation(frame);
+        ImageOrientation orientation = GetOrientation(frame);
         using IWICFormatConverter converter = _factory.CreateFormatConverter();
         converter.Initialize(frame, PixelFormat.Format32bppPBGRA).CheckError();
 
         int width = frame.Size.Width;
         int height = frame.Size.Height;
         int stride = checked(width * BytesPerPixel);
-        DecodedImageUpload source = AllocateUpload(width, height, stride);
+        DecodedImageUpload upload = AllocateUpload(width, height, stride, orientation);
         try
         {
-            converter.CopyPixels((uint)stride, source.Span);
+            converter.CopyPixels((uint)stride, upload.Span);
             cancellationToken.ThrowIfCancellationRequested();
-            return ApplyExifOrientation(orientation, source, cancellationToken);
+            return upload;
         }
         catch
         {
-            source.Dispose();
+            upload.Dispose();
             throw;
         }
     }
@@ -84,7 +73,6 @@ internal sealed class ImageDecoder : IImageDecoder
     private DecodedImage Decode(IWICBitmapDecoder decoder)
     {
         using IWICBitmapFrameDecode frame = decoder.GetFrame(0);
-        ExifOrientation orientation = GetExifOrientation(frame);
         using IWICFormatConverter converter = _factory.CreateFormatConverter();
 
         converter.Initialize(frame, PixelFormat.Format32bppPBGRA).CheckError();
@@ -95,7 +83,7 @@ internal sealed class ImageDecoder : IImageDecoder
         byte[] pixels = GC.AllocateUninitializedArray<byte>(checked(stride * height));
         converter.CopyPixels((uint)stride, pixels);
 
-        return ApplyExifOrientation(orientation, width, height, stride, pixels);
+        return new DecodedImage(width, height, stride, pixels);
     }
 
     private IWICBitmapDecoder CreateDecoder(string path, DecodeOptions options)
@@ -109,7 +97,7 @@ internal sealed class ImageDecoder : IImageDecoder
         return _factory.CreateDecoderFromFileName(fullPath, FileAccess.Read, options);
     }
 
-    internal static ExifOrientation GetExifOrientation(IWICBitmapFrameDecode frame)
+    internal static ImageOrientation GetOrientation(IWICBitmapFrameDecode frame)
     {
         try
         {
@@ -119,11 +107,9 @@ internal sealed class ImageDecoder : IImageDecoder
                 try
                 {
                     Variant metadata = reader.GetMetadataByName(query);
-                    if (metadata.Value is ushort rawOrientation)
+                    if (metadata.Value is ushort exifOrientation)
                     {
-                        return Enum.IsDefined((ExifOrientation)rawOrientation)
-                            ? (ExifOrientation)rawOrientation
-                            : ExifOrientation.Normal;
+                        return ImageOrientation.FromExif(exifOrientation);
                     }
                 }
                 catch (SharpGenException)
@@ -138,114 +124,7 @@ internal sealed class ImageDecoder : IImageDecoder
             // a metadata lookup failure, which should not prevent decoding.
         }
 
-        return ExifOrientation.Normal;
-    }
-
-    internal static DecodedImage ApplyExifOrientation(
-        ExifOrientation orientation,
-        int width,
-        int height,
-        int sourceStride,
-        byte[] source)
-    {
-        if (orientation == ExifOrientation.Normal)
-        {
-            return new DecodedImage(width, height, sourceStride, source);
-        }
-
-        bool swapsDimensions = orientation is ExifOrientation.Transpose
-            or ExifOrientation.Rotate90Clockwise
-            or ExifOrientation.Transverse
-            or ExifOrientation.Rotate270Clockwise;
-        int outputWidth = swapsDimensions ? height : width;
-        int outputHeight = swapsDimensions ? width : height;
-        int outputStride = checked(outputWidth * BytesPerPixel);
-        byte[] output = GC.AllocateUninitializedArray<byte>(checked(outputStride * outputHeight));
-
-        for (int y = 0; y < outputHeight; y++)
-        {
-            for (int x = 0; x < outputWidth; x++)
-            {
-                (int sourceX, int sourceY) = orientation switch
-                {
-                    ExifOrientation.MirrorHorizontal => (width - 1 - x, y),
-                    ExifOrientation.Rotate180 => (width - 1 - x, height - 1 - y),
-                    ExifOrientation.MirrorVertical => (x, height - 1 - y),
-                    ExifOrientation.Transpose => (y, x),
-                    ExifOrientation.Rotate90Clockwise => (y, height - 1 - x),
-                    ExifOrientation.Transverse => (width - 1 - y, height - 1 - x),
-                    ExifOrientation.Rotate270Clockwise => (width - 1 - y, x),
-                    _ => (x, y),
-                };
-
-                Buffer.BlockCopy(
-                    source,
-                    sourceY * sourceStride + sourceX * BytesPerPixel,
-                    output,
-                    y * outputStride + x * BytesPerPixel,
-                    BytesPerPixel);
-            }
-        }
-
-        return new DecodedImage(outputWidth, outputHeight, outputStride, output);
-    }
-
-    private DecodedImageUpload ApplyExifOrientation(
-        ExifOrientation orientation,
-        DecodedImageUpload source,
-        CancellationToken cancellationToken)
-    {
-        if (orientation == ExifOrientation.Normal)
-        {
-            return source;
-        }
-
-        bool swapsDimensions = orientation is ExifOrientation.Transpose
-            or ExifOrientation.Rotate90Clockwise
-            or ExifOrientation.Transverse
-            or ExifOrientation.Rotate270Clockwise;
-        int outputWidth = swapsDimensions ? source.Height : source.Width;
-        int outputHeight = swapsDimensions ? source.Width : source.Height;
-        int outputStride = checked(outputWidth * BytesPerPixel);
-        DecodedImageUpload output = AllocateUpload(
-            outputWidth,
-            outputHeight,
-            outputStride);
-        try
-        {
-            Span<byte> sourcePixels = source.Span;
-            Span<byte> outputPixels = output.Span;
-            for (int y = 0; y < outputHeight; y++)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                for (int x = 0; x < outputWidth; x++)
-                {
-                    (int sourceX, int sourceY) = orientation switch
-                    {
-                        ExifOrientation.MirrorHorizontal => (source.Width - 1 - x, y),
-                        ExifOrientation.Rotate180 => (source.Width - 1 - x, source.Height - 1 - y),
-                        ExifOrientation.MirrorVertical => (x, source.Height - 1 - y),
-                        ExifOrientation.Transpose => (y, x),
-                        ExifOrientation.Rotate90Clockwise => (y, source.Height - 1 - x),
-                        ExifOrientation.Transverse => (source.Width - 1 - y, source.Height - 1 - x),
-                        ExifOrientation.Rotate270Clockwise => (source.Width - 1 - y, x),
-                        _ => (x, y),
-                    };
-                    int sourceOffset = sourceY * source.Stride + sourceX * BytesPerPixel;
-                    int outputOffset = y * outputStride + x * BytesPerPixel;
-                    sourcePixels.Slice(sourceOffset, BytesPerPixel)
-                        .CopyTo(outputPixels.Slice(outputOffset, BytesPerPixel));
-                }
-            }
-
-            source.Dispose();
-            return output;
-        }
-        catch
-        {
-            output.Dispose();
-            throw;
-        }
+        return default;
     }
 
     public void Dispose()
@@ -253,11 +132,15 @@ internal sealed class ImageDecoder : IImageDecoder
         _factory.Dispose();
     }
 
-    private DecodedImageUpload AllocateUpload(int width, int height, int stride)
+    private DecodedImageUpload AllocateUpload(
+        int width,
+        int height,
+        int stride,
+        ImageOrientation orientation)
     {
         return _uploadPool is null
-            ? DecodedImageUpload.Allocate(width, height, stride)
-            : DecodedImageUpload.Rent(_uploadPool, width, height, stride);
+            ? DecodedImageUpload.Allocate(width, height, stride, orientation)
+            : DecodedImageUpload.Rent(_uploadPool, width, height, stride, orientation);
     }
 
     internal unsafe HashSet<string> GetProbablySupportedExtensions()

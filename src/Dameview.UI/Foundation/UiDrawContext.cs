@@ -113,6 +113,17 @@ internal readonly record struct UiDrawContext
             new Rect(0.0f, 0.0f, bitmap.PixelSize.Width, bitmap.PixelSize.Height));
     }
 
+    /// <summary>
+    /// Draws in a space that <paramref name="transform"/> maps onto the current one, until the
+    /// returned scope is disposed.
+    /// </summary>
+    internal TransformScope PushTransform(Matrix3x2 transform)
+    {
+        Matrix3x2 previous = RenderTarget.Transform;
+        RenderTarget.Transform = transform * previous;
+        return new TransformScope(RenderTarget, previous);
+    }
+
     /// <summary>Counts a draw an element issued against <see cref="RenderTarget"/> itself.</summary>
     internal void CountOperation() => _tally.Operations++;
 
@@ -172,4 +183,9 @@ internal readonly record struct UiDrawContext
     {
         return this with { Opacity = Opacity * Math.Clamp(opacity, 0.0f, 1.0f) };
     }
+}
+
+internal readonly struct TransformScope(ID2D1RenderTarget renderTarget, Matrix3x2 previous) : IDisposable
+{
+    public void Dispose() => renderTarget.Transform = previous;
 }

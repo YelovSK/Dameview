@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Runtime.InteropServices;
 
 namespace Dameview.Imaging;
@@ -5,6 +6,8 @@ namespace Dameview.Imaging;
 // Owns temporary CPU pixels used to upload one static image to a graphics backend.
 internal sealed unsafe class DecodedImageUpload : IDisposable
 {
+    private const int BytesPerPixel = 4;
+
     private readonly SharedPixels _shared;
     private readonly Action? _released;
     private bool _disposed;
@@ -14,6 +17,7 @@ internal sealed unsafe class DecodedImageUpload : IDisposable
         int height,
         int stride,
         int length,
+        ImageOrientation orientation,
         SharedPixels shared,
         Action? released = null)
     {
@@ -21,6 +25,7 @@ internal sealed unsafe class DecodedImageUpload : IDisposable
         Height = height;
         Stride = stride;
         Length = length;
+        Orientation = orientation;
         _shared = shared;
         _released = released;
     }
@@ -29,12 +34,18 @@ internal sealed unsafe class DecodedImageUpload : IDisposable
     internal int Height { get; }
     internal int Stride { get; }
     internal int Length { get; }
+    /// <summary>How the pixels, which are in stored order, are meant to be shown.</summary>
+    internal ImageOrientation Orientation { get; }
     internal nint Pixels => !_disposed
         ? _shared.Pointer
         : throw new ObjectDisposedException(nameof(DecodedImageUpload));
     internal Span<byte> Span => new((void*)Pixels, Length);
 
-    internal static DecodedImageUpload Allocate(int width, int height, int stride)
+    internal static DecodedImageUpload Allocate(
+        int width,
+        int height,
+        int stride,
+        ImageOrientation orientation = default)
     {
         int length = checked(stride * height);
         void* pixels = NativeMemory.Alloc((nuint)length);
@@ -43,6 +54,7 @@ internal sealed unsafe class DecodedImageUpload : IDisposable
             height,
             stride,
             length,
+            orientation,
             new SharedPixels((nint)pixels, static value => NativeMemory.Free((void*)value)));
     }
 
@@ -50,7 +62,8 @@ internal sealed unsafe class DecodedImageUpload : IDisposable
         NativePixelBufferPool pool,
         int width,
         int height,
-        int stride)
+        int stride,
+        ImageOrientation orientation = default)
     {
         int length = checked(stride * height);
         NativePixelBuffer buffer = pool.Rent(length);
@@ -59,6 +72,7 @@ internal sealed unsafe class DecodedImageUpload : IDisposable
             height,
             stride,
             length,
+            orientation,
             new SharedPixels(buffer.Pointer, value => pool.Return(value, buffer.Capacity)));
     }
 
@@ -66,7 +80,30 @@ internal sealed unsafe class DecodedImageUpload : IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         _shared.Retain();
-        return new DecodedImageUpload(Width, Height, Stride, Length, _shared, released);
+        return new DecodedImageUpload(Width, Height, Stride, Length, Orientation, _shared, released);
+    }
+
+    /// <summary>Copies the pixels into the order they are shown in, for consumers that can't turn them.</summary>
+    internal DecodedImageUpload CopyOriented()
+    {
+        var storedSize = new System.Drawing.Size(Width, Height);
+        System.Drawing.Size size = Orientation.Apply(storedSize);
+        Matrix3x2.Invert(Orientation.GetTransform(storedSize), out Matrix3x2 toStored);
+        DecodedImageUpload output = Allocate(size.Width, size.Height, checked(size.Width * BytesPerPixel));
+        Span<uint> source = MemoryMarshal.Cast<byte, uint>(Span);
+        Span<uint> destination = MemoryMarshal.Cast<byte, uint>(output.Span);
+        int sourceStridePixels = Stride / BytesPerPixel;
+        for (int y = 0; y < size.Height; y++)
+        {
+            for (int x = 0; x < size.Width; x++)
+            {
+                // Pixel centers land exactly on pixel centers, so truncating finds the stored pixel.
+                var stored = Vector2.Transform(new Vector2(x + 0.5f, y + 0.5f), toStored);
+                destination[(y * size.Width) + x] = source[((int)stored.Y * sourceStridePixels) + (int)stored.X];
+            }
+        }
+
+        return output;
     }
 
     public void Dispose()

@@ -205,10 +205,11 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             message = $"Image opened, but its folder could not be read: {folderError}";
         }
 
+        SizeF imageSize = HasImage ? _imagePanel.ImageSize : SizeF.Empty;
         _statusPanel.SetStatus(new ViewerStatus(
             Path.GetFileName(_state.RequestedPath) ?? string.Empty,
-            _state.DisplayedImage?.Representation.Width ?? 0,
-            _state.DisplayedImage?.Representation.Height ?? 0,
+            (int)imageSize.Width,
+            (int)imageSize.Height,
             _state.CurrentEntry?.Length,
             _imagePanel.ZoomPercentage,
             message,

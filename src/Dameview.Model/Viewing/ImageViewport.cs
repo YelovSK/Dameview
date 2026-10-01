@@ -1,14 +1,18 @@
 using System.Drawing;
 using System.Numerics;
+using Dameview.Imaging;
 
 namespace Dameview.Viewing;
 
+// Works in image coordinates of the oriented image, so turning it needs no special cases
+// beyond the final transform from stored pixels.
 internal sealed class ImageViewport
 {
     private const float MaximumScale = 64.0f;
     private const double ZoomStep = 1.2;
 
     private SizeF _viewportSize;
+    private SizeF _storedImageSize;
     private SizeF _imageSize;
     private PointF _center;
 
@@ -19,6 +23,9 @@ internal sealed class ImageViewport
 
     internal ViewportMode Mode { get; private set; } = ViewportMode.Fit;
     internal float Scale { get; private set; } = 1.0f;
+    internal ImageOrientation Orientation { get; private set; }
+    /// <summary>The image size as shown, after its orientation turns it.</summary>
+    internal SizeF ImageSize => _imageSize;
     internal PointF Center => _center;
     internal PointF ImageCenter => new(_imageSize.Width / 2.0f, _imageSize.Height / 2.0f);
     internal PointF ViewportCenter => new(_viewportSize.Width / 2.0f, _viewportSize.Height / 2.0f);
@@ -46,13 +53,39 @@ internal sealed class ImageViewport
         }
     }
 
-    internal void SetImageSize(Size size)
+    /// <param name="size">The stored size, before <paramref name="orientation"/> turns it.</param>
+    internal void SetImageSize(Size size, ImageOrientation orientation = default)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(size.Width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(size.Height);
 
-        _imageSize = size;
+        _storedImageSize = size;
+        Orientation = orientation;
+        _imageSize = orientation.Apply(_storedImageSize);
         Fit();
+    }
+
+    /// <summary>Turns the image while keeping the same part of it in the middle of the viewport.</summary>
+    internal void SetOrientation(ImageOrientation orientation)
+    {
+        if (!HasImage)
+        {
+            return;
+        }
+
+        Matrix3x2.Invert(Orientation.GetTransform(_storedImageSize), out Matrix3x2 toStored);
+        var storedCenter = Vector2.Transform(new Vector2(_center.X, _center.Y), toStored);
+        var center = Vector2.Transform(storedCenter, orientation.GetTransform(_storedImageSize));
+        Orientation = orientation;
+        _imageSize = orientation.Apply(_storedImageSize);
+        if (Mode == ViewportMode.Fit)
+        {
+            Fit();
+            return;
+        }
+
+        Scale = Math.Clamp(Scale, GetMinimumScale(), MaximumScale);
+        _center = ClampCenter(new PointF(center.X, center.Y), Scale);
     }
 
     internal void Fit()
@@ -150,6 +183,20 @@ internal sealed class ImageViewport
         // The image's top-left corner is then that far up and left of the middle, times the zoom.
         PointF location = ViewportCenter - ((_center - PointF.Empty) * Scale);
         return new RectangleF(location, _imageSize * Scale);
+    }
+
+    /// <summary>
+    /// Maps the pixels of a stored-order copy of the image, of any resolution, onto viewport pixels.
+    /// </summary>
+    internal Matrix3x2 GetImageTransform(SizeF sourceSize)
+    {
+        PointF location = GetDestinationRectangle().Location;
+        return Matrix3x2.CreateScale(
+                _storedImageSize.Width / sourceSize.Width,
+                _storedImageSize.Height / sourceSize.Height)
+            * Orientation.GetTransform(_storedImageSize)
+            * Matrix3x2.CreateScale(Scale)
+            * Matrix3x2.CreateTranslation(location.X, location.Y);
     }
 
     internal PointF ViewportToImage(PointF viewportPoint) => _center + ((viewportPoint - ViewportCenter) / Scale);

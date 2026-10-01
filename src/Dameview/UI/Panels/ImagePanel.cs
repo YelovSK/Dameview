@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Numerics;
 using Dameview.Imaging;
 using Dameview.Imaging.Animation;
 using Dameview.Imaging.Loading;
@@ -51,6 +52,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
     }
 
     internal float ZoomPercentage => _viewport.Scale * 100.0f;
+    internal SizeF ImageSize => _viewport.ImageSize;
     internal TimeSpan? NextAnimationFrameDelay => _imageAnimation?.NextFrameDelay;
     internal Exception? AnimationError => _imageAnimation?.Error;
 
@@ -284,7 +286,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
         RectangleF destinationPixels = _viewport.GetDestinationRectangle();
         if (_isPreview && _previewImage is { } preview)
         {
-            DrawBitmap(context, preview, destinationPixels);
+            DrawPreview(context, preview, destinationPixels);
             return;
         }
 
@@ -295,17 +297,23 @@ internal sealed class ImagePanel : UiElement, IDisposable
             || _isPanning
             || Root?.IsResizing == true
             || _viewport.Scale == 1.0f
-                ? _presentationCache.TryGet(image, destinationPixels, _viewportPixelSize, context.Dpi)
+                ? _presentationCache.TryGet(
+                    image,
+                    destinationPixels,
+                    _viewport.Orientation,
+                    _viewportPixelSize,
+                    context.Dpi)
                 : _presentationCache.GetOrCreate(
                     image,
                     destinationPixels,
+                    _viewport.Orientation,
                     _viewportPixelSize,
                     context.Dpi);
 
         if (presentation is not { } cached)
         {
             _presentationCache.Clear();
-            DrawBitmap(context, image, destinationPixels);
+            DrawImage(context, image);
             DrawPreviewTransition(context);
             return;
         }
@@ -325,11 +333,25 @@ internal sealed class ImagePanel : UiElement, IDisposable
     {
         if (_previewImage is { } preview && _previewFade.Current > 0.0f)
         {
-            DrawBitmap(context, preview, _viewport.GetDestinationRectangle(), _previewFade.Current);
+            DrawPreview(context, preview, _viewport.GetDestinationRectangle(), _previewFade.Current);
         }
     }
 
-    private void DrawBitmap(
+    private void DrawImage(in UiDrawContext context, ID2D1Bitmap1 image)
+    {
+        var size = new SizeF(image.PixelSize.Width, image.PixelSize.Height);
+        Matrix3x2 transform = _viewport.GetImageTransform(size)
+            * Matrix3x2.CreateScale(context.PixelsToDips(1.0f));
+        using TransformScope scope = context.PushTransform(transform);
+
+        // Drawn against the device context for its interpolation modes, so it counts itself.
+        context.CountOperation();
+        var bounds = new Rect(0.0f, 0.0f, size.Width, size.Height);
+        _deviceContext.DrawBitmap(image, bounds, context.Opacity, InterpolationMode.Linear, bounds, null);
+    }
+
+    // Thumbnails come already turned upright, so previews skip the image's orientation.
+    private void DrawPreview(
         in UiDrawContext context,
         ID2D1Bitmap1 image,
         RectangleF destinationPixels,

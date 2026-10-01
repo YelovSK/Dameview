@@ -1,4 +1,5 @@
 using System.Drawing;
+using Dameview.Imaging;
 using Dameview.Rendering;
 using Dameview.UI.Foundation;
 using Vortice.Direct2D1;
@@ -16,6 +17,7 @@ internal sealed class ImagePresentationCache : IDisposable
     private ID2D1Bitmap1? _bitmap;
     private ID2D1Bitmap1? _source;
     private RectangleF _imageBounds;
+    private ImageOrientation _orientation;
     private System.Drawing.Size _viewportSize;
     private Point _offsetPixels;
     private float _dpi;
@@ -42,25 +44,29 @@ internal sealed class ImagePresentationCache : IDisposable
     internal ImagePresentation? TryGet(
         ID2D1Bitmap1 source,
         RectangleF imageBounds,
+        ImageOrientation orientation,
         System.Drawing.Size viewportSize,
         float dpi)
     {
         return _bitmap is not null
             && ReferenceEquals(_source, source)
             && _imageBounds == imageBounds
+            && _orientation == orientation
             && _viewportSize == viewportSize
             && _dpi == dpi
                 ? new ImagePresentation(_bitmap, _offsetPixels)
                 : null;
     }
 
+    /// <param name="imageBounds">Where the image lands once <paramref name="orientation"/> turns it.</param>
     internal ImagePresentation? GetOrCreate(
         ID2D1Bitmap1 source,
         RectangleF imageBounds,
+        ImageOrientation orientation,
         System.Drawing.Size viewportSize,
         float dpi)
     {
-        if (TryGet(source, imageBounds, viewportSize, dpi) is { } cached)
+        if (TryGet(source, imageBounds, orientation, viewportSize, dpi) is { } cached)
         {
             return cached;
         }
@@ -76,7 +82,7 @@ internal sealed class ImagePresentationCache : IDisposable
         }
 
         // Cubic can produce halos when zoomed beyond 100%, so lower the sharpness in that case.
-        bool upscales = imageBounds.Width > source.PixelSize.Width;
+        bool upscales = orientation.Apply(imageBounds.Size).Width > source.PixelSize.Width;
 
         var pixelSize = new SizeI(right - left, bottom - top);
         ID2D1Bitmap1 bitmap = D2DBitmapFactory.CreateScaled(
@@ -89,11 +95,13 @@ internal sealed class ImagePresentationCache : IDisposable
                 UiDpi.PixelsToDips(imageBounds.Y - top, dpi),
                 UiDpi.PixelsToDips(imageBounds.Width, dpi),
                 UiDpi.PixelsToDips(imageBounds.Height, dpi)),
+            orientation,
             upscales ? UpscaleSharpness : DownscaleSharpness);
         Clear();
         _bitmap = bitmap;
         _source = source;
         _imageBounds = imageBounds;
+        _orientation = orientation;
         _viewportSize = viewportSize;
         _offsetPixels = new Point(left, top);
         _dpi = dpi;
@@ -106,6 +114,7 @@ internal sealed class ImagePresentationCache : IDisposable
         _bitmap = null;
         _source = null;
         _imageBounds = default;
+        _orientation = default;
         _viewportSize = default;
         _offsetPixels = default;
         _dpi = 0.0f;

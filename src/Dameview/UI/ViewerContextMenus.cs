@@ -37,6 +37,7 @@ internal sealed class ViewerContextMenus
             Group(context, AppCommands.CopyImage, AppCommands.CopyFile, AppCommands.CopyFilePath),
             Group(context, AppCommands.OpenWith, AppCommands.ShowInFolder, AppCommands.ShowProperties),
             Group(context, AppCommands.FitImage, AppCommands.ShowActualSize),
+            Group(context, AppCommands.RotateLeft, AppCommands.RotateRight),
             Group(context, AppCommands.SplitRight, AppCommands.SplitDown),
             [Item(AppCommands.DeleteFile, context, tone: UiButtonTone.Danger)],
             [AllCommandsItem(context)],

@@ -129,7 +129,8 @@ internal sealed class ImageLoadService : IDisposable
     }
 
     /// <summary>
-    /// Decodes a temporary CPU image and delivers it on the owner thread.
+    /// Decodes a temporary CPU image, with its pixels in the order they are shown, and delivers
+    /// it on the owner thread.
     /// </summary>
     /// <remarks>The callback owns the decoded buffer and must dispose it.</remarks>
     internal void DecodeTemporary(
@@ -193,7 +194,7 @@ internal sealed class ImageLoadService : IDisposable
         try
         {
             image = await _foregroundQueue.Enqueue(
-                (decoder, token) => decoder.DecodeUpload(path, token),
+                (decoder, token) => DecodeOriented(path, decoder, token),
                 cancellationToken: cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -215,6 +216,23 @@ internal sealed class ImageLoadService : IDisposable
         {
             delivery?.Dispose();
             throw;
+        }
+    }
+
+    private static DecodedImageUpload DecodeOriented(
+        string path,
+        IImageDecoder decoder,
+        CancellationToken cancellationToken)
+    {
+        DecodedImageUpload stored = decoder.DecodeUpload(path, cancellationToken);
+        if (stored.Orientation == default)
+        {
+            return stored;
+        }
+
+        using (stored)
+        {
+            return stored.CopyOriented();
         }
     }
 

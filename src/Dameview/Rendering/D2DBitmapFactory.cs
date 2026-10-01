@@ -91,15 +91,18 @@ internal static class D2DBitmapFactory
                 0.0f,
                 PixelsToDips(pixelSize.Width, dpi),
                 PixelsToDips(pixelSize.Height, dpi)),
+            default,
             sharpness);
     }
 
+    /// <param name="destination">Where the source lands once <paramref name="orientation"/> turns it.</param>
     internal static ID2D1Bitmap1 CreateScaled(
         ID2D1DeviceContext deviceContext,
         ID2D1Bitmap1 source,
         SizeI pixelSize,
         float dpi,
         Rect destination,
+        ImageOrientation orientation,
         float sharpness)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pixelSize.Width);
@@ -108,11 +111,13 @@ internal static class D2DBitmapFactory
         ArgumentOutOfRangeException.ThrowIfLessThan(sharpness, 0.0f);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(sharpness, 1.0f);
 
+        System.Drawing.SizeF scaledSize = orientation.Apply(
+            new System.Drawing.SizeF(destination.Width, destination.Height));
         using Scale scale = new(deviceContext)
         {
             Value = new Vector2(
-                destination.Width / source.Size.Width,
-                destination.Height / source.Size.Height),
+                scaledSize.Width / source.Size.Width,
+                scaledSize.Height / source.Size.Height),
             InterpolationMode = ScaleInterpolationMode.HighQualityCubic,
             BorderMode = BorderMode.Hard,
             Sharpness = sharpness,
@@ -122,12 +127,21 @@ internal static class D2DBitmapFactory
 
         return CreateTargetBitmap(deviceContext, pixelSize, dpi, () =>
         {
-            deviceContext.DrawImage(
-                output,
-                new Vector2(destination.Left, destination.Top),
-                null,
-                InterpolationMode.Linear,
-                CompositeMode.SourceOver);
+            deviceContext.Transform = orientation.GetTransform(scaledSize)
+                * Matrix3x2.CreateTranslation(destination.Left, destination.Top);
+            try
+            {
+                deviceContext.DrawImage(
+                    output,
+                    Vector2.Zero,
+                    null,
+                    InterpolationMode.Linear,
+                    CompositeMode.SourceOver);
+            }
+            finally
+            {
+                deviceContext.Transform = Matrix3x2.Identity;
+            }
         });
     }
 

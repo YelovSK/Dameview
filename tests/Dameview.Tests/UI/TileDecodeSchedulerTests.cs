@@ -211,6 +211,7 @@ public sealed class TileDecodeSchedulerTests
 
         public int Width => 10_000;
         public int Height => 10_000;
+        public ImageOrientation Orientation => default;
         public int TileSize => 1;
         public DecodedImage Overview { get; } = CreateImage();
         internal int CreatedDecoders => Volatile.Read(ref _createdDecoders);

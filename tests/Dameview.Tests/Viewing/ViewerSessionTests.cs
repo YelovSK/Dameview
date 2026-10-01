@@ -357,6 +357,7 @@ public sealed class ViewerSessionTests
     {
         public int Width => 20_000;
         public int Height => 10_000;
+        public ImageOrientation Orientation => default;
         public int TileSize => 2048;
         public DecodedImage Overview { get; } = CreateImage();
         internal bool IsDisposed { get; private set; }

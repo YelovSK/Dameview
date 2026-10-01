@@ -4,12 +4,17 @@ namespace Dameview.Imaging.Loading;
 
 // Owns the resources needed to present one accepted image. ViewerSession owns the
 // representation; presentation consumers borrow it and own their graphics resources.
-internal abstract class ImageRepresentation(int width, int height) : IDisposable
+// Width and Height are the stored size; Orientation says how the stored pixels are shown.
+internal abstract class ImageRepresentation(
+    int width,
+    int height,
+    ImageOrientation orientation = default) : IDisposable
 {
     private bool _disposed;
 
     internal int Width { get; } = width;
     internal int Height { get; } = height;
+    internal ImageOrientation Orientation { get; } = orientation;
 
     public void Dispose()
     {
@@ -34,7 +39,7 @@ internal sealed class DecodedImageRepresentation(DecodedImage image)
 }
 
 internal sealed class UploadImageRepresentation(DecodedImageUpload upload)
-    : ImageRepresentation(upload.Width, upload.Height)
+    : ImageRepresentation(upload.Width, upload.Height, upload.Orientation)
 {
     internal DecodedImageUpload Upload { get; } = upload;
 
@@ -42,7 +47,7 @@ internal sealed class UploadImageRepresentation(DecodedImageUpload upload)
 }
 
 internal sealed class TiledImageRepresentation(IImageTileSource source)
-    : ImageRepresentation(source.Width, source.Height)
+    : ImageRepresentation(source.Width, source.Height, source.Orientation)
 {
     internal IImageTileSource Source { get; } = source;
 

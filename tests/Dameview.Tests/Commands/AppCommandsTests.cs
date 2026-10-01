@@ -32,7 +32,7 @@ public sealed class AppCommandsTests
             {
                 "openFile", "newTab", "closeTab", "reopenClosedTab", "previousTab", "nextTab",
                 "previousImage", "nextImage", "fitImage", "showActualSize", "toggleFitActualSize",
-                "copyImage", "copyFilePath", "copyFile", "showInFolder", "openWith", "showProperties",
+                "rotateLeft", "rotateRight", "flipHorizontal", "flipVertical", "copyImage", "copyFilePath", "copyFile", "showInFolder", "openWith", "showProperties",
                 "deleteFile", "toggleFullscreen", "toggleGallery", "toggleFlattenFolder", "splitRight",
                 "splitDown", "balancePanes", "optimizePaneLayout", "togglePerformanceOverlay",
                 "showSettings", "openDataFolder", "showCommandPalette",

@@ -68,18 +68,20 @@ internal sealed class RenderBitmapCache : IDisposable
         string path,
         ID2D1Bitmap1 bitmap,
         int width,
-        int height)
+        int height,
+        ImageOrientation orientation = default)
     {
-        return Acquire(Add(path, bitmap, width, height));
+        return Acquire(Add(path, bitmap, width, height, orientation));
     }
 
     internal void AddInactive(
         string path,
         ID2D1Bitmap1 bitmap,
         int width,
-        int height)
+        int height,
+        ImageOrientation orientation = default)
     {
-        _ = Add(path, bitmap, width, height);
+        _ = Add(path, bitmap, width, height, orientation);
         Trim();
     }
 
@@ -199,7 +201,12 @@ internal sealed class RenderBitmapCache : IDisposable
         }
     }
 
-    private CachedBitmap Add(string path, ID2D1Bitmap1 bitmap, int width, int height)
+    private CachedBitmap Add(
+        string path,
+        ID2D1Bitmap1 bitmap,
+        int width,
+        int height,
+        ImageOrientation orientation)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (_entries.TryGetValue(path, out LinkedListNode<CachedBitmap>? existing))
@@ -210,7 +217,7 @@ internal sealed class RenderBitmapCache : IDisposable
         }
 
         long sizeBytes = checked((long)width * height * 4);
-        var entry = new CachedBitmap(path, bitmap, width, height, sizeBytes);
+        var entry = new CachedBitmap(path, bitmap, width, height, orientation, sizeBytes);
         LinkedListNode<CachedBitmap> node = _recentlyUsed.AddFirst(entry);
         _entries.Add(path, node);
         _sizeBytes += sizeBytes;
@@ -270,6 +277,7 @@ internal sealed class CachedBitmap(
     ID2D1Bitmap1 bitmap,
     int width,
     int height,
+    ImageOrientation orientation,
     long sizeBytes)
 {
     internal string Path { get; } = path;
@@ -283,6 +291,7 @@ internal sealed class CachedBitmap(
     internal DecodedImage? Pixels { get; set; }
     internal int Width { get; } = width;
     internal int Height { get; } = height;
+    internal ImageOrientation Orientation { get; } = orientation;
     internal long SizeBytes { get; } = sizeBytes;
     internal int PinCount { get; set; }
 }
@@ -308,7 +317,7 @@ internal sealed class CachedBitmapRepresentation : ImageRepresentation
     private readonly CachedBitmapLease _lease;
 
     internal CachedBitmapRepresentation(CachedBitmapLease lease)
-        : base(lease.Bitmap.Width, lease.Bitmap.Height)
+        : base(lease.Bitmap.Width, lease.Bitmap.Height, lease.Bitmap.Orientation)
     {
         _lease = lease;
     }

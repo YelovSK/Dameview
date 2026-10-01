@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Numerics;
 using Dameview.Imaging;
 using Dameview.Imaging.Loading;
 using Dameview.Rendering;
@@ -53,11 +54,15 @@ internal sealed class TiledImageRenderer : IDisposable
 
     internal void Draw(in UiDrawContext context, float viewportWidthPixels, float viewportHeightPixels)
     {
-        RectangleF destination = _viewport.GetDestinationRectangle();
+        // Everything below is drawn in stored image pixels.
+        var imageSize = new SizeF(_source.Width, _source.Height);
+        Matrix3x2 toViewport = _viewport.GetImageTransform(imageSize);
+        using TransformScope scope = context.PushTransform(
+            toViewport * Matrix3x2.CreateScale(context.PixelsToDips(1.0f)));
         DrawBitmap(
             context,
             _overview,
-            destination,
+            new RectangleF(PointF.Empty, imageSize),
             _overview.PixelSize.Width,
             _overview.PixelSize.Height);
 
@@ -71,10 +76,15 @@ internal sealed class TiledImageRenderer : IDisposable
             return;
         }
 
-        int left = Math.Clamp((int)MathF.Floor(Math.Max(0.0f, -destination.X / scale)), 0, _source.Width - 1);
-        int top = Math.Clamp((int)MathF.Floor(Math.Max(0.0f, -destination.Y / scale)), 0, _source.Height - 1);
-        int right = Math.Clamp((int)MathF.Ceiling((viewportWidthPixels - destination.X) / scale), 0, _source.Width);
-        int bottom = Math.Clamp((int)MathF.Ceiling((viewportHeightPixels - destination.Y) / scale), 0, _source.Height);
+        Matrix3x2.Invert(toViewport, out Matrix3x2 toImage);
+        var corner = Vector2.Transform(Vector2.Zero, toImage);
+        var oppositeCorner = Vector2.Transform(new Vector2(viewportWidthPixels, viewportHeightPixels), toImage);
+        var visibleMin = Vector2.Min(corner, oppositeCorner);
+        var visibleMax = Vector2.Max(corner, oppositeCorner);
+        int left = Math.Clamp((int)MathF.Floor(visibleMin.X), 0, _source.Width - 1);
+        int top = Math.Clamp((int)MathF.Floor(visibleMin.Y), 0, _source.Height - 1);
+        int right = Math.Clamp((int)MathF.Ceiling(visibleMax.X), 0, _source.Width);
+        int bottom = Math.Clamp((int)MathF.Ceiling(visibleMax.Y), 0, _source.Height);
         if (right <= left || bottom <= top)
         {
             ClearTileRequests();
@@ -132,11 +142,12 @@ internal sealed class TiledImageRenderer : IDisposable
             entry.LastUsed = Environment.TickCount64;
             (int sourceX, int sourceY, int sourceWidth, int sourceHeight) =
                 tile.GetSourceBounds(_source.Width, _source.Height);
-            DrawBitmap(context, entry.Bitmap, new RectangleF(
-                destination.X + sourceX * scale,
-                destination.Y + sourceY * scale,
-                sourceWidth * scale,
-                sourceHeight * scale), tile.Width, tile.Height);
+            DrawBitmap(
+                context,
+                entry.Bitmap,
+                new RectangleF(sourceX, sourceY, sourceWidth, sourceHeight),
+                tile.Width,
+                tile.Height);
         }
     }
 
@@ -292,11 +303,7 @@ internal sealed class TiledImageRenderer : IDisposable
     {
         context.DrawBitmap(
             bitmap,
-            new Rect(
-                context.PixelsToDips(destination.X),
-                context.PixelsToDips(destination.Y),
-                context.PixelsToDips(destination.Width),
-                context.PixelsToDips(destination.Height)),
+            new Rect(destination.X, destination.Y, destination.Width, destination.Height),
             new Rect(0.0f, 0.0f, sourceWidth, sourceHeight));
     }
 

@@ -4,6 +4,8 @@ internal interface IImageTileSource : IDisposable
 {
     public int Width { get; }
     public int Height { get; }
+    /// <summary>Tiles and the overview are in stored order; this says how to show them.</summary>
+    public ImageOrientation Orientation { get; }
     public int TileSize { get; }
     public DecodedImage Overview { get; }
 

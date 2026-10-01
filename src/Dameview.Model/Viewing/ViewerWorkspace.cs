@@ -205,8 +205,8 @@ internal sealed class ViewerWorkspace : IDisposable
         WorkspaceNode optimized = PaneLayoutOptimizer.Optimize(
             Root,
             area,
-            static pane => pane.ActiveSession.State.DisplayedImage is { } image
-                ? new SizeF(image.Representation.Width, image.Representation.Height)
+            static pane => pane.ActiveSession.State.DisplayedImage is not null
+                ? pane.ActiveSession.Viewport.ImageSize
                 : SizeF.Empty);
 
         if (HasSameTopology(Root, optimized))

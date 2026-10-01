@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Drawing;
+using Dameview.Imaging;
 using Dameview.Imaging.Loading;
 using Dameview.Navigation;
 
@@ -136,6 +137,20 @@ internal sealed class ViewerSession : IDisposable
             OpenFolder(new FolderScope(directory, State.FlattensFolder), path);
         }
 
+        StateChanged?.Invoke();
+    }
+
+    /// <summary>Turns or mirrors the displayed image, until another image is shown.</summary>
+    internal void ChangeOrientation(Func<ImageOrientation, ImageOrientation> change)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (State.DisplayedImage is null)
+        {
+            return;
+        }
+
+        Animator.Reset();
+        Viewport.SetOrientation(change(Viewport.Orientation));
         StateChanged?.Invoke();
     }
 
@@ -305,6 +320,13 @@ internal sealed class ViewerSession : IDisposable
             result => CompleteImageLoad(result, navigationDirection));
     }
 
+    private void ShowInViewport(ImageRepresentation representation)
+    {
+        Viewport.SetImageSize(
+            new Size(representation.Width, representation.Height),
+            representation.Orientation);
+    }
+
     private void CompleteImageLoad(
         ImageLoadResult result,
         int navigationDirection)
@@ -323,14 +345,14 @@ internal sealed class ViewerSession : IDisposable
                 case ImageLoaded { IsPreview: true } preview:
                     previousImage = State.DisplayedImage;
                     Animator.Reset();
-                    Viewport.SetImageSize(new Size(preview.Representation.Width, preview.Representation.Height));
+                    ShowInViewport(preview.Representation);
                     State = State with { DisplayedImage = preview };
                     break;
 
                 case ImageLoaded loaded:
                     previousImage = State.DisplayedImage;
                     Animator.Reset();
-                    Viewport.SetImageSize(new Size(loaded.Representation.Width, loaded.Representation.Height));
+                    ShowInViewport(loaded.Representation);
                     State = State with
                     {
                         RequestedPath = loaded.Path,
