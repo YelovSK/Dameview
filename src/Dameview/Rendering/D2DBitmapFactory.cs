@@ -86,23 +86,22 @@ internal static class D2DBitmapFactory
             source,
             pixelSize,
             dpi,
-            new Rect(
-                0.0f,
-                0.0f,
-                PixelsToDips(pixelSize.Width, dpi),
-                PixelsToDips(pixelSize.Height, dpi)),
-            default,
+            Matrix3x2.CreateScale(
+                PixelsToDips(pixelSize.Width, dpi) / source.Size.Width,
+                PixelsToDips(pixelSize.Height, dpi) / source.Size.Height),
             sharpness);
     }
 
-    /// <param name="destination">Where the source lands once <paramref name="orientation"/> turns it.</param>
+    /// <param name="placement">
+    /// Maps source pixels onto the new bitmap's DIPs. Besides scaling and moving, it may turn by
+    /// quarter turns and mirror.
+    /// </param>
     internal static ID2D1Bitmap1 CreateScaled(
         ID2D1DeviceContext deviceContext,
         ID2D1Bitmap1 source,
         SizeI pixelSize,
         float dpi,
-        Rect destination,
-        ImageOrientation orientation,
+        Matrix3x2 placement,
         float sharpness)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pixelSize.Width);
@@ -111,13 +110,14 @@ internal static class D2DBitmapFactory
         ArgumentOutOfRangeException.ThrowIfLessThan(sharpness, 0.0f);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(sharpness, 1.0f);
 
-        System.Drawing.SizeF scaledSize = orientation.Apply(
-            new System.Drawing.SizeF(destination.Width, destination.Height));
+        // The scale effect resamples in high quality, so it does all the scaling, and the
+        // transform it is drawn with only turns and moves.
+        var factor = new Vector2(
+            new Vector2(placement.M11, placement.M12).Length(),
+            new Vector2(placement.M21, placement.M22).Length());
         using Scale scale = new(deviceContext)
         {
-            Value = new Vector2(
-                scaledSize.Width / source.Size.Width,
-                scaledSize.Height / source.Size.Height),
+            Value = factor,
             InterpolationMode = ScaleInterpolationMode.HighQualityCubic,
             BorderMode = BorderMode.Hard,
             Sharpness = sharpness,
@@ -127,8 +127,7 @@ internal static class D2DBitmapFactory
 
         return CreateTargetBitmap(deviceContext, pixelSize, dpi, () =>
         {
-            deviceContext.Transform = orientation.GetTransform(scaledSize)
-                * Matrix3x2.CreateTranslation(destination.Left, destination.Top);
+            deviceContext.Transform = Matrix3x2.CreateScale(Vector2.One / factor) * placement;
             try
             {
                 deviceContext.DrawImage(

@@ -283,12 +283,13 @@ internal sealed class ImagePanel : UiElement, IDisposable
             return;
         }
 
-        RectangleF destinationPixels = _viewport.GetDestinationRectangle();
         if (_isPreview && _previewImage is { } preview)
         {
-            DrawPreview(context, preview, destinationPixels);
+            DrawPreview(context, preview, _viewport.GetDestinationRectangle());
             return;
         }
+
+        Matrix3x2 placement = _viewport.GetImageTransform(new SizeF(image.PixelSize.Width, image.PixelSize.Height));
 
         // Building the rescale is expensive, drawing one we already built is not. So while things
         // move, reuse a matching one if we have it and fall back to a plain draw if we don't.
@@ -297,23 +298,13 @@ internal sealed class ImagePanel : UiElement, IDisposable
             || _isPanning
             || Root?.IsResizing == true
             || _viewport.Scale == 1.0f
-                ? _presentationCache.TryGet(
-                    image,
-                    destinationPixels,
-                    _viewport.Orientation,
-                    _viewportPixelSize,
-                    context.Dpi)
-                : _presentationCache.GetOrCreate(
-                    image,
-                    destinationPixels,
-                    _viewport.Orientation,
-                    _viewportPixelSize,
-                    context.Dpi);
+                ? _presentationCache.TryGet(image, placement, _viewportPixelSize, context.Dpi)
+                : _presentationCache.GetOrCreate(image, placement, _viewportPixelSize, context.Dpi);
 
         if (presentation is not { } cached)
         {
             _presentationCache.Clear();
-            DrawImage(context, image);
+            DrawImage(context, image, placement);
             DrawPreviewTransition(context);
             return;
         }
@@ -337,16 +328,15 @@ internal sealed class ImagePanel : UiElement, IDisposable
         }
     }
 
-    private void DrawImage(in UiDrawContext context, ID2D1Bitmap1 image)
+    /// <param name="placement">Maps the image's pixels onto viewport pixels.</param>
+    private void DrawImage(in UiDrawContext context, ID2D1Bitmap1 image, Matrix3x2 placement)
     {
-        var size = new SizeF(image.PixelSize.Width, image.PixelSize.Height);
-        Matrix3x2 transform = _viewport.GetImageTransform(size)
-            * Matrix3x2.CreateScale(context.PixelsToDips(1.0f));
-        using TransformScope scope = context.PushTransform(transform);
+        using TransformScope scope = context.PushTransform(
+            placement * Matrix3x2.CreateScale(context.PixelsToDips(1.0f)));
 
         // Drawn against the device context for its interpolation modes, so it counts itself.
         context.CountOperation();
-        var bounds = new Rect(0.0f, 0.0f, size.Width, size.Height);
+        var bounds = new Rect(0.0f, 0.0f, image.PixelSize.Width, image.PixelSize.Height);
         _deviceContext.DrawBitmap(image, bounds, context.Opacity, InterpolationMode.Linear, bounds, null);
     }
 

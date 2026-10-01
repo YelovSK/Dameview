@@ -15,6 +15,7 @@ internal sealed class ImageViewport
     private SizeF _storedImageSize;
     private SizeF _imageSize;
     private PointF _center;
+    private Matrix3x2 _turnOffset = Matrix3x2.Identity;
 
     internal ImageViewport(Size viewportSize)
     {
@@ -186,18 +187,32 @@ internal sealed class ImageViewport
     }
 
     /// <summary>
+    /// Shows the image moved by <paramref name="offset"/> on screen, while an animated turn
+    /// catches up with an orientation that has already changed.
+    /// </summary>
+    internal void SetTurnOffset(Matrix3x2 offset) => _turnOffset = offset;
+
+    /// <summary>Maps stored image pixels onto viewport pixels.</summary>
+    internal Matrix3x2 ImageTransform
+    {
+        get
+        {
+            PointF location = GetDestinationRectangle().Location;
+            return Orientation.GetTransform(_storedImageSize)
+                * Matrix3x2.CreateScale(Scale)
+                * Matrix3x2.CreateTranslation(location.X, location.Y)
+                * _turnOffset;
+        }
+    }
+
+    /// <summary>
     /// Maps the pixels of a stored-order copy of the image, of any resolution, onto viewport pixels.
     /// </summary>
-    internal Matrix3x2 GetImageTransform(SizeF sourceSize)
-    {
-        PointF location = GetDestinationRectangle().Location;
-        return Matrix3x2.CreateScale(
-                _storedImageSize.Width / sourceSize.Width,
-                _storedImageSize.Height / sourceSize.Height)
-            * Orientation.GetTransform(_storedImageSize)
-            * Matrix3x2.CreateScale(Scale)
-            * Matrix3x2.CreateTranslation(location.X, location.Y);
-    }
+    internal Matrix3x2 GetImageTransform(SizeF sourceSize) =>
+        Matrix3x2.CreateScale(
+            _storedImageSize.Width / sourceSize.Width,
+            _storedImageSize.Height / sourceSize.Height)
+        * ImageTransform;
 
     internal PointF ViewportToImage(PointF viewportPoint) => _center + ((viewportPoint - ViewportCenter) / Scale);
 

@@ -80,22 +80,24 @@ internal static class AppCommands
         ShowsImage,
         [new(WindowKey.Z)]);
 
-    internal static readonly Command RotateLeft = ForOrientation(
-        "rotateLeft", "Rotate left",
-        static orientation => orientation.RotateCounterclockwise(),
-        new(WindowKey.L));
+    internal static readonly Command RotateLeft = Command.ForTab(
+        "rotateLeft", "Rotate left", CommandScope.Viewer,
+        (_, tab) => tab.Session.Rotate(quarterTurns: -1),
+        ShowsImage,
+        [new(WindowKey.L)]);
 
-    internal static readonly Command RotateRight = ForOrientation(
-        "rotateRight", "Rotate right",
-        static orientation => orientation.RotateClockwise(),
-        new(WindowKey.R));
+    internal static readonly Command RotateRight = Command.ForTab(
+        "rotateRight", "Rotate right", CommandScope.Viewer,
+        (_, tab) => tab.Session.Rotate(quarterTurns: 1),
+        ShowsImage,
+        [new(WindowKey.R)]);
 
-    internal static readonly Command FlipHorizontal = ForOrientation(
+    internal static readonly Command FlipHorizontal = ForFlip(
         "flipHorizontal", "Flip horizontally",
         static orientation => orientation.FlipHorizontal(),
         new(WindowKey.H));
 
-    internal static readonly Command FlipVertical = ForOrientation(
+    internal static readonly Command FlipVertical = ForFlip(
         "flipVertical", "Flip vertically",
         static orientation => orientation.FlipVertical(),
         new(WindowKey.V));
@@ -235,14 +237,14 @@ internal static class AppCommands
 
     private static bool ShowsImage(ViewerTab tab) => tab.Session.State.DisplayedImage is not null;
 
-    private static Command ForOrientation(
+    private static Command ForFlip(
         string id,
         string label,
-        Func<ImageOrientation, ImageOrientation> change,
+        Func<ImageOrientation, ImageOrientation> flip,
         ViewerCommandShortcut shortcut) =>
         Command.ForTab(
             id, label, CommandScope.Viewer,
-            (_, tab) => tab.Session.ChangeOrientation(change),
+            (_, tab) => tab.Session.ChangeOrientation(flip),
             ShowsImage,
             [shortcut]);
 

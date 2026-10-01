@@ -38,8 +38,8 @@ public sealed class ImageOrientationTests
             Shown clockwise = TurnClockwise(shown);
             Shown upsideDown = TurnClockwise(clockwise);
 
-            AssertShown(clockwise, Show(orientation.RotateClockwise()), $"{orientation} turned right");
-            AssertShown(TurnClockwise(upsideDown), Show(orientation.RotateCounterclockwise()), $"{orientation} turned left");
+            AssertShown(clockwise, Show(orientation.Rotate(1)), $"{orientation} turned right");
+            AssertShown(TurnClockwise(upsideDown), Show(orientation.Rotate(-1)), $"{orientation} turned left");
             AssertShown(Mirror(shown), Show(orientation.FlipHorizontal()), $"{orientation} flipped horizontally");
             AssertShown(Mirror(upsideDown), Show(orientation.FlipVertical()), $"{orientation} flipped vertically");
         }

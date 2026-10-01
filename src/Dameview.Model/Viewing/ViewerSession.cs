@@ -140,6 +140,17 @@ internal sealed class ViewerSession : IDisposable
         StateChanged?.Invoke();
     }
 
+    /// <summary>Turns the displayed image, animated, until another image is shown.</summary>
+    /// <param name="quarterTurns">Clockwise quarter turns. Negative turns counterclockwise.</param>
+    internal void Rotate(int quarterTurns)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (State.DisplayedImage is not null && Animator.Rotate(quarterTurns))
+        {
+            StateChanged?.Invoke();
+        }
+    }
+
     /// <summary>Turns or mirrors the displayed image, until another image is shown.</summary>
     internal void ChangeOrientation(Func<ImageOrientation, ImageOrientation> change)
     {

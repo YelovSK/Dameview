@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Numerics;
+using Dameview.Imaging;
 using Dameview.Viewing;
 
 namespace Dameview.Tests.Viewing;
@@ -320,6 +321,85 @@ public sealed class ViewportAnimatorTests
         // instead of staying centered and then turning once it gets tall enough.
         Assert.IsLessThan(0.8f, viewport.Scale);
         Assert.AreNotEqual(middleBefore, GetMiddleY(viewport), 0.5f);
+    }
+
+    [TestMethod]
+    public void RotatingStartsFromHowTheImageWasShownAndSettlesTurned()
+    {
+        var viewport = new ImageViewport(new Size(1000, 800));
+        viewport.SetImageSize(new Size(2000, 1000));
+        var animator = new ViewportAnimator(viewport);
+        Matrix3x2 before = GetShown(viewport);
+
+        Assert.IsTrue(animator.Rotate(1));
+
+        Assert.AreEqual(ImageOrientation.FromExif(6), viewport.Orientation);
+        AssertSameTransform(before, GetShown(viewport));
+
+        animator.Update(0.016);
+        Matrix3x2 partway = GetShown(viewport);
+        float angle = MathF.Atan2(partway.M12, partway.M11);
+        Assert.IsTrue(angle > 0.0f && angle < MathF.PI / 2.0f, $"turned {angle} radians partway");
+
+        for (int frame = 0; frame < 200 && animator.IsAnimating; frame++)
+        {
+            animator.Update(0.016);
+        }
+
+        Assert.IsFalse(animator.IsAnimating);
+        Assert.AreEqual(ViewportMode.Fit, viewport.Mode);
+        AssertSameTransform(GetSettled(viewport), GetShown(viewport));
+    }
+
+    [TestMethod]
+    public void RotatingAgainMidTurnCarriesOnFromWhereItWas()
+    {
+        var viewport = new ImageViewport(new Size(1000, 800));
+        viewport.SetImageSize(new Size(2000, 1000));
+        var animator = new ViewportAnimator(viewport);
+        animator.Rotate(1);
+        animator.Update(0.016);
+        Matrix3x2 before = GetShown(viewport);
+
+        animator.Rotate(1);
+
+        Assert.AreEqual(ImageOrientation.FromExif(3), viewport.Orientation);
+        AssertSameTransform(before, GetShown(viewport));
+    }
+
+    [TestMethod]
+    public void RotatingWithoutAnimationsTurnsAtOnce()
+    {
+        var viewport = new ImageViewport(new Size(1000, 800));
+        viewport.SetImageSize(new Size(2000, 1000));
+        var animator = new ViewportAnimator(viewport);
+
+        animator.Rotate(-1);
+
+        Assert.IsFalse(animator.Update(0.016, animationsEnabled: false));
+        AssertSameTransform(GetSettled(viewport), GetShown(viewport));
+    }
+
+    private static readonly SizeF StoredSize = new(2000.0f, 1000.0f);
+
+    private static Matrix3x2 GetShown(ImageViewport viewport) => viewport.GetImageTransform(StoredSize);
+
+    // Where the image is shown once nothing is moving: placed by the viewport's own state alone.
+    private static Matrix3x2 GetSettled(ImageViewport viewport)
+    {
+        PointF location = viewport.GetDestinationRectangle().Location;
+        return viewport.Orientation.GetTransform(StoredSize)
+            * Matrix3x2.CreateScale(viewport.Scale)
+            * Matrix3x2.CreateTranslation(location.X, location.Y);
+    }
+
+    private static void AssertSameTransform(Matrix3x2 expected, Matrix3x2 actual)
+    {
+        foreach (Vector2 point in new[] { Vector2.Zero, new Vector2(2000.0f, 0.0f), new Vector2(0.0f, 1000.0f) })
+        {
+            Vector2 difference = Vector2.Transform(point, expected) - Vector2.Transform(point, actual);
+            Assert.IsTrue(difference.Length() < 0.5f, $"{point} is {difference} off");
+        }
     }
 
     private static float GetMiddleY(ImageViewport viewport)

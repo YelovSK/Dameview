@@ -76,11 +76,14 @@ internal sealed class TiledImageRenderer : IDisposable
             return;
         }
 
+        // All four corners, since the image can be partway through a turn.
         Matrix3x2.Invert(toViewport, out Matrix3x2 toImage);
-        var corner = Vector2.Transform(Vector2.Zero, toImage);
-        var oppositeCorner = Vector2.Transform(new Vector2(viewportWidthPixels, viewportHeightPixels), toImage);
-        var visibleMin = Vector2.Min(corner, oppositeCorner);
-        var visibleMax = Vector2.Max(corner, oppositeCorner);
+        var topLeft = Vector2.Transform(Vector2.Zero, toImage);
+        var topRight = Vector2.Transform(new Vector2(viewportWidthPixels, 0.0f), toImage);
+        var bottomLeft = Vector2.Transform(new Vector2(0.0f, viewportHeightPixels), toImage);
+        var bottomRight = Vector2.Transform(new Vector2(viewportWidthPixels, viewportHeightPixels), toImage);
+        var visibleMin = Vector2.Min(Vector2.Min(topLeft, topRight), Vector2.Min(bottomLeft, bottomRight));
+        var visibleMax = Vector2.Max(Vector2.Max(topLeft, topRight), Vector2.Max(bottomLeft, bottomRight));
         int left = Math.Clamp((int)MathF.Floor(visibleMin.X), 0, _source.Width - 1);
         int top = Math.Clamp((int)MathF.Floor(visibleMin.Y), 0, _source.Height - 1);
         int right = Math.Clamp((int)MathF.Ceiling(visibleMax.X), 0, _source.Width);

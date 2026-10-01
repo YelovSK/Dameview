@@ -33,9 +33,8 @@ internal readonly record struct ImageOrientation
         _ => default,
     };
 
-    internal ImageOrientation RotateClockwise() => new(QuarterTurns + 1, Mirrored);
-
-    internal ImageOrientation RotateCounterclockwise() => new(QuarterTurns - 1, Mirrored);
+    /// <param name="quarterTurns">Clockwise quarter turns. Negative turns counterclockwise.</param>
+    internal ImageOrientation Rotate(int quarterTurns) => new(QuarterTurns + quarterTurns, Mirrored);
 
     // Mirroring after a turn is the same as mirroring first and then turning the other way.
     internal ImageOrientation FlipHorizontal() => new(-QuarterTurns, !Mirrored);

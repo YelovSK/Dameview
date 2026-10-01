@@ -1,5 +1,5 @@
 using System.Drawing;
-using Dameview.Imaging;
+using System.Numerics;
 using Dameview.Rendering;
 using Dameview.UI.Foundation;
 using Vortice.Direct2D1;
@@ -16,8 +16,7 @@ internal sealed class ImagePresentationCache : IDisposable
     private ID2D1DeviceContext _renderContext;
     private ID2D1Bitmap1? _bitmap;
     private ID2D1Bitmap1? _source;
-    private RectangleF _imageBounds;
-    private ImageOrientation _orientation;
+    private Matrix3x2 _placement;
     private System.Drawing.Size _viewportSize;
     private Point _offsetPixels;
     private float _dpi;
@@ -41,35 +40,45 @@ internal sealed class ImagePresentationCache : IDisposable
     }
 
     /// <summary>The rescale already held for this exact presentation, if there is one.</summary>
+    /// <param name="placement">Maps source pixels onto viewport pixels.</param>
     internal ImagePresentation? TryGet(
         ID2D1Bitmap1 source,
-        RectangleF imageBounds,
-        ImageOrientation orientation,
+        Matrix3x2 placement,
         System.Drawing.Size viewportSize,
         float dpi)
     {
         return _bitmap is not null
             && ReferenceEquals(_source, source)
-            && _imageBounds == imageBounds
-            && _orientation == orientation
+            && _placement == placement
             && _viewportSize == viewportSize
             && _dpi == dpi
                 ? new ImagePresentation(_bitmap, _offsetPixels)
                 : null;
     }
 
-    /// <param name="imageBounds">Where the image lands once <paramref name="orientation"/> turns it.</param>
+    /// <param name="placement">
+    /// Maps source pixels onto viewport pixels. It may scale, move, mirror and turn by quarter turns.
+    /// </param>
     internal ImagePresentation? GetOrCreate(
         ID2D1Bitmap1 source,
-        RectangleF imageBounds,
-        ImageOrientation orientation,
+        Matrix3x2 placement,
         System.Drawing.Size viewportSize,
         float dpi)
     {
-        if (TryGet(source, imageBounds, orientation, viewportSize, dpi) is { } cached)
+        if (TryGet(source, placement, viewportSize, dpi) is { } cached)
         {
             return cached;
         }
+
+        var corner = Vector2.Transform(Vector2.Zero, placement);
+        var oppositeCorner = Vector2.Transform(
+            new Vector2(source.PixelSize.Width, source.PixelSize.Height),
+            placement);
+        var imageBounds = RectangleF.FromLTRB(
+            MathF.Min(corner.X, oppositeCorner.X),
+            MathF.Min(corner.Y, oppositeCorner.Y),
+            MathF.Max(corner.X, oppositeCorner.X),
+            MathF.Max(corner.Y, oppositeCorner.Y));
 
         int left = Math.Clamp((int)MathF.Floor(imageBounds.Left), 0, viewportSize.Width);
         int top = Math.Clamp((int)MathF.Floor(imageBounds.Top), 0, viewportSize.Height);
@@ -82,7 +91,7 @@ internal sealed class ImagePresentationCache : IDisposable
         }
 
         // Cubic can produce halos when zoomed beyond 100%, so lower the sharpness in that case.
-        bool upscales = orientation.Apply(imageBounds.Size).Width > source.PixelSize.Width;
+        bool upscales = new Vector2(placement.M11, placement.M12).Length() > 1.0f;
 
         var pixelSize = new SizeI(right - left, bottom - top);
         ID2D1Bitmap1 bitmap = D2DBitmapFactory.CreateScaled(
@@ -90,18 +99,14 @@ internal sealed class ImagePresentationCache : IDisposable
             source,
             pixelSize,
             dpi,
-            new Rect(
-                UiDpi.PixelsToDips(imageBounds.X - left, dpi),
-                UiDpi.PixelsToDips(imageBounds.Y - top, dpi),
-                UiDpi.PixelsToDips(imageBounds.Width, dpi),
-                UiDpi.PixelsToDips(imageBounds.Height, dpi)),
-            orientation,
+            placement
+                * Matrix3x2.CreateTranslation(-left, -top)
+                * Matrix3x2.CreateScale(UiDpi.PixelsToDips(1.0f, dpi)),
             upscales ? UpscaleSharpness : DownscaleSharpness);
         Clear();
         _bitmap = bitmap;
         _source = source;
-        _imageBounds = imageBounds;
-        _orientation = orientation;
+        _placement = placement;
         _viewportSize = viewportSize;
         _offsetPixels = new Point(left, top);
         _dpi = dpi;
@@ -113,8 +118,7 @@ internal sealed class ImagePresentationCache : IDisposable
         _bitmap?.Dispose();
         _bitmap = null;
         _source = null;
-        _imageBounds = default;
-        _orientation = default;
+        _placement = default;
         _viewportSize = default;
         _offsetPixels = default;
         _dpi = 0.0f;

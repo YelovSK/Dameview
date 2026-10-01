@@ -7,6 +7,9 @@ internal sealed class ViewportAnimator
 {
     private const double ZoomResponse = 25.0;
     private const double FitOrActualSizeResponse = 20.0;
+    private const double TurnResponse = 18.0;
+    private const float TurnCompletionShare = 0.001f;
+    private const float QuarterTurn = MathF.PI / 2.0f;
     private const double ScaleCompletionRatio = 0.001;
     private const double PositionCompletionDistance = 0.25;
     private const double MomentumFriction = 6.0;
@@ -18,6 +21,7 @@ internal sealed class ViewportAnimator
     private readonly TimeProvider _timeProvider;
     private Move? _move;
     private Pan? _pan;
+    private Turn? _turn;
     private Vector2 _velocity;
     // Whether the velocity comes from recent pointer movement rather than being stale.
     private bool _hasPointerVelocity;
@@ -31,13 +35,36 @@ internal sealed class ViewportAnimator
     /// <summary>Raised when an animation begins, so whoever draws the viewport can start updating it.</summary>
     internal event Action? Started;
 
-    internal bool IsAnimating => _move is not null || (_pan is null && HasMomentum);
+    internal bool IsAnimating => _move is not null || _turn is not null || (_pan is null && HasMomentum);
 
     internal void Reset()
     {
         _move = null;
         _pan = null;
+        SetTurn(null);
         StopMomentum();
+    }
+
+    /// <summary>
+    /// Turns the image right away, and eases it on screen from how it was shown into the new
+    /// orientation.
+    /// </summary>
+    /// <param name="quarterTurns">Clockwise quarter turns. Negative turns counterclockwise.</param>
+    internal bool Rotate(int quarterTurns)
+    {
+        if (!_viewport.HasImage)
+        {
+            return false;
+        }
+
+        Matrix3x2 shown = _viewport.ImageTransform;
+        // Turning again mid-turn adds to what is left, so the image keeps spinning.
+        float angle = (_turn?.AngleLeft ?? 0.0f) + (quarterTurns * QuarterTurn);
+        Reset();
+        _viewport.SetOrientation(_viewport.Orientation.Rotate(quarterTurns));
+        SetTurn(Turn.Between(shown, _viewport.ImageTransform, angle, _viewport.ViewportCenter));
+        Started?.Invoke();
+        return true;
     }
 
     internal bool ZoomAt(PointF viewportPoint, int wheelDelta)
@@ -151,6 +178,7 @@ internal sealed class ViewportAnimator
                 Finish(move);
             }
 
+            SetTurn(null);
             StopMomentum();
             return false;
         }
@@ -158,6 +186,7 @@ internal sealed class ViewportAnimator
         if (IsAnimating && elapsedSeconds > 0.0)
         {
             UpdateMove(elapsedSeconds);
+            UpdateTurn(elapsedSeconds);
             UpdateMomentum(elapsedSeconds);
         }
 
@@ -222,6 +251,23 @@ internal sealed class ViewportAnimator
 
         _viewport.SetAnimatedTransform(scale, CenterForImageMiddle(middle, scale));
         _move = move with { Progress = progress };
+    }
+
+    private void UpdateTurn(double elapsed)
+    {
+        if (_turn is not { } turn)
+        {
+            return;
+        }
+
+        float left = turn.Left * (1.0f - ShareOfRemainingWay(TurnResponse, elapsed));
+        SetTurn(left > TurnCompletionShare ? turn with { Left = left } : null);
+    }
+
+    private void SetTurn(Turn? turn)
+    {
+        _turn = turn;
+        _viewport.SetTurnOffset(turn?.Offset ?? Matrix3x2.Identity);
     }
 
     // Lands exactly on the end state, so the viewport also ends up in the right mode.
@@ -326,4 +372,40 @@ internal sealed class ViewportAnimator
     }
 
     private readonly record struct Pan(PointF Pointer, long Timestamp);
+
+    /// <summary>
+    /// A turn that has already happened in the viewport, while the screen catches up. Its offset
+    /// turns, scales and shifts the image around the pivot back to how it was shown, and shrinks
+    /// to nothing as the turn finishes.
+    /// </summary>
+    /// <param name="Angle">How far the image turns on screen, clockwise, in radians.</param>
+    /// <param name="Scale">How much bigger the image is shown at the start.</param>
+    /// <param name="Shift">How far the pivot is moved at the start.</param>
+    /// <param name="Left">How much of the turn is left, from 1 at the start to 0 at the end.</param>
+    private readonly record struct Turn(Vector2 Pivot, float Angle, float Scale, Vector2 Shift, float Left)
+    {
+        internal float AngleLeft => Angle * Left;
+
+        internal Matrix3x2 Offset =>
+            Matrix3x2.CreateRotation(-AngleLeft, Pivot)
+            * Matrix3x2.CreateScale(MathF.Pow(Scale, Left), Pivot)
+            * Matrix3x2.CreateTranslation(Shift * Left);
+
+        /// <summary>A turn from the image placed by <paramref name="from"/> to it placed by <paramref name="to"/>.</summary>
+        /// <param name="angle">
+        /// Passed in, because the placements alone can't tell a quarter turn one way from three quarters the other.
+        /// </param>
+        internal static Turn Between(Matrix3x2 from, Matrix3x2 to, float angle, PointF pivot)
+        {
+            Matrix3x2.Invert(to, out Matrix3x2 toImage);
+            Matrix3x2 offset = toImage * from;
+            var pivotVector = new Vector2(pivot.X, pivot.Y);
+            return new Turn(
+                pivotVector,
+                angle,
+                new Vector2(offset.M11, offset.M12).Length(),
+                Vector2.Transform(pivotVector, offset) - pivotVector,
+                Left: 1.0f);
+        }
+    }
 }

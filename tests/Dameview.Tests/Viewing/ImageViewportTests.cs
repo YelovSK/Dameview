@@ -120,7 +120,7 @@ public sealed class ImageViewportTests
         var viewport = new ImageViewport(new Size(800, 600));
         viewport.SetImageSize(new Size(2000, 1000));
 
-        viewport.SetOrientation(viewport.Orientation.RotateClockwise());
+        viewport.SetOrientation(viewport.Orientation.Rotate(1));
 
         Assert.AreEqual(ViewportMode.Fit, viewport.Mode);
         AssertRectangle(new RectangleF(250.0f, 0.0f, 300.0f, 600.0f), viewport.GetDestinationRectangle());
@@ -133,7 +133,7 @@ public sealed class ImageViewportTests
         viewport.SetImageSize(new Size(2000, 1000));
         viewport.SetScaleAt(2.0f, viewport.ViewportCenter, new PointF(700.0f, 400.0f));
 
-        viewport.SetOrientation(viewport.Orientation.RotateClockwise().FlipHorizontal());
+        viewport.SetOrientation(viewport.Orientation.Rotate(1).FlipHorizontal());
 
         Assert.AreEqual(2.0f, viewport.Scale);
         AssertMapsTo(viewport, new Vector2(700.0f, 400.0f), viewport.ViewportCenter);
