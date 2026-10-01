@@ -9,6 +9,8 @@ internal sealed class ViewerWorkspace : IDisposable
 
     private readonly Func<ViewerTab> _createTab;
     private readonly List<ClosedTab> _closedTabs = [];
+    private readonly List<ImageViewport> _shownViewports = [];
+    private ViewportSync? _viewportSync;
     private FolderSort _sort = FolderSort.NameAscending;
 
     internal ViewerWorkspace(Func<ViewerTab> createTab)
@@ -42,6 +44,21 @@ internal sealed class ViewerWorkspace : IDisposable
 
     internal ViewerTab ActiveTab => ActivePane.ActiveTab;
     internal ViewerSession ActiveSession => ActivePane.ActiveSession;
+
+    internal void ToggleViewportSync() => _viewportSync = _viewportSync is null ? new ViewportSync() : null;
+
+    /// <summary>Lines up the panes' views when they are synced. Called once per frame.</summary>
+    internal void SyncViewports()
+    {
+        if (_viewportSync is null)
+        {
+            return;
+        }
+
+        _shownViewports.Clear();
+        CollectShownViewports(Root, _shownViewports);
+        _viewportSync.Sync(_shownViewports, ActiveSession.Viewport);
+    }
 
     internal void OpenImage(string path) => ActiveSession.OpenImage(path);
     internal void SelectImage(string path) => ActiveSession.SelectImage(path);
@@ -557,6 +574,20 @@ internal sealed class ViewerWorkspace : IDisposable
         WorkspaceSplit split => FindFirstPane(split.First),
         _ => throw new InvalidOperationException($"Unsupported workspace node: {node.GetType().Name}."),
     };
+
+    // A loop rather than EnumeratePanes, because it runs every frame.
+    private static void CollectShownViewports(WorkspaceNode node, List<ImageViewport> viewports)
+    {
+        if (node is WorkspaceSplit split)
+        {
+            CollectShownViewports(split.First, viewports);
+            CollectShownViewports(split.Second, viewports);
+        }
+        else if (node is ViewerPane pane)
+        {
+            viewports.Add(pane.ActiveSession.Viewport);
+        }
+    }
 
     private static IEnumerable<ViewerPane> EnumeratePanes(WorkspaceNode node)
     {

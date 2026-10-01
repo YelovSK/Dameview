@@ -214,6 +214,25 @@ internal sealed class ImageViewport
             _storedImageSize.Height / sourceSize.Height)
         * ImageTransform;
 
+    internal RelativeView GetRelativeView() => new(
+        new PointF(_center.X / _imageSize.Width, _center.Y / _imageSize.Height),
+        Scale * _imageSize.Width);
+
+    /// <summary>Shows the same part of this image that another viewport shows of its own.</summary>
+    internal void ShowRelativeView(RelativeView view)
+    {
+        if (!HasImage)
+        {
+            return;
+        }
+
+        Scale = Math.Clamp(view.Zoom / _imageSize.Width, GetMinimumScale(), MaximumScale);
+        _center = ClampCenter(
+            new PointF(view.Middle.X * _imageSize.Width, view.Middle.Y * _imageSize.Height),
+            Scale);
+        Mode = ViewportMode.Custom;
+    }
+
     internal PointF ViewportToImage(PointF viewportPoint) => _center + ((viewportPoint - ViewportCenter) / Scale);
 
     internal bool HasImage => _imageSize.Width > 0.0f && _imageSize.Height > 0.0f;
@@ -254,3 +273,9 @@ internal sealed class ImageViewport
         return Math.Clamp(center, halfVisibleSize, imageSize - halfVisibleSize);
     }
 }
+
+/// <summary>
+/// What part of an image a viewport shows, whatever the image's resolution: its middle as a
+/// fraction of the image, and its zoom as how many viewport pixels the image's width takes up.
+/// </summary>
+internal readonly record struct RelativeView(PointF Middle, float Zoom);

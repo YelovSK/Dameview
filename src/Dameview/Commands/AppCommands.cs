@@ -157,6 +157,10 @@ internal static class AppCommands
         (host, tab) => Split(host, tab, WorkspaceSplitOrientation.Vertical),
         shortcuts: [new(WindowKey.S, Control: true)]);
 
+    internal static readonly Command ToggleViewportSync = Command.Global(
+        "toggleViewportSync", "Toggle synced zoom and pan", CommandScope.Window,
+        host => host.Workspace.ToggleViewportSync());
+
     internal static readonly Command BalancePanes = Command.Global(
         "balancePanes", "Balance pane layout", CommandScope.Window,
         host => host.Workspace.BalancePanes(),
@@ -225,6 +229,7 @@ internal static class AppCommands
         ToggleFlattenFolder,
         SplitRight,
         SplitDown,
+        ToggleViewportSync,
         BalancePanes,
         OptimizePaneLayout,
         TogglePerformanceOverlay,

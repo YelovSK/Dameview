@@ -36,6 +36,7 @@ internal sealed class ViewportAnimator
     internal event Action? Started;
 
     internal bool IsAnimating => _move is not null || _turn is not null || (_pan is null && HasMomentum);
+    internal bool IsPanning => _pan is not null;
 
     internal void Reset()
     {

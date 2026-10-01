@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Drawing;
 using System.Numerics;
 using Dameview.Imaging;
@@ -23,14 +24,18 @@ internal sealed class ImagePanel : UiElement, IDisposable
     private ImageViewport _viewport;
     private ViewportAnimator _animator;
     private const float PanStartThresholdDips = 4.0f;
+    // Long enough to ride out the gaps between pointer moves while dragging.
+    private static readonly long SettleTicks = Stopwatch.Frequency / 50;
     private ID2D1Bitmap1? _ownedImage;
     private ID2D1Bitmap1? _previewImage;
     private ID2D1Bitmap1? _cachedImage;
     private TiledImageRenderer? _tiledImage;
     private AnimatedImagePlayer? _imageAnimation;
-    private bool _isPanning;
+    private ID2D1Bitmap1? _placedImage;
+    private Matrix3x2 _placement;
+    private long _settlesAt;
     private bool _pointerPressed;
-    private PointF _panStart;
+    private PointF _panFrom;
     private bool _isPreview;
     private readonly AnimatedFloat _previewFade = new(0.0f, 20.0);
     private const float PreviewBlurStandardDeviation = 0.75f;
@@ -53,7 +58,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
 
     internal float ZoomPercentage => _viewport.Scale * 100.0f;
     internal SizeF ImageSize => _viewport.ImageSize;
-    internal TimeSpan? NextAnimationFrameDelay => _imageAnimation?.NextFrameDelay;
+    internal TimeSpan? NextAnimationFrameDelay => _imageAnimation?.NextFrameDelay ?? SettleDelay;
     internal Exception? AnimationError => _imageAnimation?.Error;
 
     /// <summary>The image has to be set again afterwards.</summary>
@@ -93,7 +98,6 @@ internal sealed class ImagePanel : UiElement, IDisposable
     {
         ReleaseImageResources();
         _pointerPressed = false;
-        _isPanning = false;
         _viewport = viewport;
         _animator.Started -= InvalidateVisual;
         _animator = animator;
@@ -293,9 +297,9 @@ internal sealed class ImagePanel : UiElement, IDisposable
 
         // Building the rescale is expensive, drawing one we already built is not. So while things
         // move, reuse a matching one if we have it and fall back to a plain draw if we don't.
-        ImagePresentation? presentation = _imageAnimation is not null
-            || _animator.IsAnimating
-            || _isPanning
+        bool settling = IsSettling(image, placement);
+        ImagePresentation? presentation = settling
+            || _imageAnimation is not null
             || Root?.IsResizing == true
             || _viewport.Scale == 1.0f
                 ? _presentationCache.TryGet(image, placement, _viewportPixelSize, context.Dpi)
@@ -318,6 +322,37 @@ internal sealed class ImagePanel : UiElement, IDisposable
                 cached.Bitmap.Size.Height),
             new Rect(0.0f, 0.0f, cached.Bitmap.Size.Width, cached.Bitmap.Size.Height));
         DrawPreviewTransition(context);
+    }
+
+    /// <summary>How long until a moved image is drawn sharply, if it is waiting to be.</summary>
+    private TimeSpan? SettleDelay
+    {
+        get
+        {
+            long now = Stopwatch.GetTimestamp();
+            return now < _settlesAt ? Stopwatch.GetElapsedTime(now, _settlesAt) : null;
+        }
+    }
+
+    /// <summary>
+    /// Whether the image moved too recently to be worth drawing sharply, whatever moved it.
+    /// A newly shown image has not moved.
+    /// </summary>
+    private bool IsSettling(ID2D1Bitmap1 image, Matrix3x2 placement)
+    {
+        long now = Stopwatch.GetTimestamp();
+        if (!ReferenceEquals(image, _placedImage))
+        {
+            _placedImage = image;
+            _settlesAt = now;
+        }
+        else if (placement != _placement)
+        {
+            _settlesAt = now + SettleTicks;
+        }
+
+        _placement = placement;
+        return now < _settlesAt;
     }
 
     private void DrawPreviewTransition(in UiDrawContext context)
@@ -373,50 +408,47 @@ internal sealed class ImagePanel : UiElement, IDisposable
         {
             case WindowPointerEventKind.Pressed when input.Button == PointerButton.Primary:
                 _pointerPressed = true;
-                _panStart = new PointF(
+                _panFrom = new PointF(
                     ToPixels(input.Position.X),
                     ToPixels(input.Position.Y));
                 return new UiPointerResult(Consumed: true, CapturePointer: true);
 
             case WindowPointerEventKind.Moved when _pointerPressed:
                 PointF pointer = ToPixels(input.Position);
-                if (!_isPanning)
+                if (!_animator.IsPanning)
                 {
                     float threshold = ToPixels(PanStartThresholdDips);
-                    float distanceX = pointer.X - _panStart.X;
-                    float distanceY = pointer.Y - _panStart.Y;
+                    float distanceX = pointer.X - _panFrom.X;
+                    float distanceY = pointer.Y - _panFrom.Y;
                     if ((distanceX * distanceX) + (distanceY * distanceY) < threshold * threshold)
                     {
                         return new UiPointerResult(Consumed: true);
                     }
 
-                    _isPanning = true;
-                    _animator.BeginPan(_panStart);
+                    _animator.BeginPan(_panFrom);
                 }
 
                 _animator.PanTo(pointer);
+                _panFrom = pointer;
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
             case WindowPointerEventKind.Released when _pointerPressed:
                 _pointerPressed = false;
-                if (!_isPanning)
+                if (!_animator.IsPanning)
                 {
                     return new UiPointerResult(Consumed: true);
                 }
 
-                _isPanning = false;
                 _animator.EndPan();
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
             case WindowPointerEventKind.Cancelled when _pointerPressed:
                 _pointerPressed = false;
-                _isPanning = false;
                 _animator.Reset();
                 return new UiPointerResult(Consumed: true);
 
             case WindowPointerEventKind.DoubleClicked when input.Button == PointerButton.Primary:
                 _pointerPressed = false;
-                _isPanning = false;
                 _animator.ToggleFitAndActualSizeAt(ToPixels(input.Position));
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 

@@ -678,6 +678,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         long allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
         int layoutPassesBefore = _ui.LayoutPasses;
         bool animationContinues = _ui.Update();
+        _workspace.SyncViewports();
         TimeSpan updateTime = Stopwatch.GetElapsedTime(frameStarted);
         RenderTiming timing = _renderer.Render(
             _ui.DrawFrame,
