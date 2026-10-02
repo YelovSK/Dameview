@@ -11,8 +11,9 @@ internal static unsafe class Win32Clipboard
 {
     private const int BitmapInfoHeaderSize = 40;
 
+    // Every format is rendered up front, so no owner window has to answer WM_RENDERFORMAT later,
+    // and any thread can set the clipboard.
     internal static bool TrySetImage(
-        nint owner,
         int width,
         int height,
         int stride,
@@ -24,16 +25,15 @@ internal static unsafe class Win32Clipboard
         ArgumentOutOfRangeException.ThrowIfNotEqual(stride, checked(width * 4));
         ArgumentOutOfRangeException.ThrowIfNotEqual(pixels.Length, checked(stride * height));
 
-        return TrySetData((HWND)owner, CLIPBOARD_FORMAT.CF_DIB, AllocateBitmap(width, height, pixels));
+        return TrySetData(CLIPBOARD_FORMAT.CF_DIB, AllocateBitmap(width, height, pixels));
     }
 
-    // Text is rendered up front, so no owner window has to answer WM_RENDERFORMAT later.
     internal static bool TrySetText(string text) =>
-        TrySetData(HWND.Null, CLIPBOARD_FORMAT.CF_UNICODETEXT, AllocateText(text));
+        TrySetData(CLIPBOARD_FORMAT.CF_UNICODETEXT, AllocateText(text));
 
     // Pastes as the file itself, the same as copying it in Explorer.
     internal static bool TrySetFile(string path) =>
-        TrySetData(HWND.Null, CLIPBOARD_FORMAT.CF_HDROP, AllocateFileList(path));
+        TrySetData(CLIPBOARD_FORMAT.CF_HDROP, AllocateFileList(path));
 
     internal static string? TryGetText()
     {
@@ -73,7 +73,7 @@ internal static unsafe class Win32Clipboard
     }
 
     // Takes ownership of the memory: the clipboard keeps it on success, otherwise it is freed.
-    private static bool TrySetData(HWND owner, CLIPBOARD_FORMAT format, HGLOBAL memory)
+    private static bool TrySetData(CLIPBOARD_FORMAT format, HGLOBAL memory)
     {
         if (memory == HGLOBAL.Null)
         {
@@ -83,7 +83,7 @@ internal static unsafe class Win32Clipboard
         bool transferred = false;
         try
         {
-            if (!OpenClipboard(owner))
+            if (!OpenClipboard(HWND.Null))
             {
                 return false;
             }

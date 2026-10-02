@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Dameview.Diagnostics;
+using Dameview.Imaging;
 using Dameview.Imaging.Loading;
 using Dameview.Notifications;
 using Dameview.Win32;
@@ -75,69 +76,68 @@ internal sealed class FileActions : IDisposable
     internal void CopyImage(string path)
     {
         _copyImageCancellation?.Cancel();
-        _copyImageCancellation?.Dispose();
         var cancellation = new CancellationTokenSource();
         _copyImageCancellation = cancellation;
+        _ = CopyImageAsync(path, cancellation);
+    }
 
-        _imageLoadService.DecodeTemporary(path, (image, error) =>
+    // Owns the cancellation source, so a newer copy only cancels it and never disposes it
+    // while this one still uses its token.
+    private async Task CopyImageAsync(string path, CancellationTokenSource cancellation)
+    {
+        string name = Path.GetFileName(path);
+        CancellationToken token = cancellation.Token;
+        try
         {
+            DecodedImageUpload image;
             try
             {
-                if (cancellation.IsCancellationRequested)
-                {
-                    return;
-                }
-
-                if (error is not null)
-                {
-                    Log.Error(
-                        "Clipboard",
-                        $"Could not decode '{Path.GetFileName(path)}' for clipboard copy.",
-                        error);
-                    _toasts.Notify(
-                        $"Could not read {Path.GetFileName(path)} to copy it.",
-                        ToastSeverity.Error);
-                    return;
-                }
-
-                if (image is null)
-                {
-                    return;
-                }
-
-                if (!Win32Clipboard.TrySetImage(
-                        _window,
-                        image.Width,
-                        image.Height,
-                        image.Stride,
-                        image.Span))
-                {
-                    Log.Warning("Clipboard", $"Could not copy '{Path.GetFileName(path)}' to the clipboard.");
-                    _toasts.Notify(
-                        $"Could not copy {Path.GetFileName(path)} to the clipboard.",
-                        ToastSeverity.Error);
-                    return;
-                }
-
-                _toasts.Notify(
-                    $"Copied {Path.GetFileName(path)} to the clipboard.",
-                    ToastSeverity.Success);
+                image = await _imageLoadService.DecodeTemporaryAsync(path, token);
             }
-            finally
+            catch (Exception error) when (!token.IsCancellationRequested)
             {
-                image?.Dispose();
-                if (ReferenceEquals(_copyImageCancellation, cancellation))
-                {
-                    _copyImageCancellation = null;
-                    cancellation.Dispose();
-                }
+                Log.Error("Clipboard", $"Could not decode '{name}' for clipboard copy.", error);
+                _toasts.Notify($"Could not read {name} to copy it.", ToastSeverity.Error);
+                return;
             }
-        }, cancellation.Token);
+
+            bool copied;
+            using (image)
+            {
+                // Converting a large image to a bitmap takes long enough to stall the window.
+                copied = await Task.Run(
+                    () => Win32Clipboard.TrySetImage(image.Width, image.Height, image.Stride, image.Span),
+                    token);
+            }
+
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+
+            if (copied)
+            {
+                _toasts.Notify($"Copied {name} to the clipboard.", ToastSeverity.Success);
+            }
+            else
+            {
+                Log.Warning("Clipboard", $"Could not copy '{name}' to the clipboard.");
+                _toasts.Notify($"Could not copy {name} to the clipboard.", ToastSeverity.Error);
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            if (ReferenceEquals(_copyImageCancellation, cancellation))
+            {
+                _copyImageCancellation = null;
+            }
+
+            cancellation.Dispose();
+        }
     }
 
-    public void Dispose()
-    {
-        _copyImageCancellation?.Cancel();
-        _copyImageCancellation?.Dispose();
-    }
+    public void Dispose() => _copyImageCancellation?.Cancel();
 }

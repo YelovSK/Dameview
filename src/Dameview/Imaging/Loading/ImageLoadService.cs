@@ -129,18 +129,15 @@ internal sealed class ImageLoadService : IDisposable
     }
 
     /// <summary>
-    /// Decodes a temporary CPU image, with its pixels in the order they are shown, and delivers
-    /// it on the owner thread.
+    /// Decodes a temporary CPU image, with its pixels in the order they are shown.
     /// </summary>
-    /// <remarks>The callback owns the decoded buffer and must dispose it.</remarks>
-    internal void DecodeTemporary(
-        string path,
-        Action<DecodedImageUpload?, Exception?> completed,
-        CancellationToken cancellationToken)
+    /// <remarks>The caller owns the decoded buffer and must dispose it.</remarks>
+    internal Task<DecodedImageUpload> DecodeTemporaryAsync(string path, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(path);
-        ArgumentNullException.ThrowIfNull(completed);
-        _ = ProcessTemporaryDecodeAsync(path, completed, cancellationToken);
+        return _foregroundQueue.Enqueue(
+            (decoder, token) => DecodeOriented(path, decoder, token),
+            cancellationToken: cancellationToken);
     }
 
     internal void RemoveClient(ImageLoadClient client)
@@ -183,41 +180,6 @@ internal sealed class ImageLoadService : IDisposable
     }
 
     private void StartForeground(LoadRequest request) => _ = ProcessForegroundAsync(request);
-
-    private async Task ProcessTemporaryDecodeAsync(
-        string path,
-        Action<DecodedImageUpload?, Exception?> completed,
-        CancellationToken cancellationToken)
-    {
-        DecodedImageUpload? image = null;
-        Exception? error = null;
-        try
-        {
-            image = await _foregroundQueue.Enqueue(
-                (decoder, token) => DecodeOriented(path, decoder, token),
-                cancellationToken: cancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            return;
-        }
-        catch (Exception exception)
-        {
-            error = exception;
-        }
-
-        DecodedImageUpload? delivery = image;
-        image = null;
-        try
-        {
-            PostToUi(() => completed(delivery, error));
-        }
-        catch
-        {
-            delivery?.Dispose();
-            throw;
-        }
-    }
 
     private static DecodedImageUpload DecodeOriented(
         string path,
