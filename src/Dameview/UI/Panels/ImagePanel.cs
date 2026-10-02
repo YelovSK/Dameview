@@ -79,17 +79,22 @@ internal sealed class ImagePanel : UiElement, IDisposable
 
     private void ReleaseImageResources()
     {
-        DetachAnimation();
+        ReleaseContent();
+        ClearPreviewTransition();
+        _isPreview = false;
+    }
+
+    // Drops whatever the current image is drawn from. The preview fade is handled separately.
+    private void ReleaseContent()
+    {
+        _imageAnimation?.Pause();
+        _imageAnimation = null;
         _presentationCache.Clear();
         _cachedImage = null;
         _tiledImage?.Dispose();
         _tiledImage = null;
         _ownedImage?.Dispose();
         _ownedImage = null;
-        _previewImage?.Dispose();
-        _previewImage = null;
-        _previewFade.SetValue(0.0f);
-        _isPreview = false;
     }
 
     internal void Bind(
@@ -117,58 +122,31 @@ internal sealed class ImagePanel : UiElement, IDisposable
             BeginPreviewTransition();
         }
 
+        ReleaseContent();
+        _isPreview = isPreview;
         switch (image)
         {
             case CachedBitmapRepresentation cached:
-                SetCachedImage(cached.Bitmap, isPreview);
-                break;
+                _cachedImage = cached.Bitmap;
+                if (isPreview)
+                {
+                    CreatePreviewImage(cached.Bitmap);
+                }
 
-            case DecodedImageRepresentation decoded:
-                SetDecodedImage(decoded.Image, isPreview);
                 break;
 
             case TiledImageRepresentation tiled:
-                SetTiledImage(tiled.Source);
+                _tiledImage = new TiledImageRenderer(_deviceContext, tiled.Source, _viewport, InvalidateVisual);
                 break;
 
             case AnimatedImageRepresentation animated:
-                SetAnimation(animated.Player);
+                SetBitmap(animated.Player.CurrentImage);
+                _imageAnimation = animated.Player;
                 break;
 
             default:
                 throw new NotSupportedException($"Unsupported image representation: {image.GetType().Name}");
         }
-    }
-
-    private unsafe void SetDecodedImage(DecodedImage image, bool isPreview)
-    {
-        DetachAnimation();
-        _presentationCache.Clear();
-        ClearCachedImage();
-        _tiledImage?.Dispose();
-        _tiledImage = null;
-        SetBitmap(image);
-        _isPreview = isPreview;
-        if (isPreview && _ownedImage is { } previewSource)
-        {
-            CreatePreviewImage(previewSource);
-        }
-    }
-
-    private void SetTiledImage(IImageTileSource source)
-    {
-        DetachAnimation();
-        _presentationCache.Clear();
-        ClearCachedImage();
-        _ownedImage?.Dispose();
-        _ownedImage = null;
-        _tiledImage?.Dispose();
-        _tiledImage = new TiledImageRenderer(
-            _deviceContext,
-            source,
-            _viewport,
-            InvalidateVisual);
-        _isPreview = false;
     }
 
     private void SetBitmap(DecodedImage image)
@@ -177,27 +155,6 @@ internal sealed class ImagePanel : UiElement, IDisposable
 
         _ownedImage?.Dispose();
         _ownedImage = newImage;
-    }
-
-    private void SetCachedImage(ID2D1Bitmap1 image, bool isPreview)
-    {
-        DetachAnimation();
-        _presentationCache.Clear();
-        _ownedImage?.Dispose();
-        _ownedImage = null;
-        _tiledImage?.Dispose();
-        _tiledImage = null;
-        _cachedImage = image;
-        _isPreview = isPreview;
-        if (isPreview)
-        {
-            CreatePreviewImage(image);
-        }
-    }
-
-    private void ClearCachedImage()
-    {
-        _cachedImage = null;
     }
 
     protected override void ArrangeCore(SizeF finalSize)
@@ -211,27 +168,8 @@ internal sealed class ImagePanel : UiElement, IDisposable
         }
 
         _viewportPixelSize = pixelSize;
-        _presentationCache.Clear();
         _animator.Reset();
         _viewport.SetViewportSize(pixelSize);
-    }
-
-    private void SetAnimation(AnimatedImagePlayer animation)
-    {
-        DetachAnimation();
-        _presentationCache.Clear();
-        ClearCachedImage();
-        _tiledImage?.Dispose();
-        _tiledImage = null;
-        SetBitmap(animation.CurrentImage);
-        _isPreview = false;
-        _imageAnimation = animation;
-    }
-
-    private void DetachAnimation()
-    {
-        _imageAnimation?.Pause();
-        _imageAnimation = null;
     }
 
     protected override bool UpdateCore(in UiUpdateContext context)
@@ -240,8 +178,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
         continues |= _previewFade.Update(context);
         if (!_isPreview && _previewFade.Current == 0.0f && _previewImage is not null)
         {
-            _previewImage.Dispose();
-            _previewImage = null;
+            ClearPreviewTransition();
         }
 
         if (_imageAnimation is { } animation)
@@ -274,10 +211,15 @@ internal sealed class ImagePanel : UiElement, IDisposable
 
     protected override void DrawCore(in UiDrawContext context)
     {
+        DrawContent(context);
+        DrawPreviewTransition(context);
+    }
+
+    private void DrawContent(in UiDrawContext context)
+    {
         if (_tiledImage is { } tiledImage)
         {
             tiledImage.Draw(context, ToPixels(Bounds.Width), ToPixels(Bounds.Height));
-            DrawPreviewTransition(context);
             return;
         }
 
@@ -309,7 +251,6 @@ internal sealed class ImagePanel : UiElement, IDisposable
         {
             _presentationCache.Clear();
             DrawImage(context, image, placement);
-            DrawPreviewTransition(context);
             return;
         }
 
@@ -321,7 +262,6 @@ internal sealed class ImagePanel : UiElement, IDisposable
                 cached.Bitmap.Size.Width,
                 cached.Bitmap.Size.Height),
             new Rect(0.0f, 0.0f, cached.Bitmap.Size.Width, cached.Bitmap.Size.Height));
-        DrawPreviewTransition(context);
     }
 
     /// <summary>How long until a moved image is drawn sharply, if it is waiting to be.</summary>
@@ -364,37 +304,30 @@ internal sealed class ImagePanel : UiElement, IDisposable
     }
 
     /// <param name="placement">Maps the image's pixels onto viewport pixels.</param>
-    private void DrawImage(in UiDrawContext context, ID2D1Bitmap1 image, Matrix3x2 placement)
+    private static void DrawImage(in UiDrawContext context, ID2D1Bitmap1 image, Matrix3x2 placement)
     {
         using TransformScope scope = context.PushTransform(
             placement * Matrix3x2.CreateScale(context.PixelsToDips(1.0f)));
-
-        // Drawn against the device context for its interpolation modes, so it counts itself.
-        context.CountOperation();
         var bounds = new Rect(0.0f, 0.0f, image.PixelSize.Width, image.PixelSize.Height);
-        _deviceContext.DrawBitmap(image, bounds, context.Opacity, InterpolationMode.Linear, bounds, null);
+        context.DrawBitmap(image, bounds, bounds);
     }
 
     // Thumbnails come already turned upright, so previews skip the image's orientation.
-    private void DrawPreview(
+    private static void DrawPreview(
         in UiDrawContext context,
         ID2D1Bitmap1 image,
         RectangleF destinationPixels,
         float opacity = 1.0f)
     {
-        // Drawn against the device context for its interpolation modes, so it counts itself.
-        context.CountOperation();
-        _deviceContext.DrawBitmap(
+        context.DrawBitmap(
             image,
             new Rect(
                 context.PixelsToDips(destinationPixels.X),
                 context.PixelsToDips(destinationPixels.Y),
                 context.PixelsToDips(destinationPixels.Width),
                 context.PixelsToDips(destinationPixels.Height)),
-            context.Opacity * opacity,
-            InterpolationMode.Linear,
             new Rect(0.0f, 0.0f, image.PixelSize.Width, image.PixelSize.Height),
-            null);
+            opacity: opacity);
     }
 
     internal override UiPointerResult OnPointerEvent(in WindowPointerEvent input)
@@ -408,9 +341,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
         {
             case WindowPointerEventKind.Pressed when input.Button == PointerButton.Primary:
                 _pointerPressed = true;
-                _panFrom = new PointF(
-                    ToPixels(input.Position.X),
-                    ToPixels(input.Position.Y));
+                _panFrom = ToPixels(input.Position);
                 return new UiPointerResult(Consumed: true, CapturePointer: true);
 
             case WindowPointerEventKind.Moved when _pointerPressed:
@@ -468,12 +399,8 @@ internal sealed class ImagePanel : UiElement, IDisposable
     public void Dispose()
     {
         _animator.Started -= InvalidateVisual;
-        DetachAnimation();
+        ReleaseImageResources();
         _presentationCache.Dispose();
-        ClearCachedImage();
-        _tiledImage?.Dispose();
-        _ownedImage?.Dispose();
-        _previewImage?.Dispose();
         _scaleContext.Dispose();
     }
 
