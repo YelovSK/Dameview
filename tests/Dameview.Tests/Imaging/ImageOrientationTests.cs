@@ -1,4 +1,8 @@
+using System.Drawing;
+using System.Numerics;
 using Dameview.Imaging;
+using Dameview.Imaging.Decoding;
+using Vortice.WIC;
 
 namespace Dameview.Tests.Imaging;
 
@@ -8,22 +12,23 @@ public sealed class ImageOrientationTests
     private const int StoredWidth = 3;
     private const int StoredHeight = 2;
 
+    // Stored pixels are numbered 1 to 6 row by row; each list is how they read once shown.
+    private static readonly Dictionary<int, byte[]> ShownIdsByExif = new()
+    {
+        [1] = [1, 2, 3, 4, 5, 6],
+        [2] = [3, 2, 1, 6, 5, 4],
+        [3] = [6, 5, 4, 3, 2, 1],
+        [4] = [4, 5, 6, 1, 2, 3],
+        [5] = [1, 4, 2, 5, 3, 6],
+        [6] = [4, 1, 5, 2, 6, 3],
+        [7] = [6, 3, 5, 2, 4, 1],
+        [8] = [3, 6, 2, 5, 1, 4],
+    };
+
     [TestMethod]
     public void CopiesEveryExifOrientationInShownOrder()
     {
-        Dictionary<int, byte[]> expected = new()
-        {
-            [1] = [1, 2, 3, 4, 5, 6],
-            [2] = [3, 2, 1, 6, 5, 4],
-            [3] = [6, 5, 4, 3, 2, 1],
-            [4] = [4, 5, 6, 1, 2, 3],
-            [5] = [1, 4, 2, 5, 3, 6],
-            [6] = [4, 1, 5, 2, 6, 3],
-            [7] = [6, 3, 5, 2, 4, 1],
-            [8] = [3, 6, 2, 5, 1, 4],
-        };
-
-        foreach ((int exif, byte[] expectedIds) in expected)
+        foreach ((int exif, byte[] expectedIds) in ShownIdsByExif)
         {
             CollectionAssert.AreEqual(expectedIds, Show(ImageOrientation.FromExif(exif)).Ids, $"EXIF {exif}");
         }
@@ -45,30 +50,53 @@ public sealed class ImageOrientationTests
         }
     }
 
+    [TestMethod]
+    public void WicTurnsEveryExifOrientationTheSameWay()
+    {
+        byte[] stored = new byte[StoredWidth * StoredHeight * 4];
+        for (int index = 0; index < StoredWidth * StoredHeight; index++)
+        {
+            stored[index * 4] = (byte)(index + 1);
+        }
+
+        using var factory = new IWICImagingFactory2();
+        using IWICBitmap bitmap = factory.CreateBitmapFromMemory(
+            StoredWidth,
+            StoredHeight,
+            PixelFormat.Format32bppBGRA,
+            stored,
+            StoredWidth * 4);
+        foreach ((int exif, byte[] expectedIds) in ShownIdsByExif)
+        {
+            using IWICBitmapFlipRotator rotator = factory.CreateBitmapFlipRotator();
+            rotator.Initialize(bitmap, ImageDecoder.GetTransformOptions(ImageOrientation.FromExif(exif)));
+            byte[] shown = new byte[stored.Length];
+            rotator.CopyPixels((uint)(rotator.Size.Width * 4), shown);
+
+            CollectionAssert.AreEqual(expectedIds, shown.Where((_, index) => index % 4 == 0).ToArray(), $"EXIF {exif}");
+        }
+    }
+
     private static IEnumerable<ImageOrientation> AllOrientations() =>
         Enumerable.Range(1, 8).Select(ImageOrientation.FromExif);
 
+    // Places each stored pixel id where the orientation's transform puts the pixel's center.
     private static Shown Show(ImageOrientation orientation)
     {
-        using var stored = DecodedImageUpload.Allocate(
-            StoredWidth,
-            StoredHeight,
-            StoredWidth * 4,
-            orientation);
-        Span<byte> pixels = stored.Span;
-        for (int index = 0; index < StoredWidth * StoredHeight; index++)
+        var storedSize = new SizeF(StoredWidth, StoredHeight);
+        Size size = orientation.Apply(new Size(StoredWidth, StoredHeight));
+        Matrix3x2 transform = orientation.GetTransform(storedSize);
+        byte[] ids = new byte[StoredWidth * StoredHeight];
+        for (int y = 0; y < StoredHeight; y++)
         {
-            pixels[index * 4] = (byte)(index + 1);
+            for (int x = 0; x < StoredWidth; x++)
+            {
+                var shown = Vector2.Transform(new Vector2(x + 0.5f, y + 0.5f), transform);
+                ids[((int)shown.Y * size.Width) + (int)shown.X] = (byte)((y * StoredWidth) + x + 1);
+            }
         }
 
-        using DecodedImageUpload oriented = stored.CopyOriented();
-        byte[] ids = new byte[oriented.Width * oriented.Height];
-        for (int index = 0; index < ids.Length; index++)
-        {
-            ids[index] = oriented.Span[index * 4];
-        }
-
-        return new Shown(oriented.Width, oriented.Height, ids);
+        return new Shown(size.Width, size.Height, ids);
     }
 
     private static Shown TurnClockwise(Shown image)

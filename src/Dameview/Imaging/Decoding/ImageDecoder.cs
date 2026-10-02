@@ -1,6 +1,8 @@
 using Dameview.Imaging.Loading;
+using Dameview.Win32;
 using SharpGen.Runtime;
 using SharpGen.Runtime.Win32;
+using Vortice.Mathematics;
 using Vortice.WIC;
 
 namespace Dameview.Imaging.Decoding;
@@ -56,6 +58,63 @@ internal sealed class ImageDecoder : IImageDecoder
         catch
         {
             upload.Dispose();
+            throw;
+        }
+    }
+
+    internal ClipboardBitmap DecodeClipboardBitmap(
+        string path,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        using IWICBitmapDecoder decoder = CreateDecoder(path, DecodeOptions.CacheOnLoad);
+        using IWICBitmapFrameDecode frame = decoder.GetFrame(0);
+        ImageOrientation orientation = GetOrientation(frame);
+        using IWICFormatConverter converter = _factory.CreateFormatConverter();
+        converter.Initialize(frame, PixelFormat.Format32bppBGRA).CheckError();
+
+        // Decoded into memory once, because the pixels are read back in small pieces and some
+        // codecs would decode the image again for each one.
+        using IWICBitmap stored = _factory.CreateBitmapFromSource(converter, BitmapCreateCacheOption.CacheOnLoad);
+        cancellationToken.ThrowIfCancellationRequested();
+        using IWICBitmapFlipRotator rotator = _factory.CreateBitmapFlipRotator();
+        rotator.Initialize(stored, GetTransformOptions(orientation));
+        return CopyToClipboardBitmap(rotator, cancellationToken);
+    }
+
+    // WIC mirrors first and then turns, the same as an orientation.
+    internal static BitmapTransformOptions GetTransformOptions(ImageOrientation orientation)
+    {
+        BitmapTransformOptions turn = orientation.QuarterTurns switch
+        {
+            1 => BitmapTransformOptions.Rotate90,
+            2 => BitmapTransformOptions.Rotate180,
+            3 => BitmapTransformOptions.Rotate270,
+            _ => BitmapTransformOptions.Rotate0,
+        };
+        return orientation.Mirrored ? turn | BitmapTransformOptions.FlipHorizontal : turn;
+    }
+
+    private static ClipboardBitmap CopyToClipboardBitmap(
+        IWICBitmapSource source,
+        CancellationToken cancellationToken)
+    {
+        SizeI size = source.Size;
+        var bitmap = ClipboardBitmap.Allocate(size.Width, size.Height);
+        try
+        {
+            for (int y = 0; y < size.Height; y++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Span<byte> row = bitmap.GetRow(y);
+                source.CopyPixels(new RectI(0, y, size.Width, 1), (uint)row.Length, row);
+            }
+
+            return bitmap;
+        }
+        catch
+        {
+            bitmap.Dispose();
             throw;
         }
     }
@@ -204,6 +263,13 @@ internal sealed class ImageDecoder : IImageDecoder
         CancellationToken cancellationToken)
     {
         return DecodeUpload(path, cancellationToken);
+    }
+
+    ClipboardBitmap IImageDecoder.DecodeClipboardBitmap(
+        string path,
+        CancellationToken cancellationToken)
+    {
+        return DecodeClipboardBitmap(path, cancellationToken);
     }
 
     ImageInfo IImageDecoder.GetInfo(string path)

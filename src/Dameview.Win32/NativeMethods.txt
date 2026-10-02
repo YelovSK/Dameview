@@ -44,6 +44,7 @@ EmptyClipboard
 SetClipboardData
 GetClipboardData
 CloseClipboard
+BITMAPINFOHEADER
 
 // Gdi32
 

@@ -609,6 +609,11 @@ public sealed class ImageLoadServiceTests
             return upload;
         }
 
+        public ClipboardBitmap DecodeClipboardBitmap(
+            string path,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public void Dispose()
         {
         }
@@ -665,6 +670,11 @@ public sealed class ImageLoadServiceTests
         public ImageInfo GetInfo(string path) => new(1, 1, 2);
 
         public DecodedImageUpload DecodeUpload(
+            string path,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public ClipboardBitmap DecodeClipboardBitmap(
             string path,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();

@@ -413,6 +413,9 @@ public sealed class PresentationImageLoaderTests
         public DecodedImageUpload DecodeUpload(
             string path,
             CancellationToken cancellationToken = default) => decode();
+        public ClipboardBitmap DecodeClipboardBitmap(
+            string path,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public void Dispose()
         {
         }

@@ -128,15 +128,12 @@ internal sealed class ImageLoadService : IDisposable
         }
     }
 
-    /// <summary>
-    /// Decodes a temporary CPU image, with its pixels in the order they are shown.
-    /// </summary>
-    /// <remarks>The caller owns the decoded buffer and must dispose it.</remarks>
-    internal Task<DecodedImageUpload> DecodeTemporaryAsync(string path, CancellationToken cancellationToken)
+    /// <remarks>The caller owns the bitmap and must dispose it.</remarks>
+    internal Task<ClipboardBitmap> DecodeClipboardBitmapAsync(string path, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(path);
         return _foregroundQueue.Enqueue(
-            (decoder, token) => DecodeOriented(path, decoder, token),
+            (decoder, token) => decoder.DecodeClipboardBitmap(path, token),
             cancellationToken: cancellationToken);
     }
 
@@ -180,23 +177,6 @@ internal sealed class ImageLoadService : IDisposable
     }
 
     private void StartForeground(LoadRequest request) => _ = ProcessForegroundAsync(request);
-
-    private static DecodedImageUpload DecodeOriented(
-        string path,
-        IImageDecoder decoder,
-        CancellationToken cancellationToken)
-    {
-        DecodedImageUpload stored = decoder.DecodeUpload(path, cancellationToken);
-        if (stored.Orientation == default)
-        {
-            return stored;
-        }
-
-        using (stored)
-        {
-            return stored.CopyOriented();
-        }
-    }
 
     private async Task ProcessForegroundAsync(LoadRequest request)
     {

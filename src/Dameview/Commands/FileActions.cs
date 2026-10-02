@@ -1,6 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
 using Dameview.Diagnostics;
-using Dameview.Imaging;
 using Dameview.Imaging.Loading;
 using Dameview.Notifications;
 using Dameview.Win32;
@@ -89,10 +88,10 @@ internal sealed class FileActions : IDisposable
         CancellationToken token = cancellation.Token;
         try
         {
-            DecodedImageUpload image;
+            ClipboardBitmap bitmap;
             try
             {
-                image = await _imageLoadService.DecodeTemporaryAsync(path, token);
+                bitmap = await _imageLoadService.DecodeClipboardBitmapAsync(path, token);
             }
             catch (Exception error) when (!token.IsCancellationRequested)
             {
@@ -101,28 +100,22 @@ internal sealed class FileActions : IDisposable
                 return;
             }
 
-            bool copied;
-            using (image)
+            using (bitmap)
             {
-                // Converting a large image to a bitmap takes long enough to stall the window.
-                copied = await Task.Run(
-                    () => Win32Clipboard.TrySetImage(image.Width, image.Height, image.Stride, image.Span),
-                    token);
-            }
+                if (token.IsCancellationRequested)
+                {
+                    return;
+                }
 
-            if (token.IsCancellationRequested)
-            {
-                return;
-            }
-
-            if (copied)
-            {
-                _toasts.Notify($"Copied {name} to the clipboard.", ToastSeverity.Success);
-            }
-            else
-            {
-                Log.Warning("Clipboard", $"Could not copy '{name}' to the clipboard.");
-                _toasts.Notify($"Could not copy {name} to the clipboard.", ToastSeverity.Error);
+                if (bitmap.TrySet())
+                {
+                    _toasts.Notify($"Copied {name} to the clipboard.", ToastSeverity.Success);
+                }
+                else
+                {
+                    Log.Warning("Clipboard", $"Could not copy '{name}' to the clipboard.");
+                    _toasts.Notify($"Could not copy {name} to the clipboard.", ToastSeverity.Error);
+                }
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
