@@ -155,7 +155,11 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     {
         bool displayedImageChanged = !ReferenceEquals(_state.DisplayedImage, state.DisplayedImage);
         _state = state;
-        if (displayedImageChanged && state.DisplayedImage is { } displayed)
+        if (displayedImageChanged && state.DisplayedImage is null)
+        {
+            _imagePanel.ClearImage();
+        }
+        else if (displayedImageChanged && state.DisplayedImage is { } displayed)
         {
             if (clearPointer)
             {
@@ -246,12 +250,6 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     {
         _imagePanel.RecreateDeviceResources(deviceContext);
         _emptyStatePanel.RecreateDeviceResources(deviceContext);
-
-        // Rebinds from the representation, without reloading.
-        if (_state.DisplayedImage is { } displayed)
-        {
-            ApplyDisplayedImage(displayed);
-        }
     }
 
     public void Dispose()

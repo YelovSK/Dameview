@@ -26,6 +26,8 @@ internal sealed class ImagePanel : UiElement, IDisposable
     private const float PanStartThresholdDips = 4.0f;
     // Long enough to ride out the gaps between pointer moves while dragging.
     private static readonly long SettleTicks = Stopwatch.Frequency / 50;
+    // Borrowed from the session, which disposes it after replacing it or clearing the panel.
+    private ImageRepresentation? _image;
     private ID2D1Bitmap1? _ownedImage;
     private ID2D1Bitmap1? _previewImage;
     private ID2D1Bitmap1? _cachedImage;
@@ -61,14 +63,19 @@ internal sealed class ImagePanel : UiElement, IDisposable
     internal TimeSpan? NextAnimationFrameDelay => _imageAnimation?.NextFrameDelay ?? SettleDelay;
     internal Exception? AnimationError => _imageAnimation?.Error;
 
-    /// <summary>The image has to be set again afterwards.</summary>
     internal void RecreateDeviceResources(ID2D1DeviceContext deviceContext)
     {
-        ReleaseImageResources();
+        ImageRepresentation? image = _image;
+        bool isPreview = _isPreview;
+        ClearImage();
         _deviceContext = deviceContext;
         _scaleContext.Dispose();
         _scaleContext = CreateScaleContext(deviceContext);
         _presentationCache.Recreate(deviceContext);
+        if (image is not null)
+        {
+            SetImage(image, isPreview);
+        }
     }
 
     private static ID2D1DeviceContext CreateScaleContext(ID2D1DeviceContext deviceContext)
@@ -77,7 +84,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
         return device.CreateDeviceContext();
     }
 
-    private void ReleaseImageResources()
+    internal void ClearImage()
     {
         ReleaseContent();
         ClearPreviewTransition();
@@ -87,6 +94,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
     // Drops whatever the current image is drawn from. The preview fade is handled separately.
     private void ReleaseContent()
     {
+        _image = null;
         _imageAnimation?.Pause();
         _imageAnimation = null;
         _presentationCache.Clear();
@@ -101,7 +109,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
         ImageViewport viewport,
         ViewportAnimator animator)
     {
-        ReleaseImageResources();
+        ClearImage();
         _pointerPressed = false;
         _viewport = viewport;
         _animator.Started -= InvalidateVisual;
@@ -123,6 +131,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
         }
 
         ReleaseContent();
+        _image = image;
         _isPreview = isPreview;
         switch (image)
         {
@@ -399,7 +408,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
     public void Dispose()
     {
         _animator.Started -= InvalidateVisual;
-        ReleaseImageResources();
+        ClearImage();
         _presentationCache.Dispose();
         _scaleContext.Dispose();
     }
