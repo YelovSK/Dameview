@@ -231,9 +231,7 @@ internal sealed class ImageLoadService : IDisposable
 
     private ImageLoaded? PreloadDecode(string path, IImageDecoder decoder, CancellationToken cancellationToken)
     {
-        ImageInfo sourceInfo = decoder.GetInfo(path);
-        if (IsAnimated(path, sourceInfo)
-            || _representationPolicy.RequiresTiling(sourceInfo)
+        if (SelectRepresentation(path, decoder.GetInfo(path)) != ImageRepresentationKind.Static
             || cancellationToken.IsCancellationRequested)
         {
             return null;
@@ -254,21 +252,19 @@ internal sealed class ImageLoadService : IDisposable
         cancellationToken.ThrowIfCancellationRequested();
         ImageInfo sourceInfo = decoder.GetInfo(path);
         cancellationToken.ThrowIfCancellationRequested();
-        if (IsAnimated(path, sourceInfo))
+        switch (SelectRepresentation(path, sourceInfo))
         {
-            return OpenAnimation(path);
+            case ImageRepresentationKind.Animated:
+                return OpenAnimation(path);
+            case ImageRepresentationKind.Tiled:
+                Log.Debug("Image", $"Selected tiled representation for '{path}'.");
+                return new ImageLoaded(path, new TiledImageRepresentation(_backend.OpenTiledImage(path)));
+            default:
+                Log.Debug("Image", $"Selected static representation for '{path}'.");
+                return new ImageLoaded(
+                    path,
+                    new UploadImageRepresentation(DecodeShared(path, decoder, cancellationToken)));
         }
-
-        if (_representationPolicy.RequiresTiling(sourceInfo))
-        {
-            Log.Debug("Image", $"Selected tiled representation for '{path}'.");
-            return new ImageLoaded(path, new TiledImageRepresentation(_backend.OpenTiledImage(path)));
-        }
-
-        Log.Debug("Image", $"Selected static representation for '{path}'.");
-        return new ImageLoaded(
-            path,
-            new UploadImageRepresentation(DecodeShared(path, decoder, cancellationToken)));
     }
 
     private ImageLoaded OpenAnimation(string path)
@@ -293,8 +289,8 @@ internal sealed class ImageLoadService : IDisposable
         }
     }
 
-    private bool IsAnimated(string path, ImageInfo info) =>
-        info.FrameCount > 1 && _backend.SupportsAnimation(path);
+    private ImageRepresentationKind SelectRepresentation(string path, ImageInfo info) =>
+        _representationPolicy.Select(info, _backend.SupportsAnimation(path));
 
     private DecodedImageUpload DecodeShared(
         string path,
