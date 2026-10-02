@@ -59,7 +59,7 @@ internal sealed class ImageLoadService : IDisposable
             _stopping = true;
             foreach (ClientState state in _clients.Values)
             {
-                CancelLoad(state);
+                CancelAll(state);
             }
 
             _clients.Clear();
@@ -73,21 +73,18 @@ internal sealed class ImageLoadService : IDisposable
     internal void Load(ImageLoadClient client, string path, Action<ImageLoadResult> completed)
     {
         Log.Debug("Image", $"Open requested: '{path}'.");
-        LoadRequest? start = null;
+        LoadRequest? start;
         lock (_sync)
         {
             ClientState state = GetState(client);
             CancelLoad(state);
-            var cancellation = new CancellationTokenSource();
-            var request = new LoadRequest(client, path, completed, cancellation);
-            state.CurrentLoad = request;
-            state.PendingLoad = request;
+            state.CurrentLoad = new LoadRequest(client, path, completed, new CancellationTokenSource());
             start = TakeActive(state);
         }
 
         if (start is not null)
         {
-            StartForeground(start);
+            _ = ProcessForegroundAsync(start);
         }
     }
 
@@ -97,23 +94,26 @@ internal sealed class ImageLoadService : IDisposable
         Action<ImageLoadResult> completed)
     {
         List<PreloadRequest> requests = [];
+        CancellationToken cancellationToken;
         lock (_sync)
         {
             ClientState state = GetState(client);
-            int generation = ++state.PreloadGeneration;
+            state.PreloadCancellation.Cancel();
+            state.PreloadCancellation = new CancellationTokenSource();
+            cancellationToken = state.PreloadCancellation.Token;
             var uniquePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (string? path in paths)
             {
                 if (!string.IsNullOrWhiteSpace(path) && uniquePaths.Add(path))
                 {
-                    requests.Add(new PreloadRequest(client, generation, path, completed));
+                    requests.Add(new PreloadRequest(client, path, completed));
                 }
             }
         }
 
         foreach (PreloadRequest request in requests)
         {
-            _ = ProcessPreloadAsync(request);
+            _ = ProcessPreloadAsync(request, cancellationToken);
         }
     }
 
@@ -124,7 +124,6 @@ internal sealed class ImageLoadService : IDisposable
             ClientState state = GetState(client);
             CancelLoad(state);
             state.CurrentLoad = null;
-            state.PendingLoad = null;
         }
     }
 
@@ -143,7 +142,7 @@ internal sealed class ImageLoadService : IDisposable
         {
             if (_clients.Remove(client, out ClientState? state))
             {
-                CancelLoad(state);
+                CancelAll(state);
             }
         }
     }
@@ -162,21 +161,25 @@ internal sealed class ImageLoadService : IDisposable
         state.CurrentLoad?.Cancellation.Dispose();
     }
 
-    // The caller must hold _sync.
+    private static void CancelAll(ClientState state)
+    {
+        CancelLoad(state);
+        state.PreloadCancellation.Cancel();
+    }
+
+    // The caller must hold _sync. A client decodes one foreground image at a time, so the
+    // newest request waits for a superseded decode to stop.
     private static LoadRequest? TakeActive(ClientState state)
     {
-        if (state.LoadActive || state.PendingLoad is null)
+        if (state.LoadActive || state.CurrentLoad is not { Started: false } request)
         {
             return null;
         }
 
         state.LoadActive = true;
-        LoadRequest request = state.PendingLoad;
-        state.PendingLoad = null;
+        request.Started = true;
         return request;
     }
-
-    private void StartForeground(LoadRequest request) => _ = ProcessForegroundAsync(request);
 
     private async Task ProcessForegroundAsync(LoadRequest request)
     {
@@ -184,7 +187,7 @@ internal sealed class ImageLoadService : IDisposable
         try
         {
             result = await _foregroundQueue.Enqueue(
-                (decoder, token) => DecodeResult(request, decoder, token),
+                (decoder, token) => DecodeForeground(request.Path, decoder, token),
                 cancellationToken: request.Cancellation.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested)
@@ -198,40 +201,18 @@ internal sealed class ImageLoadService : IDisposable
             result = new ImageLoadFailed(request.Path, exception);
         }
 
-        PostToUi(() => Deliver(request, result));
+        PostToUi(() => Deliver(() => IsCurrent(request), request.Completed, result));
         FinishLoad(request);
     }
 
-    private ImageLoadResult DecodeResult(
-        LoadRequest request,
-        IImageDecoder decoder,
-        CancellationToken cancellationToken)
+    private async Task ProcessPreloadAsync(PreloadRequest request, CancellationToken cancellationToken)
     {
+        ImageLoadResult? result;
         try
         {
-            return DecodeForeground(request, decoder, cancellationToken);
-        }
-        catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception exception)
-        {
-            Log.Error("Image", $"Failed to decode '{Path.GetFileName(request.Path)}'.", exception);
-            return new ImageLoadFailed(request.Path, exception);
-        }
-    }
-
-    private async Task ProcessPreloadAsync(PreloadRequest request)
-    {
-        ImageLoadResult? result = null;
-        try
-        {
-            if (IsPreloadCurrent(request))
-            {
-                result = await _preloadQueue.Enqueue(
-                    (decoder, _) => PreloadDecode(request, decoder)).ConfigureAwait(false);
-            }
+            result = await _preloadQueue.Enqueue(
+                (decoder, token) => PreloadDecode(request.Path, decoder, token),
+                cancellationToken: cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -244,85 +225,65 @@ internal sealed class ImageLoadService : IDisposable
 
         if (result is not null)
         {
-            PostToUi(() => DeliverPreload(request, result));
+            PostToUi(() => Deliver(() => _clients.ContainsKey(request.Client), request.Completed, result));
         }
     }
 
-    private ImageLoadResult? PreloadDecode(PreloadRequest request, IImageDecoder decoder)
+    private ImageLoaded? PreloadDecode(string path, IImageDecoder decoder, CancellationToken cancellationToken)
     {
-        if (!IsPreloadCurrent(request))
+        ImageInfo sourceInfo = decoder.GetInfo(path);
+        if (IsAnimated(path, sourceInfo)
+            || _representationPolicy.RequiresTiling(sourceInfo)
+            || cancellationToken.IsCancellationRequested)
         {
             return null;
         }
 
-        try
-        {
-            ImageInfo sourceInfo = decoder.GetInfo(request.Path);
-            if (IsAnimated(request.Path, sourceInfo)
-                || _representationPolicy.RequiresTiling(sourceInfo)
-                || !IsPreloadCurrent(request))
-            {
-                return null;
-            }
-
-            return new ImageLoaded(
-                request.Path,
-                new UploadImageRepresentation(DecodeShared(
-                    request.Path,
-                    decoder,
-                    CancellationToken.None)));
-        }
-        catch (Exception exception)
-        {
-            return new ImageLoadFailed(request.Path, exception);
-        }
-    }
-
-    private bool IsPreloadCurrent(PreloadRequest request)
-    {
-        lock (_sync)
-        {
-            return _clients.TryGetValue(request.Client, out ClientState? state)
-                && request.Generation == state.PreloadGeneration;
-        }
+        // Not cancelled once started, because a foreground load of the same file may be
+        // waiting on this decode.
+        return new ImageLoaded(
+            path,
+            new UploadImageRepresentation(DecodeShared(path, decoder, CancellationToken.None)));
     }
 
     private ImageLoaded DecodeForeground(
-        LoadRequest request,
+        string path,
         IImageDecoder decoder,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        ImageInfo sourceInfo = decoder.GetInfo(request.Path);
+        ImageInfo sourceInfo = decoder.GetInfo(path);
         cancellationToken.ThrowIfCancellationRequested();
-        if (!IsAnimated(request.Path, sourceInfo))
+        if (IsAnimated(path, sourceInfo))
         {
-            if (_representationPolicy.RequiresTiling(sourceInfo))
-            {
-                Log.Debug("Image", $"Selected tiled representation for '{request.Path}'.");
-                IImageTileSource tiledImage = _backend.OpenTiledImage(request.Path);
-                return new ImageLoaded(request.Path, new TiledImageRepresentation(tiledImage));
-            }
-
-            Log.Debug("Image", $"Selected static representation for '{request.Path}'.");
-            return new ImageLoaded(
-                request.Path,
-                new UploadImageRepresentation(DecodeShared(request.Path, decoder, cancellationToken)));
+            return OpenAnimation(path);
         }
 
-        IAnimationSession? animation = _backend.OpenAnimation(request.Path);
+        if (_representationPolicy.RequiresTiling(sourceInfo))
+        {
+            Log.Debug("Image", $"Selected tiled representation for '{path}'.");
+            return new ImageLoaded(path, new TiledImageRepresentation(_backend.OpenTiledImage(path)));
+        }
+
+        Log.Debug("Image", $"Selected static representation for '{path}'.");
+        return new ImageLoaded(
+            path,
+            new UploadImageRepresentation(DecodeShared(path, decoder, cancellationToken)));
+    }
+
+    private ImageLoaded OpenAnimation(string path)
+    {
+        IAnimationSession? animation = _backend.OpenAnimation(path);
         try
         {
             if (!animation.IsAnimated)
             {
-                Log.Debug("Image", $"Selected static representation for '{request.Path}'.");
-                return new ImageLoaded(
-                    request.Path,
-                    new DecodedImageRepresentation(animation.FirstFrame.Image));
+                Log.Debug("Image", $"Selected static representation for '{path}'.");
+                return new ImageLoaded(path, new DecodedImageRepresentation(animation.FirstFrame.Image));
             }
 
-            var result = new ImageLoaded(request.Path, new AnimatedImageRepresentation(animation));
-            Log.Debug("Image", $"Selected animated representation for '{request.Path}'.");
+            var result = new ImageLoaded(path, new AnimatedImageRepresentation(animation));
+            Log.Debug("Image", $"Selected animated representation for '{path}'.");
             animation = null;
             return result;
         }
@@ -371,7 +332,10 @@ internal sealed class ImageLoadService : IDisposable
 
         try
         {
-            DecodedImageUpload shared = pending.Completion.Task.GetAwaiter().GetResult();
+            DecodedImageUpload shared = pending.Completion.Task
+                .WaitAsync(cancellationToken)
+                .GetAwaiter()
+                .GetResult();
             cancellationToken.ThrowIfCancellationRequested();
             return shared.Retain(() => ReleaseConsumer(path, pending));
         }
@@ -416,60 +380,32 @@ internal sealed class ImageLoadService : IDisposable
 
         if (next is not null)
         {
-            StartForeground(next);
+            _ = ProcessForegroundAsync(next);
         }
     }
 
     // The caller must hold _sync.
-    private bool IsCurrentUnsafe(LoadRequest request) =>
-        !_stopping
-        && _clients.TryGetValue(request.Client, out ClientState? state)
-        && ReferenceEquals(state.CurrentLoad, request)
-        && !request.IsComplete;
+    private bool IsCurrent(LoadRequest request) =>
+        _clients.TryGetValue(request.Client, out ClientState? state)
+        && ReferenceEquals(state.CurrentLoad, request);
 
-    private void Deliver(LoadRequest request, ImageLoadResult result)
+    // A result nobody wants anymore is released here instead of reaching the caller.
+    private void Deliver(Func<bool> isWanted, Action<ImageLoadResult> completed, ImageLoadResult result)
     {
-        bool accepted;
+        bool wanted;
         lock (_sync)
         {
-            accepted = IsCurrentUnsafe(request);
-            if (accepted)
-            {
-                request.IsComplete = true;
-            }
+            wanted = isWanted();
         }
 
-        if (accepted)
+        if (wanted)
         {
-            request.Completed(result);
+            completed(result);
         }
         else
         {
-            DisposeResult(result);
+            (result as ImageLoaded)?.Dispose();
         }
-    }
-
-    private void DeliverPreload(PreloadRequest request, ImageLoadResult result)
-    {
-        bool accepted;
-        lock (_sync)
-        {
-            accepted = !_stopping && _clients.ContainsKey(request.Client);
-        }
-
-        if (accepted)
-        {
-            request.Completed(result);
-        }
-        else
-        {
-            DisposeResult(result);
-        }
-    }
-
-    private static void DisposeResult(ImageLoadResult result)
-    {
-        (result as ImageLoaded)?.Dispose();
     }
 
     private void PostToUi(Action action)
@@ -480,9 +416,8 @@ internal sealed class ImageLoadService : IDisposable
     private sealed class ClientState
     {
         internal LoadRequest? CurrentLoad { get; set; }
-        internal LoadRequest? PendingLoad { get; set; }
-        internal int PreloadGeneration { get; set; }
         internal bool LoadActive { get; set; }
+        internal CancellationTokenSource PreloadCancellation { get; set; } = new();
     }
 
     private sealed class LoadRequest(
@@ -495,23 +430,23 @@ internal sealed class ImageLoadService : IDisposable
         internal string Path { get; } = path;
         internal Action<ImageLoadResult> Completed { get; } = completed;
         internal CancellationTokenSource Cancellation { get; } = cancellation;
-        internal bool IsComplete { get; set; }
+        internal bool Started { get; set; }
     }
 
     private sealed record PreloadRequest(
         ImageLoadClient Client,
-        int Generation,
         string Path,
         Action<ImageLoadResult> Completed);
 
     private sealed class InFlightDecode
     {
+        private int _consumers;
+
         internal TaskCompletionSource<DecodedImageUpload> Completion { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
-        internal int ConsumerCount { get; private set; }
 
-        internal void AddConsumer() => ConsumerCount++;
-        internal int ReleaseConsumer() => --ConsumerCount;
+        internal void AddConsumer() => _consumers++;
+        internal int ReleaseConsumer() => --_consumers;
     }
 }
 
