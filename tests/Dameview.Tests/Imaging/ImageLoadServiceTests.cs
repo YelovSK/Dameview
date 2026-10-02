@@ -86,9 +86,9 @@ public sealed class ImageLoadServiceTests
 
         try
         {
-            first.Preload(["first", "still-pending"], Complete);
+            first.Preload(["first", "still-pending"], long.MaxValue, Complete);
             Assert.IsTrue(firstStarted.Wait(TimeSpan.FromSeconds(5)));
-            second.Preload(["other-client"], Complete);
+            second.Preload(["other-client"], long.MaxValue, Complete);
             releaseFirst.Set();
 
             Assert.IsTrue(completed.Wait(TimeSpan.FromSeconds(5)));
@@ -360,6 +360,37 @@ public sealed class ImageLoadServiceTests
     }
 
     [TestMethod]
+    public void PreloadSkipsImagesThatDoNotFitInTheSpaceLeft()
+    {
+        using var sentinelDecoded = new ManualResetEventSlim();
+        var decodedPaths = new ConcurrentQueue<string>();
+        using var coordinator = new TestClient(
+            action => action(),
+            new FakeImageLoadingBackend(
+                () => new FakeImageDecoder(
+                    path =>
+                    {
+                        decodedPaths.Enqueue(path);
+                        if (path == "sentinel")
+                        {
+                            sentinelDecoded.Set();
+                        }
+
+                        return CreateImage();
+                    },
+                    path => path == "sentinel"
+                        ? new ImageInfo(1, 1, 1)
+                        : new ImageInfo(10, 10, 1))),
+            TestPolicy);
+
+        // 400 bytes each for the first two, 4 for the sentinel: the second no longer fits.
+        coordinator.Preload(["first", "second", "sentinel"], DisposeResult, freeBytes: 404);
+
+        Assert.IsTrue(sentinelDecoded.Wait(TimeSpan.FromSeconds(5)));
+        CollectionAssert.AreEqual(new[] { "first", "sentinel" }, decodedPaths.ToArray());
+    }
+
+    [TestMethod]
     [DataRow("next.png")]
     [DataRow("next.webp")]
     [DataRow("next.gif")]
@@ -560,8 +591,11 @@ public sealed class ImageLoadServiceTests
         internal void Load(string path, Action<ImageLoadResult> completed)
             => _client.Load(path, completed);
 
-        internal void Preload(IEnumerable<string?> paths, Action<ImageLoadResult> completed)
-            => _client.Preload(paths, completed);
+        internal void Preload(
+            IEnumerable<string?> paths,
+            Action<ImageLoadResult> completed,
+            long freeBytes = long.MaxValue)
+            => _client.Preload(paths, freeBytes, completed);
 
         public void Dispose()
         {

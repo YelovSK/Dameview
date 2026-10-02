@@ -89,14 +89,9 @@ internal sealed class PresentationImageLoader : IImageLoader
     public void Preload(IEnumerable<string?> paths)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (!_cache.HasPreloadCapacity)
-        {
-            _producer.Preload([], CompletePreload);
-            return;
-        }
-
         _producer.Preload(
             paths.Where(path => !string.IsNullOrWhiteSpace(path) && !_cache.Contains(path!)),
+            _cache.FreeBytes,
             CompletePreload);
     }
 

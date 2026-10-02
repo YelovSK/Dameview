@@ -88,32 +88,36 @@ internal sealed class ImageLoadService : IDisposable
         }
     }
 
+    /// <param name="freeBytes">
+    /// How many bytes of decoded pixels the caller can still keep. An image that doesn't fit in
+    /// what is left is dropped after its header is read, before its pixels are.
+    /// </param>
     internal void Preload(
         ImageLoadClient client,
         IEnumerable<string?> paths,
+        long freeBytes,
         Action<ImageLoadResult> completed)
     {
         List<PreloadRequest> requests = [];
-        CancellationToken cancellationToken;
         lock (_sync)
         {
             ClientState state = GetState(client);
             state.PreloadCancellation.Cancel();
             state.PreloadCancellation = new CancellationTokenSource();
-            cancellationToken = state.PreloadCancellation.Token;
+            var batch = new PreloadBatch(freeBytes, state.PreloadCancellation.Token);
             var uniquePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (string? path in paths)
             {
-                if (!string.IsNullOrWhiteSpace(path) && uniquePaths.Add(path))
+                if (freeBytes > 0 && !string.IsNullOrWhiteSpace(path) && uniquePaths.Add(path))
                 {
-                    requests.Add(new PreloadRequest(client, path, completed));
+                    requests.Add(new PreloadRequest(client, path, batch, completed));
                 }
             }
         }
 
         foreach (PreloadRequest request in requests)
         {
-            _ = ProcessPreloadAsync(request, cancellationToken);
+            _ = ProcessPreloadAsync(request);
         }
     }
 
@@ -205,14 +209,14 @@ internal sealed class ImageLoadService : IDisposable
         FinishLoad(request);
     }
 
-    private async Task ProcessPreloadAsync(PreloadRequest request, CancellationToken cancellationToken)
+    private async Task ProcessPreloadAsync(PreloadRequest request)
     {
         ImageLoadResult? result;
         try
         {
             result = await _preloadQueue.Enqueue(
-                (decoder, token) => PreloadDecode(request.Path, decoder, token),
-                cancellationToken: cancellationToken).ConfigureAwait(false);
+                (decoder, token) => PreloadDecode(request, decoder, token),
+                cancellationToken: request.Batch.CancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -229,10 +233,13 @@ internal sealed class ImageLoadService : IDisposable
         }
     }
 
-    private ImageLoaded? PreloadDecode(string path, IImageDecoder decoder, CancellationToken cancellationToken)
+    private ImageLoaded? PreloadDecode(PreloadRequest request, IImageDecoder decoder, CancellationToken cancellationToken)
     {
-        if (SelectRepresentation(path, decoder.GetInfo(path)) != ImageRepresentationKind.Static
-            || cancellationToken.IsCancellationRequested)
+        string path = request.Path;
+        ImageInfo sourceInfo = decoder.GetInfo(path);
+        if (SelectRepresentation(path, sourceInfo) != ImageRepresentationKind.Static
+            || cancellationToken.IsCancellationRequested
+            || !TryClaim(request.Batch, sourceInfo))
         {
             return null;
         }
@@ -242,6 +249,21 @@ internal sealed class ImageLoadService : IDisposable
         return new ImageLoaded(
             path,
             new UploadImageRepresentation(DecodeShared(path, decoder, CancellationToken.None)));
+    }
+
+    private bool TryClaim(PreloadBatch batch, ImageInfo image)
+    {
+        long bytes = (long)image.Width * image.Height * 4;
+        lock (_sync)
+        {
+            if (bytes > batch.FreeBytes)
+            {
+                return false;
+            }
+
+            batch.FreeBytes -= bytes;
+            return true;
+        }
     }
 
     private ImageLoaded DecodeForeground(
@@ -432,7 +454,17 @@ internal sealed class ImageLoadService : IDisposable
     private sealed record PreloadRequest(
         ImageLoadClient Client,
         string Path,
+        PreloadBatch Batch,
         Action<ImageLoadResult> Completed);
+
+    // The preloads asked for together, which share one cancellation and one amount of space.
+    private sealed class PreloadBatch(long freeBytes, CancellationToken cancellationToken)
+    {
+        internal CancellationToken CancellationToken { get; } = cancellationToken;
+
+        // Guarded by _sync.
+        internal long FreeBytes { get; set; } = freeBytes;
+    }
 
     private sealed class InFlightDecode
     {
@@ -458,8 +490,8 @@ internal sealed class ImageLoadClient : IDisposable
     internal void Load(string path, Action<ImageLoadResult> completed)
         => Service.Load(this, path, completed);
 
-    internal void Preload(IEnumerable<string?> paths, Action<ImageLoadResult> completed)
-        => Service.Preload(this, paths, completed);
+    internal void Preload(IEnumerable<string?> paths, long freeBytes, Action<ImageLoadResult> completed)
+        => Service.Preload(this, paths, freeBytes, completed);
 
     internal void CancelForeground() => Service.CancelForeground(this);
 

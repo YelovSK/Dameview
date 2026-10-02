@@ -81,7 +81,7 @@ public sealed class RenderBitmapCacheTests
         // The cache is now full, so a third image must be refused rather than evicting one
         // that would only be fetched again on the next navigation.
         Assert.IsFalse(cache.CanPreload(1, 1));
-        Assert.IsFalse(cache.HasPreloadCapacity);
+        Assert.AreEqual(0, cache.FreeBytes);
         Assert.IsTrue(cache.Contains("displayed"));
         Assert.IsTrue(cache.Contains("neighbour"));
     }
@@ -93,7 +93,7 @@ public sealed class RenderBitmapCacheTests
         using CachedBitmapLease displayed = cache.AddAndAcquire("displayed", null!, 10, 5);
 
         // Free space alone says yes; the incoming size says no.
-        Assert.IsTrue(cache.HasPreloadCapacity);
+        Assert.AreEqual(200, cache.FreeBytes);
         Assert.IsFalse(cache.CanPreload(20, 5));
     }
 

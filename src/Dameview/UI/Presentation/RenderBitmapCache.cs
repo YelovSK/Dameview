@@ -33,8 +33,8 @@ internal sealed class RenderBitmapCache : IDisposable
     }
 
     internal long CapacityBytes { get; }
-    /// <summary>Whether anything speculative is worth fetching, before its size is known.</summary>
-    internal bool HasPreloadCapacity => _sizeBytes < CapacityBytes;
+    /// <summary>How many bytes speculative images can still take without evicting anything.</summary>
+    internal long FreeBytes => Math.Max(0, CapacityBytes - _sizeBytes);
 
     /// <summary>
     /// Whether an image of this size can be kept speculatively.
@@ -44,7 +44,7 @@ internal sealed class RenderBitmapCache : IDisposable
     /// fit would throw one out to make room for the next and fetch it again a moment later.
     /// </remarks>
     internal bool CanPreload(int width, int height) =>
-        _sizeBytes + ((long)width * height * 4) <= CapacityBytes;
+        (long)width * height * 4 <= FreeBytes;
 
     internal bool Contains(string path) => _entries.ContainsKey(path);
 
