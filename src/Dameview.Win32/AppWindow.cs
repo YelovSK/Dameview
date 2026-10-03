@@ -608,7 +608,8 @@ internal sealed unsafe class AppWindow : IDisposable
                 KeyPressed?.Invoke(new WindowKeyEvent(
                     (WindowKey)(nuint)wParam,
                     GetKeyState((int)VIRTUAL_KEY.VK_SHIFT) < 0,
-                    GetKeyState((int)VIRTUAL_KEY.VK_CONTROL) < 0));
+                    GetKeyState((int)VIRTUAL_KEY.VK_CONTROL) < 0,
+                    IsRepeat: (((long)lParam >> 16) & KF_REPEAT) != 0));
                 return default;
 
             case WM_CHAR:

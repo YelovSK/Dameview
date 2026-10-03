@@ -12,7 +12,8 @@ internal static class AppCommands
     internal static readonly Command OpenFile = Command.Global(
         "openFile", "Open image…", CommandScope.Window,
         host => host.OpenPickedFile(),
-        shortcuts: [new(WindowKey.O, Control: true)]);
+        shortcuts: [new(WindowKey.O, Control: true)],
+        repeatsWhileHeld: false);
 
     internal static readonly Command NewTab = Command.ForTab(
         "newTab", "New tab", CommandScope.Window,
@@ -192,7 +193,8 @@ internal static class AppCommands
         _ => Process.Start(new ProcessStartInfo(Path.GetDirectoryName(SettingsService.DefaultPath)!)
         {
             UseShellExecute = true,
-        })?.Dispose());
+        })?.Dispose(),
+        repeatsWhileHeld: false);
 
     internal static readonly Command ShowCommandPalette = Command.Global(
         "showCommandPalette", "Show command palette", CommandScope.Window,

@@ -95,7 +95,9 @@ internal enum WindowKey : uint
     Quote = 0xDE,
 }
 
+/// <param name="IsRepeat">Whether the key was already down, so this press comes from holding it.</param>
 internal readonly record struct WindowKeyEvent(
     WindowKey Key,
     bool Shift = false,
-    bool Control = false);
+    bool Control = false,
+    bool IsRepeat = false);

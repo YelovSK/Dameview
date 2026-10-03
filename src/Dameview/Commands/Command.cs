@@ -42,7 +42,8 @@ internal sealed class Command
         CommandScope scope,
         ViewerCommandShortcut[]? shortcuts,
         Func<ICommandHost, CommandContext, bool> canExecute,
-        Action<ICommandHost, CommandContext> execute)
+        Action<ICommandHost, CommandContext> execute,
+        bool repeatsWhileHeld)
     {
         Id = id;
         Label = label;
@@ -50,6 +51,7 @@ internal sealed class Command
         DefaultShortcuts = shortcuts ?? [];
         _canExecute = canExecute;
         _execute = execute;
+        RepeatsWhileHeld = repeatsWhileHeld;
     }
 
     /// <summary>Names the command in the settings file, so it must never change.</summary>
@@ -57,6 +59,10 @@ internal sealed class Command
     internal string Label { get; }
     internal CommandScope Scope { get; }
     internal IReadOnlyList<ViewerCommandShortcut> DefaultShortcuts { get; }
+    /// <summary>
+    /// Whether holding its shortcut runs it again and again.
+    /// </summary>
+    internal bool RepeatsWhileHeld { get; }
 
     internal bool CanExecute(ICommandHost host, CommandContext context) => _canExecute(host, context);
 
@@ -76,14 +82,16 @@ internal sealed class Command
         CommandScope scope,
         Action<ICommandHost> execute,
         Func<ICommandHost, bool>? canExecute = null,
-        ViewerCommandShortcut[]? shortcuts = null) =>
+        ViewerCommandShortcut[]? shortcuts = null,
+        bool repeatsWhileHeld = true) =>
         new(
             id,
             label,
             scope,
             shortcuts,
             (host, _) => canExecute?.Invoke(host) ?? true,
-            (host, _) => execute(host));
+            (host, _) => execute(host),
+            repeatsWhileHeld);
 
     internal static Command ForTab(
         string id,
@@ -91,8 +99,9 @@ internal sealed class Command
         CommandScope scope,
         Action<ICommandHost, ViewerTab> execute,
         Func<ViewerTab, bool>? canExecute = null,
-        ViewerCommandShortcut[]? shortcuts = null) =>
-        ForTab(id, label, scope, (host, tab, _) => execute(host, tab), canExecute, shortcuts);
+        ViewerCommandShortcut[]? shortcuts = null,
+        bool repeatsWhileHeld = true) =>
+        ForTab(id, label, scope, (host, tab, _) => execute(host, tab), canExecute, shortcuts, repeatsWhileHeld);
 
     /// <summary>A tab command that zooms, at the context's anchor or else the viewport center.</summary>
     internal static Command ForTab(
@@ -101,7 +110,8 @@ internal sealed class Command
         CommandScope scope,
         Action<ICommandHost, ViewerTab, PointF> execute,
         Func<ViewerTab, bool>? canExecute = null,
-        ViewerCommandShortcut[]? shortcuts = null) =>
+        ViewerCommandShortcut[]? shortcuts = null,
+        bool repeatsWhileHeld = true) =>
         new(
             id,
             label,
@@ -111,7 +121,8 @@ internal sealed class Command
             (host, context) => execute(
                 host,
                 context.Tab!,
-                context.Anchor ?? context.Tab!.Session.Viewport.ViewportCenter));
+                context.Anchor ?? context.Tab!.Session.Viewport.ViewportCenter),
+            repeatsWhileHeld);
 
     internal static Command ForImage(
         string id,
@@ -125,5 +136,7 @@ internal sealed class Command
             scope,
             shortcuts,
             (_, context) => context.ImagePath is not null,
-            (host, context) => execute(host, context.ImagePath!));
+            // File actions copy, delete or open other windows, which holding a key must not repeat.
+            (host, context) => execute(host, context.ImagePath!),
+            repeatsWhileHeld: false);
 }

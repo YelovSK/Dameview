@@ -344,7 +344,11 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         ViewerKeyBindings keyBindings = _settings.Current.KeyBindings;
         if (keyBindings.TryGetCommand(CommandScope.Window, input, out Command? command))
         {
-            Execute(command, ActiveContext);
+            if (!input.IsRepeat || command.RepeatsWhileHeld)
+            {
+                Execute(command, ActiveContext);
+            }
+
             return;
         }
 
@@ -360,7 +364,8 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
             return;
         }
 
-        if (keyBindings.TryGetCommand(CommandScope.Viewer, input, out command))
+        if (keyBindings.TryGetCommand(CommandScope.Viewer, input, out command)
+            && (!input.IsRepeat || command.RepeatsWhileHeld))
         {
             PointF anchor = _ui.GetImageViewportPoint(new PointF(_pointerX, _pointerY));
             Execute(command, CommandContext.For(_workspace.ActiveTab, anchor));
