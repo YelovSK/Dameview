@@ -94,7 +94,7 @@ internal sealed class EmptyStatePanel : UiElement, IDisposable
 
     private sealed class AppIcon : UiElement, IDisposable
     {
-        private const float Size = 64.0f;
+        private const float Size = 128.0f;
 
         private ID2D1Bitmap1 _bitmap;
 
