@@ -253,7 +253,7 @@ internal sealed class ImageLoadService : IDisposable
 
     private bool TryClaim(PreloadBatch batch, ImageInfo image)
     {
-        long bytes = (long)image.Width * image.Height * 4;
+        long bytes = DecodedImage.GetByteCount(image.Width, image.Height);
         lock (_sync)
         {
             if (bytes > batch.FreeBytes)

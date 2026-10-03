@@ -12,14 +12,13 @@ internal enum ImageRepresentationKind
 internal readonly record struct ImageRepresentationPolicy
 {
     internal const long DefaultMaximumDecodedBytes = 128L * 1024L * 1024L;
-    private const int BytesPerPixel = 4;
 
     internal ImageRepresentationPolicy(
         int maximumBitmapDimension,
         long maximumDecodedBytes = DefaultMaximumDecodedBytes)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumBitmapDimension);
-        ArgumentOutOfRangeException.ThrowIfLessThan(maximumDecodedBytes, BytesPerPixel);
+        ArgumentOutOfRangeException.ThrowIfLessThan(maximumDecodedBytes, DecodedImage.BytesPerPixel);
         MaximumBitmapDimension = maximumBitmapDimension;
         MaximumDecodedBytes = maximumDecodedBytes;
     }
@@ -50,6 +49,7 @@ internal readonly record struct ImageRepresentationPolicy
 
         return image.Width > MaximumBitmapDimension
             || image.Height > MaximumBitmapDimension
-            || (long)image.Width * image.Height > MaximumDecodedBytes / BytesPerPixel;
+            // Divided rather than multiplied, since a corrupt header can claim any size.
+            || (long)image.Width * image.Height > MaximumDecodedBytes / DecodedImage.BytesPerPixel;
     }
 }

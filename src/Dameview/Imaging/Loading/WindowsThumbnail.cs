@@ -50,7 +50,7 @@ internal static unsafe partial class WindowsThumbnail
             converter.Initialize(source, PixelFormat.Format32bppPBGRA).CheckError();
             int width = source.Size.Width;
             int height = source.Size.Height;
-            int stride = checked(width * 4);
+            int stride = DecodedImage.GetStride(width);
             var pixels = DecodedImageUpload.Allocate(width, height, stride);
             try
             {

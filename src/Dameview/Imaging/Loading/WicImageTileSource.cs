@@ -9,7 +9,6 @@ internal sealed class WicImageTileSource : IImageTileSource
 {
     private const int DefaultTileSize = 512;
     private const int OverviewMaximumDimension = 2048;
-    private const int BytesPerPixel = 4;
 
     private readonly string _path;
     private bool _disposed;
@@ -87,7 +86,7 @@ internal sealed class WicImageTileSource : IImageTileSource
             converter.Initialize(scaler, PixelFormat.Format32bppPBGRA).CheckError();
         }
 
-        int stride = checked(tile.Width * BytesPerPixel);
+        int stride = DecodedImage.GetStride(tile.Width);
         byte[] pixels = GC.AllocateUninitializedArray<byte>(checked(stride * tile.Height));
         converter.CopyPixels((uint)stride, pixels);
         token.ThrowIfCancellationRequested();
@@ -165,7 +164,7 @@ internal sealed class WicImageTileSource : IImageTileSource
         scaler.Initialize(frame, (uint)width, (uint)height, BitmapInterpolationMode.Fant);
         using IWICFormatConverter converter = factory.CreateFormatConverter();
         converter.Initialize(scaler, PixelFormat.Format32bppPBGRA).CheckError();
-        int stride = checked(width * BytesPerPixel);
+        int stride = DecodedImage.GetStride(width);
         byte[] pixels = GC.AllocateUninitializedArray<byte>(checked(stride * height));
         converter.CopyPixels((uint)stride, pixels);
         return new DecodedImage(width, height, stride, pixels);

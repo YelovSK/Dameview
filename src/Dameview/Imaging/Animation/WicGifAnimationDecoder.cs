@@ -20,7 +20,7 @@ internal sealed class WicGifAnimationDecoder : WicAnimationDecoder
             throw new InvalidDataException("The GIF has an invalid canvas size.");
         }
 
-        byte[] canvas = new byte[checked(width * height * 4)];
+        byte[] canvas = new byte[DecodedImage.GetByteCount(width, height)];
         for (int index = 0; index < decoder.FrameCount; index++)
         {
             yield return DecodeFrame(factory, decoder, index, canvas, width, height);
@@ -56,16 +56,21 @@ internal sealed class WicGifAnimationDecoder : WicAnimationDecoder
         for (int y = 0; y < frameHeight; y++)
         {
             int sourceOffset = y * frameStride;
-            int destinationOffset = ((top + y) * width + left) * 4;
+            int destinationOffset = ((top + y) * width + left) * DecodedImage.BytesPerPixel;
             for (int x = 0; x < frameWidth; x++)
             {
-                int sourcePixel = sourceOffset + x * 4;
+                int sourcePixel = sourceOffset + x * DecodedImage.BytesPerPixel;
                 if (hasTransparency && pixels[sourcePixel + 3] == 0)
                 {
                     continue;
                 }
 
-                Buffer.BlockCopy(pixels, sourcePixel, canvas, destinationOffset + x * 4, 4);
+                Buffer.BlockCopy(
+                    pixels,
+                    sourcePixel,
+                    canvas,
+                    destinationOffset + x * DecodedImage.BytesPerPixel,
+                    DecodedImage.BytesPerPixel);
             }
         }
 
@@ -75,7 +80,7 @@ internal sealed class WicGifAnimationDecoder : WicAnimationDecoder
         {
             for (int y = 0; y < frameHeight; y++)
             {
-                Array.Clear(canvas, ((top + y) * width + left) * 4, frameStride);
+                Array.Clear(canvas, ((top + y) * width + left) * DecodedImage.BytesPerPixel, frameStride);
             }
         }
         else if (previousCanvas is not null)
@@ -84,7 +89,7 @@ internal sealed class WicGifAnimationDecoder : WicAnimationDecoder
         }
 
         return new AnimationFrame(
-            new DecodedImage(width, height, width * 4, snapshot),
+            new DecodedImage(width, height, DecodedImage.GetStride(width), snapshot),
             TimeSpan.FromMilliseconds(Math.Clamp(delay * 10, 10, 60000)));
     }
 

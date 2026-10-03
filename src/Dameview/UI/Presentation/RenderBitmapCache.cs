@@ -89,7 +89,7 @@ internal sealed class RenderBitmapCache : IDisposable
         Func<ID2D1Bitmap1> create)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (!_entries.ContainsKey(path) && GetSizeBytes(width, height) <= FreeBytes)
+        if (!_entries.ContainsKey(path) && DecodedImage.GetByteCount(width, height) <= FreeBytes)
         {
             Add(path, width, height, orientation, create);
         }
@@ -213,15 +213,13 @@ internal sealed class RenderBitmapCache : IDisposable
         ImageOrientation orientation,
         Func<ID2D1Bitmap1> create)
     {
-        long sizeBytes = GetSizeBytes(width, height);
+        long sizeBytes = DecodedImage.GetByteCount(width, height);
         var entry = new CachedBitmap(path, create(), width, height, orientation, sizeBytes);
         LinkedListNode<CachedBitmap> node = _recentlyUsed.AddFirst(entry);
         _entries.Add(path, node);
         _sizeBytes += sizeBytes;
         return entry;
     }
-
-    private static long GetSizeBytes(int width, int height) => checked((long)width * height * 4);
 
     private CachedBitmapLease Acquire(CachedBitmap bitmap)
     {

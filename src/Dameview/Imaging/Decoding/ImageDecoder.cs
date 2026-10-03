@@ -9,7 +9,6 @@ namespace Dameview.Imaging.Decoding;
 
 internal sealed class ImageDecoder : IImageDecoder
 {
-    private const int BytesPerPixel = 4;
 
     private readonly IWICImagingFactory2 _factory = new();
     private readonly NativePixelBufferPool? _uploadPool;
@@ -47,7 +46,7 @@ internal sealed class ImageDecoder : IImageDecoder
 
         int width = frame.Size.Width;
         int height = frame.Size.Height;
-        int stride = checked(width * BytesPerPixel);
+        int stride = DecodedImage.GetStride(width);
         DecodedImageUpload upload = AllocateUpload(width, height, stride, orientation);
         try
         {
@@ -138,7 +137,7 @@ internal sealed class ImageDecoder : IImageDecoder
 
         int width = frame.Size.Width;
         int height = frame.Size.Height;
-        int stride = checked(width * BytesPerPixel);
+        int stride = DecodedImage.GetStride(width);
         byte[] pixels = GC.AllocateUninitializedArray<byte>(checked(stride * height));
         converter.CopyPixels((uint)stride, pixels);
 

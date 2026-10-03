@@ -23,7 +23,7 @@ internal abstract class WicAnimationDecoder : IAnimatedImageDecoder
         converter.Initialize(frame, PixelFormat.Format32bppPBGRA).CheckError();
         int width = frame.Size.Width;
         int height = frame.Size.Height;
-        int stride = checked(width * 4);
+        int stride = DecodedImage.GetStride(width);
         byte[] pixels = GC.AllocateUninitializedArray<byte>(checked(stride * height));
         converter.CopyPixels((uint)stride, pixels);
         return new DecodedImage(width, height, stride, pixels);

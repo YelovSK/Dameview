@@ -165,7 +165,7 @@ internal sealed class TiledImageRenderer : IDisposable
                 continue;
             }
 
-            long bytes = GetTileBytes(tile);
+            long bytes = DecodedImage.GetByteCount(tile.Width, tile.Height);
             if (selectedBytes + bytes > MaximumTileBytes
                 || _nextDesiredTiles.Count == TileDecodeScheduler.MaximumPendingTiles)
             {
@@ -218,12 +218,12 @@ internal sealed class TiledImageRenderer : IDisposable
 
         if (_tiles.Remove(tile, out TileEntry? previous))
         {
-            _tileBytes -= GetTileBytes(tile);
+            _tileBytes -= DecodedImage.GetByteCount(tile.Width, tile.Height);
             previous.Bitmap.Dispose();
         }
 
         _tiles.Add(tile, new TileEntry(bitmap));
-        _tileBytes += GetTileBytes(tile);
+        _tileBytes += DecodedImage.GetByteCount(tile.Width, tile.Height);
         EvictTiles();
         _invalidate();
     }
@@ -261,12 +261,10 @@ internal sealed class TiledImageRenderer : IDisposable
             }
 
             _tiles.Remove(oldestKey);
-            _tileBytes -= GetTileBytes(oldestKey);
+            _tileBytes -= DecodedImage.GetByteCount(oldestKey.Width, oldestKey.Height);
             oldest.Bitmap.Dispose();
         }
     }
-
-    private static long GetTileBytes(ImageTile tile) => (long)tile.Width * tile.Height * 4;
 
     public void Dispose()
     {
