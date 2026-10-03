@@ -12,6 +12,7 @@ internal sealed class ViewerWorkspace : IDisposable
     private readonly List<ImageViewport> _shownViewports = [];
     private ViewportSync? _viewportSync;
     private FolderSort _sort = FolderSort.NameAscending;
+    private double _zoomStep = ImageViewport.DefaultZoomStep;
 
     internal ViewerWorkspace(Func<ViewerTab> createTab)
     {
@@ -356,12 +357,23 @@ internal sealed class ViewerWorkspace : IDisposable
         }
     }
 
+    /// <param name="zoomStep">The factor one wheel notch zooms by, in every tab.</param>
+    internal void SetZoomStep(double zoomStep)
+    {
+        _zoomStep = zoomStep;
+        foreach (ViewerSession session in Sessions)
+        {
+            session.Viewport.ZoomStep = zoomStep;
+        }
+    }
+
     public void Dispose() => DisposeNode(Root);
 
     private ViewerTab CreateTab()
     {
         ViewerTab tab = _createTab();
         tab.Session.SetSort(_sort);
+        tab.Session.Viewport.ZoomStep = _zoomStep;
         return tab;
     }
 

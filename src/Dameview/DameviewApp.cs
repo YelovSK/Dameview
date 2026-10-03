@@ -450,6 +450,11 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
             _workspace.SetSort(current.Sort);
         }
 
+        if (previous.WheelZoomPercent != current.WheelZoomPercent)
+        {
+            _workspace.SetZoomStep(1.0 + (current.WheelZoomPercent / 100.0));
+        }
+
         _window.RequestRepaint();
     }
 

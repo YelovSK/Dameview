@@ -16,6 +16,11 @@ internal static class SettingsIniSerializer
         Binding.Bool(Root, "animations", s => s.AnimationsEnabled, (s, value) => s with { AnimationsEnabled = value }),
         Binding.Bool(Root, "singleInstance", s => s.SingleInstance, (s, value) => s with { SingleInstance = value }),
         Binding.Bool(Root, "autoBalancePanes", s => s.AutoBalancePanes, (s, value) => s with { AutoBalancePanes = value }),
+        Binding.Bool(
+            Root,
+            "sharpPixelsWhenZoomed",
+            s => s.SharpPixelsWhenZoomed,
+            (s, value) => s with { SharpPixelsWhenZoomed = value }),
         Binding.Enum(Root, "sort", s => s.Sort, (s, value) => s with { Sort = value }),
         Binding.Bool(Root, "galleryEnabled", s => s.GalleryEnabled, (s, value) => s with { GalleryEnabled = value }),
         Binding.Enum(
@@ -34,6 +39,13 @@ internal static class SettingsIniSerializer
             AppSettings.MinimumGallerySizeDips,
             s => s.GallerySizeDips,
             (s, value) => s with { GallerySizeDips = value }),
+        Binding.Float(
+            Root,
+            "wheelZoomPercent",
+            AppSettings.MinimumWheelZoomPercent,
+            s => s.WheelZoomPercent,
+            (s, value) => s with { WheelZoomPercent = value },
+            AppSettings.MaximumWheelZoomPercent),
         Binding.Enum(
             "logging",
             "level",

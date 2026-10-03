@@ -40,9 +40,14 @@ internal sealed record AppSettings
     internal const float MinimumGallerySizeDips = 120.0f;
     internal const int MinimumWindowWidth = 320;
     internal const int MinimumWindowHeight = 240;
+    internal const float MinimumWheelZoomPercent = 5.0f;
+    internal const float MaximumWheelZoomPercent = 50.0f;
 
     public ThemeId Theme { get; init; } = ThemeId.Dark;
     public bool AnimationsEnabled { get; init; } = true;
+    public bool SharpPixelsWhenZoomed { get; init; }
+    /// <summary>How much one wheel notch zooms in, as a percentage of the current zoom.</summary>
+    public float WheelZoomPercent { get; init; } = 20.0f;
     public bool SingleInstance { get; init; } = true;
     public FolderSort Sort { get; init; } = FolderSort.NameAscending;
     public bool AutoBalancePanes { get; init; }
@@ -72,6 +77,13 @@ internal sealed record AppSettings
         if (!float.IsFinite(GallerySizeDips) || GallerySizeDips < MinimumGallerySizeDips)
         {
             throw new IniFormatException("Gallery size is invalid.");
+        }
+
+        if (!float.IsFinite(WheelZoomPercent)
+            || WheelZoomPercent < MinimumWheelZoomPercent
+            || WheelZoomPercent > MaximumWheelZoomPercent)
+        {
+            throw new IniFormatException("Wheel zoom is invalid.");
         }
 
         if (Window is { } window && (window.Width < MinimumWindowWidth || window.Height < MinimumWindowHeight))

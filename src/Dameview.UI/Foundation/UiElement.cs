@@ -72,10 +72,19 @@ internal abstract class UiElement
         get;
         set
         {
+            // Changing only how the element moves, like the side it slides from, keeps any
+            // entrance or exit already under way going instead of snapping it to the end.
+            bool keepsMotion = _presence is not null
+                && field is { } current
+                && value is { } next
+                && current.Response == next.Response;
             field = value;
-            _presence = value is { } transition
-                ? new AnimatedFloat(IsPresent ? 1.0f : 0.0f, transition.Response)
-                : null;
+            if (!keepsMotion)
+            {
+                _presence = value is { } transition
+                    ? new AnimatedFloat(IsPresent ? 1.0f : 0.0f, transition.Response)
+                    : null;
+            }
         }
     }
 

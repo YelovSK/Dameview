@@ -52,7 +52,11 @@ internal sealed class TiledImageRenderer : IDisposable
         _scheduler = new TileDecodeScheduler(source, CompleteTile);
     }
 
-    internal void Draw(in UiDrawContext context, float viewportWidthPixels, float viewportHeightPixels)
+    internal void Draw(
+        in UiDrawContext context,
+        float viewportWidthPixels,
+        float viewportHeightPixels,
+        BitmapInterpolationMode tileInterpolation)
     {
         // Everything below is drawn in stored image pixels.
         Matrix3x2 toViewport = _viewport.GetImageTransform(new SizeF(_source.Width, _source.Height));
@@ -64,7 +68,7 @@ internal sealed class TiledImageRenderer : IDisposable
         SelectAndRequestTiles();
         if (HasMissingTiles())
         {
-            DrawOtherLevels(context, _candidates[0].Tile.Level);
+            DrawOtherLevels(context, _candidates[0].Tile.Level, tileInterpolation);
         }
 
         foreach (TileCandidate candidate in _candidates)
@@ -72,7 +76,7 @@ internal sealed class TiledImageRenderer : IDisposable
             if (_tiles.TryGetValue(candidate.Tile, out TileEntry? entry))
             {
                 entry.LastUsed = Environment.TickCount64;
-                DrawTile(context, candidate.Tile, entry);
+                DrawTile(context, candidate.Tile, entry, tileInterpolation);
             }
         }
     }
@@ -169,7 +173,7 @@ internal sealed class TiledImageRenderer : IDisposable
     // cover the gaps until this level's tiles arrive. Off-screen ones are drawn too, which
     // is cheap and only lasts until the gaps fill. Drawing them doesn't count as use, so
     // they are the first to be evicted.
-    private void DrawOtherLevels(in UiDrawContext context, int level)
+    private void DrawOtherLevels(in UiDrawContext context, int level, BitmapInterpolationMode interpolation)
     {
         _otherLevelTiles.Clear();
         foreach (ImageTile tile in _tiles.Keys)
@@ -184,14 +188,18 @@ internal sealed class TiledImageRenderer : IDisposable
         _otherLevelTiles.Sort(static (left, right) => right.Level.CompareTo(left.Level));
         foreach (ImageTile tile in _otherLevelTiles)
         {
-            DrawTile(context, tile, _tiles[tile]);
+            DrawTile(context, tile, _tiles[tile], interpolation);
         }
     }
 
-    private void DrawTile(in UiDrawContext context, ImageTile tile, TileEntry entry)
+    private void DrawTile(
+        in UiDrawContext context,
+        ImageTile tile,
+        TileEntry entry,
+        BitmapInterpolationMode interpolation)
     {
         (int x, int y, int width, int height) = tile.GetSourceBounds(_source.Width, _source.Height);
-        context.DrawBitmap(entry.Bitmap, new Rect(x, y, width, height));
+        context.DrawBitmap(entry.Bitmap, new Rect(x, y, width, height), interpolationMode: interpolation);
     }
 
     private void SelectAndRequestTiles()

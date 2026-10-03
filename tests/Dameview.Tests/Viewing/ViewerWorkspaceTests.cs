@@ -31,6 +31,18 @@ public sealed class ViewerWorkspaceTests
     }
 
     [TestMethod]
+    public void ZoomStepReachesOpenTabsAndTabsOpenedLater()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+
+        workspace.SetZoomStep(1.35);
+        workspace.OpenImageInNewTab(@"C:\second\image.png");
+
+        Assert.AreEqual(1.35, workspace.Tabs[0].Session.Viewport.ZoomStep);
+        Assert.AreEqual(1.35, workspace.Tabs[1].Session.Viewport.ZoomStep);
+    }
+
+    [TestMethod]
     public void DuplicatingTheActiveTabSelectsAFreshSessionWithTheSameImage()
     {
         using var workspace = new ViewerWorkspace(CreateTab);

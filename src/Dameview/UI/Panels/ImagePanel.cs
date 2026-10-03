@@ -58,6 +58,17 @@ internal sealed class ImagePanel : UiElement, IDisposable
         _animator.Started += InvalidateVisual;
     }
 
+    /// <summary>Whether zooming past 100% shows the image's pixels as squares instead of smoothing them.</summary>
+    internal bool SharpPixels
+    {
+        get;
+        set
+        {
+            field = value;
+            InvalidateVisual();
+        }
+    }
+
     internal float ZoomPercentage => _viewport.Scale * 100.0f;
     internal SizeF ImageSize => _viewport.ImageSize;
     internal TimeSpan? NextAnimationFrameDelay => _imageAnimation?.NextFrameDelay ?? SettleDelay;
@@ -220,7 +231,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
     {
         if (_tiledImage is { } tiledImage)
         {
-            tiledImage.Draw(context, ToPixels(Bounds.Width), ToPixels(Bounds.Height));
+            tiledImage.Draw(context, ToPixels(Bounds.Width), ToPixels(Bounds.Height), Interpolation);
             return;
         }
 
@@ -241,6 +252,14 @@ internal sealed class ImagePanel : UiElement, IDisposable
         // Building the rescale is expensive, drawing one we already built is not. So while things
         // move, reuse a matching one if we have it and fall back to a plain draw if we don't.
         bool settling = IsSettling(image, placement);
+        if (Interpolation == BitmapInterpolationMode.NearestNeighbor)
+        {
+            // The resampled copy would smooth away exactly the pixels this is meant to show.
+            _presentationCache.Clear();
+            DrawImage(context, image, placement, Interpolation);
+            return;
+        }
+
         ImagePresentation? presentation = settling
             || _imageAnimation is not null
             || Root?.IsResizing == true
@@ -263,6 +282,10 @@ internal sealed class ImagePanel : UiElement, IDisposable
                 cached.Bitmap.Size.Width,
                 cached.Bitmap.Size.Height));
     }
+
+    private BitmapInterpolationMode Interpolation => SharpPixels && _viewport.Scale > 1.0f
+        ? BitmapInterpolationMode.NearestNeighbor
+        : BitmapInterpolationMode.Linear;
 
     /// <summary>How long until a moved image is drawn sharply, if it is waiting to be.</summary>
     private TimeSpan? SettleDelay
@@ -304,12 +327,16 @@ internal sealed class ImagePanel : UiElement, IDisposable
     }
 
     /// <param name="placement">Maps the image's pixels onto viewport pixels.</param>
-    private static void DrawImage(in UiDrawContext context, ID2D1Bitmap1 image, Matrix3x2 placement)
+    private static void DrawImage(
+        in UiDrawContext context,
+        ID2D1Bitmap1 image,
+        Matrix3x2 placement,
+        BitmapInterpolationMode interpolation = BitmapInterpolationMode.Linear)
     {
         using TransformScope scope = context.PushTransform(
             placement * Matrix3x2.CreateScale(context.PixelsToDips(1.0f)));
         var bounds = new Rect(0.0f, 0.0f, image.PixelSize.Width, image.PixelSize.Height);
-        context.DrawBitmap(image, bounds, bounds);
+        context.DrawBitmap(image, bounds, bounds, interpolation);
     }
 
     // Thumbnails come already turned upright, so previews skip the image's orientation.

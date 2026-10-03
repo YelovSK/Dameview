@@ -78,6 +78,7 @@ public sealed class SettingsPanelTests
 
         root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Down), settings, wrapFocus: true, directionalNavigation: true);
         Assert.AreEqual(FolderSort.DateModifiedNewest, commands.Settings.Sort);
@@ -100,6 +101,7 @@ public sealed class SettingsPanelTests
         var size = new SizeF(440.0f, 220.0f);
         root.Arrange(size);
         root.SetFocus(settings.InitialFocus);
+        root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
@@ -152,6 +154,7 @@ public sealed class SettingsPanelTests
             UpdateStatus.Available,
             new AppRelease("v2.0.0", new Version(2, 0, 0, 0))));
 
+        root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);

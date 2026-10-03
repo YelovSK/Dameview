@@ -2,6 +2,7 @@ using System.Drawing;
 using Dameview.Commands;
 using Dameview.Navigation;
 using Dameview.Settings;
+using Dameview.UI.Animation;
 using Dameview.UI.Components;
 using Dameview.UI.Foundation;
 using Dameview.UI.Layout;
@@ -15,6 +16,7 @@ internal sealed class SettingsPanel : ModalContent
     {
         Appearance,
         Layout,
+        Image,
         Sorting,
         Behavior,
         Updates,
@@ -48,6 +50,9 @@ internal sealed class SettingsPanel : ModalContent
     private readonly SegmentedControl<GalleryPlacement> _galleryPlacement;
     private readonly SegmentedControl<GalleryThumbnailSize> _galleryThumbnailSize;
     private readonly Toggle _animationsToggle;
+    private readonly Toggle _sharpPixelsToggle;
+    private readonly Slider _wheelZoomSlider;
+    private readonly SettingsRow _wheelZoomRow;
     private readonly Toggle _singleInstanceToggle;
     private readonly Toggle _autoBalancePanesToggle;
     private readonly Dropdown<SortField> _sortField;
@@ -58,12 +63,14 @@ internal sealed class SettingsPanel : ModalContent
     private readonly SettingsRow _sortFieldRow;
     private readonly SettingsRow _sortDirectionRow;
     private readonly TabStrip<SettingsTab> _tabs;
-    private readonly ScrollView _appearancePage;
-    private readonly ScrollView _layoutPage;
-    private readonly ScrollView _behaviorPage;
-    private readonly ScrollView _sortingPage;
-    private readonly ScrollView _updatesPage;
+    // Pages sit side by side like one long strip, this far apart, and the pages area cuts them off.
+    private const float PageGapDips = 24.0f;
+    private static readonly UiTransition PageTransition = new(Response: 22.0);
+
+    // In the order of SettingsTab, so a tab indexes its own page.
+    private readonly ScrollView[] _tabPages;
     private readonly Overlay _pages;
+    private SettingsTab _shownTab;
     private readonly TextBlock _title;
     private readonly TextBlock _message;
     private readonly TextBlock _updateStatus;
@@ -133,6 +140,24 @@ internal sealed class SettingsPanel : ModalContent
             "Animations",
             value: true,
             enabled => Update(settings => settings with { AnimationsEnabled = enabled }));
+        _sharpPixelsToggle = new Toggle(
+            "Show pixels when zoomed in",
+            value: false,
+            enabled => Update(settings => settings with { SharpPixelsWhenZoomed = enabled }))
+        {
+            ToolTip = new("Show individual pixels instead of smoothing them when zoomed past 100%"),
+        };
+        _wheelZoomSlider = new Slider(
+            AppSettings.MinimumWheelZoomPercent,
+            AppSettings.MaximumWheelZoomPercent,
+            step: 1.0,
+            value: 20.0,
+            percent => Update(settings => settings with { WheelZoomPercent = (float)percent }),
+            percent => $"{percent:0}%");
+        _wheelZoomRow = new SettingsRow(
+            "Zoom speed",
+            _wheelZoomSlider,
+            "How much one step of the mouse wheel zooms in or out");
         _singleInstanceToggle = new Toggle(
             "Open files in existing window (restart required)",
             value: true,
@@ -173,16 +198,23 @@ internal sealed class SettingsPanel : ModalContent
         _updateButton = new Button("Check for updates", _commands.ActivateUpdate);
 
         static ScrollView Page(params UiElement[] settings) =>
-            new(new StackPanel(UiOrientation.Vertical, settings) { Spacing = UiDesign.LargeSpacing });
+            new(new StackPanel(UiOrientation.Vertical, settings) { Spacing = UiDesign.LargeSpacing })
+            {
+                Transition = PageTransition,
+            };
 
-        _appearancePage = Page(_themeRow, _animationsToggle);
-        _layoutPage = Page(
-            new SettingsGroup("Gallery", _galleryEnabledToggle, _galleryPlacementRow, _galleryThumbnailSizeRow),
-            new SettingsGroup("Panes", _autoBalancePanesToggle));
-        _behaviorPage = Page(_singleInstanceToggle);
-        _sortingPage = Page(_sortFieldRow, _sortDirectionRow);
-        _updatesPage = Page(_updateStatus, _updateButton);
-        _pages = new Overlay(_appearancePage, _layoutPage, _sortingPage, _behaviorPage, _updatesPage)
+        _tabPages =
+        [
+            Page(_themeRow, _animationsToggle),
+            Page(
+                new SettingsGroup("Gallery", _galleryEnabledToggle, _galleryPlacementRow, _galleryThumbnailSizeRow),
+                new SettingsGroup("Panes", _autoBalancePanesToggle)),
+            Page(_sharpPixelsToggle, _wheelZoomRow),
+            Page(_sortFieldRow, _sortDirectionRow),
+            Page(_singleInstanceToggle),
+            Page(_updateStatus, _updateButton),
+        ];
+        _pages = new Overlay(_tabPages)
         {
             Margin = new UiThickness(0.0f, UiDesign.SmallSpacing, 0.0f, 0.0f),
         };
@@ -190,6 +222,7 @@ internal sealed class SettingsPanel : ModalContent
             [
                 new("Appearance", SettingsTab.Appearance),
                 new("Layout", SettingsTab.Layout),
+                new("Image", SettingsTab.Image),
                 new("Sorting", SettingsTab.Sorting),
                 new("Behavior", SettingsTab.Behavior),
                 new("Updates", SettingsTab.Updates),
@@ -214,7 +247,7 @@ internal sealed class SettingsPanel : ModalContent
         ApplyUpdateState(new UpdateState(UpdateStatus.Unavailable));
     }
 
-    internal override SizeF PreferredSize => new(560.0f, 500.0f);
+    internal override SizeF PreferredSize => new(600.0f, 500.0f);
     internal override UiElement InitialFocus => _tabs.SelectedSegment;
 
     internal void ApplySettings(AppSettings settings)
@@ -224,6 +257,8 @@ internal sealed class SettingsPanel : ModalContent
         _galleryPlacement.SelectedValue = settings.GalleryPlacement;
         _galleryThumbnailSize.SelectedValue = settings.GalleryThumbnailSize;
         _animationsToggle.Value = settings.AnimationsEnabled;
+        _sharpPixelsToggle.Value = settings.SharpPixelsWhenZoomed;
+        _wheelZoomSlider.Value = settings.WheelZoomPercent;
         _singleInstanceToggle.Value = settings.SingleInstance;
         _autoBalancePanesToggle.Value = settings.AutoBalancePanes;
 
@@ -268,11 +303,25 @@ internal sealed class SettingsPanel : ModalContent
     private void SelectTab(SettingsTab tab)
     {
         _popupHost.Close();
-        _appearancePage.IsVisible = tab == SettingsTab.Appearance;
-        _layoutPage.IsVisible = tab == SettingsTab.Layout;
-        _behaviorPage.IsVisible = tab == SettingsTab.Behavior;
-        _sortingPage.IsVisible = tab == SettingsTab.Sorting;
-        _updatesPage.IsVisible = tab == SettingsTab.Updates;
+        // The new page slides in from the side its tab is on, and the old one leaves the other way.
+        float slide = Math.Sign(tab - _shownTab) * (_pages.Bounds.Width + PageGapDips);
+        for (int index = 0; index < _tabPages.Length; index++)
+        {
+            ScrollView page = _tabPages[index];
+            bool present = index == (int)tab;
+            if (page.IsPresent == present)
+            {
+                continue;
+            }
+
+            page.Transition = PageTransition with
+            {
+                HiddenOffset = new PointF((present ? 1.0f : -1.0f) * slide, 0.0f),
+            };
+            page.IsPresent = present;
+        }
+
+        _shownTab = tab;
     }
 
     private void SetSortField(SortField field)

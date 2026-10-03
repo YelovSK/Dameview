@@ -8,8 +8,9 @@ namespace Dameview.Viewing;
 // beyond the final transform from stored pixels.
 internal sealed class ImageViewport
 {
+    internal const double DefaultZoomStep = 1.2;
+
     private const float MaximumScale = 64.0f;
-    private const double ZoomStep = 1.2;
 
     private SizeF _viewportSize;
     private SizeF _storedImageSize;
@@ -31,6 +32,8 @@ internal sealed class ImageViewport
     internal PointF ImageCenter => new(_imageSize.Width / 2.0f, _imageSize.Height / 2.0f);
     internal PointF ViewportCenter => new(_viewportSize.Width / 2.0f, _viewportSize.Height / 2.0f);
     internal float FitScale => GetFitScale();
+    /// <summary>The factor one wheel notch zooms by.</summary>
+    internal double ZoomStep { get; set; } = DefaultZoomStep;
 
     internal void SetViewportSize(Size size)
     {

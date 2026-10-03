@@ -123,5 +123,6 @@ internal sealed class TextBlock : UiElement
             DrawTextOptions.Clip);
     }
 
-    protected override bool HitTestCore(PointF position) => false;
+    // Text is only something to point at when it has a tooltip to show.
+    protected override bool HitTestCore(PointF position) => ToolTip is not null;
 }

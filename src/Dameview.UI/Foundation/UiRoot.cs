@@ -461,7 +461,8 @@ internal sealed class UiRoot
 
     private static void CollectFocusable(UiElement element, List<UiElement> result)
     {
-        if (!element.IsVisible)
+        // A leaving element stays visible until its exit finishes, but already takes no input.
+        if (!element.IsVisible || !element.IsPresent)
         {
             return;
         }

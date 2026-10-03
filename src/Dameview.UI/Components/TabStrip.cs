@@ -1,8 +1,6 @@
 using System.Drawing;
 using Dameview.UI.Foundation;
 using Vortice.Direct2D1;
-using Vortice.DirectWrite;
-using Vortice.Mathematics;
 
 namespace Dameview.UI.Components;
 
@@ -13,37 +11,9 @@ internal sealed class TabStrip<T>(
     Action<T> changed)
     : ChoiceStrip<T>(choices, selectedValue, changed, segmentHeight: 36.0f, spacing: UiDesign.SmallSpacing, padding: 0.0f)
 {
-    private static readonly UiFont LabelFont = new(UiDesign.BodyFontSize, FontWeight.SemiBold, TextAlignment.Center);
-
-    protected override void DrawSegment(
-        in UiDrawContext context,
-        RectangleF bounds,
-        string label,
-        bool selected,
-        float hoverAmount,
-        float pressedAmount)
-    {
-        var shape = new RoundedRectangle(bounds, UiDesign.ControlCornerRadius, UiDesign.ControlCornerRadius);
-        if (selected)
-        {
-            context.FillRoundedRectangle(shape, context.Palette.Accent, 0.18f);
-        }
-
-        if (hoverAmount > 0.0f)
-        {
-            context.FillRoundedRectangle(shape, context.Palette.ControlHover, hoverAmount);
-        }
-
-        if (pressedAmount > 0.0f)
-        {
-            context.FillRoundedRectangle(shape, context.Palette.ControlPressed, pressedAmount);
-        }
-
-        context.DrawText(
-            label,
-            LabelFont,
-            new Rect(bounds.X, bounds.Y, bounds.Width, bounds.Height),
-            context.Palette.PrimaryText,
-            DrawTextOptions.Clip);
-    }
+    protected override void DrawBackground(in UiDrawContext context, RectangleF selection) =>
+        context.FillRoundedRectangle(
+            new RoundedRectangle(selection, UiDesign.ControlCornerRadius, UiDesign.ControlCornerRadius),
+            context.Palette.Accent,
+            0.18f);
 }

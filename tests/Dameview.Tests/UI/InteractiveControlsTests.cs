@@ -180,6 +180,68 @@ public sealed class InteractiveControlsTests
         Assert.IsFalse(dropdown.IsOpen);
     }
 
+    [TestMethod]
+    public void SliderKeysMoveByStepsAndStopAtTheEnds()
+    {
+        var changes = new List<double>();
+        var slider = new Slider(10.0, 50.0, 5.0, 20.0, changes.Add);
+        var root = new UiRoot(slider, UiDpi.Default, TestTextLayouts.Shared);
+        root.Arrange(new SizeF(216.0f, 36.0f));
+        root.SetFocus(slider);
+
+        root.HandleKey(new WindowKeyEvent(WindowKey.Right), slider, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new WindowKeyEvent(WindowKey.End), slider, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new WindowKeyEvent(WindowKey.Right), slider, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new WindowKeyEvent(WindowKey.Home), slider, wrapFocus: true, directionalNavigation: true);
+
+        CollectionAssert.AreEqual(new[] { 25.0, 50.0, 10.0 }, changes);
+    }
+
+    [TestMethod]
+    public void SliderDraggingSnapsToTheNearestStep()
+    {
+        var changes = new List<double>();
+        var slider = new Slider(0.0, 100.0, 10.0, 0.0, changes.Add);
+        var root = new UiRoot(slider, UiDpi.Default, TestTextLayouts.Shared);
+        // Without a value label, the handle travels from 6 to 210, half a handle in from each end.
+        root.Arrange(new SizeF(216.0f, 36.0f));
+
+        root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, new PointF(70.0f, 18.0f)));
+        root.HandlePointer(Pointer(WindowPointerEventKind.Moved, new PointF(400.0f, 18.0f)));
+        root.HandlePointer(Pointer(WindowPointerEventKind.Released, new PointF(400.0f, 18.0f)));
+
+        CollectionAssert.AreEqual(new[] { 30.0, 100.0 }, changes);
+        Assert.AreEqual(100.0, slider.Value);
+    }
+
+    [TestMethod]
+    public void SliderWheelStepsPerNotchAndAddsUpTouchpadPieces()
+    {
+        var changes = new List<double>();
+        var slider = new Slider(0.0, 10.0, 1.0, 5.0, changes.Add);
+        var root = new UiRoot(slider, UiDpi.Default, TestTextLayouts.Shared);
+        root.Arrange(new SizeF(216.0f, 36.0f));
+        PointF center = new(108.0f, 18.0f);
+
+        root.HandlePointer(new WindowPointerEvent(WindowPointerEventKind.Wheel, center, WheelDelta: 120));
+        root.HandlePointer(new WindowPointerEvent(WindowPointerEventKind.Wheel, center, WheelDelta: -60));
+        root.HandlePointer(new WindowPointerEvent(WindowPointerEventKind.Wheel, center, WheelDelta: -60));
+
+        CollectionAssert.AreEqual(new[] { 6.0, 5.0 }, changes);
+    }
+
+    [TestMethod]
+    public void SettingASliderValueSnapsWithoutReportingAChange()
+    {
+        int changes = 0;
+        var slider = new Slider(0.0, 1.0, 0.25, 0.0, _ => changes++);
+
+        slider.Value = 0.6;
+
+        Assert.AreEqual(0.5, slider.Value);
+        Assert.AreEqual(0, changes);
+    }
+
     private static WindowPointerEvent Pointer(WindowPointerEventKind kind, PointF position)
     {
         return new WindowPointerEvent(kind, position, PointerButton.Primary);

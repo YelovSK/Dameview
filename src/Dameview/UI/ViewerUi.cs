@@ -46,6 +46,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private bool _chromeVisible = true;
     // Read when a pane view is created, so panes opened later show the current bindings.
     private ViewerKeyBindings _keyBindings = ViewerKeyBindings.Defaults;
+    private bool _sharpPixels;
 
     internal ViewerUi(
         ID2D1DeviceContext deviceContext,
@@ -76,7 +77,10 @@ internal sealed class ViewerUi : UiElement, IDisposable
                 index => app.SelectTab(pane, index),
                 ShowTabPreview,
                 HandleTabDragPointer,
-                _keyBindings));
+                _keyBindings)
+            {
+                SharpPixels = _sharpPixels,
+            });
         _activePaneView = FindPaneView(_activePane)
             ?? throw new InvalidOperationException("The active pane view was not created.");
         _workspaceView.SetActivePane(_activePane);
@@ -267,6 +271,12 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _splitView.SetDividerOffset(settings.GallerySizeDips);
         _galleryPanel.SetThumbnailSize(settings.GalleryThumbnailSize);
         _settingsPanel.ApplySettings(settings);
+        _sharpPixels = settings.SharpPixelsWhenZoomed;
+        foreach (ViewerPaneView paneView in _workspaceView.PaneViews)
+        {
+            paneView.SharpPixels = _sharpPixels;
+        }
+
         ApplyActivePaneState(_activePane.ActiveSession.State);
         if (_animationsEnabled == settings.AnimationsEnabled)
         {

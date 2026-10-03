@@ -117,6 +117,12 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         UpdateChromeVisibility();
     }
 
+    internal bool SharpPixels
+    {
+        get => _imagePanel.SharpPixels;
+        set => _imagePanel.SharpPixels = value;
+    }
+
     internal void ApplyKeyBindings(ViewerKeyBindings keyBindings) =>
         _emptyStatePanel.ApplyKeyBindings(keyBindings);
 

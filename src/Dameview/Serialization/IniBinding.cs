@@ -28,11 +28,12 @@ internal abstract class IniBinding<TModel>
         string key,
         float minimum,
         Func<TModel, float> get,
-        Func<TModel, float, TModel> set) =>
+        Func<TModel, float, TModel> set,
+        float maximum = float.MaxValue) =>
         new(
             section,
             key,
-            text => IniValue.ParseFloat(text) is float value && value >= minimum ? value : null,
+            text => IniValue.ParseFloat(text) is float value && value >= minimum && value <= maximum ? value : null,
             IniValue.FormatFloat,
             get,
             set);

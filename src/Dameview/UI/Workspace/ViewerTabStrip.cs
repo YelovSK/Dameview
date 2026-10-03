@@ -40,6 +40,9 @@ internal sealed class ViewerTabStrip : UiElement
     private readonly AnimatedFloat _drawnTabWidth;
     // In tabs rather than dips, so it stays on its tab while the width animates.
     private readonly AnimatedFloat _drawnSelection;
+    // How far each tab's label has brightened under the pointer. Hover only touches the label,
+    // so it never stacks with the selection highlight.
+    private AnimatedFloat[] _hoverAmounts = [];
     private ViewerTabInfo[] _tabs = [];
     private int _selectedIndex;
     private int _hoveredIndex = -1;
@@ -122,6 +125,7 @@ internal sealed class ViewerTabStrip : UiElement
         {
             SetHoveredTab(-1);
             _hoveringClose = false;
+            _hoverAmounts = [.. _tabs.Select(_ => new AnimatedFloat(0.0f, UiDesign.HoverResponse))];
         }
 
         _drawnTabWidth.SetTarget(TabWidth);
@@ -277,7 +281,18 @@ internal sealed class ViewerTabStrip : UiElement
     protected override bool UpdateCore(in UiUpdateContext context)
     {
         _addButton.Arrange(GetAddButtonBounds());
-        return _scrollOffset.Update(context);
+        bool hoverChanging = false;
+        foreach (AnimatedFloat hoverAmount in _hoverAmounts)
+        {
+            hoverChanging |= hoverAmount.Update(context);
+        }
+
+        if (hoverChanging)
+        {
+            InvalidateVisual();
+        }
+
+        return _scrollOffset.Update(context) | hoverChanging;
     }
 
     protected override void OnVisualStateChanged()
@@ -316,16 +331,6 @@ internal sealed class ViewerTabStrip : UiElement
 
     private void DrawTab(in UiDrawContext context, int index, float x, float width)
     {
-        if (index == _hoveredIndex)
-        {
-            context.FillRoundedRectangle(
-                new RoundedRectangle(
-                    new RectangleF(x, 0.0f, width, Bounds.Height),
-                    UiDesign.ControlCornerRadius,
-                    UiDesign.ControlCornerRadius),
-                context.Palette.ControlHover);
-        }
-
         bool showsClose = ShowsClose(index, width);
         float labelEnd = showsClose ? width - CloseWidthDips - UiDesign.SmallSpacing : width - LabelPaddingDips;
         context.DrawText(
@@ -336,7 +341,9 @@ internal sealed class ViewerTabStrip : UiElement
                 0.0f,
                 MathF.Max(0.0f, labelEnd - LabelPaddingDips),
                 Bounds.Height),
-            context.Palette.PrimaryText,
+            index == _selectedIndex
+                ? context.Palette.PrimaryText
+                : Color4.Lerp(context.Palette.SecondaryText, context.Palette.PrimaryText, _hoverAmounts[index].Current),
             DrawTextOptions.Clip);
 
         if (!showsClose)
@@ -407,6 +414,17 @@ internal sealed class ViewerTabStrip : UiElement
         if (_hoveredIndex == index)
         {
             return;
+        }
+
+        // The tabs may have just been replaced, leaving the old index past the end.
+        if (_hoveredIndex >= 0 && _hoveredIndex < _hoverAmounts.Length)
+        {
+            _hoverAmounts[_hoveredIndex].SetTarget(0.0f);
+        }
+
+        if (index >= 0)
+        {
+            _hoverAmounts[index].SetTarget(1.0f);
         }
 
         _hoveredIndex = index;
