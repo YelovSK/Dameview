@@ -46,6 +46,13 @@ internal sealed class ViewportAnimator
         StopMomentum();
     }
 
+    /// <summary>Stops whatever is under way too, since it was aimed for the old size.</summary>
+    internal void SetViewportSize(Size size)
+    {
+        Reset();
+        _viewport.SetViewportSize(size);
+    }
+
     /// <summary>
     /// Turns the image right away, and eases it on screen from how it was shown into the new
     /// orientation.

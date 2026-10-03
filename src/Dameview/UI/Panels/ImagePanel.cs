@@ -109,8 +109,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
         _animator.Started -= InvalidateVisual;
         _animator = animator;
         _animator.Started += InvalidateVisual;
-        _animator.Reset();
-        _viewport.SetViewportSize(_viewportPixelSize);
+        _animator.SetViewportSize(_viewportPixelSize);
     }
 
     internal void SetImage(ImageRepresentation image, bool isPreview)
@@ -171,8 +170,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
         }
 
         _viewportPixelSize = pixelSize;
-        _animator.Reset();
-        _viewport.SetViewportSize(pixelSize);
+        _animator.SetViewportSize(pixelSize);
     }
 
     protected override bool UpdateCore(in UiUpdateContext context)
