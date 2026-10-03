@@ -45,19 +45,19 @@ internal sealed class SettingsPanel : ModalContent
     private readonly Button _closeButton;
     private readonly Dropdown<ThemeId> _themeDropdown;
     private readonly Toggle _galleryEnabledToggle;
-    private readonly Dropdown<GalleryPlacement> _galleryPlacementDropdown;
-    private readonly Dropdown<GalleryThumbnailSize> _galleryThumbnailSizeDropdown;
+    private readonly SegmentedControl<GalleryPlacement> _galleryPlacement;
+    private readonly SegmentedControl<GalleryThumbnailSize> _galleryThumbnailSize;
     private readonly Toggle _animationsToggle;
     private readonly Toggle _singleInstanceToggle;
     private readonly Toggle _autoBalancePanesToggle;
     private readonly Dropdown<SortField> _sortField;
-    private readonly Dropdown<SortDirection> _sortDirection;
+    private readonly SegmentedControl<SortDirection> _sortDirection;
     private readonly SettingsRow _themeRow;
     private readonly SettingsRow _galleryPlacementRow;
     private readonly SettingsRow _galleryThumbnailSizeRow;
     private readonly SettingsRow _sortFieldRow;
     private readonly SettingsRow _sortDirectionRow;
-    private readonly TabStrip _tabs;
+    private readonly TabStrip<SettingsTab> _tabs;
     private readonly ScrollView _appearancePage;
     private readonly ScrollView _layoutPage;
     private readonly ScrollView _behaviorPage;
@@ -101,7 +101,7 @@ internal sealed class SettingsPanel : ModalContent
         _themeDropdown = new Dropdown<ThemeId>(
             popupHost,
             Themes.All
-                .Select(theme => new DropdownOption<ThemeId>(theme.DisplayName, theme.Id))
+                .Select(theme => new Choice<ThemeId>(theme.DisplayName, theme.Id))
                 .ToArray(),
             ThemeId.Dark,
             theme => Update(settings => settings with { Theme = theme }));
@@ -110,19 +110,17 @@ internal sealed class SettingsPanel : ModalContent
             "Show gallery",
             value: true,
             enabled => Update(settings => settings with { GalleryEnabled = enabled }));
-        _galleryPlacementDropdown = new Dropdown<GalleryPlacement>(
-            popupHost,
+        _galleryPlacement = new SegmentedControl<GalleryPlacement>(
             [
-                new("Right", GalleryPlacement.Right),
                 new("Left", GalleryPlacement.Left),
+                new("Right", GalleryPlacement.Right),
                 new("Top", GalleryPlacement.Top),
                 new("Bottom", GalleryPlacement.Bottom),
             ],
             GalleryPlacement.Right,
             placement => Update(settings => settings with { GalleryPlacement = placement }));
-        _galleryPlacementRow = new SettingsRow("Gallery position", _galleryPlacementDropdown);
-        _galleryThumbnailSizeDropdown = new Dropdown<GalleryThumbnailSize>(
-            popupHost,
+        _galleryPlacementRow = new SettingsRow("Position", _galleryPlacement);
+        _galleryThumbnailSize = new SegmentedControl<GalleryThumbnailSize>(
             [
                 new("Small", GalleryThumbnailSize.Small),
                 new("Medium", GalleryThumbnailSize.Medium),
@@ -130,9 +128,7 @@ internal sealed class SettingsPanel : ModalContent
             ],
             GalleryThumbnailSize.Medium,
             size => Update(settings => settings with { GalleryThumbnailSize = size }));
-        _galleryThumbnailSizeRow = new SettingsRow(
-            "Gallery thumbnails",
-            _galleryThumbnailSizeDropdown);
+        _galleryThumbnailSizeRow = new SettingsRow("Thumbnail size", _galleryThumbnailSize);
         _animationsToggle = new Toggle(
             "Animations",
             value: true,
@@ -144,7 +140,10 @@ internal sealed class SettingsPanel : ModalContent
         _autoBalancePanesToggle = new Toggle(
             "Balance panes automatically",
             value: false,
-            enabled => Update(settings => settings with { AutoBalancePanes = enabled }));
+            enabled => Update(settings => settings with { AutoBalancePanes = enabled }))
+        {
+            ToolTip = new("Give all panes equal space whenever a pane is split or closed"),
+        };
 
         _sortField = new Dropdown<SortField>(
             popupHost,
@@ -156,8 +155,7 @@ internal sealed class SettingsPanel : ModalContent
             ],
             SortField.Name,
             SetSortField);
-        _sortDirection = new Dropdown<SortDirection>(
-            popupHost,
+        _sortDirection = new SegmentedControl<SortDirection>(
             [
                 new("A–Z", SortDirection.First),
                 new("Z–A", SortDirection.Second),
@@ -179,10 +177,8 @@ internal sealed class SettingsPanel : ModalContent
 
         _appearancePage = Page(_themeRow, _animationsToggle);
         _layoutPage = Page(
-            _galleryEnabledToggle,
-            _galleryPlacementRow,
-            _galleryThumbnailSizeRow,
-            _autoBalancePanesToggle);
+            new SettingsGroup("Gallery", _galleryEnabledToggle, _galleryPlacementRow, _galleryThumbnailSizeRow),
+            new SettingsGroup("Panes", _autoBalancePanesToggle));
         _behaviorPage = Page(_singleInstanceToggle);
         _sortingPage = Page(_sortFieldRow, _sortDirectionRow);
         _updatesPage = Page(_updateStatus, _updateButton);
@@ -190,9 +186,15 @@ internal sealed class SettingsPanel : ModalContent
         {
             Margin = new UiThickness(0.0f, UiDesign.SmallSpacing, 0.0f, 0.0f),
         };
-        _tabs = new TabStrip(
-            ["Appearance", "Layout", "Sorting", "Behavior", "Updates"],
-            (int)SettingsTab.Appearance,
+        _tabs = new TabStrip<SettingsTab>(
+            [
+                new("Appearance", SettingsTab.Appearance),
+                new("Layout", SettingsTab.Layout),
+                new("Sorting", SettingsTab.Sorting),
+                new("Behavior", SettingsTab.Behavior),
+                new("Updates", SettingsTab.Updates),
+            ],
+            SettingsTab.Appearance,
             SelectTab);
 
         var header = new StackPanel(UiOrientation.Horizontal, _title, _closeButton)
@@ -207,20 +209,20 @@ internal sealed class SettingsPanel : ModalContent
             Margin = new UiThickness(24.0f, 20.0f, 24.0f, 12.0f),
         });
 
-        SelectTab((int)SettingsTab.Appearance);
+        SelectTab(SettingsTab.Appearance);
         ApplySettings(new AppSettings());
         ApplyUpdateState(new UpdateState(UpdateStatus.Unavailable));
     }
 
-    internal override SizeF PreferredSize => new(500.0f, 460.0f);
-    internal override UiElement InitialFocus => _tabs.SelectedTab;
+    internal override SizeF PreferredSize => new(560.0f, 500.0f);
+    internal override UiElement InitialFocus => _tabs.SelectedSegment;
 
     internal void ApplySettings(AppSettings settings)
     {
         _themeDropdown.SelectedValue = settings.Theme;
         _galleryEnabledToggle.Value = settings.GalleryEnabled;
-        _galleryPlacementDropdown.SelectedValue = settings.GalleryPlacement;
-        _galleryThumbnailSizeDropdown.SelectedValue = settings.GalleryThumbnailSize;
+        _galleryPlacement.SelectedValue = settings.GalleryPlacement;
+        _galleryThumbnailSize.SelectedValue = settings.GalleryThumbnailSize;
         _animationsToggle.Value = settings.AnimationsEnabled;
         _singleInstanceToggle.Value = settings.SingleInstance;
         _autoBalancePanesToggle.Value = settings.AutoBalancePanes;
@@ -263,14 +265,14 @@ internal sealed class SettingsPanel : ModalContent
         InvalidateLayout();
     }
 
-    private void SelectTab(int index)
+    private void SelectTab(SettingsTab tab)
     {
         _popupHost.Close();
-        _appearancePage.IsVisible = index == (int)SettingsTab.Appearance;
-        _layoutPage.IsVisible = index == (int)SettingsTab.Layout;
-        _behaviorPage.IsVisible = index == (int)SettingsTab.Behavior;
-        _sortingPage.IsVisible = index == (int)SettingsTab.Sorting;
-        _updatesPage.IsVisible = index == (int)SettingsTab.Updates;
+        _appearancePage.IsVisible = tab == SettingsTab.Appearance;
+        _layoutPage.IsVisible = tab == SettingsTab.Layout;
+        _behaviorPage.IsVisible = tab == SettingsTab.Behavior;
+        _sortingPage.IsVisible = tab == SettingsTab.Sorting;
+        _updatesPage.IsVisible = tab == SettingsTab.Updates;
     }
 
     private void SetSortField(SortField field)
@@ -292,8 +294,8 @@ internal sealed class SettingsPanel : ModalContent
 
     private void UpdateDirectionLabels(SortDefinition sort)
     {
-        _sortDirection.SetOptionLabel(SortDirection.First, sort.FirstLabel);
-        _sortDirection.SetOptionLabel(SortDirection.Second, sort.SecondLabel);
+        _sortDirection.SetChoiceLabel(SortDirection.First, sort.FirstLabel);
+        _sortDirection.SetChoiceLabel(SortDirection.Second, sort.SecondLabel);
     }
 
     private readonly record struct SortDefinition(

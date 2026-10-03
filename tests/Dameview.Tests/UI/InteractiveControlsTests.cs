@@ -40,25 +40,37 @@ public sealed class InteractiveControlsTests
     }
 
     [TestMethod]
-    public void TabArrowKeysSelectAndFocusTheAdjacentTab()
+    public void SegmentArrowKeysSelectAndFocusTheAdjacentSegment()
     {
-        int selected = -1;
-        var tabs = new TabStrip(["General", "Gallery"], 0, index => selected = index);
-        var root = new UiRoot(tabs, UiDpi.Default, TestTextLayouts.Shared);
+        string? selected = null;
+        var segments = new SegmentedControl<string>(
+            [new("General", "general"), new("Gallery", "gallery")],
+            "general",
+            value => selected = value);
+        var root = new UiRoot(segments, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(300.0f, 36.0f));
-        UiElement first = tabs.Children[0].Children[0];
-        UiElement second = tabs.Children[0].Children[1];
-        root.SetFocus(first);
+        UiElement second = segments.Children[0].Children[1];
+        root.SetFocus(segments.SelectedSegment);
 
         Assert.IsTrue(root.HandleKey(
             new WindowKeyEvent(WindowKey.Right),
-            tabs,
+            segments,
             wrapFocus: true,
             directionalNavigation: true));
 
-        Assert.AreEqual(1, tabs.SelectedIndex);
-        Assert.AreEqual(1, selected);
+        Assert.AreEqual("gallery", segments.SelectedValue);
+        Assert.AreEqual("gallery", selected);
         Assert.AreSame(second, root.FocusedElement);
+    }
+
+    [TestMethod]
+    public void OnlyTheSelectedSegmentIsATabStop()
+    {
+        var segments = new SegmentedControl<int>([new("One", 1), new("Two", 2), new("Three", 3)], 2, _ => { });
+
+        Assert.IsFalse(segments.Children[0].Children[0].IsFocusable);
+        Assert.IsTrue(segments.Children[0].Children[1].IsFocusable);
+        Assert.IsFalse(segments.Children[0].Children[2].IsFocusable);
     }
 
     [TestMethod]

@@ -6,14 +6,25 @@ using Vortice.Mathematics;
 
 namespace Dameview.UI.Components;
 
-/// <summary>Switches between the pages of a panel.</summary>
-internal sealed class TabStrip<T>(
+/// <summary>Picks one of a few values, all shown side by side in a shared track.</summary>
+internal sealed class SegmentedControl<T>(
     IReadOnlyList<Choice<T>> choices,
     T selectedValue,
     Action<T> changed)
-    : ChoiceStrip<T>(choices, selectedValue, changed, segmentHeight: 36.0f, spacing: UiDesign.SmallSpacing, padding: 0.0f)
+    : ChoiceStrip<T>(choices, selectedValue, changed, segmentHeight: 30.0f, spacing: TrackPadding, padding: TrackPadding)
 {
+    private const float TrackPadding = 3.0f;
+    private const float SegmentCornerRadius = UiDesign.ControlCornerRadius - TrackPadding;
     private static readonly UiFont LabelFont = new(UiDesign.BodyFontSize, FontWeight.SemiBold, TextAlignment.Center);
+
+    protected override void DrawCore(in UiDrawContext context)
+    {
+        var track = new RoundedRectangle(
+            new RectangleF(PointF.Empty, Bounds.Size),
+            UiDesign.ControlCornerRadius,
+            UiDesign.ControlCornerRadius);
+        context.FillRoundedRectangle(track, context.Palette.ControlSurface);
+    }
 
     protected override void DrawSegment(
         in UiDrawContext context,
@@ -23,7 +34,7 @@ internal sealed class TabStrip<T>(
         float hoverAmount,
         float pressedAmount)
     {
-        var shape = new RoundedRectangle(bounds, UiDesign.ControlCornerRadius, UiDesign.ControlCornerRadius);
+        var shape = new RoundedRectangle(bounds, SegmentCornerRadius, SegmentCornerRadius);
         if (selected)
         {
             context.FillRoundedRectangle(shape, context.Palette.Accent, 0.18f);
@@ -43,7 +54,7 @@ internal sealed class TabStrip<T>(
             label,
             LabelFont,
             new Rect(bounds.X, bounds.Y, bounds.Width, bounds.Height),
-            context.Palette.PrimaryText,
+            selected ? context.Palette.PrimaryText : context.Palette.SecondaryText,
             DrawTextOptions.Clip);
     }
 }

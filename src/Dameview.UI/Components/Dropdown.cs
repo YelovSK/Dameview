@@ -3,25 +3,22 @@ using Dameview.UI.Foundation;
 using Dameview.UI.Layout;
 using Dameview.Win32.Input;
 using Vortice.Direct2D1;
-using Vortice.DirectWrite;
 using Vortice.Mathematics;
 
 namespace Dameview.UI.Components;
 
-internal readonly record struct DropdownOption<T>(string Label, T Value);
-
 internal sealed class Dropdown<T> : InteractiveControl
 {
-    private static readonly UiFont LabelFont = new(UiDesign.BodyFontSize, FontWeight.SemiBold);
+    private static readonly UiFont LabelFont = new(UiDesign.BodyFontSize);
 
     private readonly Action<T> _changed;
-    private readonly DropdownOption<T>[] _options;
+    private readonly Choice<T>[] _options;
     private readonly PopupHost _popupHost;
     private readonly PopupList _popupList;
 
     internal Dropdown(
         PopupHost popupHost,
-        IReadOnlyList<DropdownOption<T>> options,
+        IReadOnlyList<Choice<T>> options,
         T selectedValue,
         Action<T> changed)
     {
@@ -196,7 +193,7 @@ internal sealed class Dropdown<T> : InteractiveControl
         private readonly StackPanel _column;
 
         internal PopupList(
-            IReadOnlyList<DropdownOption<T>> options,
+            IReadOnlyList<Choice<T>> options,
             Action<int> selected)
         {
             _buttons = new Button[options.Count];

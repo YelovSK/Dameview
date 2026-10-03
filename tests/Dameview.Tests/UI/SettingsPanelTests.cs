@@ -30,10 +30,6 @@ public sealed class SettingsPanelTests
 
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
-        root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
-        root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
-        root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
-        root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Space), settings, wrapFocus: true, directionalNavigation: true);
 
         Assert.IsFalse(commands.Settings.AnimationsEnabled);
@@ -55,14 +51,11 @@ public sealed class SettingsPanelTests
 
         root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
-        root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
-        root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
-        root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Space), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
-        root.HandleKey(new WindowKeyEvent(WindowKey.Down), settings, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new WindowKeyEvent(WindowKey.Left), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
-        root.HandleKey(new WindowKeyEvent(WindowKey.Down), settings, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
 
         Assert.IsFalse(commands.Settings.GalleryEnabled);
         Assert.AreEqual(GalleryPlacement.Left, commands.Settings.GalleryPlacement);
@@ -70,7 +63,7 @@ public sealed class SettingsPanelTests
     }
 
     [TestMethod]
-    public void SortingTabUsesDropdownsAndKeepsSortMeaning()
+    public void SortingTabKeepsSortMeaning()
     {
         var popupHost = new PopupHost();
         var commands = new TestSettingsCommands();
@@ -86,13 +79,11 @@ public sealed class SettingsPanelTests
         root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
-        root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
-        root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Down), settings, wrapFocus: true, directionalNavigation: true);
         Assert.AreEqual(FolderSort.DateModifiedNewest, commands.Settings.Sort);
 
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
-        root.HandleKey(new WindowKeyEvent(WindowKey.Down), settings, wrapFocus: true, directionalNavigation: true);
+        root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
         Assert.AreEqual(FolderSort.DateModifiedOldest, commands.Settings.Sort);
     }
 
@@ -111,8 +102,6 @@ public sealed class SettingsPanelTests
         root.SetFocus(settings.InitialFocus);
         root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
-        root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
-        root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Tab), settings, wrapFocus: true, directionalNavigation: true);
         UiElement dropdown = root.FocusedElement!;
         root.HandleKey(new WindowKeyEvent(WindowKey.Enter), settings, wrapFocus: true, directionalNavigation: true);
