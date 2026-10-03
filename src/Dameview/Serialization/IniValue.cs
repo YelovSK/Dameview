@@ -19,6 +19,13 @@ internal static class IniValue
     internal static int? ParseInt(string? text) =>
         int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int result) ? result : null;
 
+    internal static string FormatTime(DateTimeOffset value) => value.ToString("O", CultureInfo.InvariantCulture);
+
+    internal static DateTimeOffset? ParseTime(string text) =>
+        DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTimeOffset value)
+            ? value
+            : null;
+
     internal static string FormatFloat(float value) => value.ToString(CultureInfo.InvariantCulture);
 
     internal static float? ParseFloat(string text) =>

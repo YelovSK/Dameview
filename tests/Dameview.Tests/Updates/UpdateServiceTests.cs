@@ -57,12 +57,56 @@ public sealed class UpdateServiceTests
         Assert.AreEqual(0, client.DownloadCount);
     }
 
+    [TestMethod]
+    public void BackgroundCheckWaitsADayAndAnnouncesANewerRelease()
+    {
+        var release = new AppRelease("v2.0.0", new Version(2, 0, 0, 0));
+        var client = new FakeUpdateClient(release);
+        var queue = new ConcurrentQueue<Action>();
+        var service = new UpdateService(client, new WindowSynchronizationContext(queue.Enqueue), new Version(1, 0, 0, 0));
+        AppRelease? found = null;
+        service.FoundInBackground += newer => found = newer;
+        var now = new DateTimeOffset(2026, 10, 4, 12, 0, 0, TimeSpan.Zero);
+
+        service.CheckInBackgroundIfDue(now - TimeSpan.FromHours(23), now);
+        Assert.AreEqual(0, client.CheckCount);
+
+        service.CheckInBackgroundIfDue(now - UpdateService.BackgroundCheckInterval, now);
+        DispatchNext(queue);
+
+        Assert.AreEqual(UpdateStatus.Available, service.State.Status);
+        Assert.AreSame(release, found);
+    }
+
+    [TestMethod]
+    public void FailedBackgroundCheckStaysQuiet()
+    {
+        var queue = new ConcurrentQueue<Action>();
+        var service = new UpdateService(
+            new FailingUpdateClient(),
+            new WindowSynchronizationContext(queue.Enqueue),
+            new Version(1, 0, 0, 0));
+
+        service.CheckInBackgroundIfDue(DateTimeOffset.MinValue, DateTimeOffset.UtcNow);
+        DispatchNext(queue);
+
+        Assert.AreEqual(UpdateStatus.Idle, service.State.Status);
+        Assert.IsNull(service.State.Error);
+    }
+
     private static void DispatchNext(ConcurrentQueue<Action> queue)
     {
         Action? action = null;
         bool received = SpinWait.SpinUntil(() => queue.TryDequeue(out action), TimeSpan.FromSeconds(5));
         Assert.IsTrue(received, "The background update operation did not post a result.");
         action!();
+    }
+
+    private sealed class FailingUpdateClient : IUpdateClient
+    {
+        public AppRelease GetLatestRelease() => throw new HttpRequestException("Offline.");
+
+        public string Download(AppRelease release) => throw new NotSupportedException();
     }
 
     private sealed class FakeUpdateClient(AppRelease release) : IUpdateClient

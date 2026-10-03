@@ -49,6 +49,9 @@ internal sealed record AppSettings
     /// <summary>How much one wheel notch zooms in, as a percentage of the current zoom.</summary>
     public float WheelZoomPercent { get; init; } = 20.0f;
     public bool SingleInstance { get; init; } = true;
+    public bool CheckForUpdatesAutomatically { get; init; } = true;
+    /// <summary>When the last check for updates succeeded, so automatic checks stay rare.</summary>
+    public DateTimeOffset LastUpdateCheck { get; init; } = DateTimeOffset.MinValue;
     public FolderSort Sort { get; init; } = FolderSort.NameAscending;
     public bool AutoBalancePanes { get; init; }
     public ViewerKeyBindings KeyBindings { get; init; } = ViewerKeyBindings.Defaults;

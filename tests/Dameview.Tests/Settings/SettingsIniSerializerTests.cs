@@ -32,6 +32,18 @@ public sealed class SettingsIniSerializerTests
     }
 
     [TestMethod]
+    public void ImageAndUpdateSettingsSurviveAWriteAndRead()
+    {
+        AssertRoundTrips(new AppSettings
+        {
+            SharpPixelsWhenZoomed = true,
+            WheelZoomPercent = 35.0f,
+            CheckForUpdatesAutomatically = false,
+            LastUpdateCheck = new DateTimeOffset(2026, 10, 4, 12, 30, 15, TimeSpan.FromHours(2)),
+        });
+    }
+
+    [TestMethod]
     public void EveryEnumValueSurvivesAWriteAndRead()
     {
         foreach (ThemeId theme in Enum.GetValues<ThemeId>())

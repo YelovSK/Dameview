@@ -44,6 +44,9 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
     private readonly ViewerWorkspace _workspace;
     private readonly SettingsService _settings;
     private readonly UpdateService _updates;
+    // Asks often whether an automatic update check is due; the update service decides that it
+    // rarely is. The first ask waits until startup is long done.
+    private readonly Timer _updateCheckTimer;
     private readonly ToastService _toasts = new();
     private readonly FileActions _files;
     private Task<ID3D11Device>? _pendingHardwareDevice;
@@ -178,7 +181,13 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         };
         _updates.Changed += HandleUpdateChanged;
         _updates.UpdateDownloaded += HandleUpdateDownloaded;
+        _updates.FoundInBackground += HandleUpdateFoundInBackground;
         _ui.ApplyUpdateState(_updates.State);
+        _updateCheckTimer = new Timer(
+            _ => _uiContext.Post(_ => CheckForUpdatesIfDue(), null),
+            null,
+            TimeSpan.FromSeconds(10),
+            TimeSpan.FromHours(1));
 
         // The window was created with its placement already.
         ApplyPreferences(new AppSettings(), startupSettings);
@@ -222,8 +231,10 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         // WINDOWPLACEMENT keeps rcNormalPosition up to date while maximized,
         // so this also remembers the size that will be restored after unmaximizing.
         _settings.Update(_settings.Current with { Window = _window.CapturePlacement() });
+        _updateCheckTimer.Dispose();
         _updates.Changed -= HandleUpdateChanged;
         _updates.UpdateDownloaded -= HandleUpdateDownloaded;
+        _updates.FoundInBackground -= HandleUpdateFoundInBackground;
         _settings.Dispose();
         _files.Dispose();
         // Closing before the hardware device arrives leaves nothing else to own it.
@@ -467,7 +478,28 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
             _toasts.Notify(state.Error ?? "The update failed.", ToastSeverity.Error);
         }
 
+        // Only a check that got an answer counts, so a failed one is retried at the next chance.
+        if (state.Status is UpdateStatus.Current or UpdateStatus.Available)
+        {
+            UpdateSettings(settings => settings with { LastUpdateCheck = DateTimeOffset.UtcNow });
+        }
+
         _ui.ApplyUpdateState(state);
+        _window.RequestRepaint();
+    }
+
+    private void CheckForUpdatesIfDue()
+    {
+        AppSettings settings = _settings.Current;
+        if (settings.CheckForUpdatesAutomatically)
+        {
+            _updates.CheckInBackgroundIfDue(settings.LastUpdateCheck, DateTimeOffset.UtcNow);
+        }
+    }
+
+    private void HandleUpdateFoundInBackground(AppRelease release)
+    {
+        _toasts.Notify($"Dameview {release.Tag} is available. Update it from Settings › Updates.", ToastSeverity.Success);
         _window.RequestRepaint();
     }
 

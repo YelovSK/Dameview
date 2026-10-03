@@ -17,6 +17,12 @@ internal static class SettingsIniSerializer
         Binding.Bool(Root, "singleInstance", s => s.SingleInstance, (s, value) => s with { SingleInstance = value }),
         Binding.Bool(Root, "autoBalancePanes", s => s.AutoBalancePanes, (s, value) => s with { AutoBalancePanes = value }),
         Binding.Bool(
+            "updates",
+            "checkAutomatically",
+            s => s.CheckForUpdatesAutomatically,
+            (s, value) => s with { CheckForUpdatesAutomatically = value }),
+        Binding.Time("updates", "lastCheck", s => s.LastUpdateCheck, (s, value) => s with { LastUpdateCheck = value }),
+        Binding.Bool(
             Root,
             "sharpPixelsWhenZoomed",
             s => s.SharpPixelsWhenZoomed,

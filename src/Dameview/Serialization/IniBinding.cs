@@ -15,6 +15,13 @@ internal abstract class IniBinding<TModel>
         Func<TModel, bool, TModel> set) =>
         new(section, key, IniValue.ParseBool, IniValue.FormatBool, get, set);
 
+    internal static IniKeyBinding<TModel, DateTimeOffset> Time(
+        string section,
+        string key,
+        Func<TModel, DateTimeOffset> get,
+        Func<TModel, DateTimeOffset, TModel> set) =>
+        new(section, key, IniValue.ParseTime, IniValue.FormatTime, get, set);
+
     internal static IniKeyBinding<TModel, T> Enum<T>(
         string section,
         string key,

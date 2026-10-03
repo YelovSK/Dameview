@@ -4,6 +4,9 @@ namespace Dameview.Updates;
 
 internal sealed class UpdateService
 {
+    /// <summary>How long after a successful check the next automatic one is due.</summary>
+    internal static readonly TimeSpan BackgroundCheckInterval = TimeSpan.FromDays(1);
+
     private readonly IUpdateClient _client;
     private readonly SynchronizationContext _uiContext;
     private readonly Version? _currentVersion;
@@ -18,8 +21,23 @@ internal sealed class UpdateService
 
     internal event Action<UpdateState>? Changed;
     internal event Action<string>? UpdateDownloaded;
+    /// <summary>A background check found a newer release, which nobody asked to hear about yet.</summary>
+    internal event Action<AppRelease>? FoundInBackground;
 
     internal UpdateState State { get; private set; }
+
+    /// <summary>
+    /// Checks for a newer release if the last successful check is old enough. Unlike a check
+    /// someone asked for, a failure here only goes to the log and leaves the state idle.
+    /// </summary>
+    internal void CheckInBackgroundIfDue(DateTimeOffset lastCheck, DateTimeOffset now)
+    {
+        if (State.Status is UpdateStatus.Idle or UpdateStatus.Current
+            && now - lastCheck >= BackgroundCheckInterval)
+        {
+            Check(inBackground: true);
+        }
+    }
 
     internal void Activate()
     {
@@ -29,11 +47,11 @@ internal sealed class UpdateService
         }
         else if (State.Status is UpdateStatus.Idle or UpdateStatus.Current or UpdateStatus.Failed)
         {
-            Check();
+            Check(inBackground: false);
         }
     }
 
-    private void Check()
+    private void Check(bool inBackground)
     {
         if (_currentVersion is null)
         {
@@ -58,7 +76,19 @@ internal sealed class UpdateService
                 {
                     Log.Debug("Updates", "No update available.");
                 }
-                PostToUi(() => SetState(new UpdateState(status, release)));
+                PostToUi(() =>
+                {
+                    SetState(new UpdateState(status, release));
+                    if (inBackground && status == UpdateStatus.Available)
+                    {
+                        FoundInBackground?.Invoke(release);
+                    }
+                });
+            }
+            catch (Exception exception) when (inBackground)
+            {
+                Log.Warning("Updates", $"Could not check for updates in the background: {exception.Message}");
+                PostToUi(() => SetState(new UpdateState(UpdateStatus.Idle)));
             }
             catch (Exception exception)
             {

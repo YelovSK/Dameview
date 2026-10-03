@@ -54,6 +54,7 @@ internal sealed class SettingsPanel : ModalContent
     private readonly Slider _wheelZoomSlider;
     private readonly SettingsRow _wheelZoomRow;
     private readonly Toggle _singleInstanceToggle;
+    private readonly Toggle _autoUpdateCheckToggle;
     private readonly Toggle _autoBalancePanesToggle;
     private readonly Dropdown<SortField> _sortField;
     private readonly SegmentedControl<SortDirection> _sortDirection;
@@ -158,6 +159,13 @@ internal sealed class SettingsPanel : ModalContent
             "Zoom speed",
             _wheelZoomSlider,
             "How much one step of the mouse wheel zooms in or out");
+        _autoUpdateCheckToggle = new Toggle(
+            "Check for updates automatically",
+            value: true,
+            enabled => Update(settings => settings with { CheckForUpdatesAutomatically = enabled }))
+        {
+            ToolTip = new("Checks at most once a day and lets you know when a new version is out"),
+        };
         _singleInstanceToggle = new Toggle(
             "Open files in existing window (restart required)",
             value: true,
@@ -212,7 +220,7 @@ internal sealed class SettingsPanel : ModalContent
             Page(_sharpPixelsToggle, _wheelZoomRow),
             Page(_sortFieldRow, _sortDirectionRow),
             Page(_singleInstanceToggle),
-            Page(_updateStatus, _updateButton),
+            Page(_updateStatus, _updateButton, _autoUpdateCheckToggle),
         ];
         _pages = new Overlay(_tabPages)
         {
@@ -260,6 +268,7 @@ internal sealed class SettingsPanel : ModalContent
         _sharpPixelsToggle.Value = settings.SharpPixelsWhenZoomed;
         _wheelZoomSlider.Value = settings.WheelZoomPercent;
         _singleInstanceToggle.Value = settings.SingleInstance;
+        _autoUpdateCheckToggle.Value = settings.CheckForUpdatesAutomatically;
         _autoBalancePanesToggle.Value = settings.AutoBalancePanes;
 
         SortDefinition sort = Array.Find(
@@ -278,6 +287,7 @@ internal sealed class SettingsPanel : ModalContent
             ? UiTextTone.Error
             : UiTextTone.Secondary;
         _updateButton.IsVisible = state.Status != UpdateStatus.Unavailable;
+        _autoUpdateCheckToggle.IsVisible = _updateButton.IsVisible;
         _updateButton.IsEnabled = state.Status is UpdateStatus.Idle
             or UpdateStatus.Current
             or UpdateStatus.Available
