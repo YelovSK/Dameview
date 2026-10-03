@@ -20,7 +20,6 @@ internal abstract class ModalContent : UiElement
 internal sealed class ModalHost : UiElement
 {
     private const float BackdropAlpha = 0.45f;
-    private const float ClosedScale = 0.96f;
 
     private readonly ModalSurface _surface;
     private Action? _dismiss;
@@ -154,8 +153,8 @@ internal sealed class ModalHost : UiElement
         // The content last shown, which stays after the host closes so that it can fade out.
         internal ModalContent? Content { get; private set; }
         internal override bool PreservesFocusOnPointerPress => true;
-        // The host fades everything; the panel also grows into place as it does.
-        internal override float VisualScale => ClosedScale + ((1.0f - ClosedScale) * host.Presence);
+        // The host fades everything; the panel also rises into place from just below the window.
+        internal override PointF VisualOffset => new(0.0f, (host.Bounds.Height - Bounds.Top) * (1.0f - host.Presence));
 
         internal void SetContent(ModalContent? content)
         {
