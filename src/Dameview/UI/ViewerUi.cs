@@ -94,7 +94,6 @@ internal sealed class ViewerUi : UiElement, IDisposable
             () => app.Execute(AppCommands.ToggleFlattenFolder, app.ActiveContext),
             HandleGalleryDragPointer,
             (path, point) => _contextMenus.ShowForGalleryItem(path, _galleryPanel!, point));
-        _galleryPanel.Bind(GetGalleryState(_activePane.ActiveTab));
         _splitView = new SplitView(
             _workspaceView,
             _galleryPanel,
@@ -186,9 +185,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
         _workspaceView.SetActivePane(pane);
 
-        ViewerSessionState state = pane.ActiveSession.State;
-        _galleryPanel.Bind(GetGalleryState(pane.ActiveTab));
-        ApplyActivePaneState(state);
+        ApplyActivePaneState(pane.ActiveSession.State);
     }
 
     internal void ApplyLayout(WorkspaceNode root, WorkspaceSplit? openingSplit)
@@ -224,10 +221,6 @@ internal sealed class ViewerUi : UiElement, IDisposable
     {
         _host.Root.ClearPointer();
         FindPaneView(pane)?.BindTab(tab);
-        if (ReferenceEquals(pane, _activePane))
-        {
-            _galleryPanel.Bind(GetGalleryState(tab));
-        }
     }
 
     internal void ApplyState(ViewerPane pane, ViewerSessionState state)
@@ -530,7 +523,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private void ApplyActivePaneState(ViewerSessionState state)
     {
         _splitView.SecondPaneVisible = _chromeVisible && _galleryEnabled && ShouldShowGallery(state);
-        _galleryPanel.ApplyState(state);
+        _galleryPanel.ApplyState(GetGalleryState(_activePane.ActiveTab), state);
     }
 
     private static bool ShouldShowGallery(ViewerSessionState state)

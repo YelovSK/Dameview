@@ -20,7 +20,6 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 {
     internal const float DefaultSizeDips = AppSettings.DefaultGallerySizeDips;
 
-    private const float DragThresholdDips = 4.0f;
     // Labels are laid out at widths rounded down to this step, so resizing the panel reshapes
     // them only when the width crosses a step rather than on every pointer move.
     private const float LabelWidthStep = 8.0f;
@@ -33,27 +32,24 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private readonly IThumbnailImageLoader _thumbnailLoader;
     private readonly Action<string> _openImage;
     private readonly Action<string> _openInNewTab;
-    private readonly Action<string, WorkspaceDragEvent>? _dragPointer;
+    private readonly WorkspaceDragGesture _drag;
     private readonly Action<string, PointF>? _contextMenuRequested;
     private readonly Scrollbar _scrollbar;
     private readonly Button _flattenButton;
     private readonly Button _recenterButton;
     private readonly Dictionary<string, GalleryItemSlot> _slots =
         new(StringComparer.OrdinalIgnoreCase);
-    // Scratch buffers, empty between calls. They are fields only so that refreshing on every
-    // scrolled frame reuses their capacity instead of allocating two collections per frame.
+    // A scratch buffer, empty between calls. It is a field only so that refreshing on every
+    // scrolled frame reuses its capacity instead of allocating a set per frame.
     private readonly HashSet<string> _visiblePaths = new(StringComparer.OrdinalIgnoreCase);
-    private readonly List<string> _stalePaths = [];
     private GalleryPanelState _state = new();
+    private string? _selectedPath;
     private string _footerText = string.Empty;
     private GalleryThumbnailSize _thumbnailSize = GalleryThumbnailSize.Medium;
     private UiOrientation _orientation = UiOrientation.Vertical;
     private SelectionScrollAlignment? _pendingSelectionScroll;
     private int _hoveredIndex = -1;
-    private int _pressedIndex = -1;
     private string? _pressedPath;
-    private PointF _pressPosition;
-    private bool _dragging;
 
     internal GalleryPanel(
         ID2D1DeviceContext deviceContext,
@@ -68,7 +64,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         _thumbnailLoader = thumbnailLoader;
         _openImage = openImage;
         _openInNewTab = openInNewTab;
-        _dragPointer = dragPointer;
+        _drag = new WorkspaceDragGesture(drag => dragPointer?.Invoke(_pressedPath!, drag));
         _contextMenuRequested = contextMenuRequested;
         _scrollbar = new Scrollbar(SetScrollOffset);
         _flattenButton = new Button(
@@ -101,25 +97,8 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private RectangleF GridBounds =>
         new(0.0f, 0.0f, Bounds.Width, MathF.Max(0.0f, Bounds.Height - FooterHeight));
 
-    internal void Bind(GalleryPanelState state)
-    {
-        if (ReferenceEquals(_state, state))
-        {
-            return;
-        }
-
-        _state = state;
-        _pendingSelectionScroll = null;
-        ApplyOrientationToState();
-        ClearSlots();
-        SetHoveredIndex(-1);
-        _pressedIndex = -1;
-        UpdateScrollMetrics();
-        RefreshVisibleThumbnails();
-        InvalidateVisual();
-    }
-
-    internal void ApplyState(ViewerSessionState session)
+    /// <param name="state">The active tab's gallery state, which keeps its scroll position.</param>
+    internal void ApplyState(GalleryPanelState state, ViewerSessionState session)
     {
         string footerText = GetFooterText(session);
         if (_footerText != footerText || _flattenButton.IsSelected != session.FlattensFolder)
@@ -129,36 +108,35 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             InvalidateVisual();
         }
 
-        FolderEntry[] entries = session.FolderEntries;
-        string? selectedPath = session.RequestedPath;
-        bool entriesChanged = !ReferenceEquals(_state.Entries, entries);
-        bool selectionChanged = !string.Equals(
-            _state.SelectedPath,
-            selectedPath,
-            StringComparison.OrdinalIgnoreCase);
-        if (!entriesChanged && !selectionChanged)
+        bool stateChanged = !ReferenceEquals(_state, state);
+        bool entriesChanged = !ReferenceEquals(state.Entries, session.FolderEntries);
+        bool selectionChanged = !SamePath(_selectedPath, session.RequestedPath);
+        if (!stateChanged && !entriesChanged && !selectionChanged)
         {
             RefreshVisibleThumbnails();
             return;
         }
 
-        if (entriesChanged)
+        if (stateChanged)
         {
-            _state.Entries = entries;
-            ClearSlots();
-            SetHoveredIndex(-1);
-            _pressedIndex = -1;
+            _state = state;
+            _pendingSelectionScroll = null;
+            ApplyOrientationToState();
         }
 
-        _state.SelectedPath = selectedPath;
+        if (stateChanged || entriesChanged)
+        {
+            SetHoveredIndex(-1);
+        }
+
         if (entriesChanged)
         {
+            _state.Entries = session.FolderEntries;
             _pendingSelectionScroll = SelectionScrollAlignment.EnsureVisible;
         }
 
-        UpdateScrollMetrics();
-        RevealSelectionIfPending();
-        RefreshVisibleThumbnails();
+        _selectedPath = session.RequestedPath;
+        SyncScroll();
         InvalidateVisual();
     }
 
@@ -202,7 +180,6 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         _scrollbar.SetOrientation(orientation);
         ApplyOrientationToState();
         SetHoveredIndex(-1);
-        _pressedIndex = -1;
         InvalidateLayout();
     }
 
@@ -212,13 +189,10 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
     protected override void ArrangeCore(SizeF finalSize)
     {
-        UpdateScrollMetrics();
-        RevealSelectionIfPending();
-        RefreshVisibleThumbnails();
         _scrollbar.Arrange(Layout.ScrollbarBounds);
         _flattenButton.Arrange(GetFooterButtonBounds(0.0f));
         _recenterButton.Arrange(GetFooterButtonBounds(Bounds.Width - FooterHeight));
-        SetScrollbarMetrics();
+        SyncScroll();
     }
 
     private RectangleF GetFooterButtonBounds(float x) => new(
@@ -281,18 +255,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             case WindowPointerEventKind.Moved:
                 if (_pressedPath is not null)
                 {
-                    if (!_dragging && HasCrossedDragThreshold(input.Position))
-                    {
-                        _dragging = true;
-                        RaiseDrag(_pressedPath, WorkspaceDragEventKind.Started, input.Position);
-                    }
-
-                    if (_dragging)
-                    {
-                        RaiseDrag(_pressedPath, WorkspaceDragEventKind.Moved, input.Position);
-                    }
-
-                    return new UiPointerResult(Consumed: true, NeedsRepaint: _dragging);
+                    return new UiPointerResult(Consumed: true, NeedsRepaint: _drag.Move(input.Position));
                 }
 
                 int hovered = HitTestItem(input.Position);
@@ -301,57 +264,44 @@ internal sealed class GalleryPanel : UiElement, IDisposable
                 return new UiPointerResult(Consumed: true, NeedsRepaint: changed);
 
             case WindowPointerEventKind.Pressed when input.Button == PointerButton.Primary:
-                _pressedIndex = HitTestItem(input.Position);
-                _pressedPath = _pressedIndex >= 0 ? _state.Entries[_pressedIndex].FullName : null;
-                _pressPosition = input.Position;
-                _dragging = false;
+                _pressedPath = HitTestPath(input.Position);
+                _drag.Press(input.Position);
                 return new UiPointerResult(
                     Consumed: true,
                     NeedsRepaint: true,
-                    CapturePointer: _pressedIndex >= 0);
+                    CapturePointer: _pressedPath is not null);
 
             case WindowPointerEventKind.Pressed when input.Button == PointerButton.Middle:
-                int middleClicked = HitTestItem(input.Position);
-                if (middleClicked >= 0)
+                if (HitTestPath(input.Position) is { } middleClicked)
                 {
-                    _openInNewTab(_state.Entries[middleClicked].FullName);
+                    _openInNewTab(middleClicked);
                 }
 
                 return new UiPointerResult(Consumed: true);
 
             case WindowPointerEventKind.Pressed when input.Button == PointerButton.Secondary:
-                int rightClicked = HitTestItem(input.Position);
-                if (rightClicked >= 0)
+                if (HitTestPath(input.Position) is { } rightClicked)
                 {
-                    _contextMenuRequested?.Invoke(_state.Entries[rightClicked].FullName, input.Position);
+                    _contextMenuRequested?.Invoke(rightClicked, input.Position);
                 }
 
                 return new UiPointerResult(Consumed: true);
 
             case WindowPointerEventKind.Released:
-                int pressed = _pressedIndex;
                 string? pressedPath = _pressedPath;
-                bool wasDragging = _dragging;
-                ClearPressState();
-                if (wasDragging && pressedPath is not null)
+                bool wasDragging = _drag.Release(input.Position);
+                _pressedPath = null;
+                if (!wasDragging && pressedPath is not null && SamePath(pressedPath, HitTestPath(input.Position)))
                 {
-                    RaiseDrag(pressedPath, WorkspaceDragEventKind.Completed, input.Position);
-                }
-                else if (pressed >= 0 && pressed == HitTestItem(input.Position))
-                {
-                    _openImage(_state.Entries[pressed].FullName);
+                    _openImage(pressedPath);
                 }
 
-                return new UiPointerResult(Consumed: true, NeedsRepaint: pressed >= 0);
+                return new UiPointerResult(Consumed: true, NeedsRepaint: pressedPath is not null);
 
             case WindowPointerEventKind.Cancelled:
-                bool wasPressed = _pressedIndex >= 0;
-                if (_dragging && _pressedPath is { } cancelledPath)
-                {
-                    RaiseDrag(cancelledPath, WorkspaceDragEventKind.Cancelled, input.Position);
-                }
-
-                ClearPressState();
+                bool wasPressed = _pressedPath is not null;
+                _drag.Cancel(input.Position);
+                _pressedPath = null;
                 return new UiPointerResult(Consumed: true, NeedsRepaint: wasPressed);
 
             case WindowPointerEventKind.Wheel:
@@ -379,11 +329,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             return false;
         }
 
-        // Items move out from under their tooltip; the next pointer move brings it back.
-        ToolTip = null;
-        RefreshVisibleThumbnails();
-        SetScrollbarMetrics();
-        InvalidateVisual();
+        OnScrolled();
         return true;
     }
 
@@ -397,9 +343,23 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
     private int HitTestItem(PointF position) => Layout.HitTest(position, _state.ScrollOffset.Offset);
 
+    private string? HitTestPath(PointF position)
+    {
+        int index = HitTestItem(position);
+        return index >= 0 ? _state.Entries[index].FullName : null;
+    }
+
+    private static bool SamePath(string? first, string? second) =>
+        string.Equals(first, second, StringComparison.OrdinalIgnoreCase);
+
     // File names are often cut short by the label, so the tooltip carries the whole name.
     private void SetHoveredIndex(int index)
     {
+        if (_hoveredIndex == index)
+        {
+            return;
+        }
+
         _hoveredIndex = index;
         ToolTip = index >= 0
             ? new UiToolTip(
@@ -408,37 +368,23 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             : null;
     }
 
-    private void RaiseDrag(string path, WorkspaceDragEventKind kind, PointF position) =>
-        _dragPointer?.Invoke(path, new WorkspaceDragEvent(kind, position));
-
-    private void ClearPressState()
-    {
-        _pressedIndex = -1;
-        _pressedPath = null;
-        _dragging = false;
-    }
-
     private void DrawItem(in UiDrawContext context, RectangleF itemBounds, int index)
     {
         FolderEntry entry = _state.Entries[index];
-        bool selected = string.Equals(
-            entry.FullName,
-            _state.SelectedPath,
-            StringComparison.OrdinalIgnoreCase);
-        if (selected || index == _hoveredIndex || index == _pressedIndex)
+        bool selected = SamePath(entry.FullName, _selectedPath);
+        bool pressed = SamePath(entry.FullName, _pressedPath);
+        if (selected || pressed || index == _hoveredIndex)
         {
             Color4 color = selected
                 ? context.Palette.Accent
-                : index == _pressedIndex ? context.Palette.ControlPressed : context.Palette.ControlHover;
+                : pressed ? context.Palette.ControlPressed : context.Palette.ControlHover;
             context.FillRoundedRectangle(
                 new RoundedRectangle(itemBounds, UiDesign.ControlCornerRadius, UiDesign.ControlCornerRadius),
                 color,
                 selected ? 0.28f : 1.0f);
         }
 
-        RectangleF imageBounds = GalleryLayout.GetThumbnailBounds(
-            itemBounds,
-            GalleryItemSlot.LabelHeight);
+        RectangleF imageBounds = GalleryLayout.GetThumbnailBounds(itemBounds);
         _slots.TryGetValue(entry.FullName, out GalleryItemSlot? slot);
         if (slot?.SourceBitmap is not null)
         {
@@ -451,7 +397,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
                 context.Palette.OverlaySurface);
         }
 
-        RectangleF label = GalleryLayout.GetLabelBounds(itemBounds, GalleryItemSlot.LabelHeight);
+        RectangleF label = GalleryLayout.GetLabelBounds(itemBounds);
         float width = MathF.Floor(label.Width / LabelWidthStep) * LabelWidthStep;
         context.DrawText(
             entry.Name,
@@ -464,40 +410,29 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private void DrawThumbnail(in UiDrawContext context, GalleryItemSlot slot, RectangleF bounds)
     {
         ID2D1Bitmap1 source = slot.SourceBitmap!;
-        ID2D1Bitmap1 bitmap;
-        float width;
-        float height;
-        if (Root?.IsResizing == true)
+        float scale = MathF.Min(
+            bounds.Width / source.PixelSize.Width,
+            bounds.Height / source.PixelSize.Height);
+        float width = source.PixelSize.Width * scale;
+        float height = source.PixelSize.Height * scale;
+        // Building a scaled copy on every resize step is too slow. During a resize we use the
+        // copy we already have if it still fits, and stretch the original if it doesn't.
+        ID2D1Bitmap1? bitmap = Root?.IsResizing == true
+            ? slot.TryGetDisplayBitmap(width, height, context.Dpi)
+            : slot.GetDisplayBitmap(_thumbnailScaleContext, width, height, context.Dpi);
+        if (bitmap is null)
         {
-            // Stretching the source avoids rebuilding a GPU bitmap on every size step.
-            bitmap = source;
-            float scale = MathF.Min(
-                bounds.Width / source.Size.Width,
-                bounds.Height / source.Size.Height);
-            width = source.Size.Width * scale;
-            height = source.Size.Height * scale;
-        }
-        else
-        {
-            float scale = MathF.Min(
-                bounds.Width / source.PixelSize.Width,
-                bounds.Height / source.PixelSize.Height);
-            bitmap = slot.GetDisplayBitmap(
-                _thumbnailScaleContext,
-                source.PixelSize.Width * scale,
-                source.PixelSize.Height * scale,
-                context.Dpi);
-            width = bitmap.Size.Width;
-            height = bitmap.Size.Height;
+            context.DrawBitmapFitted(source, bounds);
+            return;
         }
 
         context.DrawBitmap(
             bitmap,
             new Rect(
-                bounds.X + ((bounds.Width - width) / 2.0f),
-                bounds.Y + ((bounds.Height - height) / 2.0f),
-                width,
-                height),
+                bounds.X + ((bounds.Width - bitmap.Size.Width) / 2.0f),
+                bounds.Y + ((bounds.Height - bitmap.Size.Height) / 2.0f),
+                bitmap.Size.Width,
+                bitmap.Size.Height),
             new Rect(0.0f, 0.0f, bitmap.Size.Width, bitmap.Size.Height));
     }
 
@@ -509,14 +444,11 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             return;
         }
 
-        GalleryLayout layout = Layout;
-        (int first, int lastExclusive) = layout.GetVisibleRange(_state.ScrollOffset.Offset);
-        HashSet<string> visible = _visiblePaths;
+        (int first, int lastExclusive) = Layout.GetVisibleRange(_state.ScrollOffset.Offset);
         for (int index = first; index < lastExclusive; index++)
         {
-            FolderEntry entry = _state.Entries[index];
-            string path = entry.FullName;
-            visible.Add(path);
+            string path = _state.Entries[index].FullName;
+            _visiblePaths.Add(path);
             if (_slots.ContainsKey(path))
             {
                 continue;
@@ -532,21 +464,13 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
         foreach ((string path, GalleryItemSlot slot) in _slots)
         {
-            if (!visible.Contains(path))
+            if (!_visiblePaths.Contains(path))
             {
-                _stalePaths.Add(path);
+                _slots.Remove(path);
+                slot.Dispose();
             }
         }
 
-        foreach (string path in _stalePaths)
-        {
-            if (_slots.Remove(path, out GalleryItemSlot? stale))
-            {
-                stale.Dispose();
-            }
-        }
-
-        _stalePaths.Clear();
         _visiblePaths.Clear();
     }
 
@@ -558,8 +482,6 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             return;
         }
 
-        slot.Request?.Dispose();
-        slot.Request = null;
         slot.SetSourceBitmap(lease);
         InvalidateVisual();
     }
@@ -576,12 +498,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         // A selection outside the folder may never appear, and reviving the request later
         // would scroll somewhere the user has long stopped expecting. Reveal it now or never.
         _pendingSelectionScroll = null;
-        int selected = Array.FindIndex(
-            _state.Entries,
-            entry => string.Equals(
-                entry.FullName,
-                _state.SelectedPath,
-                StringComparison.OrdinalIgnoreCase));
+        int selected = Array.FindIndex(_state.Entries, entry => SamePath(entry.FullName, _selectedPath));
         if (selected < 0)
         {
             return;
@@ -601,9 +518,11 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             layout.GetRevealOffset(selected, _state.ScrollOffset.TargetOffset));
     }
 
-    private void UpdateScrollMetrics()
+    private void SyncScroll()
     {
         _state.ScrollOffset.SetMaximum(Layout.MaximumScrollOffset);
+        RevealSelectionIfPending();
+        RefreshVisibleThumbnails();
         SetScrollbarMetrics();
     }
 
@@ -618,12 +537,16 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
     private void SetScrollOffset(float offset)
     {
-        if (!_state.ScrollOffset.SetImmediate(offset))
+        if (_state.ScrollOffset.SetImmediate(offset))
         {
-            return;
+            OnScrolled();
         }
+    }
 
-        ToolTip = null;
+    // Items move out from under the pointer, so hover waits for the next pointer move.
+    private void OnScrolled()
+    {
+        SetHoveredIndex(-1);
         RefreshVisibleThumbnails();
         SetScrollbarMetrics();
         InvalidateVisual();
@@ -640,10 +563,6 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         _state.ScrollOffset.SetImmediate(0.0f);
         _pendingSelectionScroll = SelectionScrollAlignment.EnsureVisible;
     }
-
-    private bool HasCrossedDragThreshold(PointF position) =>
-        MathF.Abs(position.X - _pressPosition.X) >= DragThresholdDips
-        || MathF.Abs(position.Y - _pressPosition.Y) >= DragThresholdDips;
 
     private void ClearSlots()
     {

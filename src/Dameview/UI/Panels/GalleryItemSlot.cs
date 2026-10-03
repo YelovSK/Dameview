@@ -9,8 +9,6 @@ namespace Dameview.UI.Panels;
 /// <summary>A visible gallery item's thumbnail and the scaled copy of it that gets drawn.</summary>
 internal sealed class GalleryItemSlot : IDisposable
 {
-    internal const float LabelHeight = 24.0f;
-
     private const float ThumbnailSharpness = 1.0f;
 
     private SizeI _displayPixelSize;
@@ -23,10 +21,16 @@ internal sealed class GalleryItemSlot : IDisposable
 
     internal void SetSourceBitmap(CachedBitmapLease lease)
     {
+        Request?.Dispose();
+        Request = null;
         _sourceLease?.Dispose();
         _sourceLease = lease;
         ClearDisplayBitmap();
     }
+
+    /// <summary>Returns the last resampled thumbnail if it still fits the requested size.</summary>
+    internal ID2D1Bitmap1? TryGetDisplayBitmap(float width, float height, float dpi) =>
+        _displayPixelSize == ToPixelSize(width, height, dpi) && _displayDpi == dpi ? _displayBitmap : null;
 
     /// <summary>Returns the thumbnail resampled to the requested size, reusing the last one when it still fits.</summary>
     internal ID2D1Bitmap1 GetDisplayBitmap(
@@ -35,16 +39,14 @@ internal sealed class GalleryItemSlot : IDisposable
         float height,
         float dpi)
     {
-        ID2D1Bitmap1 source = SourceBitmap
-            ?? throw new InvalidOperationException("The thumbnail has not been loaded.");
-        var pixelSize = new SizeI(
-            Math.Max(1, (int)MathF.Round(UiDpi.DipsToPixels(width, dpi))),
-            Math.Max(1, (int)MathF.Round(UiDpi.DipsToPixels(height, dpi))));
-        if (_displayBitmap is not null && _displayPixelSize == pixelSize && _displayDpi == dpi)
+        if (TryGetDisplayBitmap(width, height, dpi) is { } current)
         {
-            return _displayBitmap;
+            return current;
         }
 
+        ID2D1Bitmap1 source = SourceBitmap
+            ?? throw new InvalidOperationException("The thumbnail has not been loaded.");
+        SizeI pixelSize = ToPixelSize(width, height, dpi);
         ID2D1Bitmap1 bitmap = D2DBitmapFactory.CreateScaled(
             scaleContext,
             source,
@@ -73,4 +75,8 @@ internal sealed class GalleryItemSlot : IDisposable
         _displayPixelSize = default;
         _displayDpi = 0.0f;
     }
+
+    private static SizeI ToPixelSize(float width, float height, float dpi) => new(
+        Math.Max(1, (int)MathF.Round(UiDpi.DipsToPixels(width, dpi))),
+        Math.Max(1, (int)MathF.Round(UiDpi.DipsToPixels(height, dpi))));
 }

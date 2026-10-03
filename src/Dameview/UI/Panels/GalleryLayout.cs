@@ -19,6 +19,7 @@ internal readonly struct GalleryLayout
 
     private const float PanelPadding = 8.0f;
     private const float ItemPadding = 6.0f;
+    private const float LabelHeight = 24.0f;
     private const float ScrollbarGap = 2.0f;
     private const int OverscanRows = 1;
 
@@ -94,17 +95,17 @@ internal readonly struct GalleryLayout
     }
 
     /// <summary>The area a thumbnail draws into, inset from its item and clear of the label.</summary>
-    internal static RectangleF GetThumbnailBounds(RectangleF item, float labelHeight) => new(
+    internal static RectangleF GetThumbnailBounds(RectangleF item) => new(
         item.X + ItemPadding,
         item.Y + ItemPadding,
         MathF.Max(0.0f, item.Width - (2.0f * ItemPadding)),
-        MathF.Max(0.0f, item.Height - labelHeight - (2.0f * ItemPadding)));
+        MathF.Max(0.0f, item.Height - LabelHeight - (2.0f * ItemPadding)));
 
-    internal static RectangleF GetLabelBounds(RectangleF item, float labelHeight) => new(
+    internal static RectangleF GetLabelBounds(RectangleF item) => new(
         item.X + ItemPadding,
-        item.Bottom - labelHeight,
+        item.Bottom - LabelHeight,
         MathF.Max(0.0f, item.Width - (2.0f * ItemPadding)),
-        labelHeight);
+        LabelHeight);
 
     /// <summary>
     /// The half-open range of items worth holding on to, padded by a row at each end so that
