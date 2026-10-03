@@ -51,7 +51,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
     {
         _contextMenuRequested = contextMenuRequested;
         _deviceContext = deviceContext;
-        _scaleContext = CreateScaleContext(deviceContext);
+        _scaleContext = D2DBitmapFactory.CreateOffscreenContext(deviceContext);
         _presentationCache = new ImagePresentationCache(deviceContext);
         _viewport = viewport;
         _animator = animator;
@@ -70,18 +70,12 @@ internal sealed class ImagePanel : UiElement, IDisposable
         ClearImage();
         _deviceContext = deviceContext;
         _scaleContext.Dispose();
-        _scaleContext = CreateScaleContext(deviceContext);
+        _scaleContext = D2DBitmapFactory.CreateOffscreenContext(deviceContext);
         _presentationCache.Recreate(deviceContext);
         if (image is not null)
         {
             SetImage(image, isPreview);
         }
-    }
-
-    private static ID2D1DeviceContext CreateScaleContext(ID2D1DeviceContext deviceContext)
-    {
-        using ID2D1Device device = deviceContext.Device;
-        return device.CreateDeviceContext();
     }
 
     internal void ClearImage()

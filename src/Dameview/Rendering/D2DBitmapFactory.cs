@@ -13,6 +13,16 @@ internal static class D2DBitmapFactory
 {
     private const float DefaultDpi = 96.0f;
 
+    /// <summary>
+    /// A context on the same device for building bitmaps while <paramref name="deviceContext"/>
+    /// is in the middle of drawing a frame.
+    /// </summary>
+    internal static ID2D1DeviceContext CreateOffscreenContext(ID2D1DeviceContext deviceContext)
+    {
+        using ID2D1Device device = deviceContext.Device;
+        return device.CreateDeviceContext();
+    }
+
     internal static unsafe ID2D1Bitmap1 Create(ID2D1DeviceContext deviceContext, DecodedImage image)
     {
         BitmapProperties1 properties = new(

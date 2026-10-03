@@ -1,6 +1,7 @@
 using System.Drawing;
 using Dameview.Imaging.Loading;
 using Dameview.Navigation;
+using Dameview.Rendering;
 using Dameview.Settings;
 using Dameview.UI.Components;
 using Dameview.UI.Foundation;
@@ -63,7 +64,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         Action<string, WorkspaceDragEvent>? dragPointer = null,
         Action<string, PointF>? contextMenuRequested = null)
     {
-        _thumbnailScaleContext = CreateScaleContext(deviceContext);
+        _thumbnailScaleContext = D2DBitmapFactory.CreateOffscreenContext(deviceContext);
         _thumbnailLoader = thumbnailLoader;
         _openImage = openImage;
         _openInNewTab = openInNewTab;
@@ -175,13 +176,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         }
 
         _thumbnailScaleContext.Dispose();
-        _thumbnailScaleContext = CreateScaleContext(deviceContext);
-    }
-
-    private static ID2D1DeviceContext CreateScaleContext(ID2D1DeviceContext deviceContext)
-    {
-        using ID2D1Device device = deviceContext.Device;
-        return device.CreateDeviceContext();
+        _thumbnailScaleContext = D2DBitmapFactory.CreateOffscreenContext(deviceContext);
     }
 
     internal void SetThumbnailSize(GalleryThumbnailSize size)

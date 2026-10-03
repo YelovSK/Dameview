@@ -23,20 +23,14 @@ internal sealed class ImagePresentationCache : IDisposable
 
     internal ImagePresentationCache(ID2D1DeviceContext deviceContext)
     {
-        _renderContext = CreateRenderContext(deviceContext);
+        _renderContext = D2DBitmapFactory.CreateOffscreenContext(deviceContext);
     }
 
     internal void Recreate(ID2D1DeviceContext deviceContext)
     {
         Clear();
         _renderContext.Dispose();
-        _renderContext = CreateRenderContext(deviceContext);
-    }
-
-    private static ID2D1DeviceContext CreateRenderContext(ID2D1DeviceContext deviceContext)
-    {
-        using ID2D1Device device = deviceContext.Device;
-        return device.CreateDeviceContext();
+        _renderContext = D2DBitmapFactory.CreateOffscreenContext(deviceContext);
     }
 
     /// <summary>The rescale already held for this exact presentation, if there is one.</summary>
