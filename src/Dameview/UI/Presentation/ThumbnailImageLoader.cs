@@ -64,7 +64,6 @@ internal sealed class ThumbnailImageLoader : IThumbnailImageLoader
     {
         if (_cache.TryAcquire(path, out CachedBitmapLease? cached))
         {
-            _cache.Trim();
             var subscription = new CachedLeaseSubscription(cached);
             _uiContext.Post(
                 _ =>
@@ -86,28 +85,13 @@ internal sealed class ThumbnailImageLoader : IThumbnailImageLoader
         DecodedImageUpload image,
         Action<CachedBitmapLease> completed)
     {
-        if (_cache.TryAcquire(path, out CachedBitmapLease? existing))
-        {
-            completed(existing);
-            _cache.Trim();
-            return;
-        }
-
-        ID2D1Bitmap1? bitmap = null;
         CachedBitmapLease lease;
         try
         {
-            bitmap = _createBitmap(image);
-            lease = _cache.AddAndAcquire(path, bitmap, image.Width, image.Height);
-            bitmap = null;
+            lease = _cache.GetOrAdd(path, image.Width, image.Height, default, () => _createBitmap(image));
         }
         catch
         {
-            if (bitmap is not null)
-            {
-                _cache.DisposeUncached(bitmap);
-            }
-
             // Thumbnails are best-effort; the consumer keeps its placeholder.
             return;
         }

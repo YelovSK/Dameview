@@ -42,7 +42,7 @@ public sealed class ThumbnailImageLoaderTests
         Assert.IsTrue(posted.TryTake(out Action? delivery, TimeSpan.FromSeconds(5)));
         delivery();
         Assert.IsNotNull(second);
-        Assert.AreSame(first.Bitmap.Bitmap, second.Bitmap.Bitmap);
+        Assert.AreSame(first.Entry, second.Entry);
         Assert.AreEqual(1, source.Requests);
 
         first.Dispose();
@@ -55,7 +55,7 @@ public sealed class ThumbnailImageLoaderTests
         using var posted = new BlockingCollection<Action>();
         var source = new FakeThumbnailSource();
         using var cache = new RenderBitmapCache(1024, _ => { });
-        using CachedBitmapLease seeded = cache.AddAndAcquire("thumb.jpg", null!, 1, 1);
+        using CachedBitmapLease seeded = cache.GetOrAdd("thumb.jpg", 1, 1, default, () => null!);
         var loader = new ThumbnailImageLoader(
             source,
             cache,
@@ -73,7 +73,7 @@ public sealed class ThumbnailImageLoaderTests
         delivery();
         Assert.IsFalse(delivered);
         Assert.AreEqual(0, source.Requests);
-        Assert.AreEqual(1, seeded.Bitmap.PinCount);
+        Assert.AreEqual(1, seeded.Entry.PinCount);
     }
 
     private static DecodedImageUpload CreateImage() => DecodedImageUpload.Allocate(1, 1, 4);

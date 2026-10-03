@@ -158,7 +158,7 @@ internal sealed class WorkspaceDragOverlay : UiElement, IDisposable
         context.DrawRoundedRectangle(card, context.Palette.Accent);
 
         // The card keeps its size while the thumbnail loads, so it does not jump when it arrives.
-        if (_thumbnail?.Bitmap.Bitmap is { } bitmap)
+        if (_thumbnail?.Bitmap is { } bitmap)
         {
             context.DrawBitmapFitted(
                 bitmap,

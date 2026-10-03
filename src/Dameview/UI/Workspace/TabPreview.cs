@@ -166,7 +166,7 @@ internal sealed class TabPreview : UiElement, IDisposable
 
         protected override void DrawCore(in UiDrawContext context)
         {
-            ID2D1Bitmap1? bitmap = _owner._lease?.Bitmap.Bitmap;
+            ID2D1Bitmap1? bitmap = _owner._lease?.Bitmap;
             if (bitmap is null || Bounds.Width <= 2.0f * PaddingDips || Bounds.Height <= 2.0f * PaddingDips)
             {
                 return;

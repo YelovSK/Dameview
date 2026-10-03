@@ -17,7 +17,7 @@ internal sealed class GalleryItemSlot : IDisposable
     private CachedBitmapLease? _sourceLease;
 
     internal IDisposable? Request { get; set; }
-    internal ID2D1Bitmap1? SourceBitmap => _sourceLease?.Bitmap.Bitmap;
+    internal ID2D1Bitmap1? SourceBitmap => _sourceLease?.Bitmap;
 
     internal void SetSourceBitmap(CachedBitmapLease lease)
     {

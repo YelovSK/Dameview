@@ -128,7 +128,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
         _isPreview = isPreview;
         switch (image)
         {
-            case CachedBitmapRepresentation cached:
+            case CachedBitmapLease cached:
                 _cachedImage = cached.Bitmap;
                 if (isPreview)
                 {
@@ -261,8 +261,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
                 context.PixelsToDips(cached.OffsetPixels.X),
                 context.PixelsToDips(cached.OffsetPixels.Y),
                 cached.Bitmap.Size.Width,
-                cached.Bitmap.Size.Height),
-            new Rect(0.0f, 0.0f, cached.Bitmap.Size.Width, cached.Bitmap.Size.Height));
+                cached.Bitmap.Size.Height));
     }
 
     /// <summary>How long until a moved image is drawn sharply, if it is waiting to be.</summary>
@@ -327,8 +326,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
                 context.PixelsToDips(destinationPixels.Y),
                 context.PixelsToDips(destinationPixels.Width),
                 context.PixelsToDips(destinationPixels.Height)),
-            new Rect(0.0f, 0.0f, image.PixelSize.Width, image.PixelSize.Height),
-            opacity: opacity);
+            opacity);
     }
 
     internal override UiPointerResult OnPointerEvent(in WindowPointerEvent input)

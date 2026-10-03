@@ -432,8 +432,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
                 bounds.X + ((bounds.Width - bitmap.Size.Width) / 2.0f),
                 bounds.Y + ((bounds.Height - bitmap.Size.Height) / 2.0f),
                 bitmap.Size.Width,
-                bitmap.Size.Height),
-            new Rect(0.0f, 0.0f, bitmap.Size.Width, bitmap.Size.Height));
+                bitmap.Size.Height));
     }
 
     private void RefreshVisibleThumbnails()

@@ -548,8 +548,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
             loadClient,
             _renderBitmapCache,
             () => _renderer.DeviceContext,
-            _thumbnailImageLoader,
-            _uiContext);
+            _thumbnailImageLoader);
         var session = new ViewerSession(
             new FolderNavigator(),
             new FolderMonitor(_folderSources),

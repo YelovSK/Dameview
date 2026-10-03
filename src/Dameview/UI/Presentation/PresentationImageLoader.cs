@@ -14,29 +14,24 @@ internal sealed class PresentationImageLoader : IImageLoader
     private readonly ImageLoadClient _producer;
     private readonly RenderBitmapCache _cache;
     private readonly IThumbnailImageLoader _thumbnails;
-    private readonly SynchronizationContext _uiContext;
     private readonly Func<DecodedImageUpload, ID2D1Bitmap1> _createUploadBitmap;
     private readonly Func<DecodedImage, ID2D1Bitmap1> _createDecodedBitmap;
-    private int _generation;
+    // Disposing it is what keeps a preview from arriving after the full image or a newer load.
     private IDisposable? _previewSubscription;
-    private TaskCompletionSource<CachedBitmapLease>? _previewLease;
-    private bool _finalDelivered;
     private bool _disposed;
 
     internal PresentationImageLoader(
         ImageLoadClient producer,
         RenderBitmapCache cache,
         Func<ID2D1DeviceContext> deviceContext,
-        IThumbnailImageLoader thumbnails,
-        SynchronizationContext uiContext)
+        IThumbnailImageLoader thumbnails)
         : this(
             producer,
             cache,
             // Resolved per upload, since the device can be replaced.
             upload => D2DBitmapFactory.Create(deviceContext(), upload),
             image => D2DBitmapFactory.Create(deviceContext(), image),
-            thumbnails,
-            uiContext)
+            thumbnails)
     {
     }
 
@@ -45,45 +40,31 @@ internal sealed class PresentationImageLoader : IImageLoader
         RenderBitmapCache cache,
         Func<DecodedImageUpload, ID2D1Bitmap1> createUploadBitmap,
         Func<DecodedImage, ID2D1Bitmap1> createDecodedBitmap,
-        IThumbnailImageLoader thumbnails,
-        SynchronizationContext uiContext)
+        IThumbnailImageLoader thumbnails)
     {
         _producer = producer;
         _cache = cache;
         _createUploadBitmap = createUploadBitmap;
         _createDecodedBitmap = createDecodedBitmap;
         _thumbnails = thumbnails;
-        _uiContext = uiContext;
     }
 
     public void Load(string path, Action<ImageLoadResult> completed)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        int generation = BeginLoad();
+        ResetPreview();
         if (_cache.TryAcquire(path, out CachedBitmapLease? lease))
         {
             _producer.CancelForeground();
-            completed(new ImageLoaded(path, new CachedBitmapRepresentation(lease)));
-            _cache.Trim();
+            completed(new ImageLoaded(path, lease));
             return;
         }
 
-        var leaseCompletion = new TaskCompletionSource<CachedBitmapLease>(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        _previewLease = leaseCompletion;
         _previewSubscription = _thumbnails.Request(
             path,
             ThumbnailPriority.Foreground,
-            image =>
-            {
-                if (!leaseCompletion.TrySetResult(image))
-                {
-                    image.Dispose();
-                }
-            });
-        _ = DeliverPreviewAsync(generation, path, leaseCompletion.Task, completed);
-
-        _producer.Load(path, result => CompleteForeground(generation, result, completed));
+            preview => completed(new ImageLoaded(path, preview, IsPreview: true)));
+        _producer.Load(path, result => CompleteForeground(result, completed));
     }
 
     public void Preload(IEnumerable<string?> paths)
@@ -95,233 +76,72 @@ internal sealed class PresentationImageLoader : IImageLoader
             CompletePreload);
     }
 
-    private int BeginLoad()
-    {
-        ResetPreview();
-        _finalDelivered = false;
-        return ++_generation;
-    }
-
     private void ResetPreview()
     {
         _previewSubscription?.Dispose();
         _previewSubscription = null;
-        _previewLease?.TrySetCanceled();
-        _previewLease = null;
     }
 
-    private async Task DeliverPreviewAsync(
-        int generation,
-        string path,
-        Task<CachedBitmapLease> thumbnail,
-        Action<ImageLoadResult> completed)
+    private void CompleteForeground(ImageLoadResult result, Action<ImageLoadResult> completed)
     {
-        CachedBitmapLease? lease = null;
-        try
-        {
-            lease = await thumbnail.ConfigureAwait(false);
-            CachedBitmapLease toDeliver = lease;
-            lease = null;
-            try
-            {
-                _uiContext.Post(
-                    _ => DeliverPreview(generation, path, toDeliver, completed),
-                    null);
-            }
-            catch
-            {
-                // Posting failed before delivery; retain ownership locally and release it.
-                toDeliver.Dispose();
-            }
-        }
-        catch (Exception)
-        {
-            lease?.Dispose();
-        }
-    }
-
-    private void DeliverPreview(
-        int generation,
-        string path,
-        CachedBitmapLease lease,
-        Action<ImageLoadResult> completed)
-    {
-        if (_disposed || generation != _generation || _finalDelivered)
-        {
-            lease.Dispose();
-            return;
-        }
-
-        completed(new ImageLoaded(
-            path,
-            new CachedBitmapRepresentation(lease),
-            IsPreview: true));
-    }
-
-    private void CompleteForeground(
-        int generation,
-        ImageLoadResult result,
-        Action<ImageLoadResult> completed)
-    {
-        if (_disposed || generation != _generation)
-        {
-            DisposeResult(result);
-            return;
-        }
-
-        _finalDelivered = true;
         ResetPreview();
-
-        if (result is not ImageLoaded loaded)
+        Func<ID2D1Bitmap1>? create = (result as ImageLoaded)?.Representation switch
+        {
+            UploadImageRepresentation upload => () => _createUploadBitmap(upload.Upload),
+            DecodedImageRepresentation decoded => () => _createDecodedBitmap(decoded.Image),
+            _ => null,
+        };
+        if (create is null)
         {
             completed(result);
             return;
         }
 
-        switch (loaded.Representation)
-        {
-            case UploadImageRepresentation upload:
-                try
-                {
-                    CompleteUploadedForeground(loaded.Path, upload.Upload, completed);
-                }
-                finally
-                {
-                    loaded.Dispose();
-                }
-
-                break;
-
-            case DecodedImageRepresentation decoded:
-                try
-                {
-                    CompleteDecodedForeground(loaded.Path, decoded.Image, completed);
-                }
-                finally
-                {
-                    loaded.Dispose();
-                }
-
-                break;
-
-            default:
-                completed(result);
-                break;
-        }
-    }
-
-    private void CompleteUploadedForeground(
-        string path,
-        DecodedImageUpload upload,
-        Action<ImageLoadResult> completed)
-    {
-        if (_cache.TryAcquire(path, out CachedBitmapLease? existing))
-        {
-            completed(new ImageLoaded(path, new CachedBitmapRepresentation(existing)));
-            _cache.Trim();
-            return;
-        }
-
-        ID2D1Bitmap1? bitmap = null;
+        var loaded = (ImageLoaded)result;
         CachedBitmapLease lease;
-        try
+        using (loaded)
         {
-            bitmap = _createUploadBitmap(upload);
-            lease = _cache.AddAndAcquire(path, bitmap, upload.Width, upload.Height, upload.Orientation);
-            bitmap = null;
-        }
-        catch (Exception exception)
-        {
-            Log.Error("Image", $"Could not upload '{Path.GetFileName(path)}' to the renderer.", exception);
-            if (bitmap is not null)
+            ImageRepresentation image = loaded.Representation;
+            try
             {
-                _cache.DisposeUncached(bitmap);
+                lease = _cache.GetOrAdd(loaded.Path, image.Width, image.Height, image.Orientation, create);
             }
-
-            completed(new ImageLoadFailed(path, exception));
-            return;
-        }
-
-        completed(new ImageLoaded(path, new CachedBitmapRepresentation(lease)));
-        _cache.Trim();
-    }
-
-    private void CompleteDecodedForeground(
-        string path,
-        DecodedImage image,
-        Action<ImageLoadResult> completed)
-    {
-        ID2D1Bitmap1? bitmap = null;
-        CachedBitmapLease lease;
-        try
-        {
-            bitmap = _createDecodedBitmap(image);
-            lease = _cache.AddAndAcquire(path, bitmap, image.Width, image.Height);
-            bitmap = null;
-        }
-        catch (Exception exception)
-        {
-            Log.Error("Image", $"Could not create a bitmap for '{Path.GetFileName(path)}'.", exception);
-            if (bitmap is not null)
+            catch (Exception exception)
             {
-                _cache.DisposeUncached(bitmap);
+                Log.Error("Image", $"Could not upload '{Path.GetFileName(loaded.Path)}' to the renderer.", exception);
+                completed(new ImageLoadFailed(loaded.Path, exception));
+                return;
             }
-
-            completed(new ImageLoadFailed(path, exception));
-            return;
         }
 
-        completed(new ImageLoaded(path, new CachedBitmapRepresentation(lease)));
+        completed(new ImageLoaded(loaded.Path, lease));
         _cache.Trim();
     }
 
     private void CompletePreload(ImageLoadResult result)
     {
-        if (_disposed)
+        if (result is not ImageLoaded { Representation: UploadImageRepresentation upload } loaded)
         {
-            DisposeResult(result);
+            (result as ImageLoaded)?.Dispose();
             return;
         }
 
-        if (result is not ImageLoaded
-            {
-                Representation: UploadImageRepresentation upload,
-            } loaded)
+        using (loaded)
         {
-            DisposeResult(result);
-            return;
-        }
-
-        ID2D1Bitmap1? bitmap = null;
-        try
-        {
-            if (_cache.Contains(loaded.Path) || !_cache.CanPreload(upload.Width, upload.Height))
+            try
             {
-                return;
+                _cache.TryPreload(
+                    loaded.Path,
+                    upload.Width,
+                    upload.Height,
+                    upload.Orientation,
+                    () => _createUploadBitmap(upload.Upload));
             }
-
-            bitmap = _createUploadBitmap(upload.Upload);
-            _cache.AddInactive(loaded.Path, bitmap, upload.Width, upload.Height, upload.Orientation);
-            bitmap = null;
-        }
-        catch
-        {
-            if (bitmap is not null)
+            catch
             {
-                _cache.DisposeUncached(bitmap);
+                // Preloading is speculative. Foreground loading will report failures.
             }
-
-            // Preloading is speculative. Foreground loading will report failures.
         }
-        finally
-        {
-            loaded.Dispose();
-        }
-    }
-
-    private static void DisposeResult(ImageLoadResult result)
-    {
-        (result as ImageLoaded)?.Dispose();
     }
 
     public void Dispose()

@@ -23,11 +23,10 @@ internal sealed class TiledImageRenderer : IDisposable
     private readonly ID2D1Bitmap1 _overview;
     private readonly TileDecodeScheduler _scheduler;
     private readonly Dictionary<ImageTile, TileEntry> _tiles = [];
-    private readonly HashSet<ImageTile> _visibleTiles = [];
-    private readonly HashSet<ImageTile> _nextVisibleTiles = [];
     private readonly HashSet<ImageTile> _desiredTiles = [];
     private readonly HashSet<ImageTile> _nextDesiredTiles = [];
     private readonly HashSet<ImageTile> _failedTiles = [];
+    // The visible tiles, nearest the middle of the view first once sorted.
     private readonly List<TileCandidate> _candidates = [];
     private readonly List<ImageTile> _requests = [];
     private long _tileBytes;
@@ -55,24 +54,44 @@ internal sealed class TiledImageRenderer : IDisposable
     internal void Draw(in UiDrawContext context, float viewportWidthPixels, float viewportHeightPixels)
     {
         // Everything below is drawn in stored image pixels.
-        var imageSize = new SizeF(_source.Width, _source.Height);
-        Matrix3x2 toViewport = _viewport.GetImageTransform(imageSize);
+        Matrix3x2 toViewport = _viewport.GetImageTransform(new SizeF(_source.Width, _source.Height));
         using TransformScope scope = context.PushTransform(
             toViewport * Matrix3x2.CreateScale(context.PixelsToDips(1.0f)));
-        DrawBitmap(
-            context,
-            _overview,
-            new RectangleF(PointF.Empty, imageSize),
-            _overview.PixelSize.Width,
-            _overview.PixelSize.Height);
+        context.DrawBitmap(_overview, new Rect(0.0f, 0.0f, _source.Width, _source.Height));
 
+        CollectVisibleTiles(toViewport, viewportWidthPixels, viewportHeightPixels);
+        SelectAndRequestTiles();
+        foreach (TileCandidate candidate in _candidates)
+        {
+            if (!_tiles.TryGetValue(candidate.Tile, out TileEntry? entry))
+            {
+                continue;
+            }
+
+            entry.LastUsed = Environment.TickCount64;
+            (int sourceX, int sourceY, int sourceWidth, int sourceHeight) =
+                candidate.Tile.GetSourceBounds(_source.Width, _source.Height);
+            context.DrawBitmap(entry.Bitmap, new Rect(sourceX, sourceY, sourceWidth, sourceHeight));
+        }
+    }
+
+    internal static int SelectMipLevel(float viewportScale)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(viewportScale);
+        int level = (int)Math.Floor(Math.Log2(1.0 / viewportScale));
+        return Math.Clamp(level, 0, 30);
+    }
+
+    // Leaves no candidates when the overview is already sharp enough or nothing is in view.
+    private void CollectVisibleTiles(Matrix3x2 toViewport, float viewportWidthPixels, float viewportHeightPixels)
+    {
+        _candidates.Clear();
         float scale = _viewport.Scale;
         float overviewScale = MathF.Min(
             (float)_overview.PixelSize.Width / _source.Width,
             (float)_overview.PixelSize.Height / _source.Height);
         if (scale <= overviewScale)
         {
-            ClearTileRequests();
             return;
         }
 
@@ -90,7 +109,6 @@ internal sealed class TiledImageRenderer : IDisposable
         int bottom = Math.Clamp((int)MathF.Ceiling(visibleMax.Y), 0, _source.Height);
         if (right <= left || bottom <= top)
         {
-            ClearTileRequests();
             return;
         }
 
@@ -112,9 +130,6 @@ internal sealed class TiledImageRenderer : IDisposable
         int firstTileY = levelTop / tileSize;
         int lastTileX = Math.Max(firstTileX, (levelRight - 1) / tileSize);
         int lastTileY = Math.Max(firstTileY, (levelBottom - 1) / tileSize);
-
-        _nextVisibleTiles.Clear();
-        _candidates.Clear();
         double centerX = (levelLeft + levelRight) / 2.0;
         double centerY = (levelTop + levelBottom) / 2.0;
 
@@ -126,39 +141,13 @@ internal sealed class TiledImageRenderer : IDisposable
                 int y = tileY * tileSize;
                 int width = Math.Min(tileSize, levelWidth - x);
                 int height = Math.Min(tileSize, levelHeight - y);
-                var tile = new ImageTile(x, y, width, height, level);
-                _nextVisibleTiles.Add(tile);
                 double deltaX = x + width / 2.0 - centerX;
                 double deltaY = y + height / 2.0 - centerY;
-                _candidates.Add(new TileCandidate(tile, deltaX * deltaX + deltaY * deltaY));
+                _candidates.Add(new TileCandidate(
+                    new ImageTile(x, y, width, height, level),
+                    deltaX * deltaX + deltaY * deltaY));
             }
         }
-
-        SelectAndRequestTiles();
-        foreach (ImageTile tile in _visibleTiles)
-        {
-            if (!_tiles.TryGetValue(tile, out TileEntry? entry))
-            {
-                continue;
-            }
-
-            entry.LastUsed = Environment.TickCount64;
-            (int sourceX, int sourceY, int sourceWidth, int sourceHeight) =
-                tile.GetSourceBounds(_source.Width, _source.Height);
-            DrawBitmap(
-                context,
-                entry.Bitmap,
-                new RectangleF(sourceX, sourceY, sourceWidth, sourceHeight),
-                tile.Width,
-                tile.Height);
-        }
-    }
-
-    internal static int SelectMipLevel(float viewportScale)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(viewportScale);
-        int level = (int)Math.Floor(Math.Log2(1.0 / viewportScale));
-        return Math.Clamp(level, 0, 30);
     }
 
     private void SelectAndRequestTiles()
@@ -176,7 +165,7 @@ internal sealed class TiledImageRenderer : IDisposable
                 continue;
             }
 
-            long bytes = checked((long)tile.Width * tile.Height * 4);
+            long bytes = GetTileBytes(tile);
             if (selectedBytes + bytes > MaximumTileBytes
                 || _nextDesiredTiles.Count == TileDecodeScheduler.MaximumPendingTiles)
             {
@@ -191,8 +180,6 @@ internal sealed class TiledImageRenderer : IDisposable
             }
         }
 
-        _visibleTiles.Clear();
-        _visibleTiles.UnionWith(_nextVisibleTiles);
         if (_desiredTiles.SetEquals(_nextDesiredTiles))
         {
             return;
@@ -203,22 +190,11 @@ internal sealed class TiledImageRenderer : IDisposable
         _scheduler.ReplaceRequests(_requests);
     }
 
-    private void ClearTileRequests()
-    {
-        _visibleTiles.Clear();
-        if (_desiredTiles.Count == 0)
-        {
-            return;
-        }
-
-        _desiredTiles.Clear();
-        _requests.Clear();
-        _scheduler.ReplaceRequests(_requests);
-    }
-
+    // A decode that is no longer wanted is kept anyway: eviction drops unwanted tiles first,
+    // and panning back would otherwise pay for the same decode again.
     private void CompleteTile(ImageTile tile, DecodedImage? image)
     {
-        if (_disposed || !_desiredTiles.Contains(tile))
+        if (_disposed)
         {
             return;
         }
@@ -242,30 +218,30 @@ internal sealed class TiledImageRenderer : IDisposable
 
         if (_tiles.Remove(tile, out TileEntry? previous))
         {
-            _tileBytes -= previous.Bytes;
+            _tileBytes -= GetTileBytes(tile);
             previous.Bitmap.Dispose();
         }
 
-        var entry = new TileEntry(bitmap, image.Pixels.LongLength);
-        _tiles.Add(tile, entry);
-        _tileBytes += entry.Bytes;
+        _tiles.Add(tile, new TileEntry(bitmap));
+        _tileBytes += GetTileBytes(tile);
         EvictTiles();
         _invalidate();
     }
 
     private void FailTile(ImageTile tile)
     {
-        if (!_disposed && _desiredTiles.Contains(tile))
+        if (_desiredTiles.Remove(tile))
         {
             _failedTiles.Add(tile);
-            _desiredTiles.Remove(tile);
             _invalidate();
         }
     }
 
     private void EvictTiles()
     {
-        while (_tileBytes > MaximumTileBytes && _tiles.Count > 0)
+        // The wanted tiles fit the budget on their own, so going over it always leaves an
+        // unwanted tile to evict.
+        while (_tileBytes > MaximumTileBytes)
         {
             ImageTile oldestKey = default;
             TileEntry? oldest = null;
@@ -281,34 +257,16 @@ internal sealed class TiledImageRenderer : IDisposable
 
             if (oldest is null)
             {
-                foreach ((ImageTile key, TileEntry candidate) in _tiles)
-                {
-                    if (oldest is null || candidate.LastUsed < oldest.LastUsed)
-                    {
-                        oldestKey = key;
-                        oldest = candidate;
-                    }
-                }
+                return;
             }
 
             _tiles.Remove(oldestKey);
-            _tileBytes -= oldest!.Bytes;
+            _tileBytes -= GetTileBytes(oldestKey);
             oldest.Bitmap.Dispose();
         }
     }
 
-    private static void DrawBitmap(
-        in UiDrawContext context,
-        ID2D1Bitmap1 bitmap,
-        RectangleF destination,
-        int sourceWidth,
-        int sourceHeight)
-    {
-        context.DrawBitmap(
-            bitmap,
-            new Rect(destination.X, destination.Y, destination.Width, destination.Height),
-            new Rect(0.0f, 0.0f, sourceWidth, sourceHeight));
-    }
+    private static long GetTileBytes(ImageTile tile) => (long)tile.Width * tile.Height * 4;
 
     public void Dispose()
     {
@@ -324,23 +282,13 @@ internal sealed class TiledImageRenderer : IDisposable
         {
             entry.Bitmap.Dispose();
         }
-
-        _tiles.Clear();
-        _visibleTiles.Clear();
-        _nextVisibleTiles.Clear();
-        _desiredTiles.Clear();
-        _nextDesiredTiles.Clear();
-        _failedTiles.Clear();
-        _candidates.Clear();
-        _requests.Clear();
     }
 
     private readonly record struct TileCandidate(ImageTile Tile, double Priority);
 
-    private sealed class TileEntry(ID2D1Bitmap1 bitmap, long bytes)
+    private sealed class TileEntry(ID2D1Bitmap1 bitmap)
     {
         internal ID2D1Bitmap1 Bitmap { get; } = bitmap;
-        internal long Bytes { get; } = bytes;
         internal long LastUsed { get; set; } = Environment.TickCount64;
     }
 }

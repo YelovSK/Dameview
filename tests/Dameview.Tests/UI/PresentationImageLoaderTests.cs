@@ -37,14 +37,14 @@ public sealed class PresentationImageLoaderTests
             firstCompleted.Set();
         });
         Assert.IsTrue(firstCompleted.Wait(TimeSpan.FromSeconds(5)));
-        Assert.IsInstanceOfType<CachedBitmapRepresentation>(first!.Representation);
+        Assert.IsInstanceOfType<CachedBitmapLease>(first!.Representation);
         first.Dispose();
 
         ImageLoaded? second = null;
         loader.Load("image", result => second = (ImageLoaded)result);
 
         Assert.IsNotNull(second);
-        Assert.IsInstanceOfType<CachedBitmapRepresentation>(second.Representation);
+        Assert.IsInstanceOfType<CachedBitmapLease>(second.Representation);
         Assert.AreEqual(1, Volatile.Read(ref decodeCount));
         second.Dispose();
     }
@@ -63,7 +63,7 @@ public sealed class PresentationImageLoaderTests
             TestPolicy);
         using ImageLoadClient producer = service.CreateClient();
         using var cache = new RenderBitmapCache(4, _ => { });
-        using CachedBitmapLease current = cache.AddAndAcquire("current", null!, 1, 1);
+        using CachedBitmapLease current = cache.GetOrAdd("current", 1, 1, default, () => null!);
         using PresentationImageLoader loader = CreateLoader(producer, cache);
 
         loader.Preload(["next"]);
@@ -78,7 +78,7 @@ public sealed class PresentationImageLoaderTests
         using var posted = new BlockingCollection<Action>();
         var source = new FakeThumbnailSource();
         using var thumbCache = new RenderBitmapCache(2L * 512 * 512 * 4, _ => { });
-        thumbCache.AddInactive("image", null!, 512, 512);
+        thumbCache.GetOrAdd("image", 512, 512, default, () => null!).Dispose();
         var thumbnails = new ThumbnailImageLoader(
             source,
             thumbCache,
@@ -99,8 +99,7 @@ public sealed class PresentationImageLoaderTests
             cache,
             _ => null!,
             _ => null!,
-            thumbnails,
-            new WindowSynchronizationContext(posted.Add));
+            thumbnails);
         var results = new List<ImageLoaded>();
 
         try
@@ -112,7 +111,7 @@ public sealed class PresentationImageLoaderTests
             Assert.IsTrue(results[0].IsPreview);
             Assert.AreEqual(512, results[0].Representation.Width);
             Assert.AreEqual(512, results[0].Representation.Height);
-            Assert.IsInstanceOfType<CachedBitmapRepresentation>(results[0].Representation);
+            Assert.IsInstanceOfType<CachedBitmapLease>(results[0].Representation);
             Assert.AreEqual(0, source.Requests);
 
             release.Set();
@@ -160,8 +159,7 @@ public sealed class PresentationImageLoaderTests
             cache,
             _ => null!,
             _ => null!,
-            thumbnails,
-            new WindowSynchronizationContext(posted.Add));
+            thumbnails);
         var results = new List<ImageLoaded>();
 
         try
@@ -174,7 +172,7 @@ public sealed class PresentationImageLoaderTests
             Assert.IsTrue(results[0].IsPreview);
             Assert.AreEqual(512, results[0].Representation.Width);
             Assert.AreEqual(512, results[0].Representation.Height);
-            Assert.IsInstanceOfType<CachedBitmapRepresentation>(results[0].Representation);
+            Assert.IsInstanceOfType<CachedBitmapLease>(results[0].Representation);
         }
         finally
         {
@@ -184,36 +182,6 @@ public sealed class PresentationImageLoaderTests
                 result.Dispose();
             }
         }
-    }
-
-    [TestMethod]
-    public void PreviewLeaseIsDisposedWhenUiPostThrows()
-    {
-        using var service = new ImageLoadService(
-            new WindowSynchronizationContext(action => action()),
-            new FakeBackend(() => CreateUpload()),
-            TestPolicy);
-        using ImageLoadClient producer = service.CreateClient();
-        using var thumbnailCache = new RenderBitmapCache(1024, _ => { });
-        using CachedBitmapLease previewLease = thumbnailCache.AddAndAcquire(
-            "image",
-            null!,
-            1,
-            1);
-        using var renderCache = new RenderBitmapCache(1024, _ => { });
-        using var loader = new PresentationImageLoader(
-            producer,
-            renderCache,
-            _ => null!,
-            _ => null!,
-            new ImmediateThumbnailImageLoader(previewLease),
-            new ThrowingSynchronizationContext());
-
-        loader.Load("image", result => (result as ImageLoaded)?.Dispose());
-
-        Assert.IsTrue(SpinWait.SpinUntil(
-            () => previewLease.Bitmap.PinCount == 0,
-            TimeSpan.FromSeconds(5)));
     }
 
     [TestMethod]
@@ -243,8 +211,7 @@ public sealed class PresentationImageLoaderTests
             cache,
             _ => null!,
             _ => null!,
-            thumbnails,
-            new WindowSynchronizationContext(posted.Add));
+            thumbnails);
         ImageLoaded? preview = null;
 
         try
@@ -294,8 +261,7 @@ public sealed class PresentationImageLoaderTests
             cache,
             _ => null!,
             _ => null!,
-            thumbnails,
-            new WindowSynchronizationContext(posted.Add));
+            thumbnails);
         var results = new List<ImageLoaded>();
 
         try
@@ -344,8 +310,7 @@ public sealed class PresentationImageLoaderTests
             cache,
             _ => null!,
             _ => null!,
-            thumbnails,
-            new WindowSynchronizationContext(posted.Add));
+            thumbnails);
         ImageLoadResult? result = null;
 
         loader.Load("image", loaded => result = loaded);
@@ -365,8 +330,7 @@ public sealed class PresentationImageLoaderTests
             cache,
             _ => null!,
             _ => null!,
-            NoThumbnailImageLoader.Instance,
-            new WindowSynchronizationContext(action => action()));
+            NoThumbnailImageLoader.Instance);
     }
 
     private static void PumpUntil(BlockingCollection<Action> posted, Func<bool> done)
@@ -431,24 +395,6 @@ public sealed class PresentationImageLoaderTests
             Action<CachedBitmapLease> completed) => NoopSubscription.Instance;
     }
 
-    private sealed class ImmediateThumbnailImageLoader(CachedBitmapLease lease) : IThumbnailImageLoader
-    {
-        public IDisposable Request(
-            string path,
-            ThumbnailPriority priority,
-            Action<CachedBitmapLease> completed)
-        {
-            completed(lease);
-            return NoopSubscription.Instance;
-        }
-    }
-
-    private sealed class ThrowingSynchronizationContext : SynchronizationContext
-    {
-        public override void Post(SendOrPostCallback d, object? state) =>
-            throw new InvalidOperationException("Test UI post failure.");
-    }
-
     private sealed class FakeThumbnailSource : IThumbnailLoader
     {
         internal int Requests;
@@ -470,6 +416,7 @@ public sealed class PresentationImageLoaderTests
         ManualResetEventSlim release) : IThumbnailLoader
     {
         private Action<DecodedImageUpload>? _completed;
+        private bool _cancelled;
 
         public IDisposable Request(
             string path,
@@ -477,15 +424,25 @@ public sealed class PresentationImageLoaderTests
             Action<DecodedImageUpload> completed)
         {
             _completed = completed;
+            _cancelled = false;
             started.Set();
-            return NoopSubscription.Instance;
+            return new CallbackSubscription(() => _cancelled = true);
         }
 
+        // Like the real source, a cancelled request never completes.
         internal void Complete()
         {
             release.Wait();
-            _completed!(CreateUpload());
+            if (!_cancelled)
+            {
+                _completed!(CreateUpload());
+            }
         }
+    }
+
+    private sealed class CallbackSubscription(Action disposed) : IDisposable
+    {
+        public void Dispose() => disposed();
     }
 
     private sealed class NoopSubscription : IDisposable

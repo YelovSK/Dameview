@@ -95,6 +95,14 @@ internal readonly record struct UiDrawContext
             source);
     }
 
+    /// <summary>Draws a whole bitmap into the destination.</summary>
+    internal void DrawBitmap(ID2D1Bitmap bitmap, Rect destination, float opacity = 1.0f) =>
+        DrawBitmap(
+            bitmap,
+            destination,
+            new Rect(0.0f, 0.0f, bitmap.Size.Width, bitmap.Size.Height),
+            opacity: opacity);
+
     /// <summary>Draws a whole bitmap, scaled to fit and centered within an area.</summary>
     internal void DrawBitmapFitted(ID2D1Bitmap bitmap, RectangleF area)
     {
@@ -109,8 +117,7 @@ internal readonly record struct UiDrawContext
                 area.X + (area.Width - width) / 2.0f,
                 area.Y + (area.Height - height) / 2.0f,
                 width,
-                height),
-            new Rect(0.0f, 0.0f, bitmap.PixelSize.Width, bitmap.PixelSize.Height));
+                height));
     }
 
     /// <summary>
