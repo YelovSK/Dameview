@@ -29,6 +29,7 @@ internal sealed class TiledImageRenderer : IDisposable
     // The visible tiles, nearest the middle of the view first once sorted.
     private readonly List<TileCandidate> _candidates = [];
     private readonly List<ImageTile> _requests = [];
+    private readonly List<ImageTile> _otherLevelTiles = [];
     private long _tileBytes;
     private bool _disposed;
 
@@ -61,17 +62,18 @@ internal sealed class TiledImageRenderer : IDisposable
 
         CollectVisibleTiles(toViewport, viewportWidthPixels, viewportHeightPixels);
         SelectAndRequestTiles();
+        if (HasMissingTiles())
+        {
+            DrawOtherLevels(context, _candidates[0].Tile.Level);
+        }
+
         foreach (TileCandidate candidate in _candidates)
         {
-            if (!_tiles.TryGetValue(candidate.Tile, out TileEntry? entry))
+            if (_tiles.TryGetValue(candidate.Tile, out TileEntry? entry))
             {
-                continue;
+                entry.LastUsed = Environment.TickCount64;
+                DrawTile(context, candidate.Tile, entry);
             }
-
-            entry.LastUsed = Environment.TickCount64;
-            (int sourceX, int sourceY, int sourceWidth, int sourceHeight) =
-                candidate.Tile.GetSourceBounds(_source.Width, _source.Height);
-            context.DrawBitmap(entry.Bitmap, new Rect(sourceX, sourceY, sourceWidth, sourceHeight));
         }
     }
 
@@ -148,6 +150,48 @@ internal sealed class TiledImageRenderer : IDisposable
                     deltaX * deltaX + deltaY * deltaY));
             }
         }
+    }
+
+    private bool HasMissingTiles()
+    {
+        foreach (TileCandidate candidate in _candidates)
+        {
+            if (!_tiles.ContainsKey(candidate.Tile))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Tiles left over from before a zoom are still much sharper than the overview, so they
+    // cover the gaps until this level's tiles arrive. Off-screen ones are drawn too, which
+    // is cheap and only lasts until the gaps fill. Drawing them doesn't count as use, so
+    // they are the first to be evicted.
+    private void DrawOtherLevels(in UiDrawContext context, int level)
+    {
+        _otherLevelTiles.Clear();
+        foreach (ImageTile tile in _tiles.Keys)
+        {
+            if (tile.Level != level)
+            {
+                _otherLevelTiles.Add(tile);
+            }
+        }
+
+        // Coarser levels first, so the sharper tiles end up on top.
+        _otherLevelTiles.Sort(static (left, right) => right.Level.CompareTo(left.Level));
+        foreach (ImageTile tile in _otherLevelTiles)
+        {
+            DrawTile(context, tile, _tiles[tile]);
+        }
+    }
+
+    private void DrawTile(in UiDrawContext context, ImageTile tile, TileEntry entry)
+    {
+        (int x, int y, int width, int height) = tile.GetSourceBounds(_source.Width, _source.Height);
+        context.DrawBitmap(entry.Bitmap, new Rect(x, y, width, height));
     }
 
     private void SelectAndRequestTiles()
