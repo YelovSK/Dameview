@@ -1,8 +1,30 @@
-# Dameview
+<p align="center">
+  <img src=".github/logo.png" width="128" alt="Dameview logo">
+</p>
 
-A Windows image viewer built with C#, Native AOT, Win32, and Direct2D.
+<h1 align="center">Dameview</h1>
 
-https://github.com/user-attachments/assets/677feaf6-f3dd-442b-a480-fc2a9d779cc4
+<p align="center">
+  A fast, modern image viewer for Windows.<br>
+  A single <4 MB executable that starts in ~100 ms.<br>
+</p>
+
+<p align="center">
+  <a href="https://github.com/YelovSK/Dameview/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/YelovSK/Dameview"></a>
+  <a href="https://github.com/YelovSK/Dameview/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/YelovSK/Dameview/total"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/YelovSK/Dameview"></a>
+</p>
+
+## Features
+
+- Tabs
+- Split view with any number of panes
+- Command palette (Ctrl + Shift + P)
+- Gallery panel for the open folder
+- Animations
+- Color themes
+- Built-in installer and updater
+- Tiled rendering for large images
 
 ## Tech stack
 
@@ -15,19 +37,7 @@ https://github.com/user-attachments/assets/677feaf6-f3dd-442b-a480-fc2a9d779cc4
 
 More in [ARCHITECTURE.md](ARCHITECTURE.md).
 
-## Features
-
-- A single <4 MB executable
-- Tabs
-- Split view (BSP)
-- Command palette (Ctrl + Shift + P)
-- Gallery panel for the open folder
-- Animations
-- Color themes
-- Built-in installer
-- Built-in updater
-- Starts in ~100 ms
-- Tiled rendering for large images
+https://github.com/user-attachments/assets/677feaf6-f3dd-442b-a480-fc2a9d779cc4
 
 ## Motivation
 
@@ -56,7 +66,7 @@ Dameview.exe --uninstall [--silent]
 - `path` opens an image or folder.
 - `--install` opens the installer, which installs to `%LOCALAPPDATA%\Programs\Dameview`. Running a non-installed executable without arguments does the same.
 - `--uninstall` opens the uninstaller.
-- `--silent` installs or uninstalls without UI. Exits with `0` on success, `1` on failure, or `2` when uninstalling while Dameview is running.
+- `--silent` installs or uninstalls without UI.
 
 With `dotnet run`, pass arguments after `--`:
 
