@@ -378,7 +378,7 @@ internal sealed unsafe class AppWindow : IDisposable
     }
 
     /// <param name="frameLatencyWaitHandle">Asked for on every wait, since it changes with the swap chain.</param>
-    internal int Run(Func<nint> frameLatencyWaitHandle)
+    internal void Run(Func<nint> frameLatencyWaitHandle)
     {
         RequestRepaint();
         RenderRequestedFrame();
@@ -426,8 +426,6 @@ internal sealed unsafe class AppWindow : IDisposable
         {
             ExceptionDispatchInfo.Capture(_unhandledException).Throw();
         }
-
-        return 0;
     }
 
     public void Dispose()
@@ -627,7 +625,7 @@ internal sealed unsafe class AppWindow : IDisposable
                 _ = SetCapture(window);
                 PointerInput?.Invoke(new WindowPointerEvent(
                     WindowPointerEventKind.Pressed,
-                    new PointF(GetX(lParam), GetY(lParam)),
+                    GetPoint(lParam),
                     PointerButton.Primary));
                 return default;
 
@@ -645,7 +643,7 @@ internal sealed unsafe class AppWindow : IDisposable
 
                 PointerInput?.Invoke(new WindowPointerEvent(
                     WindowPointerEventKind.Moved,
-                    new PointF(GetX(lParam), GetY(lParam))));
+                    GetPoint(lParam)));
                 return default;
 
             case WM_MOUSELEAVE:
@@ -656,7 +654,7 @@ internal sealed unsafe class AppWindow : IDisposable
             case WM_LBUTTONUP:
                 PointerInput?.Invoke(new WindowPointerEvent(
                     WindowPointerEventKind.Released,
-                    new PointF(GetX(lParam), GetY(lParam)),
+                    GetPoint(lParam),
                     PointerButton.Primary));
                 _ = ReleaseCapture();
                 return default;
@@ -670,7 +668,7 @@ internal sealed unsafe class AppWindow : IDisposable
             case WM_LBUTTONDBLCLK:
                 PointerInput?.Invoke(new WindowPointerEvent(
                     WindowPointerEventKind.DoubleClicked,
-                    new PointF(GetX(lParam), GetY(lParam)),
+                    GetPoint(lParam),
                     PointerButton.Primary));
                 return default;
 
@@ -678,7 +676,7 @@ internal sealed unsafe class AppWindow : IDisposable
             case WM_MBUTTONDBLCLK:
                 PointerInput?.Invoke(new WindowPointerEvent(
                     WindowPointerEventKind.Pressed,
-                    new PointF(GetX(lParam), GetY(lParam)),
+                    GetPoint(lParam),
                     PointerButton.Middle));
                 return default;
 
@@ -687,24 +685,24 @@ internal sealed unsafe class AppWindow : IDisposable
             case WM_RBUTTONDBLCLK:
                 PointerInput?.Invoke(new WindowPointerEvent(
                     WindowPointerEventKind.Pressed,
-                    new PointF(GetX(lParam), GetY(lParam)),
+                    GetPoint(lParam),
                     PointerButton.Secondary));
                 return default;
 
             case WM_RBUTTONUP:
                 PointerInput?.Invoke(new WindowPointerEvent(
                     WindowPointerEventKind.Released,
-                    new PointF(GetX(lParam), GetY(lParam)),
+                    GetPoint(lParam),
                     PointerButton.Secondary));
                 return default;
 
             case WM_MOUSEWHEEL:
-                var wheelPoint = new Point(GetX(lParam), GetY(lParam));
+                var wheelPoint = new Point(GetLowWord(lParam), GetHighWord(lParam));
                 _ = ScreenToClient(window, ref wheelPoint);
                 PointerInput?.Invoke(new WindowPointerEvent(
                     WindowPointerEventKind.Wheel,
                     new PointF(wheelPoint.X, wheelPoint.Y),
-                    WheelDelta: GetHighWord(wParam)));
+                    WheelDelta: GetHighWord((nint)(nuint)wParam)));
                 return default;
 
             case WM_SIZE:
@@ -801,25 +799,11 @@ internal sealed unsafe class AppWindow : IDisposable
         RenderFrame?.Invoke();
     }
 
-    private static int GetX(nint value)
-    {
-        return unchecked((short)(long)value);
-    }
+    private static PointF GetPoint(nint value) => new(GetLowWord(value), GetHighWord(value));
 
-    private static int GetY(nint value)
-    {
-        return unchecked((short)((long)value >> 16));
-    }
+    private static int GetLowWord(nint value) => unchecked((short)(long)value);
 
-    private static int GetLowWord(nint value)
-    {
-        return unchecked((short)(long)value);
-    }
-
-    private static int GetHighWord(nuint value)
-    {
-        return unchecked((short)((ulong)value >> 16));
-    }
+    private static int GetHighWord(nint value) => unchecked((short)((long)value >> 16));
 
     private static int ToColorRef(Color color)
     {

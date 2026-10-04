@@ -55,17 +55,15 @@ internal static class Program
             using SingleInstanceHost? instance = startupSettings.SingleInstance
                 ? SingleInstanceHost.AcquireOrForward(args)
                 : null;
-            if (instance is null)
+            if (instance is null && startupSettings.SingleInstance)
             {
-                if (startupSettings.SingleInstance)
-                {
-                    return 0;
-                }
+                return 0;
             }
 
             StartupTrace.Mark("instance");
             using var app = new DameviewApp(startupSettings);
-            return app.Run(args);
+            app.Run(args);
+            return 0;
         }
         catch (Exception exception)
         {

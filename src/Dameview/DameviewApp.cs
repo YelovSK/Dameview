@@ -178,7 +178,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         StartupTrace.Mark("wiring");
     }
 
-    public int Run(string[] args)
+    public void Run(string[] args)
     {
         _settings.Start();
 
@@ -188,7 +188,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         }
 
         StartupTrace.Mark("args");
-        return _window.Run(() => _renderer.FrameLatencyWaitHandle);
+        _window.Run(() => _renderer.FrameLatencyWaitHandle);
     }
 
     private void HandleFileDragInput(WindowFileDragEvent input)
