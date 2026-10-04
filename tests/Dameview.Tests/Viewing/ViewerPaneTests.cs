@@ -54,7 +54,7 @@ public sealed class ViewerPaneTests
         Assert.AreEqual(0, pane.ActiveIndex);
         Assert.AreSame(second, pane.ActiveTab);
         Assert.ThrowsExactly<ObjectDisposedException>(() => first.Session.OpenImage(@"C:\first\other.png"));
-        Assert.IsFalse(pane.CloseActiveTab());
+        Assert.IsFalse(pane.CloseTab(pane.ActiveIndex));
     }
 
     [TestMethod]
@@ -73,6 +73,25 @@ public sealed class ViewerPaneTests
 
         second.Session.OpenImage(@"C:\second\other.png");
         Assert.AreEqual(1, changes);
+    }
+
+    [TestMethod]
+    public void TabsChangeOnlyWhenATabsPathDoes()
+    {
+        ViewerTab tab = CreateTab();
+        using var pane = new ViewerPane(tab);
+        int stateChanges = 0;
+        int tabChanges = 0;
+        pane.ActiveSessionStateChanged += () => stateChanges++;
+        pane.TabsChanged += () => tabChanges++;
+
+        tab.Session.OpenImage(@"C:\first\image.png");
+        Assert.AreEqual(1, tabChanges);
+
+        int stateChangesBefore = stateChanges;
+        tab.Session.OpenImage(@"C:\first\image.png");
+        Assert.IsTrue(stateChanges > stateChangesBefore, "Reopening the same image still changes the session's state.");
+        Assert.AreEqual(1, tabChanges);
     }
 
     private static ViewerTab CreateTab()

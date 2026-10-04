@@ -1,6 +1,11 @@
 namespace Dameview.Viewing;
 
-internal abstract class WorkspaceNode;
+internal abstract class WorkspaceNode
+{
+    /// <summary>Every pane under this node, first to last.</summary>
+    internal abstract IEnumerable<ViewerPane> Panes { get; }
+    internal abstract ViewerPane FirstPane { get; }
+}
 
 internal enum WorkspaceSplitOrientation
 {
@@ -33,6 +38,8 @@ internal sealed class WorkspaceSplit : WorkspaceNode
     internal WorkspaceNode First { get; private set; }
     internal WorkspaceNode Second { get; private set; }
     internal float Ratio { get; private set; }
+    internal override IEnumerable<ViewerPane> Panes => First.Panes.Concat(Second.Panes);
+    internal override ViewerPane FirstPane => First.FirstPane;
 
     internal void SetRatio(float ratio)
     {

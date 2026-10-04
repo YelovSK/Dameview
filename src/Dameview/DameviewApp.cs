@@ -265,19 +265,10 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
             return;
         }
 
-        // New tabs are appended to the active pane, so this is the first one opened here.
-        int firstOpenedIndex = _workspace.Count;
-        foreach (string path in message.Split('\n'))
+        string[] paths = [.. message.Split('\n').Where(path => !string.IsNullOrWhiteSpace(path))];
+        Log.Debug("Workspace", $"Opened {paths.Length} image(s) from another instance.");
+        if (_workspace.OpenImagesInNewTabs(paths))
         {
-            if (!string.IsNullOrWhiteSpace(path))
-            {
-                OpenImageInNewTab(path);
-            }
-        }
-
-        if (_workspace.Count > firstOpenedIndex)
-        {
-            _workspace.SelectTab(firstOpenedIndex);
             Activate();
         }
     }

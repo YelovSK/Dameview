@@ -32,13 +32,10 @@ internal sealed class ViewerWorkspace : IDisposable
     internal WorkspaceNode Root { get; private set; }
     internal ViewerPane ActivePane { get; private set; }
     internal bool AutoBalancePanes { get; set; }
-    internal int Count => ActivePane.Count;
-    internal int ActiveIndex => ActivePane.ActiveIndex;
-    internal IReadOnlyList<ViewerTab> Tabs => ActivePane.Tabs;
 
     /// <summary>Every session in the workspace, including the tabs that are not active.</summary>
     internal IEnumerable<ViewerSession> Sessions =>
-        EnumeratePanes(Root).SelectMany(pane => pane.Tabs).Select(tab => tab.Session);
+        Root.Panes.SelectMany(pane => pane.Tabs).Select(tab => tab.Session);
 
     internal bool IsSplit => Root is not ViewerPane;
     internal bool HasClosedTabs => _closedTabs.Count > 0;
@@ -64,33 +61,38 @@ internal sealed class ViewerWorkspace : IDisposable
     internal void OpenImage(string path) => ActiveSession.OpenImage(path);
     internal void SelectImage(string path) => ActiveSession.SelectImage(path);
 
-    internal void OpenImageInNewTab(string path)
+    internal void OpenImageInNewTab(string path) => ActivePane.AddTab(CreateTab(path));
+
+    /// <summary>Opens each image in a new tab of the active pane and selects the first of them.</summary>
+    /// <returns>Whether any tab was opened.</returns>
+    internal bool OpenImagesInNewTabs(IEnumerable<string> paths)
     {
-        ActivePane.AddTab(CreateTab());
-        ActivePane.Tabs[^1].Session.OpenImage(path);
+        bool opened = false;
+        foreach (string path in paths)
+        {
+            ActivePane.InsertTab(CreateTab(path), ActivePane.Count, select: !opened);
+            opened = true;
+        }
+
+        return opened;
     }
 
     internal void OpenImageInNewTab(string path, WorkspaceDropTarget target)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         EnsureContains(target.Pane);
-        ViewerTab tab = CreateTab();
         switch (target)
         {
             case WorkspaceTabDropTarget tabTarget:
-                InsertDroppedTab(tabTarget.Pane, tab, tabTarget.InsertionIndex);
+                InsertDroppedTab(tabTarget.Pane, CreateTab(path), tabTarget.InsertionIndex);
                 SelectPane(tabTarget.Pane);
-                tab.Session.OpenImage(path);
                 break;
 
             case WorkspacePaneDropTarget paneTarget:
-                ViewerPane newPane = SplitPane(paneTarget.Pane, paneTarget.Side, tab);
-                tab.Session.OpenImage(path);
-                SelectPane(newPane);
+                SelectPane(SplitPane(paneTarget.Pane, paneTarget.Side, CreateTab(path)));
                 break;
 
             default:
-                tab.Dispose();
                 throw new ArgumentException("Unsupported workspace drop target.", nameof(target));
         }
     }
@@ -131,37 +133,19 @@ internal sealed class ViewerWorkspace : IDisposable
     }
 
     internal ViewerPane PaneOf(ViewerTab tab) =>
-        EnumeratePanes(Root).FirstOrDefault(pane => pane.Tabs.Contains(tab))
+        Root.Panes.FirstOrDefault(pane => pane.Tabs.Contains(tab))
         ?? throw new ArgumentException("The tab is not in the workspace.", nameof(tab));
 
     internal void DuplicateTab(ViewerTab tab)
     {
         ViewerPane pane = PaneOf(tab);
-        string? path = tab.Session.State.RequestedPath;
-        ViewerTab duplicate = CreateTab();
-        pane.AddTab(duplicate);
-        pane.SelectTab(pane.Count - 1);
-        if (path is not null)
-        {
-            duplicate.Session.OpenImage(path);
-        }
+        pane.InsertTab(CreateTab(tab.Session.State.RequestedPath), pane.Count, select: true);
     }
-
-    internal void SelectRelativeTab(int offset) => ActivePane.SelectRelativeTab(offset);
-
-    internal void SelectTab(int index) => ActivePane.SelectTab(index);
 
     internal void SelectTab(ViewerPane pane, int index)
     {
         EnsureContains(pane);
         pane.SelectTab(index);
-    }
-
-    internal bool CloseActiveTab() => CloseTab(ActivePane.ActiveIndex);
-
-    internal bool CloseTab(int index)
-    {
-        return CloseTab(ActivePane, index);
     }
 
     internal bool CloseTab(ViewerPane pane, int index)
@@ -185,28 +169,21 @@ internal sealed class ViewerWorkspace : IDisposable
         ClosedTab closed = _closedTabs[^1];
         _closedTabs.RemoveAt(_closedTabs.Count - 1);
 
-        ViewerPane pane = closed.Pane is { } original && EnumeratePanes(Root).Contains(original)
+        ViewerPane pane = closed.Pane is { } original && Root.Panes.Contains(original)
             ? original
             : ActivePane;
-        ViewerTab tab = CreateTab();
-        pane.InsertTab(tab, Math.Min(closed.Index, pane.Count), select: true);
+        pane.InsertTab(CreateTab(closed.Path), Math.Min(closed.Index, pane.Count), select: true);
         SelectPane(pane);
-        tab.Session.OpenImage(closed.Path);
         return true;
     }
 
     internal ViewerPane SplitPane(ViewerPane pane, WorkspaceSplitOrientation orientation)
     {
         EnsureContains(pane);
-        string? path = pane.ActiveSession.State.RequestedPath;
-        ViewerTab tab = CreateTab();
-        ViewerPane newPane = SplitPane(pane, orientation, tab);
-        if (path is not null)
-        {
-            tab.Session.OpenImage(path);
-        }
-
-        return newPane;
+        WorkspacePaneDropSide side = orientation == WorkspaceSplitOrientation.Horizontal
+            ? WorkspacePaneDropSide.Right
+            : WorkspacePaneDropSide.Bottom;
+        return SplitPane(pane, side, CreateTab(pane.ActiveSession.State.RequestedPath));
     }
 
     internal void BalancePanes()
@@ -258,7 +235,9 @@ internal sealed class ViewerWorkspace : IDisposable
         EnsureContains(pane);
         if (ReferenceEquals(pane, ActivePane))
         {
-            SelectPane(FindRemovalSuccessor(pane));
+            WorkspaceSplit parent = FindParent(Root, pane)
+                ?? throw new InvalidOperationException("The pane has no parent split.");
+            SelectPane(parent.GetSibling(pane).FirstPane);
         }
     }
 
@@ -323,37 +302,23 @@ internal sealed class ViewerWorkspace : IDisposable
             return false;
         }
 
-        ViewerPane? successor = ReferenceEquals(ActivePane, pane)
-            ? FindRemovalSuccessor(pane)
-            : null;
-        RemovePaneNode(pane);
-
-        if (successor is not null)
+        bool wasActive = ReferenceEquals(ActivePane, pane);
+        WorkspaceNode sibling = RemovePaneNode(pane);
+        if (wasActive)
         {
-            ActivePane = successor;
-            ActivePaneChanged?.Invoke(successor);
+            SelectPane(sibling.FirstPane);
         }
 
         LayoutChanged?.Invoke(null);
         return true;
     }
 
-    private ViewerPane FindRemovalSuccessor(ViewerPane pane)
-    {
-        WorkspaceSplit parent = FindParent(Root, pane)
-            ?? throw new InvalidOperationException("The pane has no parent split.");
-        return FindFirstPane(parent.GetSibling(pane));
-    }
-
     internal void SetSort(FolderSort sort)
     {
         _sort = sort;
-        foreach (ViewerPane pane in EnumeratePanes(Root))
+        foreach (ViewerSession session in Sessions)
         {
-            foreach (ViewerTab tab in pane.Tabs)
-            {
-                tab.Session.SetSort(sort);
-            }
+            session.SetSort(sort);
         }
     }
 
@@ -367,53 +332,40 @@ internal sealed class ViewerWorkspace : IDisposable
         }
     }
 
-    public void Dispose() => DisposeNode(Root);
+    public void Dispose()
+    {
+        foreach (ViewerPane pane in Root.Panes)
+        {
+            pane.Dispose();
+        }
+    }
 
-    private ViewerTab CreateTab()
+    private ViewerTab CreateTab(string? path = null)
     {
         ViewerTab tab = _createTab();
         tab.Session.SetSort(_sort);
         tab.Session.Viewport.ZoomStep = _zoomStep;
+        if (path is not null)
+        {
+            tab.Session.OpenImage(path);
+        }
+
         return tab;
     }
 
-    private ViewerPane SplitPane(
-        ViewerPane pane,
-        WorkspaceSplitOrientation orientation,
-        ViewerTab initialTab)
+    private ViewerPane SplitPane(ViewerPane pane, WorkspacePaneDropSide side, ViewerTab initialTab)
     {
-        (ViewerPane newPane, WorkspaceSplit split) = InsertSplit(
-            pane,
-            orientation,
-            initialTab,
-            newPaneFirst: false);
+        (ViewerPane newPane, WorkspaceSplit split) = InsertSplit(pane, side, initialTab);
         LayoutChanged?.Invoke(split);
-        PaneTabsChanged?.Invoke(newPane);
-        return newPane;
-    }
-
-    private ViewerPane SplitPane(
-        ViewerPane pane,
-        WorkspacePaneDropSide side,
-        ViewerTab initialTab)
-    {
-        (WorkspaceSplitOrientation orientation, bool newPaneFirst) = GetSplitPlacement(side);
-        (ViewerPane newPane, WorkspaceSplit split) = InsertSplit(
-            pane,
-            orientation,
-            initialTab,
-            newPaneFirst);
-        LayoutChanged?.Invoke(split);
-        PaneTabsChanged?.Invoke(newPane);
         return newPane;
     }
 
     private (ViewerPane Pane, WorkspaceSplit Split) InsertSplit(
         ViewerPane pane,
-        WorkspaceSplitOrientation orientation,
-        ViewerTab initialTab,
-        bool newPaneFirst)
+        WorkspacePaneDropSide side,
+        ViewerTab initialTab)
     {
+        (WorkspaceSplitOrientation orientation, bool newPaneFirst) = GetSplitPlacement(side);
         var newPane = new ViewerPane(initialTab);
         AttachPane(newPane);
         var split = new WorkspaceSplit(
@@ -462,26 +414,14 @@ internal sealed class ViewerWorkspace : IDisposable
     {
         bool removeSourcePane = sourcePane.Count == 1;
         sourcePane.DetachTab(tab, notify: !removeSourcePane);
-        (WorkspaceSplitOrientation orientation, bool newPaneFirst) = GetSplitPlacement(side);
-        (ViewerPane newPane, WorkspaceSplit split) = InsertSplit(
-            targetPane,
-            orientation,
-            tab,
-            newPaneFirst);
+        (ViewerPane newPane, WorkspaceSplit split) = InsertSplit(targetPane, side, tab);
         if (removeSourcePane)
         {
             RemovePaneNode(sourcePane);
         }
 
-        bool activePaneChanged = !ReferenceEquals(ActivePane, newPane);
-        ActivePane = newPane;
-        if (activePaneChanged)
-        {
-            ActivePaneChanged?.Invoke(newPane);
-        }
-
+        SelectPane(newPane);
         LayoutChanged?.Invoke(split);
-        PaneTabsChanged?.Invoke(newPane);
     }
 
     private WorkspaceNode RemovePaneNode(ViewerPane pane)
@@ -543,7 +483,7 @@ internal sealed class ViewerWorkspace : IDisposable
     private void EnsureContains(ViewerPane pane)
     {
         ArgumentNullException.ThrowIfNull(pane);
-        if (!EnumeratePanes(Root).Contains(pane))
+        if (!Root.Panes.Contains(pane))
         {
             throw new ArgumentException("The pane does not belong to this workspace.", nameof(pane));
         }
@@ -580,14 +520,7 @@ internal sealed class ViewerWorkspace : IDisposable
         return FindParent(split.First, child) ?? FindParent(split.Second, child);
     }
 
-    private static ViewerPane FindFirstPane(WorkspaceNode node) => node switch
-    {
-        ViewerPane pane => pane,
-        WorkspaceSplit split => FindFirstPane(split.First),
-        _ => throw new InvalidOperationException($"Unsupported workspace node: {node.GetType().Name}."),
-    };
-
-    // A loop rather than EnumeratePanes, because it runs every frame.
+    // A loop rather than Panes, because it runs every frame.
     private static void CollectShownViewports(WorkspaceNode node, List<ImageViewport> viewports)
     {
         if (node is WorkspaceSplit split)
@@ -598,50 +531,6 @@ internal sealed class ViewerWorkspace : IDisposable
         else if (node is ViewerPane pane)
         {
             viewports.Add(pane.ActiveSession.Viewport);
-        }
-    }
-
-    private static IEnumerable<ViewerPane> EnumeratePanes(WorkspaceNode node)
-    {
-        switch (node)
-        {
-            case ViewerPane pane:
-                yield return pane;
-                break;
-
-            case WorkspaceSplit split:
-                foreach (ViewerPane pane in EnumeratePanes(split.First))
-                {
-                    yield return pane;
-                }
-
-                foreach (ViewerPane pane in EnumeratePanes(split.Second))
-                {
-                    yield return pane;
-                }
-
-                break;
-
-            default:
-                throw new InvalidOperationException($"Unsupported workspace node: {node.GetType().Name}.");
-        }
-    }
-
-    private static void DisposeNode(WorkspaceNode node)
-    {
-        switch (node)
-        {
-            case ViewerPane pane:
-                pane.Dispose();
-                break;
-
-            case WorkspaceSplit split:
-                DisposeNode(split.First);
-                DisposeNode(split.Second);
-                break;
-
-            default:
-                throw new InvalidOperationException($"Unsupported workspace node: {node.GetType().Name}.");
         }
     }
 

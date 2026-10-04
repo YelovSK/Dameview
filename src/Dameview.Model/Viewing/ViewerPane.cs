@@ -20,6 +20,8 @@ internal sealed class ViewerPane : WorkspaceNode, IDisposable
     internal IReadOnlyList<ViewerTab> Tabs => _tabs;
     internal ViewerTab ActiveTab => _tabs[ActiveIndex];
     internal ViewerSession ActiveSession => ActiveTab.Session;
+    internal override IEnumerable<ViewerPane> Panes => [this];
+    internal override ViewerPane FirstPane => this;
 
     internal int IndexOf(ViewerTab tab) => _tabs.IndexOf(tab);
     /// <summary>Whether the pane holds nothing but a tab that never opened an image.</summary>
@@ -129,8 +131,6 @@ internal sealed class ViewerPane : WorkspaceNode, IDisposable
         TabsChanged?.Invoke();
     }
 
-    internal bool CloseActiveTab() => CloseTab(ActiveIndex);
-
     internal bool CloseTab(int index)
     {
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)index, (uint)_tabs.Count);
@@ -168,6 +168,8 @@ internal sealed class ViewerPane : WorkspaceNode, IDisposable
 
     private void AttachTab(ViewerTab tab)
     {
+        // The tab list shows each tab's path, so other state changes, such as scan progress, leave it alone.
+        string? listedPath = tab.Session.State.RequestedPath;
         Action handler = () =>
         {
             if (ReferenceEquals(tab, ActiveTab))
@@ -175,7 +177,12 @@ internal sealed class ViewerPane : WorkspaceNode, IDisposable
                 ActiveSessionStateChanged?.Invoke();
             }
 
-            TabsChanged?.Invoke();
+            string? path = tab.Session.State.RequestedPath;
+            if (path != listedPath)
+            {
+                listedPath = path;
+                TabsChanged?.Invoke();
+            }
         };
         _sessionChangedHandlers.Add(tab, handler);
         tab.Session.StateChanged += handler;

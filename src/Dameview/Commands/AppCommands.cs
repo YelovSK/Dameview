@@ -39,14 +39,14 @@ internal static class AppCommands
 
     internal static readonly Command PreviousTab = Command.Global(
         "previousTab", "Select previous tab", CommandScope.Window,
-        host => host.Workspace.SelectRelativeTab(-1),
-        host => host.Workspace.Count > 1,
+        host => host.Workspace.ActivePane.SelectRelativeTab(-1),
+        host => host.Workspace.ActivePane.Count > 1,
         [new(WindowKey.Tab, Control: true, Shift: true)]);
 
     internal static readonly Command NextTab = Command.Global(
         "nextTab", "Select next tab", CommandScope.Window,
-        host => host.Workspace.SelectRelativeTab(1),
-        host => host.Workspace.Count > 1,
+        host => host.Workspace.ActivePane.SelectRelativeTab(1),
+        host => host.Workspace.ActivePane.Count > 1,
         [new(WindowKey.Tab, Control: true)]);
 
     internal static readonly Command PreviousImage = Command.ForTab(

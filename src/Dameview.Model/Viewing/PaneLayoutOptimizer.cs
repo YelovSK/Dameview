@@ -29,7 +29,7 @@ internal static class PaneLayoutOptimizer
         ArgumentNullException.ThrowIfNull(getImageSize);
         ValidateArea(area);
 
-        ViewerPane[] panes = [.. EnumeratePanes(current)];
+        ViewerPane[] panes = [.. current.Panes];
         float fallbackSize = MathF.Max(area.Width, area.Height);
         Dictionary<ViewerPane, SizeF> imageSizes = panes.ToDictionary(
             pane => pane,
@@ -338,30 +338,6 @@ internal static class PaneLayoutOptimizer
             || area.MinimumPaneSize < 0.0f)
         {
             throw new ArgumentOutOfRangeException(nameof(area));
-        }
-    }
-
-    private static IEnumerable<ViewerPane> EnumeratePanes(WorkspaceNode node)
-    {
-        if (node is ViewerPane pane)
-        {
-            yield return pane;
-            yield break;
-        }
-
-        if (node is not WorkspaceSplit split)
-        {
-            throw new InvalidOperationException($"Unsupported workspace node: {node.GetType().Name}.");
-        }
-
-        foreach (ViewerPane child in EnumeratePanes(split.First))
-        {
-            yield return child;
-        }
-
-        foreach (ViewerPane child in EnumeratePanes(split.Second))
-        {
-            yield return child;
         }
     }
 

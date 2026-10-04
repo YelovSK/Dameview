@@ -19,14 +19,14 @@ public sealed class ViewerWorkspaceTests
 
         workspace.OpenImageInNewTab(@"C:\second\image.png");
 
-        Assert.AreEqual(2, workspace.Count);
+        Assert.AreEqual(2, workspace.ActivePane.Count);
         Assert.AreSame(first, workspace.ActiveSession);
-        Assert.AreEqual(@"C:\second\image.png", workspace.Tabs[1].Session.State.RequestedPath);
+        Assert.AreEqual(@"C:\second\image.png", workspace.ActivePane.Tabs[1].Session.State.RequestedPath);
 
-        workspace.SelectRelativeTab(1);
+        workspace.ActivePane.SelectRelativeTab(1);
 
-        Assert.AreSame(workspace.Tabs[1].Session, workspace.ActiveSession);
-        workspace.SelectRelativeTab(-1);
+        Assert.AreSame(workspace.ActivePane.Tabs[1].Session, workspace.ActiveSession);
+        workspace.ActivePane.SelectRelativeTab(-1);
         Assert.AreEqual(ViewportMode.ActualSize, first.Viewport.Mode);
     }
 
@@ -38,8 +38,8 @@ public sealed class ViewerWorkspaceTests
         workspace.SetZoomStep(1.35);
         workspace.OpenImageInNewTab(@"C:\second\image.png");
 
-        Assert.AreEqual(1.35, workspace.Tabs[0].Session.Viewport.ZoomStep);
-        Assert.AreEqual(1.35, workspace.Tabs[1].Session.Viewport.ZoomStep);
+        Assert.AreEqual(1.35, workspace.ActivePane.Tabs[0].Session.Viewport.ZoomStep);
+        Assert.AreEqual(1.35, workspace.ActivePane.Tabs[1].Session.Viewport.ZoomStep);
     }
 
     [TestMethod]
@@ -81,12 +81,12 @@ public sealed class ViewerWorkspaceTests
         using var workspace = new ViewerWorkspace(CreateTab);
         ViewerSession first = workspace.ActiveSession;
         workspace.OpenImageInNewTab(@"C:\second\image.png");
-        workspace.SelectTab(1);
+        workspace.ActivePane.SelectTab(1);
 
-        Assert.IsTrue(workspace.CloseActiveTab());
-        Assert.AreEqual(1, workspace.Count);
+        Assert.IsTrue(workspace.CloseTab(workspace.ActivePane, workspace.ActivePane.ActiveIndex));
+        Assert.AreEqual(1, workspace.ActivePane.Count);
         Assert.AreSame(first, workspace.ActiveSession);
-        Assert.IsFalse(workspace.CloseActiveTab());
+        Assert.IsFalse(workspace.CloseTab(workspace.ActivePane, workspace.ActivePane.ActiveIndex));
     }
 
     [TestMethod]
@@ -300,7 +300,7 @@ public sealed class ViewerWorkspaceTests
             LayoutArea(1600.0f, 900.0f),
             pane => new SizeF(400.0f + panes.IndexOf(pane) * 350.0f, 1000.0f));
 
-        CollectionAssert.AreEquivalent(panes, EnumeratePanes(optimized).ToArray());
+        CollectionAssert.AreEquivalent(panes, optimized.Panes.ToArray());
     }
 
     [TestMethod]
@@ -395,11 +395,11 @@ public sealed class ViewerWorkspaceTests
         ViewerPane second = workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
         workspace.SelectPane(second);
 
-        Assert.IsTrue(workspace.CloseActiveTab());
+        Assert.IsTrue(workspace.CloseTab(workspace.ActivePane, workspace.ActivePane.ActiveIndex));
 
         Assert.AreSame(first, workspace.Root);
         Assert.AreSame(first, workspace.ActivePane);
-        Assert.IsFalse(workspace.CloseActiveTab());
+        Assert.IsFalse(workspace.CloseTab(workspace.ActivePane, workspace.ActivePane.ActiveIndex));
     }
 
     [TestMethod]
@@ -745,26 +745,6 @@ public sealed class ViewerWorkspaceTests
 
     private static PaneLayoutArea LayoutArea(float width, float height) =>
         new(width, height, SplitterSize: 0.0f, PaneHeaderHeight: 0.0f, MinimumPaneSize: 0.0f);
-
-    private static IEnumerable<ViewerPane> EnumeratePanes(WorkspaceNode node)
-    {
-        if (node is ViewerPane pane)
-        {
-            yield return pane;
-            yield break;
-        }
-
-        WorkspaceSplit split = Assert.IsInstanceOfType<WorkspaceSplit>(node);
-        foreach (ViewerPane child in EnumeratePanes(split.First))
-        {
-            yield return child;
-        }
-
-        foreach (ViewerPane child in EnumeratePanes(split.Second))
-        {
-            yield return child;
-        }
-    }
 
     private sealed class SilentImageLoader : IImageLoader
     {
