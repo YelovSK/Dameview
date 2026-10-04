@@ -25,7 +25,6 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     private readonly ToolbarPanel _toolbarPanel;
     private readonly StatusPanel _statusPanel;
     private readonly ActivePaneIndicator _activePaneIndicator;
-    private readonly Action<ViewerPane, ViewerTabInfo?, RectangleF> _hoveredTabChanged;
     private ViewerSessionState _state;
     private string _fileName;
     private bool _pointerNearToolbar;
@@ -37,14 +36,12 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         ICommandRunner commands,
         ViewerContextMenus contextMenus,
         Action<int> selectTab,
-        Action<ViewerPane, ViewerTabInfo?, RectangleF> hoveredTabChanged,
         Action<ViewerPane, int, WorkspaceDragEvent> tabDragPointer,
         ViewerKeyBindings keyBindings)
     {
         void Run(Command command, ViewerTab target) => commands.Execute(command, CommandContext.For(target));
 
         Pane = pane;
-        _hoveredTabChanged = hoveredTabChanged;
         ViewerTab tab = pane.ActiveTab;
         ViewerSession session = tab.Session;
         _state = session.State;
@@ -60,7 +57,6 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             selectTab,
             index => Run(AppCommands.CloseTab, pane.Tabs[index]),
             () => Run(AppCommands.NewTab, pane.ActiveTab),
-            HandleHoveredTabChanged,
             (index, input) => tabDragPointer(Pane, index, TranslateTabStripEvent(input)),
             (index, point) => contextMenus.ShowForTab(Pane.Tabs[index], _viewerTabs!, point))
         {
@@ -261,17 +257,6 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     {
         _emptyStatePanel.Dispose();
         _imagePanel.Dispose();
-    }
-
-    private void HandleHoveredTabChanged(ViewerTabInfo? tab, RectangleF tabBounds)
-    {
-        if (tab is not null)
-        {
-            RectangleF stripBounds = _viewerTabs.GetBoundsRelativeTo(this);
-            tabBounds.Offset(stripBounds.Location);
-        }
-
-        _hoveredTabChanged(Pane, tab, tabBounds);
     }
 
     private WorkspaceDragEvent TranslateTabStripEvent(WorkspaceDragEvent input)

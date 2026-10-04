@@ -113,28 +113,31 @@ public sealed class ViewerTabStripTests
     [TestMethod]
     public void MovingAcrossTabsReportsHoveredTab()
     {
-        var hovered = new List<string?>();
         var tabs = new ViewerTabStrip(
             Tabs("One", "Two"),
             0,
             _ => { },
             _ => { },
-            () => { },
-            (tab, _) => hovered.Add(tab?.Label));
+            () => { });
         var root = new UiRoot(tabs, UiDpi.Default, TestTextLayouts.Shared);
+        string? reported = null;
+        root.ToolTipTargetChanged += _ => reported = tabs.HoveredTab?.Tab.Label;
         root.Arrange(new SizeF(400.0f, ViewerTabStrip.HeightDips));
 
         root.HandlePointer(new WindowPointerEvent(
             WindowPointerEventKind.Moved,
             new PointF(30.0f, ViewerTabStrip.HeightDips / 2.0f)));
+        Assert.AreEqual("One", reported);
+
         root.HandlePointer(new WindowPointerEvent(
             WindowPointerEventKind.Moved,
             new PointF(210.0f, ViewerTabStrip.HeightDips / 2.0f)));
+        Assert.AreEqual("Two", reported);
+
         root.HandlePointer(new WindowPointerEvent(
             WindowPointerEventKind.Moved,
             new PointF(399.0f, ViewerTabStrip.HeightDips / 2.0f)));
-
-        CollectionAssert.AreEqual(new string?[] { "One", "Two", null }, hovered);
+        Assert.IsNull(reported);
     }
 
     [TestMethod]

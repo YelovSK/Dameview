@@ -32,7 +32,6 @@ internal sealed class ViewerTabStrip : UiElement
     private readonly Button _addButton;
     private readonly Action<int> _selectionChanged;
     private readonly Action<int> _closeRequested;
-    private readonly Action<ViewerTabInfo?, RectangleF>? _hoveredTabChanged;
     private readonly WorkspaceDragGesture _drag;
     private readonly Action<int, PointF>? _contextMenuRequested;
     private readonly ScrollOffsetController _scrollOffset = new();
@@ -56,13 +55,11 @@ internal sealed class ViewerTabStrip : UiElement
         Action<int> selectionChanged,
         Action<int> closeRequested,
         Action addRequested,
-        Action<ViewerTabInfo?, RectangleF>? hoveredTabChanged = null,
         Action<int, WorkspaceDragEvent>? dragPointer = null,
         Action<int, PointF>? contextMenuRequested = null)
     {
         _selectionChanged = selectionChanged;
         _closeRequested = closeRequested;
-        _hoveredTabChanged = hoveredTabChanged;
         _drag = new WorkspaceDragGesture(drag => dragPointer?.Invoke(_pressedIndex, drag));
         _contextMenuRequested = contextMenuRequested;
         _addButton = new Button(
@@ -79,6 +76,9 @@ internal sealed class ViewerTabStrip : UiElement
     }
 
     internal float ScrollOffset => _scrollOffset.Offset;
+    /// <summary>The tab under the pointer and its bounds in the strip, which the tab preview follows.</summary>
+    internal (ViewerTabInfo Tab, RectangleF Bounds)? HoveredTab =>
+        _hoveredIndex >= 0 ? (_tabs[_hoveredIndex], GetTabBounds(_hoveredIndex)) : null;
     internal override WindowCursor Cursor => _hoveredIndex >= 0 ? WindowCursor.Pointer : WindowCursor.Default;
 
     internal int GetInsertionIndex(PointF position)
@@ -160,7 +160,6 @@ internal sealed class ViewerTabStrip : UiElement
                 return new UiPointerResult(Consumed: true, NeedsRepaint: changed);
 
             case WindowPointerEventKind.Pressed when input.Button == PointerButton.Primary:
-                _hoveredTabChanged?.Invoke(null, RectangleF.Empty);
                 if (index >= 0)
                 {
                     if (close)
@@ -185,7 +184,6 @@ internal sealed class ViewerTabStrip : UiElement
                     CapturePointer: index >= 0 && !close);
 
             case WindowPointerEventKind.Pressed when input.Button == PointerButton.Middle:
-                _hoveredTabChanged?.Invoke(null, RectangleF.Empty);
                 if (index >= 0)
                 {
                     _closeRequested(index);
@@ -196,7 +194,6 @@ internal sealed class ViewerTabStrip : UiElement
             case WindowPointerEventKind.Pressed when input.Button == PointerButton.Secondary:
                 if (index >= 0)
                 {
-                    _hoveredTabChanged?.Invoke(null, RectangleF.Empty);
                     _contextMenuRequested?.Invoke(index, input.Position);
                 }
 
@@ -428,9 +425,7 @@ internal sealed class ViewerTabStrip : UiElement
         }
 
         _hoveredIndex = index;
-        _hoveredTabChanged?.Invoke(
-            index >= 0 ? _tabs[index] : null,
-            index >= 0 ? GetTabBounds(index) : RectangleF.Empty);
+        Root?.RefreshToolTip(this);
     }
 
     private void UpdateScrollMetrics()

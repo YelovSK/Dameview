@@ -27,7 +27,9 @@ internal sealed class TabPreview : UiElement, IDisposable
     private string? _path;
     // Outlives the path while the panel fades out.
     private string _caption = string.Empty;
-    private RectangleF _anchor;
+    // Kept as the strip and the tab's place in it, so the preview follows the strip if it moves.
+    private ViewerTabStrip? _strip;
+    private RectangleF _tabBounds;
     private double _hoverSeconds;
     private bool _waiting;
     private int _version;
@@ -41,12 +43,20 @@ internal sealed class TabPreview : UiElement, IDisposable
 
     internal override bool IsHitTestVisible => false;
 
-    internal void Show(string path, RectangleF anchor)
+    /// <summary>Follows the hovered element, previewing the tab under the pointer if it is a tab strip.</summary>
+    internal void Show(UiElement? hovered)
     {
+        if (hovered is not ViewerTabStrip { HoveredTab: { Tab.ImagePath: string path } tab } strip)
+        {
+            Hide();
+            return;
+        }
+
         Reset();
         _path = path;
         _caption = Path.GetFileName(path);
-        _anchor = anchor;
+        _strip = strip;
+        _tabBounds = tab.Bounds;
         _hoverSeconds = 0.0;
         _waiting = true;
         InvalidateLayout();
@@ -69,7 +79,16 @@ internal sealed class TabPreview : UiElement, IDisposable
 
     protected override SizeF MeasureCore(SizeF availableSize) => availableSize;
 
-    protected override void ArrangeCore(SizeF finalSize) => _panel.Arrange(GetPanelBounds(finalSize, _anchor));
+    protected override void ArrangeCore(SizeF finalSize)
+    {
+        RectangleF anchor = _tabBounds;
+        if (_strip is not null)
+        {
+            anchor.Offset(_strip.GetBoundsRelativeTo(this).Location);
+        }
+
+        _panel.Arrange(GetPanelBounds(finalSize, anchor));
+    }
 
     protected override bool UpdateCore(in UiUpdateContext context)
     {

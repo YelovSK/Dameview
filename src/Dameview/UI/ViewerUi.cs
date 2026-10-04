@@ -72,7 +72,6 @@ internal sealed class ViewerUi : UiElement, IDisposable
                 app,
                 _contextMenus,
                 index => app.SelectTab(pane, index),
-                ShowTabPreview,
                 (tabPane, tabIndex, input) => _dragController!.HandleTabPointer(tabPane, tabIndex, input),
                 _keyBindings)
             {
@@ -126,8 +125,13 @@ internal sealed class ViewerUi : UiElement, IDisposable
         AddChild(_toastHost);
         AddChild(_toolTipHost);
         _host.Root.PointerPressed += HandlePointerPressed;
-        _host.Root.PointerPressed += _ => _toolTipHost.Hide();
+        _host.Root.PointerPressed += _ =>
+        {
+            _toolTipHost.Hide();
+            _tabPreview.Hide();
+        };
         _host.Root.ToolTipTargetChanged += _toolTipHost.Show;
+        _host.Root.ToolTipTargetChanged += _tabPreview.Show;
         workspace.ActivePaneChanged += HandleActivePaneChanged;
         workspace.LayoutChanged += HandleLayoutChanged;
         workspace.PaneRatiosChanged += HandlePaneRatiosChanged;
@@ -460,21 +464,6 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _tabPreview.Dispose();
         _galleryPanel.Dispose();
         _workspaceView.Dispose();
-    }
-
-    private void ShowTabPreview(ViewerPane pane, ViewerTabInfo? tab, RectangleF tabBounds)
-    {
-        if (tab is not { ImagePath: string path })
-        {
-            _tabPreview.Hide();
-            return;
-        }
-
-        ViewerPaneView paneView = _workspaceView.FindPaneView(pane)
-            ?? throw new InvalidOperationException("The pane view is not attached.");
-        RectangleF paneBounds = paneView.GetBoundsRelativeTo(this);
-        tabBounds.Offset(paneBounds.Location);
-        _tabPreview.Show(path, tabBounds);
     }
 
     private void HandlePointerPressed(UiElement? target)
