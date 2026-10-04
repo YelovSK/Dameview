@@ -30,6 +30,7 @@ internal sealed unsafe class AppWindow : IDisposable
     private SHOW_WINDOW_CMD _initialShowCommand = SHOW_WINDOW_CMD.SW_SHOWNORMAL;
     private WindowPlacementState? _lastPlacement;
     private WindowCursor _cursor = WindowCursor.Default;
+    private string? _title;
     private FileDropTarget? _dropTarget;
     private bool _oleInitialized;
 
@@ -111,10 +112,13 @@ internal sealed unsafe class AppWindow : IDisposable
 
     internal void SetTitle(string title)
     {
-        if (Handle != 0)
+        if (Handle == 0 || title == _title)
         {
-            _ = SetWindowText((HWND)Handle, title);
+            return;
         }
+
+        _title = title;
+        _ = SetWindowText((HWND)Handle, title);
     }
 
     internal void CenterOnPrimaryMonitor()

@@ -13,6 +13,7 @@ internal sealed class ViewerPane : WorkspaceNode, IDisposable
 
     internal event Action? ActiveTabChanged;
     internal event Action? ActiveSessionStateChanged;
+    /// <summary>Raised when tabs are added, removed, moved or selected, or when a tab opens a different path.</summary>
     internal event Action? TabsChanged;
 
     internal int Count => _tabs.Count;
@@ -168,7 +169,6 @@ internal sealed class ViewerPane : WorkspaceNode, IDisposable
 
     private void AttachTab(ViewerTab tab)
     {
-        // The tab list shows each tab's path, so other state changes, such as scan progress, leave it alone.
         string? listedPath = tab.Session.State.RequestedPath;
         Action handler = () =>
         {
