@@ -52,15 +52,7 @@ internal sealed class InstallerApp : IDisposable
 
     internal bool Run()
     {
-        _window.Closed += NativeMethods.RequestMessageLoopExit;
-        try
-        {
-            _window.Run(() => _renderer.FrameLatencyWaitHandle);
-        }
-        finally
-        {
-            _window.Closed -= NativeMethods.RequestMessageLoopExit;
-        }
+        _window.Run(() => _renderer.FrameLatencyWaitHandle);
 
         if (_uninstallComplete)
         {

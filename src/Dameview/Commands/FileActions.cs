@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.InteropServices;
 using Dameview.Diagnostics;
 using Dameview.Imaging.Loading;
 using Dameview.Notifications;
@@ -12,13 +13,33 @@ internal sealed class FileActions : IDisposable
     private readonly nint _window;
     private readonly ImageLoadService _imageLoadService;
     private readonly ToastService _toasts;
+    private readonly IReadOnlySet<string> _decodableExtensions;
     private CancellationTokenSource? _copyImageCancellation;
 
-    internal FileActions(nint window, ImageLoadService imageLoadService, ToastService toasts)
+    internal FileActions(
+        nint window,
+        ImageLoadService imageLoadService,
+        ToastService toasts,
+        IReadOnlySet<string> decodableExtensions)
     {
         _window = window;
         _imageLoadService = imageLoadService;
         _toasts = toasts;
+        _decodableExtensions = decodableExtensions;
+    }
+
+    internal string? PickImage()
+    {
+        try
+        {
+            return FilePicker.PickFile(_window, "Images", _decodableExtensions);
+        }
+        catch (Exception exception) when (exception is COMException or InvalidOperationException)
+        {
+            Log.Error("Window", "The file picker could not be opened.", exception);
+            _toasts.Notify("Could not open the file picker.", ToastSeverity.Error);
+            return null;
+        }
     }
 
     internal void CopyPath(string path)

@@ -11,14 +11,10 @@ internal interface ICommandHost
     public ViewerUi Ui { get; }
     public FileActions Files { get; }
 
-    public void OpenPickedFile();
-
     /// <summary>Closes the tab, or its whole pane when it is the last one there.</summary>
     public void CloseTab(ViewerTab tab);
 
     public void ToggleFullscreen();
-
-    public void TogglePerformanceOverlay();
 
     public void UpdateSettings(Func<AppSettings, AppSettings> change);
 }

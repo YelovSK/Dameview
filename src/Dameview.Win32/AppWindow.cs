@@ -62,7 +62,6 @@ internal sealed unsafe class AppWindow : IDisposable
 
     internal event Action? RenderFrame;
     internal event Action? Shown;
-    internal event Action? Closed;
     internal event Action<int, int>? Resized;
     internal event Action? SizeMoveStarted;
     internal event Action? SizeMoveEnded;
@@ -551,8 +550,8 @@ internal sealed unsafe class AppWindow : IDisposable
         {
             appWindow._unhandledException ??= exception;
             DestroyWindow(window);
-            // A failed native callback must unwind the message loop even when no
-            // application close handler is attached, or that handler itself failed.
+            // Destroying the window normally ends the loop, but not when the failure
+            // happened while the window was being destroyed.
             NativeMethods.RequestMessageLoopExit();
             return default;
         }
@@ -768,7 +767,7 @@ internal sealed unsafe class AppWindow : IDisposable
                 Handle = 0;
                 _frameRequested = false;
                 _postedActions.Clear();
-                Closed?.Invoke();
+                NativeMethods.RequestMessageLoopExit();
                 return default;
 
             default:

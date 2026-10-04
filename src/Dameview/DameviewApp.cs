@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Drawing;
-using System.Runtime.InteropServices;
 using Dameview.App;
 using Dameview.Commands;
 using Dameview.Diagnostics;
@@ -33,14 +32,14 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
     private readonly D2DRenderer _renderer;
     private readonly PerformanceMonitor _performanceMonitor;
     private readonly ViewerUi _ui;
-    private readonly WindowsImageLoadingBackend _imageBackend;
+    // Cached because a method group allocates a new delegate on every frame.
+    private readonly Action<SizeF> _drawFrame;
     private readonly ThumbnailCoordinator _thumbnailCoordinator;
     private readonly ImageLoadService _imageLoadService;
     private readonly RenderBitmapCache _renderBitmapCache;
     private readonly RenderBitmapCache _thumbnailBitmapCache;
     private readonly ThumbnailImageLoader _thumbnailImageLoader;
     private readonly FolderSources _folderSources;
-    private readonly HashSet<string> _decodableExtensions;
     private readonly ViewerWorkspace _workspace;
     private readonly SettingsService _settings;
     private readonly UpdateService _updates;
@@ -51,8 +50,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
     private readonly FileActions _files;
     private Task<ID3D11Device>? _pendingHardwareDevice;
     private long _memorySampled;
-    private int _pointerX;
-    private int _pointerY;
+    private PointF _pointer;
 
     public DameviewApp(AppSettings startupSettings)
     {
@@ -63,8 +61,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         _uiContext = new WindowSynchronizationContext(_window.Post);
         SynchronizationContext.SetSynchronizationContext(_uiContext);
         _window.SetTitleBarTheme(dark: true, Themes.Dark.Palette.WindowCaptionColor, Themes.Dark.Palette.WindowTextColor);
-        _pointerX = _window.ClientWidth / 2;
-        _pointerY = _window.ClientHeight / 2;
+        _pointer = new PointF(_window.ClientWidth / 2.0f, _window.ClientHeight / 2.0f);
         StartupTrace.Mark("window");
         try
         {
@@ -96,15 +93,14 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         });
 
         _performanceMonitor = new PerformanceMonitor();
-        _imageBackend = new WindowsImageLoadingBackend();
+        var imageBackend = new WindowsImageLoadingBackend();
         _thumbnailCoordinator = new ThumbnailCoordinator(
-            _imageBackend.LoadThumbnail,
+            imageBackend.LoadThumbnail,
             _uiContext);
         _imageLoadService = new ImageLoadService(
             _uiContext,
-            _imageBackend,
+            imageBackend,
             new ImageRepresentationPolicy(checked((int)_renderer.DeviceContext.MaximumBitmapSize)));
-        _files = new FileActions(_window.Handle, _imageLoadService, _toasts);
         _renderBitmapCache = new RenderBitmapCache(RenderBitmapCacheCapacityBytes);
         _thumbnailBitmapCache = new RenderBitmapCache(ThumbnailBitmapCacheCapacityBytes);
         _thumbnailImageLoader = new ThumbnailImageLoader(
@@ -113,12 +109,13 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
             () => _renderer.DeviceContext,
             _uiContext);
         using var imageDecoder = new ImageDecoder();
-        _decodableExtensions = imageDecoder.GetProbablySupportedExtensions();
+        HashSet<string> decodableExtensions = imageDecoder.GetProbablySupportedExtensions();
         StartupTrace.Mark("wic");
-        HashSet<string>.AlternateLookup<ReadOnlySpan<char>> decodableExtensions =
-            _decodableExtensions.GetAlternateLookup<ReadOnlySpan<char>>();
+        _files = new FileActions(_window.Handle, _imageLoadService, _toasts, decodableExtensions);
+        HashSet<string>.AlternateLookup<ReadOnlySpan<char>> decodableExtensionLookup =
+            decodableExtensions.GetAlternateLookup<ReadOnlySpan<char>>();
         var folderScanner = new FolderScanner(
-            path => decodableExtensions.Contains(Path.GetExtension(path)));
+            path => decodableExtensionLookup.Contains(Path.GetExtension(path)));
         _folderSources = new FolderSources(
             scope =>
             {
@@ -145,6 +142,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
             _thumbnailImageLoader,
             _performanceMonitor,
             _toasts);
+        _drawFrame = _ui.DrawFrame;
         StartupTrace.Mark("ui");
         _ui.Invalidated += _window.RequestRepaint;
         _ui.CursorChanged += _window.ApplyCursor;
@@ -169,16 +167,8 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         _window.PointerInput += HandlePointerInput;
 
         _settings.Changed += ApplySettings;
-        _settings.Failed += error =>
-        {
-            _toasts.Notify(error, ToastSeverity.Error);
-            _window.RequestRepaint();
-        };
-        _settings.ValuesIgnored += ignored =>
-        {
-            _toasts.Notify(DescribeIgnored(ignored), ToastSeverity.Warning);
-            _window.RequestRepaint();
-        };
+        _settings.Failed += error => _toasts.Notify(error, ToastSeverity.Error);
+        _settings.ValuesIgnored += ignored => _toasts.Notify(DescribeIgnored(ignored), ToastSeverity.Warning);
         _updates.Changed += HandleUpdateChanged;
         _updates.UpdateDownloaded += HandleUpdateDownloaded;
         _updates.FoundInBackground += HandleUpdateFoundInBackground;
@@ -204,15 +194,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         }
 
         StartupTrace.Mark("args");
-        _window.Closed += NativeMethods.RequestMessageLoopExit;
-        try
-        {
-            return _window.Run(() => _renderer.FrameLatencyWaitHandle);
-        }
-        finally
-        {
-            _window.Closed -= NativeMethods.RequestMessageLoopExit;
-        }
+        return _window.Run(() => _renderer.FrameLatencyWaitHandle);
     }
 
     private void HandleFileDragInput(WindowFileDragEvent input)
@@ -232,9 +214,6 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         // so this also remembers the size that will be restored after unmaximizing.
         _settings.Update(_settings.Current with { Window = _window.CapturePlacement() });
         _updateCheckTimer.Dispose();
-        _updates.Changed -= HandleUpdateChanged;
-        _updates.UpdateDownloaded -= HandleUpdateDownloaded;
-        _updates.FoundInBackground -= HandleUpdateFoundInBackground;
         _settings.Dispose();
         _files.Dispose();
         // Closing before the hardware device arrives leaves nothing else to own it.
@@ -243,7 +222,6 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
             CancellationToken.None,
             TaskContinuationOptions.OnlyOnRanToCompletion,
             TaskScheduler.Default);
-        _ui.Invalidated -= _window.RequestRepaint;
         _ui.Dispose();
         _workspace.Dispose();
         _renderBitmapCache.Dispose();
@@ -295,17 +273,15 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
 
         // New tabs are appended to the active pane, so this is the first one opened here.
         int firstOpenedIndex = _workspace.Count;
-        bool opened = false;
         foreach (string path in message.Split('\n'))
         {
             if (!string.IsNullOrWhiteSpace(path))
             {
                 OpenImageInNewTab(path);
-                opened = true;
             }
         }
 
-        if (opened)
+        if (_workspace.Count > firstOpenedIndex)
         {
             _workspace.SelectTab(firstOpenedIndex);
             Activate();
@@ -367,7 +343,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         if (keyBindings.TryGetCommand(CommandScope.Viewer, input, out command)
             && (!input.IsRepeat || command.RepeatsWhileHeld))
         {
-            PointF anchor = _ui.GetImageViewportPoint(new PointF(_pointerX, _pointerY));
+            PointF anchor = _ui.GetImageViewportPoint(_pointer);
             Execute(command, CommandContext.For(_workspace.ActiveTab, anchor));
         }
     }
@@ -395,31 +371,27 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
     void ICommandHost.CloseTab(ViewerTab tab)
     {
         ViewerPane pane = _workspace.PaneOf(tab);
-        CloseTabOrPane(pane, pane.IndexOf(tab));
-    }
+        int index = pane.IndexOf(tab);
+        if (pane.Count > 1)
+        {
+            _workspace.CloseTab(pane, index);
+            return;
+        }
 
-    void ICommandHost.TogglePerformanceOverlay() => _performanceMonitor.Enabled = _ui.TogglePerformanceOverlay();
+        if (_ui.BeginClosePane(pane, () => _workspace.CloseTab(pane, index)))
+        {
+            _workspace.ActivatePaneAfterClosing(pane);
+            _window.RequestRepaint();
+            return;
+        }
+
+        _window.Close();
+    }
 
     // One bad value is worth naming; a mangled file is not worth four toasts.
     private static string DescribeIgnored(IReadOnlyList<string> ignored) => ignored.Count == 1
         ? $"Ignored {ignored[0]} in the settings file."
         : $"Ignored {ignored.Count} unreadable values in the settings file.";
-
-    public void OpenPickedFile()
-    {
-        try
-        {
-            if (FilePicker.PickFile(_window.Handle, "Images", _decodableExtensions) is string path)
-            {
-                OpenImage(path);
-            }
-        }
-        catch (Exception exception) when (exception is COMException or InvalidOperationException)
-        {
-            Log.Error("Window", "The file picker could not be opened.", exception);
-            _toasts.Notify("Could not open the file picker.", ToastSeverity.Error);
-        }
-    }
 
     public void ActivateUpdate() => _updates.Activate();
 
@@ -502,11 +474,8 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         }
     }
 
-    private void HandleUpdateFoundInBackground(AppRelease release)
-    {
+    private void HandleUpdateFoundInBackground(AppRelease release) =>
         _toasts.Notify($"Dameview {release.Tag} is available. Update it from Settings › Updates.", ToastSeverity.Success);
-        _window.RequestRepaint();
-    }
 
     private void HandleUpdateDownloaded(string path)
     {
@@ -525,8 +494,6 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
                 : Path.GetFileName(state.RequestedPath);
             _window.SetTitle($"{fileName} — Dameview");
         }
-
-        _window.RequestRepaint();
     }
 
     private void HandleActiveTabChanged(ViewerPane pane)
@@ -551,24 +518,6 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
     {
         _ui.ApplyPaneRatios(_workspace.Root);
         _window.RequestRepaint();
-    }
-
-    private void CloseTabOrPane(ViewerPane pane, int index)
-    {
-        if (pane.Count > 1)
-        {
-            _workspace.CloseTab(pane, index);
-            return;
-        }
-
-        if (_ui.BeginClosePane(pane, () => _workspace.CloseTab(pane, index)))
-        {
-            _workspace.ActivatePaneAfterClosing(pane);
-            _window.RequestRepaint();
-            return;
-        }
-
-        _window.Close();
     }
 
     private void HandleTabsChanged(ViewerPane pane)
@@ -627,8 +576,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
     {
         if (input.Kind is not (WindowPointerEventKind.Cancelled or WindowPointerEventKind.Left))
         {
-            _pointerX = (int)input.Position.X;
-            _pointerY = (int)input.Position.Y;
+            _pointer = input.Position;
         }
 
         _ui.HandlePointer(input);
@@ -722,7 +670,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         _workspace.SyncViewports();
         TimeSpan updateTime = Stopwatch.GetElapsedTime(frameStarted);
         RenderTiming timing = _renderer.Render(
-            _ui.DrawFrame,
+            _drawFrame,
             _ui.Palette.Background,
             _performanceMonitor.Enabled);
         StartupTrace.Mark("frame");

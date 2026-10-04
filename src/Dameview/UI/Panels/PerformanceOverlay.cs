@@ -37,6 +37,12 @@ internal sealed class PerformanceOverlay : UiElement
 
     internal override bool IsHitTestVisible => false;
 
+    internal void Toggle()
+    {
+        IsVisible = !IsVisible;
+        _monitor.Enabled = IsVisible;
+    }
+
     protected override bool UpdateCore(in UiUpdateContext context)
     {
         long now = Stopwatch.GetTimestamp();

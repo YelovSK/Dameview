@@ -11,7 +11,13 @@ internal static class AppCommands
 {
     internal static readonly Command OpenFile = Command.Global(
         "openFile", "Open image…", CommandScope.Window,
-        host => host.OpenPickedFile(),
+        host =>
+        {
+            if (host.Files.PickImage() is string path)
+            {
+                host.Workspace.OpenImage(path);
+            }
+        },
         shortcuts: [new(WindowKey.O, Control: true)],
         repeatsWhileHeld: false);
 
@@ -180,7 +186,7 @@ internal static class AppCommands
 
     internal static readonly Command TogglePerformanceOverlay = Command.Global(
         "togglePerformanceOverlay", "Toggle performance overlay", CommandScope.Window,
-        host => host.TogglePerformanceOverlay(),
+        host => host.Ui.TogglePerformanceOverlay(),
         shortcuts: [new(WindowKey.F3)]);
 
     internal static readonly Command ShowSettings = Command.Global(

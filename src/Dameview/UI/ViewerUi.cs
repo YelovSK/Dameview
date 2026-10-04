@@ -308,11 +308,10 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     internal void CenterGallerySelection() => _galleryPanel.CenterSelection();
 
-    internal bool TogglePerformanceOverlay()
+    internal void TogglePerformanceOverlay()
     {
-        _performanceOverlay.IsVisible = !_performanceOverlay.IsVisible;
+        _performanceOverlay.Toggle();
         _host.Root.InvalidateVisual();
-        return _performanceOverlay.IsVisible;
     }
 
     internal bool HandleCapturedKey(WindowKeyEvent input) => _host.Root.HandleCapturedKey(input);
