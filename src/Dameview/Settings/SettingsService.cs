@@ -3,18 +3,22 @@ using Dameview.Serialization;
 
 namespace Dameview.Settings;
 
-// Start, Update, reload delivery, and Dispose belong to the owning thread.
+// Start, Update, Flush, reload delivery, and Dispose belong to the owning thread.
 // Watcher callbacks only schedule a reload onto that thread; they never mutate application state.
 internal sealed class SettingsService : IDisposable
 {
+    private static readonly TimeSpan SaveDelay = TimeSpan.FromMilliseconds(300);
+
     private readonly string _path;
     private readonly SynchronizationContext _ownerContext;
     private readonly Lock _gate = new();
     private readonly Timer _reloadTimer;
+    private readonly Timer _saveTimer;
     private readonly TimeSpan _reloadDelay;
     private readonly TimeSpan _retryDelay;
     private FileSystemWatcher? _watcher;
     private AppSettings? _fileSettings;
+    private bool _savePending;
     private bool _disposed;
     private int _readAttempts;
     private string[] _reportedIgnored = [];
@@ -36,6 +40,11 @@ internal sealed class SettingsService : IDisposable
         _retryDelay = options.RetryDelay;
         _reloadTimer = new Timer(
             _ => _ownerContext.Post(_ => Reload(), null),
+            null,
+            Timeout.Infinite,
+            Timeout.Infinite);
+        _saveTimer = new Timer(
+            _ => _ownerContext.Post(_ => Flush(), null),
             null,
             Timeout.Infinite,
             Timeout.Infinite);
@@ -115,9 +124,24 @@ internal sealed class SettingsService : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         settings.Validate();
         Apply(settings);
+        _savePending = true;
+        _saveTimer.Change(SaveDelay, Timeout.InfiniteTimeSpan);
+    }
+
+    /// <summary>Writes a pending change now instead of waiting for the changes to settle.</summary>
+    internal void Flush()
+    {
+        if (!_savePending)
+        {
+            return;
+        }
+
+        _savePending = false;
+        // The latest settings, not the ones that started the wait, so an outside edit
+        // loaded in the meantime isn't overwritten.
         try
         {
-            Save(settings);
+            Save(Current);
             Error = null;
         }
         catch (Exception exception) when (IsSettingsError(exception))
@@ -129,10 +153,12 @@ internal sealed class SettingsService : IDisposable
 
     public void Dispose()
     {
+        Flush();
         lock (_gate)
         {
             _disposed = true;
             _reloadTimer.Dispose();
+            _saveTimer.Dispose();
         }
 
         _watcher?.Dispose();

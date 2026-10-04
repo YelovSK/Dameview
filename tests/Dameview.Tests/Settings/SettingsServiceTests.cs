@@ -30,6 +30,7 @@ public sealed class SettingsServiceTests
             GallerySizeDips = 240.0f,
             Window = new WindowPlacementState { X = 20, Y = 30, Width = 320, Height = 240 },
         });
+        settings.Flush();
         Assert.IsNull(settings.Error);
 
         using SettingsService reopened = files.CreateService();
@@ -56,6 +57,35 @@ public sealed class SettingsServiceTests
 
         Assert.AreEqual(previous, settings.Current);
         Assert.AreEqual(saved, File.ReadAllText(files.Path));
+    }
+
+    [TestMethod]
+    public void UpdatesAreSavedOnceTheySettle()
+    {
+        using var files = new SettingsFiles();
+        using SettingsService settings = files.CreateService();
+        settings.Start();
+        string saved = File.ReadAllText(files.Path);
+
+        settings.Update(settings.Current with { Sort = FolderSort.SizeLargest });
+        settings.Update(settings.Current with { Sort = FolderSort.NameDescending });
+
+        Assert.AreEqual(FolderSort.NameDescending, settings.Current.Sort);
+        Assert.AreEqual(saved, File.ReadAllText(files.Path));
+        files.PumpUntil(() => File.ReadAllText(files.Path).Contains("sort=nameDescending"));
+    }
+
+    [TestMethod]
+    public void DisposingSavesAPendingUpdate()
+    {
+        using var files = new SettingsFiles();
+        SettingsService settings = files.CreateService();
+        settings.Start();
+
+        settings.Update(settings.Current with { Sort = FolderSort.SizeLargest });
+        settings.Dispose();
+
+        Assert.Contains("sort=sizeLargest", File.ReadAllText(files.Path));
     }
 
     [TestMethod]
@@ -109,6 +139,7 @@ public sealed class SettingsServiceTests
         File.Move(replacement, files.Path, overwrite: true);
         files.PumpUntil(() => changes == 1);
         settings.Update(settings.Current);
+        settings.Flush();
         // Force a later, distinct reload through a malformed file.
         File.WriteAllText(files.Path, "theme");
         files.PumpUntil(() => settings.Error is not null);
@@ -142,6 +173,7 @@ public sealed class SettingsServiceTests
         settings.Start();
 
         settings.Update(settings.Current with { Sort = FolderSort.SizeLargest });
+        settings.Flush();
 
         string saved = File.ReadAllText(files.Path);
         Assert.Contains("; picked by hand", saved);
@@ -160,6 +192,7 @@ public sealed class SettingsServiceTests
         files.PumpUntil(() => settings.Error is not null);
 
         settings.Update(settings.Current with { Sort = FolderSort.SizeLargest });
+        settings.Flush();
 
         Assert.AreEqual(FolderSort.SizeLargest, settings.Current.Sort);
         StringAssert.Contains(settings.Error, "Could not save");
@@ -175,6 +208,7 @@ public sealed class SettingsServiceTests
             using SettingsService settings = files.CreateService();
             settings.Start();
             settings.Update(new AppSettings { Theme = theme });
+            settings.Flush();
             Assert.IsNull(settings.Error);
 
             using SettingsService reopened = files.CreateService();
@@ -200,6 +234,7 @@ public sealed class SettingsServiceTests
         using SettingsService settings = files.CreateService();
         settings.Start();
         settings.Update(new AppSettings { Theme = ThemeId.Light });
+        settings.Flush();
         File.WriteAllText(files.Path, json);
 
         // The file holds nothing but the bad line, so every setting lands on its default.
@@ -273,6 +308,7 @@ public sealed class SettingsServiceTests
         files.PumpUntil(() => !files.Posted.IsEmpty, drain: false);
         using var locked = new FileStream(files.Path, FileMode.Open, FileAccess.Read, FileShare.Read);
         settings.Update(new AppSettings { Theme = ThemeId.Light });
+        settings.Flush();
         files.Drain();
         Assert.AreEqual(ThemeId.Light, settings.Current.Theme);
         Assert.IsNotNull(settings.Error);
