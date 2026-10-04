@@ -169,11 +169,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private ViewerPaneView ActivePaneView => _workspaceView.FindPaneView(_workspace.ActivePane)
         ?? throw new InvalidOperationException("The active pane view is not attached.");
 
-    internal bool BeginClosePane(ViewerPane pane, Action completed)
-    {
-        _host.Root.ClearPointer();
-        return _workspaceView.BeginClosePane(pane, completed);
-    }
+    internal bool BeginClosePane(ViewerPane pane, Action completed) =>
+        _workspaceView.BeginClosePane(pane, completed);
 
     private void HandleActivePaneChanged(ViewerPane pane)
     {
@@ -197,16 +194,14 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     private void HandleActiveTabChanged(ViewerPane pane)
     {
-        _host.Root.ClearPointer();
         _workspaceView.FindPaneView(pane)?.BindTab(pane.ActiveTab);
         HandleSessionStateChanged(pane);
     }
 
     private void HandleSessionStateChanged(ViewerPane pane)
     {
-        bool isActivePane = ReferenceEquals(pane, _workspace.ActivePane);
-        _workspaceView.FindPaneView(pane)?.ApplyState(pane.ActiveSession.State, clearPointer: isActivePane);
-        if (isActivePane)
+        _workspaceView.FindPaneView(pane)?.ApplyState(pane.ActiveSession.State);
+        if (ReferenceEquals(pane, _workspace.ActivePane))
         {
             ApplyActivePaneState();
         }

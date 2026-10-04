@@ -72,6 +72,8 @@ internal sealed class WorkspaceView : UiElement, IDisposable
             return false;
         }
 
+        // The pane stays on screen while it collapses, but is already gone as far as input goes.
+        Root?.DisconnectSubtree(paneView);
         _closingPane = pane;
         _closeCompletion = completed;
         parent.Collapse(paneView, () => _closeReady = true);

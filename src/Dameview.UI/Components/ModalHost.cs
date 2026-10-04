@@ -56,7 +56,6 @@ internal sealed class ModalHost : UiElement
             return;
         }
 
-        Root?.ClearPointer();
         Content = null;
         _dismiss = null;
         _backdropPressed = false;

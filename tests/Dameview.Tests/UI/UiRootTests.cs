@@ -213,6 +213,28 @@ public sealed class UiRootTests
     }
 
     [TestMethod]
+    public void CancellingPointerWithinASubtreeLeavesOtherSubtreesAndFocusAlone()
+    {
+        var child = new FocusableElement();
+        var content = new TestContainer(child, new RectangleF(100, 200, 80, 40));
+        var root = new UiRoot(content, UiDpi.Default, TestTextLayouts.Shared);
+        root.Arrange(new SizeF(800, 600));
+        root.HandlePointer(Pointer(WindowPointerEventKind.Moved, 110, 210));
+        root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, 110, 210));
+
+        root.CancelPointerWithin(new FocusableElement());
+
+        Assert.AreSame(child, root.CapturedElement);
+        Assert.IsTrue(child.HasVisualState(UiVisualState.Hovered));
+
+        root.CancelPointerWithin(child);
+
+        Assert.IsNull(root.CapturedElement);
+        Assert.IsFalse(child.HasVisualState(UiVisualState.Hovered));
+        Assert.AreSame(child, root.FocusedElement);
+    }
+
+    [TestMethod]
     public void AKeyboardCaptorTakesKeysAndTextAheadOfFocusUntilItLeavesTheTree()
     {
         var focused = new KeyRecorder();

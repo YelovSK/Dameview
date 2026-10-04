@@ -152,11 +152,12 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
 
     internal void BindTab(ViewerTab tab)
     {
+        Root?.CancelPointerWithin(this);
         ViewerSession session = tab.Session;
         _imagePanel.Bind(session.Viewport, session.Animator);
     }
 
-    internal void ApplyState(ViewerSessionState state, bool clearPointer)
+    internal void ApplyState(ViewerSessionState state)
     {
         bool displayedImageChanged = !ReferenceEquals(_state.DisplayedImage, state.DisplayedImage);
         _state = state;
@@ -167,11 +168,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         }
         else if (displayedImageChanged && state.DisplayedImage is { } displayed)
         {
-            if (clearPointer)
-            {
-                Root?.ClearPointer();
-            }
-
+            Root?.CancelPointerWithin(this);
             ApplyDisplayedImage(displayed);
         }
 

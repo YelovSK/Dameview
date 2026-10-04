@@ -163,7 +163,8 @@ internal sealed class UiRoot
         UpdateCursor();
     }
 
-    internal void DisconnectSubtree(UiElement subtree)
+    /// <summary>Ends pointer interaction with a subtree, such as one whose content was swapped under the pointer.</summary>
+    internal void CancelPointerWithin(UiElement subtree)
     {
         if (IsWithin(CapturedElement, subtree))
         {
@@ -173,8 +174,13 @@ internal sealed class UiRoot
         if (IsWithin(_hoveredElement, subtree))
         {
             SetHovered(null);
+            UpdateCursor();
         }
+    }
 
+    internal void DisconnectSubtree(UiElement subtree)
+    {
+        CancelPointerWithin(subtree);
         if (IsWithin(FocusedElement, subtree))
         {
             SetFocus(null);
