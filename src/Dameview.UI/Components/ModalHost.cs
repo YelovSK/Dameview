@@ -11,7 +11,6 @@ internal abstract class ModalContent : UiElement
 {
     internal abstract SizeF PreferredSize { get; }
     internal virtual bool DismissOnBackdrop => true;
-    internal virtual bool DismissOnEscape => true;
     internal abstract UiElement InitialFocus { get; }
     internal override bool PreservesFocusOnPointerPress => true;
 }
@@ -62,22 +61,15 @@ internal sealed class ModalHost : UiElement
         IsPresent = false;
     }
 
-    internal bool HandleEscape()
+    // Reached only when nothing inside the content used the key.
+    internal override bool OnKeyEvent(WindowKeyEvent input)
     {
-        if (Content is null)
+        if (input.Key != WindowKey.Escape || _dismiss is null)
         {
             return false;
         }
 
-        if (Content.DismissOnEscape)
-        {
-            _dismiss!();
-        }
-        else
-        {
-            Content.OnKeyEvent(new WindowKeyEvent(WindowKey.Escape));
-        }
-
+        _dismiss();
         return true;
     }
 

@@ -213,6 +213,21 @@ public sealed class UiRootTests
     }
 
     [TestMethod]
+    public void EscapeCancelsAPointerCaptureBeforeFocusSeesIt()
+    {
+        var child = new FocusableElement();
+        var content = new TestContainer(child, new RectangleF(100, 200, 80, 40));
+        var root = new UiRoot(content, UiDpi.Default, TestTextLayouts.Shared);
+        root.Arrange(new SizeF(800, 600));
+        root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, 110, 210));
+
+        Assert.IsTrue(root.HandleKey(new WindowKeyEvent(WindowKey.Escape), content, wrapFocus: false, directionalNavigation: false));
+
+        Assert.IsNull(root.CapturedElement);
+        Assert.IsFalse(child.HasVisualState(UiVisualState.Pressed));
+    }
+
+    [TestMethod]
     public void CancellingPointerWithinASubtreeLeavesOtherSubtreesAndFocusAlone()
     {
         var child = new FocusableElement();

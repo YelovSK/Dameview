@@ -30,7 +30,6 @@ internal sealed class WorkspaceDragController
         _commands = commands;
     }
 
-    internal bool IsActive => _payload is not null;
 
     internal void HandleTabPointer(
         ViewerPane pane,

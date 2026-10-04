@@ -328,12 +328,6 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     private bool HandleUiKey(WindowKeyEvent input)
     {
-        if (input.Key == WindowKey.Escape && _dragController.IsActive)
-        {
-            _host.Root.CancelPointer();
-            return true;
-        }
-
         if (_popupHost.IsOpen)
         {
             if (input.Key == WindowKey.Escape)
@@ -349,14 +343,9 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
         if (_modalHost.IsOpen)
         {
-            if (input.Key == WindowKey.Escape)
-            {
-                return _modalHost.HandleEscape();
-            }
-
             _host.Root.HandleKey(
                 input,
-                _modalHost.Content!,
+                _modalHost,
                 wrapFocus: true,
                 directionalNavigation: true);
             return true;

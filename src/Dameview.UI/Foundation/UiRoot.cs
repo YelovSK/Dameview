@@ -234,6 +234,13 @@ internal sealed class UiRoot
         bool wrapFocus,
         bool directionalNavigation)
     {
+        // Escape abandons whatever the pointer is dragging before anything else sees the key.
+        if (input.Key == WindowKey.Escape && CapturedElement is not null)
+        {
+            CancelPointer();
+            return true;
+        }
+
         if (input.Key == WindowKey.Tab)
         {
             MoveFocus(scope, input.Shift ? -1 : 1, wrapFocus);
@@ -252,6 +259,12 @@ internal sealed class UiRoot
             {
                 break;
             }
+        }
+
+        // The scope handles keys for everything in it, so it hears them even with nothing focused there.
+        if (!bubbleWithinScope && scope.OnKeyEvent(input))
+        {
+            return true;
         }
 
         if (directionalNavigation && input.Key is WindowKey.Left or WindowKey.Up or WindowKey.Right or WindowKey.Down)

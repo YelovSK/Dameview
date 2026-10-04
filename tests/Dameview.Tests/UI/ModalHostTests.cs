@@ -17,19 +17,19 @@ public sealed class ModalHostTests
         int dismissed = 0;
         var host = new ModalHost();
         var content = new Content();
-        _ = CreateRoot(host);
+        UiRoot root = CreateRoot(host);
         host.Show(content, () =>
         {
             dismissed++;
             host.Close();
         });
 
-        Assert.IsTrue(host.HandleEscape());
+        Assert.IsTrue(PressEscape(root, host));
         Assert.IsFalse(host.IsOpen);
         Assert.AreEqual(1, dismissed);
         host.Close();
         Assert.AreEqual(1, dismissed);
-        Assert.IsFalse(host.HandleEscape());
+        Assert.IsFalse(PressEscape(root, host));
     }
 
     [TestMethod]
@@ -115,10 +115,11 @@ public sealed class ModalHostTests
         var next = new Content();
         int previousDismissals = 0;
         int nextDismissals = 0;
+        UiRoot root = CreateRoot(host);
 
         host.Show(previous, () => previousDismissals++);
         host.Show(next, () => nextDismissals++);
-        host.HandleEscape();
+        PressEscape(root, host);
 
         Assert.AreSame(next, host.Content);
         Assert.AreEqual(0, previousDismissals);
@@ -126,19 +127,20 @@ public sealed class ModalHostTests
     }
 
     [TestMethod]
-    public void ContentCanDisableEscapeAndBackdropDismissal()
+    public void ContentCanKeepEscapeAndDisableBackdropDismissal()
     {
         var host = new ModalHost();
         var content = new Content
         {
             CanDismissOnBackdrop = false,
-            CanDismissOnEscape = false,
+            HandlesEscape = true,
         };
         UiRoot root = CreateRoot(host);
         host.Show(content, () => Assert.Fail("Modal should not be dismissed."));
+        root.SetFocus(content);
         root.Arrange(WindowSize);
 
-        Assert.IsTrue(host.HandleEscape());
+        Assert.IsTrue(PressEscape(root, host));
         root.HandlePointer(Pointer(WindowPointerEventKind.Pressed, 5, 5));
         root.HandlePointer(Pointer(WindowPointerEventKind.Released, 5, 5));
 
@@ -214,6 +216,9 @@ public sealed class ModalHostTests
         Assert.IsLessThanOrEqualTo(WindowSize.Height - 12.0f, focusedBounds.Bottom);
     }
 
+    private static bool PressEscape(UiRoot root, ModalHost host) =>
+        root.HandleKey(new WindowKeyEvent(WindowKey.Escape), host, wrapFocus: true, directionalNavigation: true);
+
     private static UiRoot CreateRoot(ModalHost host, float dpi = UiDpi.Default)
     {
         return new UiRoot(new RootElement(host), dpi, TestTextLayouts.Shared);
@@ -266,10 +271,9 @@ public sealed class ModalHostTests
         internal override SizeF PreferredSize => new(400, 300);
         internal override UiElement InitialFocus => this;
         internal override bool DismissOnBackdrop => CanDismissOnBackdrop;
-        internal override bool DismissOnEscape => CanDismissOnEscape;
         internal override bool IsFocusable => true;
         internal bool CanDismissOnBackdrop { get; init; } = true;
-        internal bool CanDismissOnEscape { get; init; } = true;
+        internal bool HandlesEscape { get; init; }
         internal List<WindowPointerEvent> Events { get; } = [];
         internal List<WindowKeyEvent> Keys { get; } = [];
 
@@ -284,7 +288,7 @@ public sealed class ModalHostTests
         internal override bool OnKeyEvent(WindowKeyEvent input)
         {
             Keys.Add(input);
-            return true;
+            return HandlesEscape;
         }
     }
 
