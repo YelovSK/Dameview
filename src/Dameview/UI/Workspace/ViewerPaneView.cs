@@ -20,6 +20,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
 
     private readonly ImagePanel _imagePanel;
     private readonly ViewerTabStrip _viewerTabs;
+    private readonly TabRow _tabRow;
     private readonly EmptyStatePanel _emptyStatePanel;
     private readonly Overlay _contentOverlay;
     private readonly ToolbarPanel _toolbarPanel;
@@ -77,8 +78,9 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         };
         _contentOverlay = new Overlay(_imagePanel, _emptyStatePanel, _toolbarPanel, _statusPanel);
         _activePaneIndicator = new ActivePaneIndicator { IsVisible = false };
+        _tabRow = new TabRow(_viewerTabs);
 
-        AddChild(new StackPanel(UiOrientation.Vertical, _viewerTabs, _contentOverlay)
+        AddChild(new StackPanel(UiOrientation.Vertical, _tabRow, _contentOverlay)
         {
             Fill = _contentOverlay,
         });
@@ -124,6 +126,15 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         set => _imagePanel.SharpPixels = value;
     }
 
+    /// <summary>Puts the tab row in the window's title bar, keeping clear of the window buttons at its end.</summary>
+    internal void SetTitleBar(bool inTitleBar, float endInset)
+    {
+        if (_tabRow.SetTitleBar(inTitleBar, endInset))
+        {
+            UpdateChromeVisibility();
+        }
+    }
+
     internal void ApplyKeyBindings(ViewerKeyBindings keyBindings) =>
         _emptyStatePanel.ApplyKeyBindings(keyBindings);
 
@@ -140,6 +151,8 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         _emptyStatePanel.IsVisible = !hasImage && !_state.IsLoading;
         // A single tab that holds nothing is not worth a strip to switch between.
         _viewerTabs.IsVisible = ChromeVisible && (Pane.Count > 1 || hasImage);
+        // The title bar stays to drag the window by even with no tabs to show.
+        _tabRow.IsVisible = _viewerTabs.IsVisible || _tabRow.InTitleBar;
         _toolbarPanel.IsPresent = ChromeVisible && hasImage && _pointerNearToolbar;
         _statusPanel.IsPresent = ChromeVisible && HasStatus && (_pointerNearStatus || _statusPanel.HasMessage);
     }
@@ -271,6 +284,44 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     private void ApplyDisplayedImage(ImageLoaded displayed)
     {
         _imagePanel.SetImage(displayed.Representation, displayed.IsPreview);
+    }
+
+    // Keeps its height with the tabs hidden, so it can stay in the title bar to drag the window by.
+    private sealed class TabRow : UiElement
+    {
+        // Room past the tabs that is always left to drag the window by, however many tabs there are.
+        private const float TitleBarDragGapDips = 48.0f;
+
+        private readonly ViewerTabStrip _tabs;
+
+        internal TabRow(ViewerTabStrip tabs)
+        {
+            _tabs = tabs;
+            AddChild(tabs);
+        }
+
+        internal bool InTitleBar { get; private set; }
+
+        /// <returns>Whether anything changed.</returns>
+        internal bool SetTitleBar(bool inTitleBar, float endInset)
+        {
+            UiThickness margin = inTitleBar
+                ? TabStripMargin with { Right = TabStripMargin.Right + TitleBarDragGapDips + endInset }
+                : TabStripMargin;
+            if (InTitleBar == inTitleBar && _tabs.Margin == margin)
+            {
+                return false;
+            }
+
+            InTitleBar = inTitleBar;
+            _tabs.Margin = margin;
+            return true;
+        }
+
+        internal override bool IsWindowDragArea(PointF position) => true;
+
+        protected override SizeF MeasureCore(SizeF availableSize) =>
+            new(base.MeasureCore(availableSize).Width, TabRowHeightDips);
     }
 
     private sealed class ActivePaneIndicator : UiElement

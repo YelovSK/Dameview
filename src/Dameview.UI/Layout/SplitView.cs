@@ -59,6 +59,9 @@ internal sealed class SplitView : UiElement, ISplitResizerTarget
         set => _secondPane.IsPresent = value;
     }
 
+    // The space around the panes belongs to whatever lies beneath.
+    protected override bool HitTestCore(PointF position) => false;
+
     protected override SizeF MeasureCore(SizeF availableSize)
     {
         _firstPane.Measure(availableSize);
@@ -105,18 +108,22 @@ internal sealed class SplitView : UiElement, ISplitResizerTarget
         }
 
         float margin = UiDesign.WindowMargin;
+        // The divider offset sizes the pane itself, so any margin it keeps comes on top.
+        float paneMargin = IsHorizontal ? _secondPane.Margin.Horizontal : _secondPane.Margin.Vertical;
         float usableAxis = (IsHorizontal ? finalSize.Width : finalSize.Height)
             - 2.0f * margin
-            - SplitterSize;
+            - SplitterSize
+            - paneMargin;
         float maximumSplitSize = MathF.Max(MinimumPaneSizeDips, usableAxis - MinimumPaneSizeDips);
         float splitSize = Math.Clamp(DividerOffsetDips, MinimumPaneSizeDips, maximumSplitSize);
+        float slotSize = splitSize + paneMargin;
         // How far from its edge the first pane ends. The second pane keeps its size and
         // sits just beyond that, so while collapsing it slides out past the window edge.
-        float reserved = (margin + splitSize + SplitterSize) * _secondPane.LayoutPresence;
-        float secondPaneStart = reserved - SplitterSize - splitSize;
+        float reserved = (margin + slotSize + SplitterSize) * _secondPane.LayoutPresence;
+        float secondPaneStart = reserved - SplitterSize - slotSize;
 
-        float secondPaneWidth = IsHorizontal ? splitSize : MathF.Max(0.0f, finalSize.Width - 2.0f * margin);
-        float secondPaneHeight = IsHorizontal ? MathF.Max(0.0f, finalSize.Height - 2.0f * margin) : splitSize;
+        float secondPaneWidth = IsHorizontal ? slotSize : MathF.Max(0.0f, finalSize.Width - 2.0f * margin);
+        float secondPaneHeight = IsHorizontal ? MathF.Max(0.0f, finalSize.Height - 2.0f * margin) : slotSize;
         switch (Edge)
         {
             case SplitViewEdge.Right:

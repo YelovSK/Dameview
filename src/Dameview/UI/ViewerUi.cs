@@ -20,6 +20,9 @@ namespace Dameview.UI;
 
 internal sealed class ViewerUi : UiElement, IDisposable
 {
+    // The panes' tab rows make up the title bar, so it is as tall as one.
+    internal const float TitleBarHeightDips = ViewerPaneView.TabRowHeightDips;
+
     private readonly UiHost _host;
     private readonly WorkspaceView _workspaceView;
     private readonly TabPreview _tabPreview;
@@ -34,6 +37,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private readonly ModalHost _modalHost;
     private readonly ToastHost _toastHost;
     private readonly PopupHost _popupHost;
+    private readonly WindowButtons _windowButtons;
     private readonly ViewerContextMenus _contextMenus;
     private readonly ViewerWorkspace _workspace;
     private readonly IAppActions _app;
@@ -55,6 +59,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         IThumbnailImageLoader thumbnailLoader,
         PerformanceMonitor performanceMonitor,
         ToastService toasts,
+        WindowButtons windowButtons,
         TimeProvider? timeProvider = null)
     {
         _host = new UiHost(this, deviceContext, directWriteFactory, dpi, theme, timeProvider);
@@ -101,6 +106,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _splitView.ResizeCompleted += () => app.UpdateSettings(
             settings => settings with { GallerySizeDips = _splitView.DividerOffsetDips });
         _modalHost = new ModalHost();
+        _windowButtons = windowButtons;
         _toastHost = new ToastHost(toasts);
         _settingsPanel = new SettingsPanel(
             _popupHost,
@@ -121,6 +127,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         AddChild(_tabPreview);
         AddChild(_dragOverlay);
         AddChild(_modalHost);
+        AddChild(_windowButtons);
         AddChild(_popupHost);
         AddChild(_performanceOverlay);
         AddChild(_toastHost);
@@ -185,6 +192,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _host.Root.ClearPointer();
         _workspaceView.ApplyLayout(_workspace.Root, openingSplit);
         _workspaceView.SetActivePane(_workspace.ActivePane);
+        ApplyTitleBar();
     }
 
     private void HandlePaneRatiosChanged()
@@ -264,6 +272,12 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
         ApplyActivePaneState();
     }
+
+    /// <summary>Whether a point in window pixels is title bar background, which drags the window.</summary>
+    internal bool IsWindowDragAreaAt(PointF pixelPosition) =>
+        _chromeVisible
+        && pixelPosition.Y < _host.Root.DipsToPixels(TitleBarHeightDips)
+        && _host.Root.IsWindowDragArea(pixelPosition);
 
     internal void CenterGallerySelection() => _galleryPanel.CenterSelection();
 
@@ -499,6 +513,29 @@ internal sealed class ViewerUi : UiElement, IDisposable
         ViewerSessionState state = _workspace.ActiveSession.State;
         _splitView.SecondPaneVisible = _chromeVisible && _galleryEnabled && ShouldShowGallery(state);
         _galleryPanel.ApplyState(_workspace.ActiveTab, state);
+        ApplyTitleBar();
+    }
+
+    // Only bare background reaches this element.
+    internal override bool IsWindowDragArea(PointF position) => true;
+
+    // The panes along the top hold the title bar in their tab rows. The gallery instead keeps below
+    // it, leaving bare title bar above itself, and the panes give way to the window buttons unless
+    // the gallery sits under them.
+    private void ApplyTitleBar()
+    {
+        _windowButtons.IsVisible = _chromeVisible;
+        bool galleryBelowTitleBar = _chromeVisible && _splitView.Edge != SplitViewEdge.Bottom;
+        _galleryPanel.Margin = new UiThickness(
+            0.0f,
+            galleryBelowTitleBar ? TitleBarHeightDips - UiDesign.WindowMargin : 0.0f,
+            0.0f,
+            0.0f);
+
+        bool galleryShown = _splitView.SecondPaneVisible;
+        bool workspaceAtTop = _chromeVisible && !(galleryShown && _splitView.Edge == SplitViewEdge.Top);
+        bool workspaceAtRight = !(galleryShown && _splitView.Edge == SplitViewEdge.Right);
+        _workspaceView.SetTitleBar(workspaceAtTop, workspaceAtRight ? WindowButtons.WidthDips : 0.0f);
     }
 
     private static bool ShouldShowGallery(ViewerSessionState state)

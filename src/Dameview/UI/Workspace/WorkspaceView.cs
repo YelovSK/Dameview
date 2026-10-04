@@ -66,6 +66,9 @@ internal sealed class WorkspaceView : UiElement, IDisposable
         }
     }
 
+    /// <summary>Whether the workspace's top edge is the window's title bar, and how much of its end the window buttons cover.</summary>
+    internal void SetTitleBar(bool inTitleBar, float endInset) => ApplyTitleBar(_root, inTitleBar, endInset);
+
     internal void ApplyLayout(WorkspaceNode root, WorkspaceSplit? openingSplit = null)
     {
         ArgumentNullException.ThrowIfNull(root);
@@ -159,6 +162,27 @@ internal sealed class WorkspaceView : UiElement, IDisposable
 
         _paneViews.Clear();
         _splitPanels.Clear();
+    }
+
+    // The panes along the top share the title bar, and the one in the top-right corner keeps clear of the window buttons.
+    private void ApplyTitleBar(WorkspaceNode node, bool atTop, float endInset)
+    {
+        switch (node)
+        {
+            case ViewerPane pane:
+                FindPaneView(pane)?.SetTitleBar(atTop, atTop ? endInset : 0.0f);
+                break;
+
+            case WorkspaceSplit { Orientation: WorkspaceSplitOrientation.Horizontal } sideBySide:
+                ApplyTitleBar(sideBySide.First, atTop, 0.0f);
+                ApplyTitleBar(sideBySide.Second, atTop, endInset);
+                break;
+
+            case WorkspaceSplit stacked:
+                ApplyTitleBar(stacked.First, atTop, endInset);
+                ApplyTitleBar(stacked.Second, false, 0.0f);
+                break;
+        }
     }
 
     private bool CollapseInPlace(ViewerPaneView paneView)

@@ -11,6 +11,7 @@ using Dameview.Notifications;
 using Dameview.Rendering;
 using Dameview.Settings;
 using Dameview.UI;
+using Dameview.UI.Components;
 using Dameview.UI.Presentation;
 using Dameview.Updates;
 using Dameview.Viewing;
@@ -56,7 +57,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         // Doesn't need the window, so it's created in parallel.
         Task<ID3D11Device> softwareDevice = Task.Run(
             static () => D2DRenderer.CreateDevice(DriverType.Warp));
-        _window = new AppWindow("Dameview", 1100, 720, startupSettings.Window);
+        _window = new AppWindow("Dameview", 1100, 720, startupSettings.Window, customTitleBar: true);
         _uiContext = new WindowSynchronizationContext(_window.Post);
         SynchronizationContext.SetSynchronizationContext(_uiContext);
         _window.SetTitleBarTheme(dark: true, Themes.Dark.Palette.WindowCaptionColor, Themes.Dark.Palette.WindowTextColor);
@@ -130,6 +131,13 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
             _uiContext,
             AppInstallation.GetInstalledRunningVersion());
         StartupTrace.Mark("services");
+        var windowButtons = new WindowButtons(
+            _window.Minimize,
+            _window.ToggleMaximized,
+            _window.RequestClose,
+            ViewerUi.TitleBarHeightDips);
+        windowButtons.SetMaximized(_window.IsMaximized);
+        _window.MaximizedChanged += windowButtons.SetMaximized;
         _ui = new ViewerUi(
             _renderer.DeviceContext,
             _renderer.DirectWriteFactory,
@@ -139,7 +147,8 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
             this,
             _thumbnailImageLoader,
             _performanceMonitor,
-            _toasts);
+            _toasts,
+            windowButtons);
         _drawFrame = _ui.DrawFrame;
         StartupTrace.Mark("ui");
         _ui.Invalidated += _window.RequestRepaint;
@@ -159,6 +168,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         _window.KeyPressed += _ui.HandleKey;
         _window.TextInput += _ui.HandleTextInput;
         _window.PointerInput += _ui.HandlePointer;
+        _window.IsDragArea = _ui.IsWindowDragAreaAt;
 
         _settings.Changed += ApplySettings;
         _settings.Failed += error => _toasts.Notify(error, ToastSeverity.Error);

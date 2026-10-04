@@ -140,6 +140,16 @@ internal sealed class UiRoot
         return consumed;
     }
 
+    /// <summary>Whether a point in window pixels lands on chrome that drags the window rather than on a control.</summary>
+    internal bool IsWindowDragArea(PointF pixelPosition)
+    {
+        var position = new PointF(
+            UiDpi.PixelsToDips(pixelPosition.X, Dpi),
+            UiDpi.PixelsToDips(pixelPosition.Y, Dpi));
+        EnsureLayout(_pixelSize);
+        return _content.HitTest(position) is { } hit && hit.IsWindowDragArea(hit.ToLocal(position));
+    }
+
     /// <summary>Cancels the current pointer capture, if any.</summary>
     internal void CancelPointer()
     {

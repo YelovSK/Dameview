@@ -81,6 +81,8 @@ internal sealed class ViewerTabStrip : UiElement
         _hoveredIndex >= 0 ? (_tabs[_hoveredIndex], GetTabBounds(_hoveredIndex)) : null;
     internal override WindowCursor Cursor => _hoveredIndex >= 0 ? WindowCursor.Pointer : WindowCursor.Default;
 
+    internal override bool IsWindowDragArea(PointF position) => HitTestTab(position).Index < 0;
+
     internal int GetInsertionIndex(PointF position)
     {
         // A hidden strip keeps the bounds it last had, but takes no tabs.

@@ -20,11 +20,13 @@ internal sealed unsafe class AppWindow : IDisposable
 
     private readonly ConcurrentQueue<Action> _postedActions = new();
     private readonly Utf16TextInputDecoder _textInputDecoder = new();
+    private readonly bool _customTitleBar;
     private Timer? _repaintTimer;
     private GCHandle _selfHandle;
     private Exception? _unhandledException;
     private bool _frameRequested;
     private bool _trackingMouseLeave;
+    private bool _maximized;
     private WINDOWPLACEMENT? _windowedPlacement;
     private WINDOW_STYLE _windowedStyle;
     private SHOW_WINDOW_CMD _initialShowCommand = SHOW_WINDOW_CMD.SW_SHOWNORMAL;
@@ -34,8 +36,18 @@ internal sealed unsafe class AppWindow : IDisposable
     private FileDropTarget? _dropTarget;
     private bool _oleInitialized;
 
-    internal AppWindow(string title, int width, int height, WindowPlacementState? placement = null)
+    /// <param name="customTitleBar">
+    /// Leaves out the system title bar, so the app draws its own in the client area and says
+    /// through <see cref="IsDragArea"/> where it drags the window.
+    /// </param>
+    internal AppWindow(
+        string title,
+        int width,
+        int height,
+        WindowPlacementState? placement = null,
+        bool customTitleBar = false)
     {
+        _customTitleBar = customTitleBar;
         nint instance = GetModuleHandle(default(PCWSTR));
         if (instance == 0)
         {
@@ -72,12 +84,33 @@ internal sealed unsafe class AppWindow : IDisposable
     internal event Action<string>? TextInput;
     internal event Action<WindowPointerEvent>? PointerInput;
     internal event Action<nuint, string>? CopyDataReceived;
+    internal event Action<bool>? MaximizedChanged;
 
     internal nint Handle { get; private set; }
     internal int ClientWidth { get; private set; }
     internal int ClientHeight { get; private set; }
     internal float Dpi { get; private set; }
     internal bool IsFullscreen => _windowedPlacement.HasValue;
+    internal bool IsMaximized => Handle != 0 && IsZoomed((HWND)Handle);
+    /// <summary>With a custom title bar, whether a client point in pixels drags the window.</summary>
+    internal Func<PointF, bool>? IsDragArea { get; set; }
+
+    // These are posted because the system ignores them while the window holds the mouse, as it
+    // does through the click that asks for one.
+    internal void Minimize() => Post(() => SendSystemCommand(SC_MINIMIZE));
+
+    internal void ToggleMaximized() => Post(() => SendSystemCommand(IsMaximized ? SC_RESTORE : SC_MAXIMIZE));
+
+    /// <summary>Closes the window the way its system close button would.</summary>
+    internal void RequestClose() => Post(() => SendSystemCommand(SC_CLOSE));
+
+    private void SendSystemCommand(uint command)
+    {
+        if (Handle != 0)
+        {
+            _ = SendMessage((HWND)Handle, WM_SYSCOMMAND, command, 0);
+        }
+    }
 
     internal void ApplyCursor(WindowCursor cursor)
     {
@@ -225,6 +258,8 @@ internal sealed unsafe class AppWindow : IDisposable
             return;
         }
 
+        // Cleared first, so the frame changes below get the windowed frame.
+        _windowedPlacement = null;
         _ = SetWindowLongPtr(
             (HWND)Handle,
             WINDOW_LONG_PTR_INDEX.GWL_STYLE,
@@ -243,7 +278,6 @@ internal sealed unsafe class AppWindow : IDisposable
                 | SET_WINDOW_POS_FLAGS.SWP_NOSIZE
                 | SET_WINDOW_POS_FLAGS.SWP_NOZORDER
                 | SET_WINDOW_POS_FLAGS.SWP_FRAMECHANGED);
-        _windowedPlacement = null;
     }
 
     internal void RestorePlacement(WindowPlacementState placement)
@@ -601,6 +635,19 @@ internal sealed unsafe class AppWindow : IDisposable
             case WM_ERASEBKGND:
                 return (LRESULT)1;
 
+            case WM_NCCALCSIZE when _customTitleBar && wParam != 0 && !IsFullscreen:
+                var frame = (NCCALCSIZE_PARAMS*)(nint)lParam;
+                int top = frame->rgrc._0.top;
+                LRESULT calculated = DefWindowProc(window, message, wParam, lParam);
+                // The sides and bottom keep their frame to resize by, while the client area takes
+                // over the caption. A maximized window hangs its frame off the screen, so the
+                // client area starts below it.
+                frame->rgrc._0.top = top + (IsZoomed(window) ? GetResizeBorderThickness(window) : 0);
+                return calculated;
+
+            case WM_NCHITTEST when _customTitleBar && !IsFullscreen:
+                return HitTestCustomTitleBar(window, wParam, lParam);
+
             case WM_SETCURSOR when GetLowWord(lParam) == HTCLIENT:
                 ApplyCursor(_cursor);
                 return (LRESULT)1;
@@ -708,6 +755,14 @@ internal sealed unsafe class AppWindow : IDisposable
             case WM_SIZE:
                 ClientWidth = unchecked((ushort)(long)lParam);
                 ClientHeight = unchecked((ushort)((long)lParam >> 16));
+                // A minimized window remembers whether it comes back maximized.
+                bool maximized = (nuint)wParam == SIZE_MAXIMIZED;
+                if ((nuint)wParam != SIZE_MINIMIZED && maximized != _maximized)
+                {
+                    _maximized = maximized;
+                    MaximizedChanged?.Invoke(maximized);
+                }
+
                 Resized?.Invoke(ClientWidth, ClientHeight);
                 RenderRequestedFrame();
                 return default;
@@ -775,6 +830,38 @@ internal sealed unsafe class AppWindow : IDisposable
             default:
                 return DefWindowProc(window, message, wParam, lParam);
         }
+    }
+
+    private LRESULT HitTestCustomTitleBar(HWND window, WPARAM wParam, LPARAM lParam)
+    {
+        var point = new Point(GetLowWord(lParam), GetHighWord(lParam));
+        _ = ScreenToClient(window, ref point);
+
+        // The system still finds its own caption buttons where its title bar used to be, even
+        // inside the client area, so it only gets to answer for the frame kept around the sides.
+        if (point.X < 0 || point.Y < 0 || point.X >= ClientWidth || point.Y >= ClientHeight)
+        {
+            return DefWindowProc(window, WM_NCHITTEST, wParam, lParam);
+        }
+
+        // Without a frame above the client area, its top edge stands in for one to resize by.
+        if (!IsZoomed(window) && GetResizeBorderThickness(window) is var border && point.Y < border)
+        {
+            uint edge = point.X < border ? HTTOPLEFT
+                : point.X >= ClientWidth - border ? HTTOPRIGHT
+                : HTTOP;
+            return (LRESULT)(nint)edge;
+        }
+
+        bool dragArea = IsDragArea?.Invoke(new PointF(point.X, point.Y)) == true;
+        return (LRESULT)(nint)(dragArea ? HTCAPTION : HTCLIENT);
+    }
+
+    private static int GetResizeBorderThickness(HWND window)
+    {
+        uint dpi = GetDpiForWindow(window);
+        return GetSystemMetricsForDpi(SYSTEM_METRICS_INDEX.SM_CYSIZEFRAME, dpi)
+            + GetSystemMetricsForDpi(SYSTEM_METRICS_INDEX.SM_CXPADDEDBORDER, dpi);
     }
 
     private void UpdateClientSize()

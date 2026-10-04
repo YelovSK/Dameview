@@ -163,6 +163,11 @@ internal abstract class UiElement
         get;
         set
         {
+            if (field == value)
+            {
+                return;
+            }
+
             field = value;
             InvalidateLayout();
         }
@@ -378,13 +383,13 @@ internal abstract class UiElement
     }
 
     /// <summary>Converts a root-space pointer event to this element's local coordinates.</summary>
-    internal WindowPointerEvent ToLocal(in WindowPointerEvent input)
+    internal WindowPointerEvent ToLocal(in WindowPointerEvent input) => input with { Position = ToLocal(input.Position) };
+
+    /// <summary>Converts a root-space point to this element's local coordinates.</summary>
+    internal PointF ToLocal(PointF position)
     {
         PointF origin = GetRootOrigin(includeVisualOffset: true);
-        return input with
-        {
-            Position = new PointF(input.Position.X - origin.X, input.Position.Y - origin.Y),
-        };
+        return new PointF(position.X - origin.X, position.Y - origin.Y);
     }
 
     /// <summary>Gets this element's arranged bounds relative to an ancestor.</summary>
@@ -426,6 +431,9 @@ internal abstract class UiElement
     internal virtual bool OnTextInput(string text) => false;
     /// <summary>Called when the element stops capturing the keyboard, whether it released it or lost it.</summary>
     internal virtual void OnKeyboardCaptureLost() { }
+    /// <summary>Whether a point on this element drags the window, like a title bar would.</summary>
+    /// <remarks>Asked only of the topmost element hit at the point, which is given in its local coordinates.</remarks>
+    internal virtual bool IsWindowDragArea(PointF position) => false;
     /// <summary>Requests that a descendant's bounds be brought into this element's visible region.</summary>
     internal virtual void BringIntoView(RectangleF descendantBounds) { }
 
