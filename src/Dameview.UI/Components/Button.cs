@@ -18,21 +18,25 @@ internal sealed class Button : InteractiveControl
     private readonly float _backgroundInsetY;
     private readonly UiFont _font;
     private readonly UiButtonTone _tone;
+    private readonly bool _filled;
     private string _label;
 
+    /// <param name="filled">Whether the button shows its surface at rest; without it, only hover and press show.</param>
     internal Button(
         string label,
         Action clicked,
         string fontFamily = UiTypography.FontFamily,
         float fontSize = UiDesign.BodyFontSize,
         float backgroundInsetY = 0.0f,
-        UiButtonTone tone = UiButtonTone.Default)
+        UiButtonTone tone = UiButtonTone.Default,
+        bool filled = true)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(backgroundInsetY);
         _label = label;
         _clicked = clicked;
         _backgroundInsetY = backgroundInsetY;
         _tone = tone;
+        _filled = filled;
         _font = new UiFont(fontSize, FontWeight.SemiBold, TextAlignment.Center, Family: fontFamily);
     }
 
@@ -75,7 +79,11 @@ internal sealed class Button : InteractiveControl
             bounds,
             UiDesign.ControlCornerRadius,
             UiDesign.ControlCornerRadius);
-        context.FillRoundedRectangle(background, context.Palette.ControlSurface);
+        if (_filled)
+        {
+            context.FillRoundedRectangle(background, context.Palette.ControlSurface);
+        }
+
         Color4 textColor = _tone switch
         {
             UiButtonTone.Default => context.Palette.PrimaryText,
@@ -89,6 +97,11 @@ internal sealed class Button : InteractiveControl
                 ? context.Palette.ErrorText
                 : context.Palette.Accent;
             context.FillRoundedRectangle(background, selectionColor, 0.22f);
+        }
+
+        if (HasVisualState(UiVisualState.Open))
+        {
+            context.FillRoundedRectangle(background, context.Palette.Accent, 0.14f);
         }
 
         if (HoverAmount > 0.0f)

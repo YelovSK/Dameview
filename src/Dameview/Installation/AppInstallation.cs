@@ -43,6 +43,9 @@ internal static class AppInstallation
     internal static string CurrentExecutablePath => Environment.ProcessPath
         ?? throw new InvalidOperationException("Could not determine the executable path.");
 
+    /// <summary>The running executable's version, read once.</summary>
+    internal static string CurrentDisplayVersion { get; } = GetDisplayVersion(Environment.ProcessPath);
+
     private static string StagedExecutablePath => Path.Combine(InstallDirectory, "Dameview.new.exe");
 
     internal static Version? GetInstalledRunningVersion()

@@ -66,8 +66,8 @@ internal sealed class WorkspaceView : UiElement, IDisposable
         }
     }
 
-    /// <summary>Whether the workspace's top edge is the window's title bar, and how much of its end the window buttons cover.</summary>
-    internal void SetTitleBar(bool inTitleBar, float endInset) => ApplyTitleBar(_root, inTitleBar, endInset);
+    /// <param name="insets">How much of the title bar the window's buttons cover, or <see langword="null"/> when the workspace's top edge isn't the title bar.</param>
+    internal void SetTitleBar(TitleBarInsets? insets) => ApplyTitleBar(_root, insets);
 
     internal void ApplyLayout(WorkspaceNode root, WorkspaceSplit? openingSplit = null)
     {
@@ -164,23 +164,23 @@ internal sealed class WorkspaceView : UiElement, IDisposable
         _splitPanels.Clear();
     }
 
-    // The panes along the top share the title bar, and the one in the top-right corner keeps clear of the window buttons.
-    private void ApplyTitleBar(WorkspaceNode node, bool atTop, float endInset)
+    // The panes along the top share the title bar, and the ones in its corners keep clear of its buttons.
+    private void ApplyTitleBar(WorkspaceNode node, TitleBarInsets? insets)
     {
         switch (node)
         {
             case ViewerPane pane:
-                FindPaneView(pane)?.SetTitleBar(atTop, atTop ? endInset : 0.0f);
+                FindPaneView(pane)?.SetTitleBar(insets);
                 break;
 
             case WorkspaceSplit { Orientation: WorkspaceSplitOrientation.Horizontal } sideBySide:
-                ApplyTitleBar(sideBySide.First, atTop, 0.0f);
-                ApplyTitleBar(sideBySide.Second, atTop, endInset);
+                ApplyTitleBar(sideBySide.First, insets is { } first ? first with { End = 0.0f } : null);
+                ApplyTitleBar(sideBySide.Second, insets is { } second ? second with { Start = 0.0f } : null);
                 break;
 
             case WorkspaceSplit stacked:
-                ApplyTitleBar(stacked.First, atTop, endInset);
-                ApplyTitleBar(stacked.Second, false, 0.0f);
+                ApplyTitleBar(stacked.First, insets);
+                ApplyTitleBar(stacked.Second, null);
                 break;
         }
     }
@@ -328,3 +328,6 @@ internal sealed class WorkspaceView : UiElement, IDisposable
 
     private sealed record Collapse(SplitPanel Panel, UiSnapshot Snapshot);
 }
+
+/// <summary>How far in from each end of the title bar its own buttons reach.</summary>
+internal readonly record struct TitleBarInsets(float Start, float End);

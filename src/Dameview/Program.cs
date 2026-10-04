@@ -80,7 +80,7 @@ internal static class Program
     private static void InitializeLogger()
     {
         Log.Initialize();
-        Log.Info("App", $"Dameview {AppInstallation.GetDisplayVersion(Environment.ProcessPath)}");
+        Log.Info("App", $"Dameview {AppInstallation.CurrentDisplayVersion}");
         Version osVersion = Environment.OSVersion.Version;
         string osName = osVersion.Build >= 22000 ? "Windows 11" : "Windows";
         Log.Info("App", $"{osName} {osVersion.Major}.{osVersion.Minor}.{osVersion.Build}");

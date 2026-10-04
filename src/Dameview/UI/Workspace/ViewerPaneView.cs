@@ -13,7 +13,7 @@ namespace Dameview.UI.Workspace;
 // Presents the active tab of one viewer pane. Shared application chrome remains in ViewerUi.
 internal sealed class ViewerPaneView : UiElement, IDisposable
 {
-    private static readonly UiThickness TabStripMargin = new(UiDesign.Spacing, UiDesign.SmallSpacing);
+    internal static readonly UiThickness TabStripMargin = new(UiDesign.Spacing, UiDesign.SmallSpacing);
 
     /// <summary>The height the tab strip takes from the top of a pane while it is shown.</summary>
     internal const float TabRowHeightDips = ViewerTabStrip.HeightDips + (2.0f * UiDesign.SmallSpacing);
@@ -127,9 +127,9 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     }
 
     /// <summary>Puts the tab row in the window's title bar, keeping clear of the window buttons at its end.</summary>
-    internal void SetTitleBar(bool inTitleBar, float endInset)
+    internal void SetTitleBar(TitleBarInsets? insets)
     {
-        if (_tabRow.SetTitleBar(inTitleBar, endInset))
+        if (_tabRow.SetTitleBar(insets))
         {
             UpdateChromeVisibility();
         }
@@ -303,10 +303,15 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         internal bool InTitleBar { get; private set; }
 
         /// <returns>Whether anything changed.</returns>
-        internal bool SetTitleBar(bool inTitleBar, float endInset)
+        internal bool SetTitleBar(TitleBarInsets? insets)
         {
-            UiThickness margin = inTitleBar
-                ? TabStripMargin with { Right = TabStripMargin.Right + TitleBarDragGapDips + endInset }
+            bool inTitleBar = insets is not null;
+            UiThickness margin = insets is { } covered
+                ? TabStripMargin with
+                {
+                    Left = TabStripMargin.Left + covered.Start,
+                    Right = TabStripMargin.Right + TitleBarDragGapDips + covered.End,
+                }
                 : TabStripMargin;
             if (InTitleBar == inTitleBar && _tabs.Margin == margin)
             {

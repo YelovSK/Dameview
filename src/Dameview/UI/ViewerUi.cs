@@ -22,6 +22,9 @@ internal sealed class ViewerUi : UiElement, IDisposable
 {
     // The panes' tab rows make up the title bar, so it is as tall as one.
     internal const float TitleBarHeightDips = ViewerPaneView.TabRowHeightDips;
+    // Sits where a tab would, so it lines up with the tabs beside it.
+    private static readonly UiThickness MenuButtonMargin = ViewerPaneView.TabStripMargin with { Right = 0.0f, Bottom = 0.0f };
+    private const float MenuButtonSizeDips = ViewerTabStrip.HeightDips;
 
     private readonly UiHost _host;
     private readonly WorkspaceView _workspaceView;
@@ -38,6 +41,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private readonly ToastHost _toastHost;
     private readonly PopupHost _popupHost;
     private readonly WindowButtons _windowButtons;
+    private readonly Button _menuButton;
     private readonly ViewerContextMenus _contextMenus;
     private readonly ViewerWorkspace _workspace;
     private readonly IAppActions _app;
@@ -107,6 +111,20 @@ internal sealed class ViewerUi : UiElement, IDisposable
             settings => settings with { GallerySizeDips = _splitView.DividerOffsetDips });
         _modalHost = new ModalHost();
         _windowButtons = windowButtons;
+        _menuButton = new Button(
+            UiTypography.MenuIcon,
+            () => _contextMenus.ShowAppMenu(_menuButton!),
+            fontFamily: UiTypography.IconFontFamily,
+            fontSize: 16.0f,
+            filled: false)
+        {
+            ToolTip = new("Menu"),
+            HorizontalAlignment = UiAlignment.Start,
+            VerticalAlignment = UiAlignment.Start,
+            Margin = MenuButtonMargin,
+            MaxWidth = MenuButtonSizeDips,
+            MaxHeight = MenuButtonSizeDips,
+        };
         _toastHost = new ToastHost(toasts);
         _settingsPanel = new SettingsPanel(
             _popupHost,
@@ -124,9 +142,11 @@ internal sealed class ViewerUi : UiElement, IDisposable
             keyBindings => app.UpdateSettings(settings => settings with { KeyBindings = keyBindings }));
 
         AddChild(_splitView);
+        AddChild(_menuButton);
         AddChild(_tabPreview);
         AddChild(_dragOverlay);
         AddChild(_modalHost);
+        // Above any modal, so the window can always be minimized or closed.
         AddChild(_windowButtons);
         AddChild(_popupHost);
         AddChild(_performanceOverlay);
@@ -525,6 +545,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private void ApplyTitleBar()
     {
         _windowButtons.IsVisible = _chromeVisible;
+        _menuButton.IsVisible = _chromeVisible;
         bool galleryBelowTitleBar = _chromeVisible && _splitView.Edge != SplitViewEdge.Bottom;
         _galleryPanel.Margin = new UiThickness(
             0.0f,
@@ -534,8 +555,13 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
         bool galleryShown = _splitView.SecondPaneVisible;
         bool workspaceAtTop = _chromeVisible && !(galleryShown && _splitView.Edge == SplitViewEdge.Top);
+        bool workspaceAtLeft = !(galleryShown && _splitView.Edge == SplitViewEdge.Left);
         bool workspaceAtRight = !(galleryShown && _splitView.Edge == SplitViewEdge.Right);
-        _workspaceView.SetTitleBar(workspaceAtTop, workspaceAtRight ? WindowButtons.WidthDips : 0.0f);
+        _workspaceView.SetTitleBar(workspaceAtTop
+            ? new TitleBarInsets(
+                workspaceAtLeft ? MenuButtonMargin.Left + MenuButtonSizeDips : 0.0f,
+                workspaceAtRight ? WindowButtons.WidthDips : 0.0f)
+            : null);
     }
 
     private static bool ShouldShowGallery(ViewerSessionState state)

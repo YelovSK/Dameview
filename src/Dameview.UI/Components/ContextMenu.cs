@@ -25,12 +25,13 @@ internal sealed class ContextMenu : UiElement
     private const float Padding = 4.0f;
     private const float SeparatorHeight = 9.0f;
     private const float MinimumWidth = 200.0f;
+    private const float TextPadding = 12.0f;
 
     private readonly PopupHost _host;
     private readonly Row[] _rows;
     private int _highlighted = -1;
 
-    private ContextMenu(PopupHost host, IEnumerable<IReadOnlyList<ContextMenuItem>> groups)
+    private ContextMenu(PopupHost host, IEnumerable<IReadOnlyList<ContextMenuItem>> groups, string? footer)
     {
         _host = host;
         List<Row> rows = [];
@@ -55,6 +56,14 @@ internal sealed class ContextMenu : UiElement
         }
 
         _rows = [.. rows];
+        if (footer is not null)
+        {
+            AddChild(new Separator());
+            AddChild(new TextBlock(footer, UiTextStyle.Caption, UiTextTone.Secondary, UiTextWrapping.NoWrap)
+            {
+                Margin = new UiThickness(TextPadding, 6.0f),
+            });
+        }
     }
 
     internal static void Show(
@@ -63,13 +72,32 @@ internal sealed class ContextMenu : UiElement
         PointF point,
         IEnumerable<IReadOnlyList<ContextMenuItem>> groups)
     {
-        var menu = new ContextMenu(host, groups);
+        var menu = new ContextMenu(host, groups, footer: null);
         if (menu._rows.Length == 0)
         {
             return;
         }
 
         host.ShowAt(anchor, point, menu, static () => { });
+        menu.Root?.CaptureKeyboard(menu);
+    }
+
+    /// <summary>Opens below a control, which shows as open for as long as the menu is.</summary>
+    /// <param name="footer">Text below the actions, such as the app's version, which nothing can select.</param>
+    internal static void ShowBelow(
+        PopupHost host,
+        UiElement anchor,
+        IEnumerable<IReadOnlyList<ContextMenuItem>> groups,
+        string? footer = null)
+    {
+        var menu = new ContextMenu(host, groups, footer);
+        if (menu._rows.Length == 0)
+        {
+            return;
+        }
+
+        anchor.SetVisualState(UiVisualState.Open, true);
+        host.Show(anchor, menu, () => anchor.SetVisualState(UiVisualState.Open, false));
         menu.Root?.CaptureKeyboard(menu);
     }
 
@@ -186,7 +214,6 @@ internal sealed class ContextMenu : UiElement
     private sealed class Row : InteractiveControl
     {
         private const float Height = 32.0f;
-        private const float TextPadding = 12.0f;
         private const float ShortcutGap = 32.0f;
         private static readonly UiFont LabelFont = new(UiDesign.BodyFontSize, FontWeight.Medium);
         private static readonly UiFont ShortcutFont = new(12.0f, Alignment: TextAlignment.Trailing);

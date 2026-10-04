@@ -1,12 +1,13 @@
 using System.Drawing;
 using Dameview.Commands;
+using Dameview.Installation;
 using Dameview.UI.Components;
 using Dameview.UI.Foundation;
 using Dameview.Viewing;
 
 namespace Dameview.UI;
 
-/// <summary>Decides what each part of the viewer offers when right-clicked, and opens it.</summary>
+/// <summary>Decides what each part of the viewer offers when right-clicked, and what the app menu offers.</summary>
 /// <remarks>
 /// Items are commands aimed at what was clicked, so they share their labels, availability, and
 /// behavior with the command palette and shortcuts.
@@ -71,8 +72,25 @@ internal sealed class ViewerContextMenus
         ]);
     }
 
-    // The palette acts on the active tab whatever was clicked, so it is the one global item these
-    // menus offer, there for anyone who does not know its shortcut.
+    /// <summary>Opens the app menu below its button in the title bar.</summary>
+    internal void ShowAppMenu(UiElement button)
+    {
+        CommandContext context = _app.ActiveContext;
+        ContextMenu.ShowBelow(
+            _popupHost,
+            button,
+            [
+                Group(context, AppCommands.OpenFile),
+                [
+                    Item(AppCommands.ShowCommandPalette, context, label: "Commands"),
+                    Item(AppCommands.ShowSettings, context),
+                ],
+            ],
+            $"Dameview {AppInstallation.CurrentDisplayVersion}");
+    }
+
+    // The palette acts on the active tab whatever was clicked, so it is the one global item the
+    // right-click menus offer, there for anyone who does not know its shortcut.
     private ContextMenuItem AllCommandsItem(CommandContext context) =>
         Item(AppCommands.ShowCommandPalette, context, label: "All commands…");
 
