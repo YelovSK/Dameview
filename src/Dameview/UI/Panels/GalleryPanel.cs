@@ -42,6 +42,9 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     // A scratch buffer, empty between calls. It is a field only so that refreshing on every
     // scrolled frame reuses its capacity instead of allocating a set per frame.
     private readonly HashSet<string> _visiblePaths = new(StringComparer.OrdinalIgnoreCase);
+    // A ConditionalWeakTable could tie these states to tab reachability, but explicit
+    // disposal keeps this ownership visible and deterministic.
+    private readonly Dictionary<ViewerTab, GalleryPanelState> _tabStates = [];
     private GalleryPanelState _state = new();
     private string? _selectedPath;
     private string _footerText = string.Empty;
@@ -97,9 +100,10 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private RectangleF GridBounds =>
         new(0.0f, 0.0f, Bounds.Width, MathF.Max(0.0f, Bounds.Height - FooterHeight));
 
-    /// <param name="state">The active tab's gallery state, which keeps its scroll position.</param>
-    internal void ApplyState(GalleryPanelState state, ViewerSessionState session)
+    /// <param name="tab">The active tab, whose gallery keeps its own scroll position.</param>
+    internal void ApplyState(ViewerTab tab, ViewerSessionState session)
     {
+        GalleryPanelState state = GetTabState(tab);
         string footerText = GetFooterText(session);
         if (_footerText != footerText || _flattenButton.IsSelected != session.FlattensFolder)
         {
@@ -318,9 +322,29 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
     public void Dispose()
     {
+        foreach (ViewerTab tab in _tabStates.Keys)
+        {
+            tab.Disposed -= HandleTabDisposed;
+        }
+
+        _tabStates.Clear();
         ClearSlots();
         _thumbnailScaleContext.Dispose();
     }
+
+    private GalleryPanelState GetTabState(ViewerTab tab)
+    {
+        if (!_tabStates.TryGetValue(tab, out GalleryPanelState? state))
+        {
+            state = new GalleryPanelState();
+            _tabStates.Add(tab, state);
+            tab.Disposed += HandleTabDisposed;
+        }
+
+        return state;
+    }
+
+    private void HandleTabDisposed(ViewerTab tab) => _tabStates.Remove(tab);
 
     protected override bool UpdateCore(in UiUpdateContext context)
     {

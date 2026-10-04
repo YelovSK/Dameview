@@ -41,10 +41,26 @@ internal sealed class UiHost : IDisposable
     internal int LastDrawnElements => _drawTally.Elements;
     internal int LastDrawOperations => _drawTally.Operations;
 
+    /// <summary>Whether animations play or jump straight to their end.</summary>
+    internal bool AnimationsEnabled
+    {
+        get;
+        set
+        {
+            if (field == value)
+            {
+                return;
+            }
+
+            field = value;
+            ResetClock();
+            Root.InvalidateVisual();
+        }
+    } = true;
+
     /// <summary>Advances the tree's animations by the time since the previous update.</summary>
     /// <returns><see langword="true"/> while another update is needed.</returns>
-    internal bool Update(bool animationsEnabled = true) =>
-        Root.Update(_animationClock.GetNextFrame(animationsEnabled));
+    internal bool Update() => Root.Update(_animationClock.GetNextFrame(AnimationsEnabled));
 
     /// <summary>Forgets the previous update, so the next one does not count the idle time before it.</summary>
     internal void ResetClock() => _animationClock.Reset();

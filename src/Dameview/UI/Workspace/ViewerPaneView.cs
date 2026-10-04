@@ -27,7 +27,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     private readonly ActivePaneIndicator _activePaneIndicator;
     private readonly Action<ViewerPane, ViewerTabInfo?, RectangleF> _hoveredTabChanged;
     private ViewerSessionState _state;
-    private bool _chromeVisible = true;
+    private string _fileName;
     private bool _pointerNearToolbar;
     private bool _pointerNearStatus;
 
@@ -48,14 +48,15 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         ViewerTab tab = pane.ActiveTab;
         ViewerSession session = tab.Session;
         _state = session.State;
+        _fileName = Path.GetFileName(_state.RequestedPath) ?? string.Empty;
         _imagePanel = new ImagePanel(
             deviceContext,
             session.Viewport,
             session.Animator,
             point => contextMenus.ShowForImage(Pane.ActiveTab, _imagePanel!, point));
         _viewerTabs = new ViewerTabStrip(
-            [new ViewerTabInfo("Dameview", null)],
-            0,
+            GetTabs(),
+            pane.ActiveIndex,
             selectTab,
             index => Run(AppCommands.CloseTab, pane.Tabs[index]),
             () => Run(AppCommands.NewTab, pane.ActiveTab),
@@ -106,16 +107,20 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     internal RectangleF TabStripBounds => _viewerTabs.GetBoundsRelativeTo(this);
     internal override bool ObservePointerMoves => true;
 
-    internal void SetChromeVisible(bool visible)
+    internal bool ChromeVisible
     {
-        if (_chromeVisible == visible)
+        get;
+        set
         {
-            return;
-        }
+            if (field == value)
+            {
+                return;
+            }
 
-        _chromeVisible = visible;
-        UpdateChromeVisibility();
-    }
+            field = value;
+            UpdateChromeVisibility();
+        }
+    } = true;
 
     internal bool SharpPixels
     {
@@ -138,18 +143,12 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         _imagePanel.IsVisible = hasImage;
         _emptyStatePanel.IsVisible = !hasImage && !_state.IsLoading;
         // A single tab that holds nothing is not worth a strip to switch between.
-        _viewerTabs.IsVisible = _chromeVisible && (Pane.Count > 1 || hasImage);
-        _toolbarPanel.IsPresent = _chromeVisible && hasImage && _pointerNearToolbar;
-        _statusPanel.IsPresent = _chromeVisible && HasStatus && (_pointerNearStatus || _statusPanel.HasMessage);
+        _viewerTabs.IsVisible = ChromeVisible && (Pane.Count > 1 || hasImage);
+        _toolbarPanel.IsPresent = ChromeVisible && hasImage && _pointerNearToolbar;
+        _statusPanel.IsPresent = ChromeVisible && HasStatus && (_pointerNearStatus || _statusPanel.HasMessage);
     }
 
-    internal PointF GetImageViewportPoint(PointF panePoint, float dpi)
-    {
-        RectangleF imageBounds = _imagePanel.GetBoundsRelativeTo(this);
-        return new PointF(
-            UiDpi.DipsToPixels(panePoint.X - imageBounds.X, dpi),
-            UiDpi.DipsToPixels(panePoint.Y - imageBounds.Y, dpi));
-    }
+    internal RectangleF GetImageBoundsRelativeTo(UiElement ancestor) => _imagePanel.GetBoundsRelativeTo(ancestor);
 
     internal void BindTab(ViewerTab tab)
     {
@@ -161,6 +160,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     {
         bool displayedImageChanged = !ReferenceEquals(_state.DisplayedImage, state.DisplayedImage);
         _state = state;
+        _fileName = Path.GetFileName(state.RequestedPath) ?? string.Empty;
         if (displayedImageChanged && state.DisplayedImage is null)
         {
             _imagePanel.ClearImage();
@@ -179,12 +179,14 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         InvalidateVisual();
     }
 
-    internal void ApplyTabs(IReadOnlyList<ViewerTabInfo> tabs, int selectedIndex)
+    internal void ApplyTabs()
     {
-        _viewerTabs.SetTabs(tabs, selectedIndex);
+        _viewerTabs.SetTabs(GetTabs(), Pane.ActiveIndex);
         UpdateChromeVisibility();
         InvalidateLayout();
     }
+
+    private ViewerTabInfo[] GetTabs() => [.. Pane.Tabs.Select(ViewerTabInfo.For)];
 
     internal int GetTabInsertionIndex(PointF panePoint)
     {
@@ -217,11 +219,11 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
 
         SizeF imageSize = HasImage ? _imagePanel.ImageSize : SizeF.Empty;
         _statusPanel.SetStatus(new ViewerStatus(
-            Path.GetFileName(_state.RequestedPath) ?? string.Empty,
+            _fileName,
             (int)imageSize.Width,
             (int)imageSize.Height,
             _state.CurrentEntry?.Length,
-            _imagePanel.ZoomPercentage,
+            (int)MathF.Round(_imagePanel.ZoomPercentage, MidpointRounding.AwayFromZero),
             message,
             animationError is not null || _state.IsError || _state.FolderError is not null));
         UpdateChromeVisibility();

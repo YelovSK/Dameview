@@ -40,7 +40,11 @@ internal sealed class StatusPanel : UiElement
 
         Status = status;
         (_fileName, _details) = GetText(status);
-        InvalidateLayout();
+        // Showing the panel lays it out anyway, so a hidden one need not relayout the tree.
+        if (IsVisible)
+        {
+            InvalidateLayout();
+        }
     }
 
     internal override bool IsHitTestVisible => false;
@@ -125,7 +129,7 @@ internal sealed class StatusPanel : UiElement
             : string.Empty;
         return (
             status.FileName,
-            $"{status.ImageWidth} × {status.ImageHeight}{size}   {status.ZoomPercentage:0}%");
+            $"{status.ImageWidth} × {status.ImageHeight}{size}   {status.ZoomPercentage}%");
     }
 
     private float MeasureText(string text)
@@ -146,6 +150,6 @@ internal readonly record struct ViewerStatus(
     int ImageWidth,
     int ImageHeight,
     long? FileSizeBytes,
-    float ZoomPercentage,
+    int ZoomPercentage,
     string? Message,
     bool IsError);

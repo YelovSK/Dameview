@@ -35,18 +35,15 @@ internal sealed class ViewerUi : UiElement, IDisposable
     private readonly ToastHost _toastHost;
     private readonly PopupHost _popupHost;
     private readonly ViewerContextMenus _contextMenus;
-    private readonly Action<ViewerPane> _selectPane;
-    // A ConditionalWeakTable could tie these states to tab reachability, but explicit
-    // disposal keeps this UI ownership visible and deterministic.
-    private readonly Dictionary<ViewerTab, GalleryPanelState> _galleryStates = [];
-    private ViewerPane _activePane;
-    private ViewerPaneView _activePaneView;
-    private bool _animationsEnabled = true;
+    private readonly ViewerWorkspace _workspace;
+    private readonly IAppActions _app;
     private bool _galleryEnabled = true;
     private bool _chromeVisible = true;
     // Read when a pane view is created, so panes opened later show the current bindings.
     private ViewerKeyBindings _keyBindings = ViewerKeyBindings.Defaults;
     private bool _sharpPixels;
+    // In DIPs; the window center stands in until the pointer first moves.
+    private PointF? _pointer;
 
     internal ViewerUi(
         ID2D1DeviceContext deviceContext,
@@ -61,8 +58,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
         TimeProvider? timeProvider = null)
     {
         _host = new UiHost(this, deviceContext, directWriteFactory, dpi, theme, timeProvider);
-        _selectPane = app.SelectPane;
-        _activePane = workspace.ActivePane;
+        _workspace = workspace;
+        _app = app;
         _tabPreview = new TabPreview(thumbnailLoader);
         _popupHost = new PopupHost();
         _contextMenus = new ViewerContextMenus(_popupHost, app);
@@ -76,14 +73,13 @@ internal sealed class ViewerUi : UiElement, IDisposable
                 _contextMenus,
                 index => app.SelectTab(pane, index),
                 ShowTabPreview,
-                HandleTabDragPointer,
+                (tabPane, tabIndex, input) => _dragController!.HandleTabPointer(tabPane, tabIndex, input),
                 _keyBindings)
             {
                 SharpPixels = _sharpPixels,
+                ChromeVisible = _chromeVisible,
             });
-        _activePaneView = FindPaneView(_activePane)
-            ?? throw new InvalidOperationException("The active pane view was not created.");
-        _workspaceView.SetActivePane(_activePane);
+        _workspaceView.SetActivePane(workspace.ActivePane);
         _dragOverlay = new WorkspaceDragOverlay(thumbnailLoader);
         _dragController = new WorkspaceDragController(this, _workspaceView, _dragOverlay, app);
         _performanceOverlay = new PerformanceOverlay(performanceMonitor)
@@ -96,7 +92,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
             app.SelectImage,
             app.OpenImageInNewTab,
             () => app.Execute(AppCommands.ToggleFlattenFolder, app.ActiveContext),
-            HandleGalleryDragPointer,
+            (path, input) => _dragController.HandleGalleryPointer(_galleryPanel!, path, input),
             (path, point) => _contextMenus.ShowForGalleryItem(path, _galleryPanel!, point));
         _splitView = new SplitView(
             _workspaceView,
@@ -129,12 +125,17 @@ internal sealed class ViewerUi : UiElement, IDisposable
         AddChild(_performanceOverlay);
         AddChild(_toastHost);
         AddChild(_toolTipHost);
-        _host.Root.CursorChanged += cursor => _cursorChanged?.Invoke(cursor);
         _host.Root.PointerPressed += HandlePointerPressed;
         _host.Root.PointerPressed += _ => _toolTipHost.Hide();
         _host.Root.ToolTipTargetChanged += _toolTipHost.Show;
+        workspace.ActivePaneChanged += HandleActivePaneChanged;
+        workspace.LayoutChanged += HandleLayoutChanged;
+        workspace.PaneRatiosChanged += HandlePaneRatiosChanged;
+        workspace.PaneActiveTabChanged += HandleActiveTabChanged;
+        workspace.PaneSessionStateChanged += HandleSessionStateChanged;
+        workspace.PaneTabsChanged += pane => _workspaceView.FindPaneView(pane)?.ApplyTabs();
 
-        ApplyActivePaneState(_activePane.ActiveSession.State);
+        ApplyActivePaneState();
     }
 
     internal event Action? Invalidated
@@ -143,12 +144,10 @@ internal sealed class ViewerUi : UiElement, IDisposable
         remove => _host.Root.Invalidated -= value;
     }
 
-    private Action<WindowCursor>? _cursorChanged;
-
     internal event Action<WindowCursor>? CursorChanged
     {
-        add => _cursorChanged += value;
-        remove => _cursorChanged -= value;
+        add => _host.Root.CursorChanged += value;
+        remove => _host.Root.CursorChanged -= value;
     }
 
     internal UiTheme Palette
@@ -167,74 +166,49 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _chromeVisible ? _host.Root.DipsToPixels(ViewerPaneView.TabRowHeightDips) : 0.0f,
         _host.Root.DipsToPixels(SplitPanel.MinimumPaneSizeDips));
 
-    internal PointF GetImageViewportPoint(PointF nativePoint)
-    {
-        PointF point = new(
-            UiDpi.PixelsToDips(nativePoint.X, _host.Root.Dpi),
-            UiDpi.PixelsToDips(nativePoint.Y, _host.Root.Dpi));
-        RectangleF paneBounds = _activePaneView.GetBoundsRelativeTo(this);
-        return _activePaneView.GetImageViewportPoint(
-            new PointF(point.X - paneBounds.X, point.Y - paneBounds.Y),
-            _host.Root.Dpi);
-    }
-
-    internal void BindActivePane(ViewerPane pane)
-    {
-        _host.Root.ClearPointer();
-        _activePane = pane;
-        if (FindPaneView(pane) is { } paneView)
-        {
-            _activePaneView = paneView;
-        }
-
-        _workspaceView.SetActivePane(pane);
-
-        ApplyActivePaneState(pane.ActiveSession.State);
-    }
-
-    internal void ApplyLayout(WorkspaceNode root, WorkspaceSplit? openingSplit)
-    {
-        _host.Root.ClearPointer();
-        _tabPreview.Hide();
-        _workspaceView.ApplyLayout(root, openingSplit);
-        foreach (ViewerPaneView paneView in _workspaceView.PaneViews)
-        {
-            paneView.SetChromeVisible(_chromeVisible);
-        }
-
-        _activePaneView = FindPaneView(_activePane)
-            ?? throw new InvalidOperationException("The active pane view is not attached.");
-        _workspaceView.SetActivePane(_activePane);
-    }
-
-    internal void ApplyPaneRatios(WorkspaceNode root)
-    {
-        _host.Root.ClearPointer();
-        _tabPreview.Hide();
-        _workspaceView.ApplyPaneRatios(root);
-    }
+    private ViewerPaneView ActivePaneView => _workspaceView.FindPaneView(_workspace.ActivePane)
+        ?? throw new InvalidOperationException("The active pane view is not attached.");
 
     internal bool BeginClosePane(ViewerPane pane, Action completed)
     {
         _host.Root.ClearPointer();
-        _tabPreview.Hide();
         return _workspaceView.BeginClosePane(pane, completed);
     }
 
-    internal void BindTab(ViewerPane pane, ViewerTab tab)
+    private void HandleActivePaneChanged(ViewerPane pane)
     {
         _host.Root.ClearPointer();
-        FindPaneView(pane)?.BindTab(tab);
+        _workspaceView.SetActivePane(pane);
+        HandleSessionStateChanged(pane);
     }
 
-    internal void ApplyState(ViewerPane pane, ViewerSessionState state)
+    private void HandleLayoutChanged(WorkspaceSplit? openingSplit)
     {
-        ViewerPaneView? paneView = FindPaneView(pane);
-        bool isActivePane = ReferenceEquals(pane, _activePane);
-        paneView?.ApplyState(state, clearPointer: isActivePane);
+        _host.Root.ClearPointer();
+        _workspaceView.ApplyLayout(_workspace.Root, openingSplit);
+        _workspaceView.SetActivePane(_workspace.ActivePane);
+    }
+
+    private void HandlePaneRatiosChanged()
+    {
+        _host.Root.ClearPointer();
+        _workspaceView.ApplyPaneRatios(_workspace.Root);
+    }
+
+    private void HandleActiveTabChanged(ViewerPane pane)
+    {
+        _host.Root.ClearPointer();
+        _workspaceView.FindPaneView(pane)?.BindTab(pane.ActiveTab);
+        HandleSessionStateChanged(pane);
+    }
+
+    private void HandleSessionStateChanged(ViewerPane pane)
+    {
+        bool isActivePane = ReferenceEquals(pane, _workspace.ActivePane);
+        _workspaceView.FindPaneView(pane)?.ApplyState(pane.ActiveSession.State, clearPointer: isActivePane);
         if (isActivePane)
         {
-            ApplyActivePaneState(state);
+            ApplyActivePaneState();
         }
 
         _host.Root.InvalidateVisual();
@@ -250,19 +224,19 @@ internal sealed class ViewerUi : UiElement, IDisposable
         }
     }
 
-    internal void ApplyKeyBindings(ViewerKeyBindings keyBindings)
-    {
-        _commandPalettePanel.ApplyKeyBindings(keyBindings);
-        _contextMenus.KeyBindings = keyBindings;
-        _keyBindings = keyBindings;
-        foreach (ViewerPaneView paneView in _workspaceView.PaneViews)
-        {
-            paneView.ApplyKeyBindings(keyBindings);
-        }
-    }
-
     internal void ApplySettings(AppSettings settings)
     {
+        if (!settings.KeyBindings.Equals(_keyBindings))
+        {
+            _keyBindings = settings.KeyBindings;
+            _commandPalettePanel.ApplyKeyBindings(_keyBindings);
+            _contextMenus.KeyBindings = _keyBindings;
+            foreach (ViewerPaneView paneView in _workspaceView.PaneViews)
+            {
+                paneView.ApplyKeyBindings(_keyBindings);
+            }
+        }
+
         _galleryEnabled = settings.GalleryEnabled;
         _splitView.SetEdge(GetGalleryEdge(settings.GalleryPlacement));
         _galleryPanel.SetOrientation(_splitView.IsHorizontal
@@ -277,15 +251,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
             paneView.SharpPixels = _sharpPixels;
         }
 
-        ApplyActivePaneState(_activePane.ActiveSession.State);
-        if (_animationsEnabled == settings.AnimationsEnabled)
-        {
-            return;
-        }
-
-        _animationsEnabled = settings.AnimationsEnabled;
-        _host.ResetClock();
-        _host.Root.InvalidateVisual();
+        ApplyActivePaneState();
+        _host.AnimationsEnabled = settings.AnimationsEnabled;
     }
 
     internal void ApplyUpdateState(UpdateState state) => _settingsPanel.ApplyUpdateState(state);
@@ -295,15 +262,10 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _chromeVisible = !fullscreen;
         foreach (ViewerPaneView paneView in _workspaceView.PaneViews)
         {
-            paneView.SetChromeVisible(_chromeVisible);
+            paneView.ChromeVisible = _chromeVisible;
         }
 
-        ApplyActivePaneState(_activePane.ActiveSession.State);
-    }
-
-    internal void ApplyTabs(ViewerPane pane, IReadOnlyList<ViewerTabInfo> tabs, int selectedIndex)
-    {
-        FindPaneView(pane)?.ApplyTabs(tabs, selectedIndex);
+        ApplyActivePaneState();
     }
 
     internal void CenterGallerySelection() => _galleryPanel.CenterSelection();
@@ -314,9 +276,58 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _host.Root.InvalidateVisual();
     }
 
-    internal bool HandleCapturedKey(WindowKeyEvent input) => _host.Root.HandleCapturedKey(input);
+    internal void HandleKey(WindowKeyEvent input)
+    {
+        // An element holding the keyboard, such as a shortcut being recorded, beats even the window bindings.
+        if (_host.Root.HandleCapturedKey(input))
+        {
+            _host.Root.InvalidateVisual();
+            return;
+        }
 
-    internal bool HandleKey(WindowKeyEvent input)
+        if (_keyBindings.TryGetCommand(CommandScope.Window, input, out Command? command))
+        {
+            ExecuteShortcut(command, input, _app.ActiveContext);
+            return;
+        }
+
+        if (HandleUiKey(input))
+        {
+            _host.Root.InvalidateVisual();
+            return;
+        }
+
+        if (input.Key == WindowKey.Escape && !_chromeVisible)
+        {
+            _app.Execute(AppCommands.ToggleFullscreen, _app.ActiveContext);
+            return;
+        }
+
+        if (_keyBindings.TryGetCommand(CommandScope.Viewer, input, out command))
+        {
+            ExecuteShortcut(command, input, CommandContext.For(_workspace.ActiveTab, GetPointerImagePoint()));
+        }
+    }
+
+    private void ExecuteShortcut(Command command, WindowKeyEvent input, CommandContext context)
+    {
+        if (!input.IsRepeat || command.RepeatsWhileHeld)
+        {
+            _app.Execute(command, context);
+        }
+    }
+
+    /// <summary>Where the pointer is over the active image, in the viewport's pixels.</summary>
+    private PointF GetPointerImagePoint()
+    {
+        PointF pointer = _pointer ?? new PointF(Bounds.Width / 2.0f, Bounds.Height / 2.0f);
+        RectangleF imageBounds = ActivePaneView.GetImageBoundsRelativeTo(this);
+        return new PointF(
+            _host.Root.DipsToPixels(pointer.X - imageBounds.X),
+            _host.Root.DipsToPixels(pointer.Y - imageBounds.Y));
+    }
+
+    private bool HandleUiKey(WindowKeyEvent input)
     {
         if (input.Key == WindowKey.Escape && _dragController.IsActive)
         {
@@ -354,12 +365,18 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
         return _host.Root.HandleKey(
             input,
-            _activePaneView.FocusScope,
+            ActivePaneView.FocusScope,
             wrapFocus: false,
             directionalNavigation: false);
     }
 
-    internal bool HandleTextInput(string text) => _host.Root.HandleTextInput(text);
+    internal void HandleTextInput(string text)
+    {
+        if (_host.Root.HandleTextInput(text))
+        {
+            _host.Root.InvalidateVisual();
+        }
+    }
 
     internal void SetDpi(float dpi) => _host.Root.SetDpi(dpi);
 
@@ -369,7 +386,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     internal bool Update()
     {
-        bool continues = _host.Update(_animationsEnabled);
+        bool continues = _host.Update();
         _workspaceView.CompletePendingClose();
         // Only real animation work counts: a heartbeat that merely keeps the overlay ticking
         // must not hold the clock open, or the next animation starts with a frame's backlog.
@@ -408,7 +425,17 @@ internal sealed class ViewerUi : UiElement, IDisposable
         LastDrawTime = Stopwatch.GetElapsedTime(drawStarted);
     }
 
-    internal bool HandlePointer(in WindowPointerEvent input) => _host.Root.HandlePointer(input);
+    internal void HandlePointer(WindowPointerEvent input)
+    {
+        if (input.Kind is not (WindowPointerEventKind.Cancelled or WindowPointerEventKind.Left))
+        {
+            _pointer = new PointF(
+                UiDpi.PixelsToDips(input.Position.X, _host.Root.Dpi),
+                UiDpi.PixelsToDips(input.Position.Y, _host.Root.Dpi));
+        }
+
+        _host.Root.HandlePointer(input);
+    }
 
     internal void HandleFileDrag(in WindowFileDragEvent input)
     {
@@ -433,12 +460,6 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _modalHost.Close();
         _popupHost.Close();
         _dragController.Cancel();
-        foreach (ViewerTab tab in _galleryStates.Keys)
-        {
-            tab.Disposed -= HandleTabDisposed;
-        }
-
-        _galleryStates.Clear();
         _dragOverlay.Dispose();
         _toastHost.Dispose();
         _tabPreview.Dispose();
@@ -454,34 +475,11 @@ internal sealed class ViewerUi : UiElement, IDisposable
             return;
         }
 
-        ViewerPaneView paneView = FindPaneView(pane)
+        ViewerPaneView paneView = _workspaceView.FindPaneView(pane)
             ?? throw new InvalidOperationException("The pane view is not attached.");
         RectangleF paneBounds = paneView.GetBoundsRelativeTo(this);
         tabBounds.Offset(paneBounds.Location);
         _tabPreview.Show(path, tabBounds);
-    }
-
-    private void HandleTabDragPointer(
-        ViewerPane pane,
-        int tabIndex,
-        WorkspaceDragEvent input)
-    {
-        if (input.Kind == WorkspaceDragEventKind.Started)
-        {
-            _tabPreview.Hide();
-        }
-
-        _dragController.HandleTabPointer(pane, tabIndex, input);
-    }
-
-    private void HandleGalleryDragPointer(string path, WorkspaceDragEvent input)
-    {
-        if (input.Kind == WorkspaceDragEventKind.Started)
-        {
-            _tabPreview.Hide();
-        }
-
-        _dragController.HandleGalleryPointer(_galleryPanel, path, input);
     }
 
     private void HandlePointerPressed(UiElement? target)
@@ -490,7 +488,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         {
             if (element is ViewerPaneView paneView)
             {
-                _selectPane(paneView.Pane);
+                _app.SelectPane(paneView.Pane);
                 return;
             }
         }
@@ -498,21 +496,19 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     internal void ShowSettings()
     {
-        ShowModal(_settingsPanel, CloseModal);
+        ShowModal(_settingsPanel);
     }
 
     internal void ShowCommandPalette()
     {
         _commandPalettePanel.Reset();
-        ShowModal(_commandPalettePanel, CloseModal);
+        ShowModal(_commandPalettePanel);
     }
 
-    private void ShowModal(ModalContent content, Action dismiss)
+    private void ShowModal(ModalContent content)
     {
-        _host.Root.ClearPointer();
-        _host.Root.SetFocus(null);
         _popupHost.Close();
-        _modalHost.Show(content, dismiss);
+        _modalHost.Show(content, CloseModal);
         _host.Root.SetFocus(content.InitialFocus);
     }
 
@@ -523,16 +519,16 @@ internal sealed class ViewerUi : UiElement, IDisposable
             return;
         }
 
-        _host.Root.ClearPointer();
         _host.Root.SetFocus(null);
         _popupHost.Close();
         _modalHost.Close();
     }
 
-    private void ApplyActivePaneState(ViewerSessionState state)
+    private void ApplyActivePaneState()
     {
+        ViewerSessionState state = _workspace.ActiveSession.State;
         _splitView.SecondPaneVisible = _chromeVisible && _galleryEnabled && ShouldShowGallery(state);
-        _galleryPanel.ApplyState(GetGalleryState(_activePane.ActiveTab), state);
+        _galleryPanel.ApplyState(_workspace.ActiveTab, state);
     }
 
     private static bool ShouldShowGallery(ViewerSessionState state)
@@ -551,28 +547,13 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _ => throw new ArgumentOutOfRangeException(nameof(placement), placement, null),
     };
 
-    private ViewerPaneView? FindPaneView(ViewerPane pane)
-    {
-        return _workspaceView.FindPaneView(pane);
-    }
-
-    private GalleryPanelState GetGalleryState(ViewerTab tab)
-    {
-        if (!_galleryStates.TryGetValue(tab, out GalleryPanelState? state))
-        {
-            state = new GalleryPanelState();
-            _galleryStates.Add(tab, state);
-            tab.Disposed += HandleTabDisposed;
-        }
-
-        return state;
-    }
-
-    private void HandleTabDisposed(ViewerTab tab)
-    {
-        tab.Disposed -= HandleTabDisposed;
-        _galleryStates.Remove(tab);
-    }
 }
 
-internal readonly record struct ViewerTabInfo(string Label, string? ImagePath);
+internal readonly record struct ViewerTabInfo(string Label, string? ImagePath)
+{
+    internal static ViewerTabInfo For(ViewerTab tab)
+    {
+        string? path = tab.Session.State.RequestedPath;
+        return new ViewerTabInfo(Path.GetFileName(path) ?? "New tab", path);
+    }
+}

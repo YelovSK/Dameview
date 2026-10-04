@@ -54,8 +54,8 @@ internal sealed class WorkspaceDragController
             }
 
             ViewerTab tab = pane.Tabs[tabIndex];
-            string? path = tab.Session.State.RequestedPath;
-            Start(new TabDragPayload(pane, tab, Path.GetFileName(path) ?? "New tab", path), point);
+            var info = ViewerTabInfo.For(tab);
+            Start(new TabDragPayload(pane, tab, info.Label, info.ImagePath), point);
             return;
         }
 

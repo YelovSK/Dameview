@@ -50,7 +50,6 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
     private readonly FileActions _files;
     private Task<ID3D11Device>? _pendingHardwareDevice;
     private long _memorySampled;
-    private PointF _pointer;
 
     public DameviewApp(AppSettings startupSettings)
     {
@@ -61,7 +60,6 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         _uiContext = new WindowSynchronizationContext(_window.Post);
         SynchronizationContext.SetSynchronizationContext(_uiContext);
         _window.SetTitleBarTheme(dark: true, Themes.Dark.Palette.WindowCaptionColor, Themes.Dark.Palette.WindowTextColor);
-        _pointer = new PointF(_window.ClientWidth / 2.0f, _window.ClientHeight / 2.0f);
         StartupTrace.Mark("window");
         try
         {
@@ -146,13 +144,9 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         StartupTrace.Mark("ui");
         _ui.Invalidated += _window.RequestRepaint;
         _ui.CursorChanged += _window.ApplyCursor;
-        _workspace.ActivePaneChanged += HandleActivePaneChanged;
-        _workspace.LayoutChanged += HandleLayoutChanged;
-        _workspace.PaneRatiosChanged += HandlePaneRatiosChanged;
-        _workspace.PaneActiveTabChanged += HandleActiveTabChanged;
-        _workspace.PaneSessionStateChanged += HandleSessionChanged;
-        _workspace.PaneTabsChanged += HandleTabsChanged;
-        HandleTabsChanged(_workspace.ActivePane);
+        _workspace.ActivePaneChanged += UpdateTitle;
+        _workspace.PaneActiveTabChanged += UpdateTitle;
+        _workspace.PaneSessionStateChanged += UpdateTitle;
 
         _window.Shown += HandleWindowShown;
         _window.RenderFrame += HandleRenderFrame;
@@ -162,9 +156,9 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         _window.DpiChanged += HandleDpiChanged;
         _window.FileDragInput += HandleFileDragInput;
         _window.CopyDataReceived += HandleExternalInstanceMessage;
-        _window.KeyPressed += HandleKeyPress;
-        _window.TextInput += HandleTextInput;
-        _window.PointerInput += HandlePointerInput;
+        _window.KeyPressed += _ui.HandleKey;
+        _window.TextInput += _ui.HandleTextInput;
+        _window.PointerInput += _ui.HandlePointer;
 
         _settings.Changed += ApplySettings;
         _settings.Failed += error => _toasts.Notify(error, ToastSeverity.Error);
@@ -308,54 +302,6 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         _workspace.SelectTab(pane, index);
     }
 
-    private void HandleKeyPress(WindowKeyEvent input)
-    {
-        // An element holding the keyboard, such as a shortcut being recorded, beats even the window bindings.
-        if (_ui.HandleCapturedKey(input))
-        {
-            _window.RequestRepaint();
-            return;
-        }
-
-        ViewerKeyBindings keyBindings = _settings.Current.KeyBindings;
-        if (keyBindings.TryGetCommand(CommandScope.Window, input, out Command? command))
-        {
-            if (!input.IsRepeat || command.RepeatsWhileHeld)
-            {
-                Execute(command, ActiveContext);
-            }
-
-            return;
-        }
-
-        if (_ui.HandleKey(input))
-        {
-            _window.RequestRepaint();
-            return;
-        }
-
-        if (input.Key == WindowKey.Escape && _window.IsFullscreen)
-        {
-            ToggleFullscreen();
-            return;
-        }
-
-        if (keyBindings.TryGetCommand(CommandScope.Viewer, input, out command)
-            && (!input.IsRepeat || command.RepeatsWhileHeld))
-        {
-            PointF anchor = _ui.GetImageViewportPoint(_pointer);
-            Execute(command, CommandContext.For(_workspace.ActiveTab, anchor));
-        }
-    }
-
-    private void HandleTextInput(string text)
-    {
-        if (_ui.HandleTextInput(text))
-        {
-            _window.RequestRepaint();
-        }
-    }
-
     public CommandContext ActiveContext => CommandContext.For(_workspace.ActiveTab);
 
     public bool CanExecute(Command command, CommandContext context) => command.CanExecute(this, context);
@@ -421,10 +367,6 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         Log.SetMinimumLevel(current.Logging.Level);
         _ui.ApplySettings(current);
         _workspace.AutoBalancePanes = current.AutoBalancePanes;
-        if (!previous.KeyBindings.Equals(current.KeyBindings))
-        {
-            _ui.ApplyKeyBindings(current.KeyBindings);
-        }
 
         if (previous.Theme != current.Theme)
         {
@@ -483,53 +425,16 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         _window.Close();
     }
 
-    private void HandleSessionChanged(ViewerPane pane)
+    private void UpdateTitle(ViewerPane pane)
     {
-        ViewerSessionState state = pane.ActiveSession.State;
-        _ui.ApplyState(pane, state);
-        if (ReferenceEquals(pane, _workspace.ActivePane))
+        if (!ReferenceEquals(pane, _workspace.ActivePane))
         {
-            string fileName = state.RequestedPath is null
-                ? "Dameview"
-                : Path.GetFileName(state.RequestedPath);
-            _window.SetTitle($"{fileName} — Dameview");
+            return;
         }
-    }
 
-    private void HandleActiveTabChanged(ViewerPane pane)
-    {
-        _ui.BindTab(pane, pane.ActiveTab);
-        HandleSessionChanged(pane);
-    }
-
-    private void HandleActivePaneChanged(ViewerPane pane)
-    {
-        _ui.BindActivePane(pane);
-        HandleSessionChanged(pane);
-    }
-
-    private void HandleLayoutChanged(WorkspaceSplit? openingSplit)
-    {
-        _ui.ApplyLayout(_workspace.Root, openingSplit);
-        _window.RequestRepaint();
-    }
-
-    private void HandlePaneRatiosChanged()
-    {
-        _ui.ApplyPaneRatios(_workspace.Root);
-        _window.RequestRepaint();
-    }
-
-    private void HandleTabsChanged(ViewerPane pane)
-    {
-        _ui.ApplyTabs(
-            pane,
-            pane.Tabs
-                .Select(tab => new ViewerTabInfo(
-                    Path.GetFileName(tab.Session.State.RequestedPath) ?? "New tab",
-                    tab.Session.State.RequestedPath))
-                .ToArray(),
-            pane.ActiveIndex);
+        string? path = pane.ActiveSession.State.RequestedPath;
+        string fileName = path is null ? "Dameview" : Path.GetFileName(path);
+        _window.SetTitle($"{fileName} — Dameview");
     }
 
     private ViewerTab CreateTab()
@@ -570,16 +475,6 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
     {
         _renderer.Resize(width, height);
         _window.RequestRepaint();
-    }
-
-    private void HandlePointerInput(WindowPointerEvent input)
-    {
-        if (input.Kind is not (WindowPointerEventKind.Cancelled or WindowPointerEventKind.Left))
-        {
-            _pointer = input.Position;
-        }
-
-        _ui.HandlePointer(input);
     }
 
     private void HandleWindowShown()
