@@ -371,20 +371,23 @@ public sealed class ViewerWorkspaceTests
     }
 
     [TestMethod]
-    public void StartingToCloseTheActivePaneFocusesItsSiblingBeforeRemoval()
+    public void ARemovedPaneStaysReadableUntilLayoutListenersReturn()
     {
         using var workspace = new ViewerWorkspace(CreateTab);
         ViewerPane first = workspace.ActivePane;
         ViewerPane second = workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
-        workspace.SelectPane(second);
-        int focusChanges = 0;
-        workspace.ActivePaneChanged += _ => focusChanges++;
+        ViewerSession secondSession = second.ActiveSession;
+        bool readableDuringLayoutChange = false;
+        workspace.LayoutChanged += _ =>
+        {
+            secondSession.OpenImage(@"C:\second\during.png");
+            readableDuringLayoutChange = true;
+        };
 
-        workspace.ActivatePaneAfterClosing(second);
+        Assert.IsTrue(workspace.RemovePane(second));
 
-        Assert.AreSame(first, workspace.ActivePane);
-        Assert.IsInstanceOfType<WorkspaceSplit>(workspace.Root);
-        Assert.AreEqual(1, focusChanges);
+        Assert.IsTrue(readableDuringLayoutChange);
+        Assert.ThrowsExactly<ObjectDisposedException>(() => secondSession.OpenImage(@"C:\second\after.png"));
     }
 
     [TestMethod]

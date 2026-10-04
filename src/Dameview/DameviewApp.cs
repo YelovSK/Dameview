@@ -308,21 +308,10 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
     void ICommandHost.CloseTab(ViewerTab tab)
     {
         ViewerPane pane = _workspace.PaneOf(tab);
-        int index = pane.IndexOf(tab);
-        if (pane.Count > 1)
+        if (!_workspace.CloseTab(pane, pane.IndexOf(tab)))
         {
-            _workspace.CloseTab(pane, index);
-            return;
+            _window.Close();
         }
-
-        if (_ui.BeginClosePane(pane, () => _workspace.CloseTab(pane, index)))
-        {
-            _workspace.ActivatePaneAfterClosing(pane);
-            _window.RequestRepaint();
-            return;
-        }
-
-        _window.Close();
     }
 
     // One bad value is worth naming; a mangled file is not worth four toasts.

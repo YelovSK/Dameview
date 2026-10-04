@@ -23,6 +23,8 @@ internal sealed class ViewerWorkspace : IDisposable
     }
 
     internal event Action<ViewerPane>? ActivePaneChanged;
+    /// <summary>Raised when panes are added, removed or rearranged.</summary>
+    /// <remarks>A removed pane is disposed only after this returns, so listeners can still read it.</remarks>
     internal event Action<WorkspaceSplit?>? LayoutChanged;
     internal event Action? PaneRatiosChanged;
     internal event Action<ViewerPane>? PaneActiveTabChanged;
@@ -230,17 +232,6 @@ internal sealed class ViewerWorkspace : IDisposable
         ActivePaneChanged?.Invoke(pane);
     }
 
-    internal void ActivatePaneAfterClosing(ViewerPane pane)
-    {
-        EnsureContains(pane);
-        if (ReferenceEquals(pane, ActivePane))
-        {
-            WorkspaceSplit parent = FindParent(Root, pane)
-                ?? throw new InvalidOperationException("The pane has no parent split.");
-            SelectPane(parent.GetSibling(pane).FirstPane);
-        }
-    }
-
     private static (int PaneCount, bool Changed) BalanceSubtree(WorkspaceNode node)
     {
         if (node is not WorkspaceSplit split)
@@ -310,6 +301,7 @@ internal sealed class ViewerWorkspace : IDisposable
         }
 
         LayoutChanged?.Invoke(null);
+        pane.Dispose();
         return true;
     }
 
@@ -422,6 +414,10 @@ internal sealed class ViewerWorkspace : IDisposable
 
         SelectPane(newPane);
         LayoutChanged?.Invoke(split);
+        if (removeSourcePane)
+        {
+            sourcePane.Dispose();
+        }
     }
 
     private WorkspaceNode RemovePaneNode(ViewerPane pane)
@@ -430,7 +426,6 @@ internal sealed class ViewerWorkspace : IDisposable
             ?? throw new InvalidOperationException("The pane has no parent split.");
         WorkspaceNode sibling = parent.GetSibling(pane);
         ReplaceNode(parent, sibling);
-        pane.Dispose();
         Balance();
         return sibling;
     }

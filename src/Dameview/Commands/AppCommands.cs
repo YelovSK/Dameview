@@ -175,13 +175,7 @@ internal static class AppCommands
 
     internal static readonly Command OptimizePaneLayout = Command.Global(
         "optimizePaneLayout", "Optimize pane layout", CommandScope.Window,
-        host =>
-        {
-            if (!host.Ui.IsClosingPane)
-            {
-                host.Workspace.OptimizePaneLayout(host.Ui.PaneLayoutArea);
-            }
-        },
+        host => host.Workspace.OptimizePaneLayout(host.Ui.PaneLayoutArea),
         host => host.Workspace.IsSplit);
 
     internal static readonly Command TogglePerformanceOverlay = Command.Global(
@@ -261,11 +255,6 @@ internal static class AppCommands
             ShowsImage,
             [shortcut]);
 
-    private static void Split(ICommandHost host, ViewerTab tab, WorkspaceSplitOrientation orientation)
-    {
-        if (!host.Ui.IsClosingPane)
-        {
-            host.Workspace.SplitPane(host.Workspace.PaneOf(tab), orientation);
-        }
-    }
+    private static void Split(ICommandHost host, ViewerTab tab, WorkspaceSplitOrientation orientation) =>
+        host.Workspace.SplitPane(host.Workspace.PaneOf(tab), orientation);
 }

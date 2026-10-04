@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
 using Dameview.UI.Animation;
 using Dameview.UI.Foundation;
@@ -9,7 +10,7 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
 {
     internal const float MinimumPaneSizeDips = 120.0f;
     internal const float SplitterSizeDips = 8.0f;
-    private const double TransitionResponse = 28.0;
+    private const double TransitionResponse = 20.0;
 
     private readonly UiOrientation _orientation;
     private readonly Action<float>? _ratioChanged;
@@ -17,8 +18,8 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
     private readonly AnimatedFloat _ratio;
     private readonly AnimatedFloat _transition;
     private Action? _collapseCompleted;
+    private bool _collapsing;
     private bool _collapsingFirstPane;
-    private bool _collapseFirstAfterOpening;
 
     internal SplitPanel(
         UiElement firstPane,
@@ -26,23 +27,15 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
         UiOrientation orientation,
         float ratio,
         Action<float>? ratioChanged = null,
-        bool animateOpening = false,
-        float? startRatio = null)
+        bool animateOpening = false)
     {
-        ArgumentNullException.ThrowIfNull(firstPane);
-        ArgumentNullException.ThrowIfNull(secondPane);
         if (!(ratio > 0.0f && ratio < 1.0f))
         {
             throw new ArgumentOutOfRangeException(nameof(ratio));
         }
 
-        FirstPane = firstPane;
-        SecondPane = secondPane;
         _orientation = orientation;
-        // Rebuilding the layout replaces this panel, so a split that already existed hands
-        // over where it was drawn and the new ratio is animated to rather than jumped to.
-        _ratio = new AnimatedFloat(startRatio ?? ratio, TransitionResponse);
-        _ratio.SetTarget(ratio);
+        _ratio = new AnimatedFloat(ratio, TransitionResponse);
         _ratioChanged = ratioChanged;
         _transition = new AnimatedFloat(
             animateOpening ? 0.0f : 1.0f,
@@ -50,16 +43,28 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
             completionDistance: 0.002f);
         _transition.SetTarget(1.0f);
         _resizer = new SplitResizer(this);
-        AddChild(FirstPane);
-        AddChild(SecondPane);
-        AddChild(_resizer);
+        SetPanes(firstPane, secondPane);
     }
 
-    internal float CurrentRatio => _ratio.Current;
+    /// <summary>How far open the split is, from 0 when a pane has collapsed to 1 when both are shown.</summary>
+    internal float Openness => _transition.Current;
     internal RectangleF FirstPaneBounds { get; private set; }
     internal RectangleF SecondPaneBounds { get; private set; }
-    internal UiElement FirstPane { get; }
-    internal UiElement SecondPane { get; }
+    internal UiElement FirstPane { get; private set; }
+    internal UiElement SecondPane { get; private set; }
+
+    /// <summary>Puts panes in, after <see cref="DetachChildren"/> took the previous ones out.</summary>
+    [MemberNotNull(nameof(FirstPane), nameof(SecondPane))]
+    internal void SetPanes(UiElement firstPane, UiElement secondPane)
+    {
+        ArgumentNullException.ThrowIfNull(firstPane);
+        ArgumentNullException.ThrowIfNull(secondPane);
+        FirstPane = firstPane;
+        SecondPane = secondPane;
+        AddChild(firstPane);
+        AddChild(secondPane);
+        AddChild(_resizer);
+    }
 
     internal void SetRatio(float ratio)
     {
@@ -74,11 +79,35 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
         }
     }
 
-    internal void Collapse(UiElement pane, Action completed)
+    /// <summary>Swaps one pane for another in the same place.</summary>
+    internal void ReplacePane(UiElement pane, UiElement replacement)
+    {
+        ArgumentNullException.ThrowIfNull(replacement);
+        bool first = ReferenceEquals(pane, FirstPane);
+        if (!first && !ReferenceEquals(pane, SecondPane))
+        {
+            throw new ArgumentException("The pane is not a child of this split.", nameof(pane));
+        }
+
+        RemoveChild(pane);
+        AddChild(replacement);
+        if (first)
+        {
+            FirstPane = replacement;
+        }
+        else
+        {
+            SecondPane = replacement;
+        }
+
+        SetChildOrder([FirstPane, SecondPane, _resizer]);
+    }
+
+    /// <summary>Shrinks a pane away from wherever the split is now, even partway through opening.</summary>
+    internal void Collapse(UiElement pane, Action? completed = null)
     {
         ArgumentNullException.ThrowIfNull(pane);
-        ArgumentNullException.ThrowIfNull(completed);
-        if (_collapseCompleted is not null)
+        if (_collapsing)
         {
             throw new InvalidOperationException("A pane is already collapsing.");
         }
@@ -89,17 +118,10 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
             throw new ArgumentException("The pane is not a child of this split.", nameof(pane));
         }
 
+        _collapsing = true;
         _collapseCompleted = completed;
-        if (collapseFirstPane && _transition.Current != 1.0f)
-        {
-            _collapseFirstAfterOpening = true;
-        }
-        else
-        {
-            _collapsingFirstPane = collapseFirstPane;
-            _transition.SetTarget(0.0f);
-        }
-
+        _collapsingFirstPane = collapseFirstPane;
+        _transition.SetTarget(0.0f);
         InvalidateLayout();
     }
 
@@ -173,25 +195,17 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
         bool continues = _transition.Update(context);
         float previousRatio = _ratio.Current;
         continues |= _ratio.Update(context);
-        if (_collapseFirstAfterOpening && _transition.Current == 1.0f)
-        {
-            _collapseFirstAfterOpening = false;
-            _collapsingFirstPane = true;
-            continues = _transition.SetTarget(0.0f);
-        }
-
         if (_transition.Current != previous || _ratio.Current != previousRatio)
         {
             InvalidateLayout();
         }
 
-        if (_collapseCompleted is not null
-            && !_collapseFirstAfterOpening
-            && _transition.Current == 0.0f)
+        if (_collapsing && _transition.Current == 0.0f)
         {
-            Action completed = _collapseCompleted;
+            _collapsing = false;
+            Action? completed = _collapseCompleted;
             _collapseCompleted = null;
-            completed();
+            completed?.Invoke();
         }
 
         return continues;
@@ -199,17 +213,40 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
 
     private float CalculateFirstLength(float usableLength)
     {
-        float requested = usableLength * _ratio.Current;
-        if (usableLength < 2.0f * MinimumPaneSizeDips)
+        MinimumLength first = GetMinimumLength(FirstPane, _orientation);
+        MinimumLength second = GetMinimumLength(SecondPane, _orientation);
+        // Without room for every pane's minimum, the splitters keep their size and the rest is
+        // shared out by how many panes each side holds, so all the panes end up the same size.
+        float maximum = usableLength - second.Total;
+        if (maximum < first.Total)
         {
-            return Math.Clamp(requested, 0.0f, usableLength);
+            float paneRoom = MathF.Max(0.0f, usableLength - first.Splitters - second.Splitters);
+            return first.Splitters + paneRoom * first.Panes / (first.Panes + second.Panes);
         }
 
-        return Math.Clamp(
-            requested,
-            MinimumPaneSizeDips,
-            usableLength - MinimumPaneSizeDips);
+        return Math.Clamp(usableLength * _ratio.Current, first.Total, maximum);
     }
+
+    /// <summary>The room this split needs along an axis to give every pane in it the minimum size.</summary>
+    private MinimumLength GetMinimumLength(UiOrientation axis)
+    {
+        MinimumLength first = GetMinimumLength(FirstPane, axis);
+        MinimumLength second = GetMinimumLength(SecondPane, axis);
+        if (axis != _orientation)
+        {
+            return first.Total >= second.Total ? first : second;
+        }
+
+        // A side that is opening or collapsing only needs the share of its room it has right now.
+        var splitter = new MinimumLength(0.0f, SplitterSizeDips);
+        float transition = _transition.Current;
+        return _collapsingFirstPane
+            ? (first + splitter).Scale(transition) + second
+            : first + (splitter + second).Scale(transition);
+    }
+
+    private static MinimumLength GetMinimumLength(UiElement pane, UiOrientation axis) =>
+        pane is SplitPanel split ? split.GetMinimumLength(axis) : new MinimumLength(MinimumPaneSizeDips, 0.0f);
 
     UiOrientation ISplitResizerTarget.Orientation => _orientation;
 
@@ -221,8 +258,9 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
                 ? Bounds.Width
                 : Bounds.Height;
             return _transition.Current == 1.0f
-                && _collapseCompleted is null
-                && mainLength - SplitterSizeDips >= 2.0f * MinimumPaneSizeDips;
+                && !_collapsing
+                && mainLength - SplitterSizeDips
+                    >= (GetMinimumLength(FirstPane, _orientation) + GetMinimumLength(SecondPane, _orientation)).Total;
         }
     }
 
@@ -247,15 +285,14 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
             ? Bounds.Width
             : Bounds.Height;
         float usableLength = mainLength - SplitterSizeDips;
-        if (usableLength < 2.0f * MinimumPaneSizeDips)
+        float firstMinimum = GetMinimumLength(FirstPane, _orientation).Total;
+        float maximum = usableLength - GetMinimumLength(SecondPane, _orientation).Total;
+        if (maximum < firstMinimum)
         {
             return;
         }
 
-        float firstLength = Math.Clamp(
-            length,
-            MinimumPaneSizeDips,
-            usableLength - MinimumPaneSizeDips);
+        float firstLength = Math.Clamp(length, firstMinimum, maximum);
         float ratio = firstLength / usableLength;
         if (!_ratio.SetValue(ratio))
         {
@@ -264,5 +301,17 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
 
         _ratioChanged?.Invoke(ratio);
         InvalidateLayout();
+    }
+
+    /// <param name="Panes">What the panes need, which can be shared out when room runs short.</param>
+    /// <param name="Splitters">What the splitters take, which stays the same however small the panes get.</param>
+    private readonly record struct MinimumLength(float Panes, float Splitters)
+    {
+        internal float Total => Panes + Splitters;
+
+        public static MinimumLength operator +(MinimumLength first, MinimumLength second) =>
+            new(first.Panes + second.Panes, first.Splitters + second.Splitters);
+
+        internal MinimumLength Scale(float factor) => new(Panes * factor, Splitters * factor);
     }
 }

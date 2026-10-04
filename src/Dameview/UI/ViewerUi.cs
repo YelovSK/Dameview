@@ -77,7 +77,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
             {
                 SharpPixels = _sharpPixels,
                 ChromeVisible = _chromeVisible,
-            });
+            },
+            _host.CreateSnapshot);
         _workspaceView.SetActivePane(workspace.ActivePane);
         _dragOverlay = new WorkspaceDragOverlay(thumbnailLoader);
         _dragController = new WorkspaceDragController(this, _workspaceView, _dragOverlay, app);
@@ -162,7 +163,6 @@ internal sealed class ViewerUi : UiElement, IDisposable
     internal TimeSpan? NextAnimationFrameDelay =>
         _workspaceView.NextAnimationFrameDelay
         ?? (_performanceOverlay.IsVisible ? PerformanceOverlay.HeartbeatInterval : null);
-    internal bool IsClosingPane => _workspaceView.IsClosingPane;
     internal PaneLayoutArea PaneLayoutArea => new(
         MathF.Max(1.0f, _host.Root.DipsToPixels(_workspaceView.Bounds.Width)),
         MathF.Max(1.0f, _host.Root.DipsToPixels(_workspaceView.Bounds.Height)),
@@ -172,9 +172,6 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     private ViewerPaneView ActivePaneView => _workspaceView.FindPaneView(_workspace.ActivePane)
         ?? throw new InvalidOperationException("The active pane view is not attached.");
-
-    internal bool BeginClosePane(ViewerPane pane, Action completed) =>
-        _workspaceView.BeginClosePane(pane, completed);
 
     private void HandleActivePaneChanged(ViewerPane pane)
     {
@@ -215,6 +212,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
 
     internal void RecreateDeviceResources(ID2D1DeviceContext deviceContext)
     {
+        _workspaceView.FinishCollapses();
         _host.RecreateDeviceResources(deviceContext);
         _galleryPanel.RecreateDeviceResources(deviceContext);
         foreach (ViewerPaneView paneView in _workspaceView.PaneViews)
@@ -375,7 +373,6 @@ internal sealed class ViewerUi : UiElement, IDisposable
     internal bool Update()
     {
         bool continues = _host.Update();
-        _workspaceView.CompletePendingClose();
         // Only real animation work counts: a heartbeat that merely keeps the overlay ticking
         // must not hold the clock open, or the next animation starts with a frame's backlog.
         if (!continues && _workspaceView.NextAnimationFrameDelay is null)

@@ -253,30 +253,90 @@ public sealed class SplitPanelTests
     }
 
     [TestMethod]
-    public void CollapsingTheFirstPaneDuringOpeningDoesNotJumpToTheFinalLayout()
+    public void CollapsingWhileOpeningStartsFromHowFarItHadOpened()
     {
         var first = new FixedContent();
         var second = new FixedContent();
-        var panel = new SplitPanel(
-            first,
-            second,
-            UiOrientation.Horizontal,
-            0.5f,
-            animateOpening: true);
+        var panel = new SplitPanel(first, second, UiOrientation.Horizontal, 0.5f, animateOpening: true);
         var root = new UiRoot(panel, UiDpi.Default, TestTextLayouts.Shared);
-        int completions = 0;
+        root.Arrange(new SizeF(1008.0f, 600.0f));
+        root.Update(new UiUpdateContext(0.05));
+        root.Arrange(new SizeF(1008.0f, 600.0f));
+        float openingWidth = second.Bounds.Width;
+        Assert.IsGreaterThan(0.0f, openingWidth);
+        Assert.IsLessThan(500.0f, openingWidth);
+
+        panel.Collapse(second);
         root.Arrange(new SizeF(1008.0f, 600.0f));
 
-        panel.Collapse(first, () => completions++);
-        root.Arrange(new SizeF(1008.0f, 600.0f));
-        Assert.AreEqual(1008.0f, first.Bounds.Width);
-        Assert.AreEqual(0.0f, second.Bounds.Width);
+        Assert.AreEqual(openingWidth, second.Bounds.Width);
+    }
 
-        CompleteAnimations(root, frameCount: 20);
+    [TestMethod]
+    public void APanelTakesNewPanesAfterGivingUpItsOldOnes()
+    {
+        var panel = new SplitPanel(new FixedContent(), new FixedContent(), UiOrientation.Horizontal, 0.5f);
+        var root = new UiRoot(panel, UiDpi.Default, TestTextLayouts.Shared);
+        var first = new FixedContent();
+        var second = new FixedContent();
+
+        panel.DetachChildren();
+        panel.SetPanes(first, second);
         root.Arrange(new SizeF(1008.0f, 600.0f));
-        Assert.AreEqual(1, completions);
-        Assert.AreEqual(0.0f, first.Bounds.Width);
-        Assert.AreEqual(1008.0f, second.Bounds.Width);
+
+        Assert.AreEqual(500.0f, first.Bounds.Width);
+        Assert.AreEqual(508.0f, second.Bounds.X);
+    }
+
+    [TestMethod]
+    public void AReplacedPaneTakesTheOldOnesPlace()
+    {
+        var first = new FixedContent();
+        var panel = new SplitPanel(first, new FixedContent(), UiOrientation.Horizontal, 0.5f);
+        var root = new UiRoot(panel, UiDpi.Default, TestTextLayouts.Shared);
+        var replacement = new FixedContent();
+
+        panel.ReplacePane(first, replacement);
+        root.Arrange(new SizeF(1008.0f, 600.0f));
+
+        Assert.AreSame(replacement, panel.FirstPane);
+        Assert.AreSame(replacement, panel.Children[0]);
+        Assert.IsNull(first.Parent);
+        Assert.AreEqual(500.0f, replacement.Bounds.Width);
+    }
+
+    [TestMethod]
+    public void NestedPanesShrinkEvenlyWhenThereIsNoRoomForTheirMinimums()
+    {
+        var first = new FixedContent();
+        var second = new FixedContent();
+        var third = new FixedContent();
+        var inner = new SplitPanel(second, third, UiOrientation.Horizontal, 0.5f);
+        var panel = new SplitPanel(first, inner, UiOrientation.Horizontal, 1.0f / 3.0f);
+        var root = new UiRoot(panel, UiDpi.Default, TestTextLayouts.Shared);
+
+        root.Arrange(new SizeF(316.0f, 600.0f));
+
+        Assert.AreEqual(100.0f, first.Bounds.Width, 0.01f);
+        Assert.AreEqual(100.0f, second.Bounds.Width, 0.01f);
+        Assert.AreEqual(100.0f, third.Bounds.Width, 0.01f);
+    }
+
+    [TestMethod]
+    public void AnOuterSplitLeavesRoomForEveryPaneInsideTheOtherSide()
+    {
+        var first = new FixedContent();
+        var second = new FixedContent();
+        var third = new FixedContent();
+        var inner = new SplitPanel(second, third, UiOrientation.Horizontal, 0.5f);
+        var panel = new SplitPanel(first, inner, UiOrientation.Horizontal, 0.9f);
+        var root = new UiRoot(panel, UiDpi.Default, TestTextLayouts.Shared);
+
+        root.Arrange(new SizeF(1008.0f, 600.0f));
+
+        Assert.AreEqual(1000.0f - 248.0f, first.Bounds.Width, 0.01f);
+        Assert.AreEqual(SplitPanel.MinimumPaneSizeDips, second.Bounds.Width, 0.01f);
+        Assert.AreEqual(SplitPanel.MinimumPaneSizeDips, third.Bounds.Width, 0.01f);
     }
 
     private static void CompleteAnimations(UiRoot root, int frameCount = 10)
@@ -290,29 +350,6 @@ public sealed class SplitPanelTests
     private static WindowPointerEvent Pointer(WindowPointerEventKind kind, float x, float y)
     {
         return new WindowPointerEvent(kind, new PointF(x, y), PointerButton.Primary);
-    }
-
-    [TestMethod]
-    public void ARebuiltPanelAnimatesFromWhereTheOldOneWasDrawn()
-    {
-        // A layout rebuild replaces the panel object, so the new one is handed the ratio its
-        // predecessor was showing and eases to the real one instead of appearing at it.
-        var panel = new SplitPanel(
-            new FixedContent(),
-            new FixedContent(),
-            UiOrientation.Horizontal,
-            0.75f,
-            startRatio: 0.25f);
-
-        Assert.AreEqual(0.25f, panel.CurrentRatio);
-
-        var frame = new UiUpdateContext(1.0 / 60.0);
-        for (int index = 0; index < 120 && panel.CurrentRatio < 0.75f; index++)
-        {
-            panel.UpdateTree(frame);
-        }
-
-        Assert.AreEqual(0.75f, panel.CurrentRatio);
     }
 
     private sealed class FixedContent : UiElement
