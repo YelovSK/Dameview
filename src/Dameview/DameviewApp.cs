@@ -12,7 +12,6 @@ using Dameview.Rendering;
 using Dameview.Settings;
 using Dameview.UI;
 using Dameview.UI.Components;
-using Dameview.UI.Presentation;
 using Dameview.Updates;
 using Dameview.Viewing;
 using Dameview.Win32;
@@ -35,12 +34,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
     private readonly ViewerUi _ui;
     // Cached because a method group allocates a new delegate on every frame.
     private readonly Action<SizeF> _drawFrame;
-    private readonly ThumbnailCoordinator _thumbnailCoordinator;
-    private readonly ImageLoadService _imageLoadService;
-    private readonly RenderBitmapCache _renderBitmapCache;
-    private readonly BitmapUploader _bitmapUploader;
-    private readonly RenderBitmapCache _thumbnailBitmapCache;
-    private readonly ThumbnailImageLoader _thumbnailImageLoader;
+    private readonly ImagePipeline _images;
     private readonly FolderSources _folderSources;
     private readonly ViewerWorkspace _workspace;
     private readonly SettingsService _settings;
@@ -94,25 +88,18 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
 
         _performanceMonitor = new PerformanceMonitor();
         var imageBackend = new WindowsImageLoadingBackend();
-        _thumbnailCoordinator = new ThumbnailCoordinator(
-            imageBackend.LoadThumbnail,
-            _uiContext);
-        _imageLoadService = new ImageLoadService(
+        _images = new ImagePipeline(
             _uiContext,
-            imageBackend,
-            new ImageRepresentationPolicy(checked((int)_renderer.DeviceContext.MaximumBitmapSize)));
-        _renderBitmapCache = new RenderBitmapCache(RenderBitmapCacheCapacityBytes);
-        _bitmapUploader = new BitmapUploader(_renderer);
-        _thumbnailBitmapCache = new RenderBitmapCache(ThumbnailBitmapCacheCapacityBytes);
-        _thumbnailImageLoader = new ThumbnailImageLoader(
-            _thumbnailCoordinator,
-            _thumbnailBitmapCache,
-            () => _renderer.DeviceContext,
-            _uiContext);
+            new BitmapUploader(_renderer),
+            (new FileImageSource(
+                    imageBackend,
+                    new ImageRepresentationPolicy(checked((int)_renderer.DeviceContext.MaximumBitmapSize))),
+                new RenderBitmapCache(RenderBitmapCacheCapacityBytes)),
+            (new ShellThumbnailSource(imageBackend), new RenderBitmapCache(ThumbnailBitmapCacheCapacityBytes)));
         using var imageDecoder = new ImageDecoder();
         HashSet<string> decodableExtensions = imageDecoder.GetProbablySupportedExtensions();
         StartupTrace.Mark("wic");
-        _files = new FileActions(_window.Handle, _imageLoadService, _toasts, decodableExtensions);
+        _files = new FileActions(_window.Handle, imageBackend.CreateDecoder, _toasts, decodableExtensions);
         HashSet<string>.AlternateLookup<ReadOnlySpan<char>> decodableExtensionLookup =
             decodableExtensions.GetAlternateLookup<ReadOnlySpan<char>>();
         var folderScanner = new FolderScanner(
@@ -147,7 +134,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
             _window.Dpi,
             Themes.Dark.Palette,
             this,
-            _thumbnailImageLoader,
+            _images,
             _performanceMonitor,
             _toasts,
             windowButtons);
@@ -230,10 +217,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
             TaskScheduler.Default);
         _ui.Dispose();
         _workspace.Dispose();
-        _renderBitmapCache.Dispose();
-        _thumbnailBitmapCache.Dispose();
-        _imageLoadService.Dispose();
-        _thumbnailCoordinator.Dispose();
+        _images.Dispose();
         _renderer.Dispose();
         _window.Dispose();
     }
@@ -431,16 +415,10 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
 
     private ViewerTab CreateTab()
     {
-        ImageLoadClient loadClient = _imageLoadService.CreateClient();
-        var imageLoader = new PresentationImageLoader(
-            loadClient,
-            _renderBitmapCache,
-            _bitmapUploader,
-            _thumbnailImageLoader);
         var session = new ViewerSession(
             new FolderNavigator(),
             new FolderMonitor(_folderSources),
-            imageLoader);
+            new ViewerImageLoader(_images));
         return new ViewerTab(session);
     }
 
@@ -502,8 +480,11 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         ID2D1DeviceContext deviceContext = _renderer.DeviceContext;
         if (!(migrated && TryMoveCachedBitmaps(cache => cache.Upload(deviceContext))))
         {
-            _renderBitmapCache.Clear();
-            _thumbnailBitmapCache.Clear();
+            foreach (RenderBitmapCache cache in _images.Caches)
+            {
+                cache.Clear();
+            }
+
             // Before the UI rebinds, so no pane rebinds an image whose bitmap was just released.
             foreach (ViewerSession session in _workspace.Sessions)
             {
@@ -528,8 +509,11 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
     {
         try
         {
-            step(_renderBitmapCache);
-            step(_thumbnailBitmapCache);
+            foreach (RenderBitmapCache cache in _images.Caches)
+            {
+                step(cache);
+            }
+
             return true;
         }
         catch (Exception exception)

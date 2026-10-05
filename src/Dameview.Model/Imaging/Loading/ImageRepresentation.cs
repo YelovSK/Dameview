@@ -16,6 +16,9 @@ internal abstract class ImageRepresentation(
     internal int Height { get; } = height;
     internal ImageOrientation Orientation { get; } = orientation;
 
+    /// <summary>A single still image held as pixels, which can go to the GPU and be cached.</summary>
+    internal virtual bool IsStatic => false;
+
     public void Dispose()
     {
         if (_disposed)
@@ -36,12 +39,14 @@ internal sealed class DecodedImageRepresentation(DecodedImage image)
     : ImageRepresentation(image.Width, image.Height)
 {
     internal DecodedImage Image { get; } = image;
+    internal override bool IsStatic => true;
 }
 
 internal sealed class UploadImageRepresentation(DecodedImageUpload upload)
     : ImageRepresentation(upload.Width, upload.Height, upload.Orientation)
 {
     internal DecodedImageUpload Upload { get; } = upload;
+    internal override bool IsStatic => true;
 
     protected override void DisposeCore() => Upload.Dispose();
 }

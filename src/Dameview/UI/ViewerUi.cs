@@ -2,13 +2,13 @@ using System.Diagnostics;
 using System.Drawing;
 using Dameview.Commands;
 using Dameview.Diagnostics;
+using Dameview.Imaging.Loading;
 using Dameview.Notifications;
 using Dameview.Settings;
 using Dameview.UI.Components;
 using Dameview.UI.Foundation;
 using Dameview.UI.Layout;
 using Dameview.UI.Panels;
-using Dameview.UI.Presentation;
 using Dameview.UI.Workspace;
 using Dameview.Updates;
 using Dameview.Viewing;
@@ -60,7 +60,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         float dpi,
         UiTheme theme,
         IAppActions app,
-        IThumbnailImageLoader thumbnailLoader,
+        IImagePipeline images,
         PerformanceMonitor performanceMonitor,
         ToastService toasts,
         WindowButtons windowButtons,
@@ -69,7 +69,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _host = new UiHost(this, deviceContext, directWriteFactory, dpi, theme, timeProvider);
         _workspace = workspace;
         _app = app;
-        _tabPreview = new TabPreview(thumbnailLoader);
+        _tabPreview = new TabPreview(images);
         _popupHost = new PopupHost();
         _contextMenus = new ViewerContextMenus(_popupHost, app);
         _workspaceView = new WorkspaceView(
@@ -89,7 +89,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
             },
             _host.CreateSnapshot);
         _workspaceView.SetActivePane(workspace.ActivePane);
-        _dragOverlay = new WorkspaceDragOverlay(thumbnailLoader);
+        _dragOverlay = new WorkspaceDragOverlay(images);
         _dragController = new WorkspaceDragController(this, _workspaceView, _dragOverlay, app);
         _performanceOverlay = new PerformanceOverlay(performanceMonitor)
         {
@@ -97,7 +97,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         };
         _galleryPanel = new GalleryPanel(
             deviceContext,
-            thumbnailLoader,
+            images,
             app.SelectImage,
             app.OpenImageInNewTab,
             () => app.Execute(AppCommands.ToggleFlattenFolder, app.ActiveContext),

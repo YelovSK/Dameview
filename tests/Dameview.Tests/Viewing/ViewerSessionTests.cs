@@ -5,6 +5,7 @@ using Dameview.Imaging;
 using Dameview.Imaging.Animation;
 using Dameview.Imaging.Loading;
 using Dameview.Navigation;
+using Dameview.Tests.Imaging;
 using Dameview.Viewing;
 using Dameview.Win32;
 
@@ -170,7 +171,7 @@ public sealed class ViewerSessionTests
         using var files = new SessionFiles();
         var loader = new ManualImageLoader();
         using ViewerSession session = CreateSession(loader);
-        var animation = new TrackingAnimationSession();
+        var animation = new FakeAnimationSession();
 
         session.OpenImage(files.First);
         loader.Complete(animation);
@@ -189,7 +190,7 @@ public sealed class ViewerSessionTests
         using var files = new SessionFiles();
         var loader = new ManualImageLoader();
         ViewerSession session = CreateSession(loader);
-        var animation = new TrackingAnimationSession();
+        var animation = new FakeAnimationSession();
 
         session.OpenImage(files.First);
         loader.Complete(animation);
@@ -205,7 +206,7 @@ public sealed class ViewerSessionTests
         using var files = new SessionFiles();
         var loader = new ManualImageLoader();
         using ViewerSession session = CreateSession(loader);
-        var tiles = new TrackingTileSource();
+        var tiles = new FakeTileSource();
 
         session.OpenImage(files.First);
         loader.Complete(tiles);
@@ -221,7 +222,7 @@ public sealed class ViewerSessionTests
         using var files = new SessionFiles();
         var loader = new ManualImageLoader();
         ViewerSession session = CreateSession(loader);
-        var tiles = new TrackingTileSource();
+        var tiles = new FakeTileSource();
 
         session.OpenImage(files.First);
         session.Dispose();
@@ -328,45 +329,6 @@ public sealed class ViewerSessionTests
         internal void Fail(Exception exception)
         {
             _completed!(new ImageLoadFailed(_path, exception));
-        }
-    }
-
-    private sealed class TrackingAnimationSession : IAnimationSession
-    {
-        public AnimationFrame FirstFrame { get; } =
-            new(CreateImage(), TimeSpan.FromMilliseconds(100));
-
-        public bool IsAnimated => true;
-        public bool IsComplete => false;
-        public Exception? Error => null;
-        internal bool IsDisposed { get; private set; }
-
-        public bool TryGetReadyFrame(out AnimationFrame frame)
-        {
-            frame = null!;
-            return false;
-        }
-
-        public void Dispose()
-        {
-            IsDisposed = true;
-        }
-    }
-
-    private sealed class TrackingTileSource : IImageTileSource
-    {
-        public int Width => 20_000;
-        public int Height => 10_000;
-        public ImageOrientation Orientation => default;
-        public int TileSize => 2048;
-        public DecodedImage Overview { get; } = CreateImage();
-        internal bool IsDisposed { get; private set; }
-
-        public IImageTileDecoder CreateTileDecoder() => throw new NotSupportedException();
-
-        public void Dispose()
-        {
-            IsDisposed = true;
         }
     }
 

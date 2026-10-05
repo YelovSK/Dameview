@@ -30,6 +30,8 @@ internal sealed class D2DRenderer : IDisposable
     private readonly ID2D1Factory1 _d2dFactory;
     private readonly IDWriteFactory1 _directWriteFactory;
 
+    // Guards switching the device against image workers that take a reference to it.
+    private readonly Lock _deviceLock = new();
     private DeviceResources _device;
     private ID2D1Bitmap1? _targetBitmap;
     private ID3D11RenderTargetView? _targetView;
@@ -60,6 +62,15 @@ internal sealed class D2DRenderer : IDisposable
     internal nint FrameLatencyWaitHandle => _device.FrameLatencyWaitHandle.DangerousGetHandle();
     internal ID2D1DeviceContext DeviceContext => _device.DeviceContext;
     internal ID3D11Device D3DDevice => _device.D3DDevice;
+
+    /// <summary>Any thread. A reference to the current device, which the caller disposes.</summary>
+    internal ID3D11Device AcquireD3DDevice()
+    {
+        lock (_deviceLock)
+        {
+            return _device.D3DDevice.QueryInterface<ID3D11Device>();
+        }
+    }
     internal IDWriteFactory DirectWriteFactory => _directWriteFactory;
 
     internal static ID3D11Device CreateDevice(DriverType driverType)
@@ -87,17 +98,20 @@ internal sealed class D2DRenderer : IDisposable
         // A window holds only one swap chain, so the current one has to go first, and there is
         // nothing to return to afterwards. The software rasterizer is always there instead.
         ReleaseTargetBitmap();
-        _device.Dispose();
         bool adopted = true;
-        try
+        lock (_deviceLock)
         {
-            _device = CreateDeviceResources(device);
-        }
-        catch (Exception exception)
-        {
-            Log.Warning("Native", $"Could not switch the graphics device: {exception.Message}");
-            _device = CreateDeviceResources(CreateDevice(DriverType.Warp));
-            adopted = false;
+            _device.Dispose();
+            try
+            {
+                _device = CreateDeviceResources(device);
+            }
+            catch (Exception exception)
+            {
+                Log.Warning("Native", $"Could not switch the graphics device: {exception.Message}");
+                _device = CreateDeviceResources(CreateDevice(DriverType.Warp));
+                adopted = false;
+            }
         }
 
         CreateTargetBitmap();
@@ -184,7 +198,11 @@ internal sealed class D2DRenderer : IDisposable
     public void Dispose()
     {
         ReleaseTargetBitmap();
-        _device.Dispose();
+        lock (_deviceLock)
+        {
+            _device.Dispose();
+        }
+
         _directWriteFactory.Dispose();
         _d2dFactory.Dispose();
     }

@@ -6,7 +6,6 @@ using Dameview.Settings;
 using Dameview.UI.Components;
 using Dameview.UI.Foundation;
 using Dameview.UI.Layout;
-using Dameview.UI.Presentation;
 using Dameview.UI.Workspace;
 using Dameview.Viewing;
 using Dameview.Win32.Input;
@@ -29,7 +28,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private static readonly UiFont FooterFont = new(12.0f, Ellipsis: true);
 
     private ID2D1DeviceContext _thumbnailScaleContext;
-    private readonly IThumbnailImageLoader _thumbnailLoader;
+    private readonly IImagePipeline _images;
     private readonly Action<string> _openImage;
     private readonly Action<string> _openInNewTab;
     private readonly WorkspaceDragGesture _drag;
@@ -56,7 +55,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
     internal GalleryPanel(
         ID2D1DeviceContext deviceContext,
-        IThumbnailImageLoader thumbnailLoader,
+        IImagePipeline images,
         Action<string> openImage,
         Action<string> openInNewTab,
         Action toggleFlattenFolder,
@@ -64,7 +63,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         Action<string, PointF>? contextMenuRequested = null)
     {
         _thumbnailScaleContext = D2DBitmapFactory.CreateOffscreenContext(deviceContext);
-        _thumbnailLoader = thumbnailLoader;
+        _images = images;
         _openImage = openImage;
         _openInNewTab = openInNewTab;
         _drag = new WorkspaceDragGesture(drag => dragPointer?.Invoke(_pressedPath!, drag));
@@ -479,9 +478,9 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
             var slot = new GalleryItemSlot();
             _slots.Add(path, slot);
-            slot.Request = _thumbnailLoader.Request(
+            slot.Request = _images.RequestThumbnail(
                 path,
-                ThumbnailPriority.Gallery,
+                ImagePriority.Gallery,
                 lease => CompleteThumbnail(path, slot, lease));
         }
 

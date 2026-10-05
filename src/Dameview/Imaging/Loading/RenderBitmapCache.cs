@@ -1,13 +1,11 @@
 using System.Diagnostics.CodeAnalysis;
-using Dameview.Imaging;
-using Dameview.Imaging.Loading;
 using Dameview.Rendering;
 using Vortice.Direct2D1;
 
-namespace Dameview.UI.Presentation;
+namespace Dameview.Imaging.Loading;
 
-// UI-thread owned. The cache owns every bitmap; displayed images hold leases
-// that protect their entries from eviction.
+// UI-thread owned, except for reserving space. The cache owns every bitmap; displayed images
+// hold leases that protect their entries from eviction.
 internal sealed class RenderBitmapCache : IDisposable
 {
     private readonly Dictionary<string, LinkedListNode<CachedBitmap>> _entries =
@@ -16,6 +14,7 @@ internal sealed class RenderBitmapCache : IDisposable
     private readonly Action<ID2D1Bitmap1> _disposeBitmap;
     private readonly long _capacityBytes;
     private long _sizeBytes;
+    private long _reservedBytes;
     private bool _disposed;
 
     internal RenderBitmapCache(long capacityBytes)
@@ -33,8 +32,9 @@ internal sealed class RenderBitmapCache : IDisposable
         _disposeBitmap = disposeBitmap;
     }
 
-    /// <summary>How many bytes speculative images can still take without evicting anything.</summary>
-    internal long FreeBytes => Math.Max(0, _capacityBytes - _sizeBytes);
+    /// <summary>How many bytes can still be reserved.</summary>
+    internal long FreeBytes =>
+        Math.Max(0, _capacityBytes - Volatile.Read(ref _sizeBytes) - Volatile.Read(ref _reservedBytes));
 
     internal bool Contains(string path) => _entries.ContainsKey(path);
 
@@ -55,49 +55,52 @@ internal sealed class RenderBitmapCache : IDisposable
     }
 
     /// <summary>
-    /// Leases the cached bitmap for a path, creating it first if the cache has none. The caller
+    /// Takes ownership of a bitmap for a path that isn't cached yet, and leases it. The caller
     /// trims once it has let go of whatever the new bitmap replaces, so that the replaced one
     /// is what gets evicted.
     /// </summary>
-    internal CachedBitmapLease GetOrAdd(
+    internal CachedBitmapLease Add(
         string path,
         int width,
         int height,
         ImageOrientation orientation,
-        Func<ID2D1Bitmap1> create)
+        ID2D1Bitmap1 bitmap)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (_entries.TryGetValue(path, out LinkedListNode<CachedBitmap>? node))
-        {
-            Touch(node);
-            return Acquire(node.Value);
-        }
-
-        return Acquire(Add(path, width, height, orientation, create));
+        long sizeBytes = DecodedImage.GetByteCount(width, height);
+        var entry = new CachedBitmap(path, bitmap, width, height, orientation, sizeBytes);
+        _entries.Add(path, _recentlyUsed.AddFirst(entry));
+        _sizeBytes += sizeBytes;
+        return Acquire(entry);
     }
 
-    /// <summary>Caches a speculative image, unless it is already cached or does not fit.</summary>
-    /// <returns>Whether it was added, which is also whether <paramref name="create"/> was called.</returns>
+    /// <summary>
+    /// Any thread. Sets space aside for an image that is still loading, so that adding it later
+    /// evicts nothing. Fails when the image doesn't fit next to what is cached and reserved.
+    /// </summary>
     /// <remarks>
-    /// A preload may use free space but must never evict, or a folder whose images do not all
-    /// fit would throw one out to make room for the next and fetch it again a moment later.
+    /// Preloads use this, because they must never evict: a folder whose images do not all fit
+    /// would throw one out to make room for the next and fetch it again a moment later.
     /// </remarks>
-    internal bool TryPreload(
-        string path,
-        int width,
-        int height,
-        ImageOrientation orientation,
-        Func<ID2D1Bitmap1> create)
+    internal bool TryReserve(long bytes)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        if (_entries.ContainsKey(path) || DecodedImage.GetByteCount(width, height) > FreeBytes)
+        long reserved = Volatile.Read(ref _reservedBytes);
+        while (_capacityBytes - Volatile.Read(ref _sizeBytes) - reserved >= bytes)
         {
-            return false;
+            long observed = Interlocked.CompareExchange(ref _reservedBytes, reserved + bytes, reserved);
+            if (observed == reserved)
+            {
+                return true;
+            }
+
+            reserved = observed;
         }
 
-        Add(path, width, height, orientation, create);
-        return true;
+        return false;
     }
+
+    /// <summary>Any thread. Gives reserved space back, once its image is added or dropped.</summary>
+    internal void Unreserve(long bytes) => Interlocked.Add(ref _reservedBytes, -bytes);
 
     /// <summary>Also disposes leased bitmaps, so whatever displays them has to be dropped too.</summary>
     internal void Clear()
@@ -190,10 +193,14 @@ internal sealed class RenderBitmapCache : IDisposable
         }
     }
 
+    /// <summary>
+    /// Evicts the least recently used unleased bitmaps until they fit together with the
+    /// reserved space, which a reserved image can then take without evicting anything itself.
+    /// </summary>
     internal void Trim()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        while (_sizeBytes > _capacityBytes)
+        while (_sizeBytes + Volatile.Read(ref _reservedBytes) > _capacityBytes)
         {
             LinkedListNode<CachedBitmap>? candidate = _recentlyUsed.Last;
             while (candidate is not null && candidate.Value.PinCount > 0)
@@ -208,21 +215,6 @@ internal sealed class RenderBitmapCache : IDisposable
 
             Remove(candidate);
         }
-    }
-
-    private CachedBitmap Add(
-        string path,
-        int width,
-        int height,
-        ImageOrientation orientation,
-        Func<ID2D1Bitmap1> create)
-    {
-        long sizeBytes = DecodedImage.GetByteCount(width, height);
-        var entry = new CachedBitmap(path, create(), width, height, orientation, sizeBytes);
-        LinkedListNode<CachedBitmap> node = _recentlyUsed.AddFirst(entry);
-        _entries.Add(path, node);
-        _sizeBytes += sizeBytes;
-        return entry;
     }
 
     private CachedBitmapLease Acquire(CachedBitmap bitmap)

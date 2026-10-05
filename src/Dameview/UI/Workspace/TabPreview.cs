@@ -2,7 +2,6 @@ using System.Drawing;
 using Dameview.Imaging.Loading;
 using Dameview.UI.Animation;
 using Dameview.UI.Foundation;
-using Dameview.UI.Presentation;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
 using Vortice.Mathematics;
@@ -20,7 +19,7 @@ internal sealed class TabPreview : UiElement, IDisposable
     private const float CaptionHeightDips = 22.0f;
     private static readonly UiFont CaptionFont = new(12.0f, Alignment: TextAlignment.Center, Ellipsis: true);
 
-    private readonly IThumbnailImageLoader _thumbnailLoader;
+    private readonly IImagePipeline _images;
     private readonly PreviewPanel _panel;
     private IDisposable? _request;
     private CachedBitmapLease? _lease;
@@ -34,9 +33,9 @@ internal sealed class TabPreview : UiElement, IDisposable
     private bool _waiting;
     private int _version;
 
-    internal TabPreview(IThumbnailImageLoader thumbnailLoader)
+    internal TabPreview(IImagePipeline images)
     {
-        _thumbnailLoader = thumbnailLoader;
+        _images = images;
         _panel = new PreviewPanel(this);
         AddChild(_panel);
     }
@@ -113,9 +112,9 @@ internal sealed class TabPreview : UiElement, IDisposable
         _waiting = false;
         int version = _version;
         string path = _path;
-        IDisposable request = _thumbnailLoader.Request(
+        IDisposable request = _images.RequestThumbnail(
             path,
-            ThumbnailPriority.Foreground,
+            ImagePriority.Display,
             lease => CompleteThumbnail(version, lease));
         if (_version == version && _lease is null)
         {

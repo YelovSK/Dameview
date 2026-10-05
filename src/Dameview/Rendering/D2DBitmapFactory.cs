@@ -42,17 +42,6 @@ internal static class D2DBitmapFactory
         }
     }
 
-    internal static ID2D1Bitmap1 Create(
-        ID2D1DeviceContext deviceContext,
-        DecodedImageUpload image)
-    {
-        return deviceContext.CreateBitmap(
-            new SizeI(image.Width, image.Height),
-            image.Pixels,
-            (uint)image.Stride,
-            ImageProperties);
-    }
-
     /// <summary>Wraps a texture from <see cref="CreateTexture(ID3D11Device, DecodedImage)"/> or its overload.</summary>
     internal static ID2D1Bitmap1 Create(ID2D1DeviceContext deviceContext, ID3D11Texture2D texture)
     {

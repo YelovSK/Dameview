@@ -3,7 +3,7 @@ using Dameview.Imaging.Decoding;
 
 namespace Dameview.Imaging.Loading;
 
-/// <summary>Platform-specific image operations used by the loading coordinator.</summary>
+/// <summary>Platform-specific image operations that the image sources are built on.</summary>
 internal interface IImageLoadingBackend
 {
     /// <summary>Creates a decoder whose lifetime is owned by the caller.</summary>

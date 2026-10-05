@@ -2,7 +2,6 @@ using System.Drawing;
 using Dameview.Imaging.Loading;
 using Dameview.UI.Animation;
 using Dameview.UI.Foundation;
-using Dameview.UI.Presentation;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
 using Vortice.Mathematics;
@@ -22,7 +21,7 @@ internal sealed class WorkspaceDragOverlay : UiElement, IDisposable
     private const double PreviewResponse = 28.0;
     private static readonly UiFont LabelFont = new(12.0f, FontWeight.SemiBold, TextAlignment.Center, Ellipsis: true);
 
-    private readonly IThumbnailImageLoader _thumbnailLoader;
+    private readonly IImagePipeline _images;
     // Where the dragged item would land. It glides between landing spots and fades
     // in and out as the pointer enters or leaves one.
     private readonly AnimatedRectangle _preview = new(PreviewResponse);
@@ -35,9 +34,9 @@ internal sealed class WorkspaceDragOverlay : UiElement, IDisposable
     private PointF _pointer;
     private RectangleF _insertionMarker;
 
-    internal WorkspaceDragOverlay(IThumbnailImageLoader thumbnailLoader)
+    internal WorkspaceDragOverlay(IImagePipeline images)
     {
-        _thumbnailLoader = thumbnailLoader;
+        _images = images;
         IsVisible = false;
     }
 
@@ -50,9 +49,9 @@ internal sealed class WorkspaceDragOverlay : UiElement, IDisposable
         _hasThumbnail = imagePath is not null;
         if (imagePath is not null)
         {
-            _thumbnailRequest = _thumbnailLoader.Request(
+            _thumbnailRequest = _images.RequestThumbnail(
                 imagePath,
-                ThumbnailPriority.Foreground,
+                ImagePriority.Display,
                 lease =>
                 {
                     _thumbnail = lease;

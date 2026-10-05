@@ -1,41 +1,67 @@
+using System.Diagnostics.CodeAnalysis;
 using Dameview.Imaging.Loading;
 using Vortice.Direct2D1;
 using Vortice.Direct3D11;
 
 namespace Dameview.Rendering;
 
+internal interface IBitmapUploader
+{
+    /// <summary>Any thread. Copies a static image's pixels to the GPU.</summary>
+    public IUploadedBitmap Upload(ImageRepresentation image);
+}
+
+internal interface IUploadedBitmap : IDisposable
+{
+    /// <summary>
+    /// Window thread. Fails when the device was switched since the upload, which makes the
+    /// upload useless.
+    /// </summary>
+    public bool TryCreateBitmap([NotNullWhen(true)] out ID2D1Bitmap1? bitmap);
+}
+
 // Copying a large image to the GPU takes long enough to drop frames, so a worker does it.
 // Direct3D allows that from any thread and Direct2D does not, so the worker builds a texture
 // and the window thread only wraps it as a bitmap, which is cheap.
-internal sealed class BitmapUploader(D2DRenderer renderer)
+internal sealed class BitmapUploader(D2DRenderer renderer) : IBitmapUploader
 {
-    /// <summary>
-    /// Call on the window thread, which the task also completes on. The pixels must stay
-    /// alive until it does.
-    /// </summary>
-    internal Task<ID2D1Bitmap1> CreateAsync(ImageRepresentation image) => image switch
+    public IUploadedBitmap Upload(ImageRepresentation image)
     {
-        UploadImageRepresentation upload =>
-            CreateAsync(device => D2DBitmapFactory.CreateTexture(device, upload.Upload)),
-        DecodedImageRepresentation decoded =>
-            CreateAsync(device => D2DBitmapFactory.CreateTexture(device, decoded.Image)),
-        _ => throw new ArgumentException("Only static images can be uploaded.", nameof(image)),
-    };
-
-    private async Task<ID2D1Bitmap1> CreateAsync(Func<ID3D11Device, ID3D11Texture2D> createTexture)
-    {
-        while (true)
+        ID3D11Device device = renderer.AcquireD3DDevice();
+        try
         {
-            // A reference of our own, because switching devices releases the renderer's while
-            // the worker may still be using it.
-            using ID3D11Device device = renderer.D3DDevice.QueryInterface<ID3D11Device>();
-            using ID3D11Texture2D texture = await Task.Run(() => createTexture(device)).ConfigureAwait(true);
-
-            // A texture from a device that was switched away from meanwhile can't be drawn.
-            if (renderer.D3DDevice.NativePointer == device.NativePointer)
+            ID3D11Texture2D texture = image switch
             {
-                return D2DBitmapFactory.Create(renderer.DeviceContext, texture);
-            }
+                UploadImageRepresentation upload => D2DBitmapFactory.CreateTexture(device, upload.Upload),
+                DecodedImageRepresentation decoded => D2DBitmapFactory.CreateTexture(device, decoded.Image),
+                _ => throw new ArgumentException("Only static images can be uploaded.", nameof(image)),
+            };
+            return new UploadedBitmap(renderer, device, texture);
+        }
+        catch
+        {
+            device.Dispose();
+            throw;
+        }
+    }
+
+    private sealed class UploadedBitmap(
+        D2DRenderer renderer,
+        ID3D11Device device,
+        ID3D11Texture2D texture) : IUploadedBitmap
+    {
+        public bool TryCreateBitmap([NotNullWhen(true)] out ID2D1Bitmap1? bitmap)
+        {
+            bitmap = renderer.D3DDevice.NativePointer == device.NativePointer
+                ? D2DBitmapFactory.Create(renderer.DeviceContext, texture)
+                : null;
+            return bitmap is not null;
+        }
+
+        public void Dispose()
+        {
+            texture.Dispose();
+            device.Dispose();
         }
     }
 }

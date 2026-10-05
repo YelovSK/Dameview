@@ -1,7 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using Dameview.Diagnostics;
-using Dameview.Imaging.Loading;
+using Dameview.Imaging.Decoding;
 using Dameview.Notifications;
 using Dameview.Win32;
 
@@ -11,19 +11,21 @@ namespace Dameview.Commands;
 internal sealed class FileActions : IDisposable
 {
     private readonly nint _window;
-    private readonly ImageLoadService _imageLoadService;
+    private readonly Func<IImageDecoder> _createDecoder;
     private readonly ToastService _toasts;
     private readonly IReadOnlySet<string> _decodableExtensions;
     private CancellationTokenSource? _copyImageCancellation;
+    // Started on the first copy, which most sessions never make.
+    private ComWorkerQueue<IImageDecoder>? _clipboardDecoder;
 
     internal FileActions(
         nint window,
-        ImageLoadService imageLoadService,
+        Func<IImageDecoder> createDecoder,
         ToastService toasts,
         IReadOnlySet<string> decodableExtensions)
     {
         _window = window;
-        _imageLoadService = imageLoadService;
+        _createDecoder = createDecoder;
         _toasts = toasts;
         _decodableExtensions = decodableExtensions;
     }
@@ -112,7 +114,10 @@ internal sealed class FileActions : IDisposable
             ClipboardBitmap bitmap;
             try
             {
-                bitmap = await _imageLoadService.DecodeClipboardBitmapAsync(path, token);
+                _clipboardDecoder ??= new ComWorkerQueue<IImageDecoder>("Dameview clipboard decoder", 1, _createDecoder);
+                bitmap = await _clipboardDecoder.Enqueue(
+                    (decoder, cancellationToken) => decoder.DecodeClipboardBitmap(path, cancellationToken),
+                    cancellationToken: token);
             }
             catch (Exception error) when (!token.IsCancellationRequested)
             {
@@ -153,5 +158,9 @@ internal sealed class FileActions : IDisposable
         }
     }
 
-    public void Dispose() => _copyImageCancellation?.Cancel();
+    public void Dispose()
+    {
+        _copyImageCancellation?.Cancel();
+        _clipboardDecoder?.Dispose();
+    }
 }
