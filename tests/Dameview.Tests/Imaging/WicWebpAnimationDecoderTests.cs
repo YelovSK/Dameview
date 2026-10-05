@@ -26,7 +26,7 @@ public sealed class WicWebpAnimationDecoderTests
             using var decoder = new ImageDecoder();
             try
             {
-                Assert.AreEqual(1, decoder.GetInfo(path).FrameCount);
+                Assert.AreEqual(1, ReadFrameCount(decoder, path));
             }
             catch (SharpGenException exception) when (
                 exception.ResultCode == WicResult.ComponentInitializeFailure ||
@@ -50,7 +50,7 @@ public sealed class WicWebpAnimationDecoderTests
         try
         {
             using var decoder = new ImageDecoder();
-            Assert.AreEqual(4, decoder.GetInfo(path).FrameCount);
+            Assert.AreEqual(4, ReadFrameCount(decoder, path));
             var backend = new WindowsImageLoadingBackend();
             Assert.IsTrue(backend.SupportsAnimation(path));
             using IAnimationSession session = backend.OpenAnimation(path);
@@ -129,7 +129,7 @@ public sealed class WicWebpAnimationDecoderTests
         {
             File.WriteAllBytes(path, Convert.FromBase64String(StaticImage));
             using var decoder = new ImageDecoder();
-            Assert.AreEqual(1, decoder.GetInfo(path).FrameCount);
+            Assert.AreEqual(1, ReadFrameCount(decoder, path));
             using IAnimationSession session = new WicWebpAnimationDecoder().Open(path);
             Assert.IsFalse(session.IsAnimated);
             Assert.IsTrue(session.IsComplete);
@@ -154,5 +154,11 @@ public sealed class WicWebpAnimationDecoderTests
         string path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.WEBP");
         File.WriteAllBytes(path, bytes);
         return path;
+    }
+
+    private static int ReadFrameCount(ImageDecoder decoder, string path)
+    {
+        using ImageDecoder.OpenedImage image = decoder.Open(path);
+        return image.Info.FrameCount;
     }
 }

@@ -137,15 +137,8 @@ internal sealed class FakeImageDecoder(
     Func<string, DecodedImage> decode,
     Func<string, ImageInfo>? getInfo = null) : IImageDecoder
 {
-    public ImageInfo GetInfo(string path) => getInfo?.Invoke(path) ?? new ImageInfo(1, 1, 1);
-
-    public DecodedImageUpload DecodeUpload(string path, CancellationToken cancellationToken = default)
-    {
-        DecodedImage image = decode(path);
-        var upload = DecodedImageUpload.Allocate(image.Width, image.Height, image.Stride);
-        image.Pixels.CopyTo(upload.Span);
-        return upload;
-    }
+    public IOpenedImage Open(string path) =>
+        new OpenedImage(getInfo?.Invoke(path) ?? new ImageInfo(1, 1, 1), () => decode(path));
 
     public ClipboardBitmap DecodeClipboardBitmap(string path, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
@@ -158,6 +151,23 @@ internal sealed class FakeImageDecoder(
     {
         int stride = checked(width * 4);
         return new DecodedImage(width, height, stride, new byte[checked(stride * height)]);
+    }
+
+    private sealed class OpenedImage(ImageInfo info, Func<DecodedImage> decode) : IOpenedImage
+    {
+        public ImageInfo Info => info;
+
+        public DecodedImageUpload DecodeUpload(CancellationToken cancellationToken = default)
+        {
+            DecodedImage image = decode();
+            var upload = DecodedImageUpload.Allocate(image.Width, image.Height, image.Stride);
+            image.Pixels.CopyTo(upload.Span);
+            return upload;
+        }
+
+        public void Dispose()
+        {
+        }
     }
 }
 

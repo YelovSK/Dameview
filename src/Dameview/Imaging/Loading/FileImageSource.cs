@@ -21,7 +21,8 @@ internal sealed class FileImageSource(
         var decoder = (IImageDecoder)workerState!;
         CancellationToken cancellationToken = context.CancellationToken;
         cancellationToken.ThrowIfCancellationRequested();
-        ImageInfo info = decoder.GetInfo(path);
+        using IOpenedImage opened = decoder.Open(path);
+        ImageInfo info = opened.Info;
         ImageRepresentationKind kind = representationPolicy.Select(info, backend.SupportsAnimation(path));
         long? cachedBytes = kind == ImageRepresentationKind.Static
             ? DecodedImage.GetByteCount(info.Width, info.Height)
@@ -41,7 +42,7 @@ internal sealed class FileImageSource(
                 return new TiledImageRepresentation(backend.OpenTiledImage(path));
             default:
                 Log.Debug("Image", $"Selected static representation for '{path}'.");
-                return new UploadImageRepresentation(decoder.DecodeUpload(path, cancellationToken));
+                return new UploadImageRepresentation(opened.DecodeUpload(cancellationToken));
         }
     }
 

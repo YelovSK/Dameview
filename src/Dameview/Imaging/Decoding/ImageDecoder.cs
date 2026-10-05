@@ -24,22 +24,14 @@ internal sealed class ImageDecoder : IImageDecoder
         return Decode(decoder);
     }
 
-    // Reads the stored pixel dimensions from the file header. EXIF orientation is unnecessary for
-    // choosing a tiled representation because rotation does not affect its size limits.
-    internal ImageInfo GetInfo(string path)
-    {
-        using IWICBitmapDecoder decoder = CreateDecoder(path, DecodeOptions.CacheOnDemand);
-        using IWICBitmapFrameDecode frame = decoder.GetFrame(0);
-        return new ImageInfo(frame.Size.Width, frame.Size.Height, checked((int)decoder.FrameCount));
-    }
+    internal OpenedImage Open(string path) =>
+        new(this, CreateDecoder(path, DecodeOptions.CacheOnDemand));
 
-    internal DecodedImageUpload DecodeUpload(
-        string path,
-        CancellationToken cancellationToken = default)
+    private DecodedImageUpload DecodeUpload(
+        IWICBitmapFrameDecode frame,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        using IWICBitmapDecoder decoder = CreateDecoder(path, DecodeOptions.CacheOnLoad);
-        using IWICBitmapFrameDecode frame = decoder.GetFrame(0);
         ImageOrientation orientation = GetOrientation(frame);
         using IWICFormatConverter converter = _factory.CreateFormatConverter();
         converter.Initialize(frame, PixelFormat.Format32bppPBGRA).CheckError();
@@ -257,13 +249,6 @@ internal sealed class ImageDecoder : IImageDecoder
         return extensions;
     }
 
-    DecodedImageUpload IImageDecoder.DecodeUpload(
-        string path,
-        CancellationToken cancellationToken)
-    {
-        return DecodeUpload(path, cancellationToken);
-    }
-
     ClipboardBitmap IImageDecoder.DecodeClipboardBitmap(
         string path,
         CancellationToken cancellationToken)
@@ -271,9 +256,43 @@ internal sealed class ImageDecoder : IImageDecoder
         return DecodeClipboardBitmap(path, cancellationToken);
     }
 
-    ImageInfo IImageDecoder.GetInfo(string path)
+    IOpenedImage IImageDecoder.Open(string path) => Open(path);
+
+    internal sealed class OpenedImage : IOpenedImage
     {
-        return GetInfo(path);
+        private readonly ImageDecoder _owner;
+        private readonly IWICBitmapDecoder _decoder;
+        private readonly IWICBitmapFrameDecode _frame;
+
+        internal OpenedImage(ImageDecoder owner, IWICBitmapDecoder decoder)
+        {
+            _owner = owner;
+            _decoder = decoder;
+            try
+            {
+                _frame = decoder.GetFrame(0);
+                // EXIF orientation is left for decoding, since rotation doesn't change the
+                // size limits the header is read for.
+                Info = new ImageInfo(_frame.Size.Width, _frame.Size.Height, checked((int)decoder.FrameCount));
+            }
+            catch
+            {
+                _frame?.Dispose();
+                decoder.Dispose();
+                throw;
+            }
+        }
+
+        public ImageInfo Info { get; }
+
+        public DecodedImageUpload DecodeUpload(CancellationToken cancellationToken = default) =>
+            _owner.DecodeUpload(_frame, cancellationToken);
+
+        public void Dispose()
+        {
+            _frame.Dispose();
+            _decoder.Dispose();
+        }
     }
 }
 
