@@ -38,6 +38,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
     private readonly ThumbnailCoordinator _thumbnailCoordinator;
     private readonly ImageLoadService _imageLoadService;
     private readonly RenderBitmapCache _renderBitmapCache;
+    private readonly BitmapUploader _bitmapUploader;
     private readonly RenderBitmapCache _thumbnailBitmapCache;
     private readonly ThumbnailImageLoader _thumbnailImageLoader;
     private readonly FolderSources _folderSources;
@@ -101,6 +102,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
             imageBackend,
             new ImageRepresentationPolicy(checked((int)_renderer.DeviceContext.MaximumBitmapSize)));
         _renderBitmapCache = new RenderBitmapCache(RenderBitmapCacheCapacityBytes);
+        _bitmapUploader = new BitmapUploader(_renderer);
         _thumbnailBitmapCache = new RenderBitmapCache(ThumbnailBitmapCacheCapacityBytes);
         _thumbnailImageLoader = new ThumbnailImageLoader(
             _thumbnailCoordinator,
@@ -433,7 +435,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         var imageLoader = new PresentationImageLoader(
             loadClient,
             _renderBitmapCache,
-            () => _renderer.DeviceContext,
+            _bitmapUploader,
             _thumbnailImageLoader);
         var session = new ViewerSession(
             new FolderNavigator(),

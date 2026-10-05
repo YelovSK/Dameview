@@ -59,6 +59,7 @@ internal sealed class D2DRenderer : IDisposable
 
     internal nint FrameLatencyWaitHandle => _device.FrameLatencyWaitHandle.DangerousGetHandle();
     internal ID2D1DeviceContext DeviceContext => _device.DeviceContext;
+    internal ID3D11Device D3DDevice => _device.D3DDevice;
     internal IDWriteFactory DirectWriteFactory => _directWriteFactory;
 
     internal static ID3D11Device CreateDevice(DriverType driverType)

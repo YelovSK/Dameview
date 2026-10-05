@@ -4,6 +4,7 @@ using Dameview.Imaging;
 using Vortice.DCommon;
 using Vortice.Direct2D1;
 using Vortice.Direct2D1.Effects;
+using Vortice.Direct3D11;
 using Vortice.DXGI;
 using Vortice.Mathematics;
 
@@ -23,21 +24,21 @@ internal static class D2DBitmapFactory
         return device.CreateDeviceContext();
     }
 
+    private static readonly BitmapProperties1 ImageProperties = new(
+        new PixelFormat(Format.B8G8R8A8_UNorm, Vortice.DCommon.AlphaMode.Premultiplied),
+        DefaultDpi,
+        DefaultDpi,
+        BitmapOptions.None);
+
     internal static unsafe ID2D1Bitmap1 Create(ID2D1DeviceContext deviceContext, DecodedImage image)
     {
-        BitmapProperties1 properties = new(
-            new PixelFormat(Format.B8G8R8A8_UNorm, Vortice.DCommon.AlphaMode.Premultiplied),
-            DefaultDpi,
-            DefaultDpi,
-            BitmapOptions.None);
-
         fixed (byte* pixels = image.Pixels)
         {
             return deviceContext.CreateBitmap(
                 new SizeI(image.Width, image.Height),
                 (nint)pixels,
                 (uint)image.Stride,
-                properties);
+                ImageProperties);
         }
     }
 
@@ -45,17 +46,48 @@ internal static class D2DBitmapFactory
         ID2D1DeviceContext deviceContext,
         DecodedImageUpload image)
     {
-        BitmapProperties1 properties = new(
-            new PixelFormat(Format.B8G8R8A8_UNorm, Vortice.DCommon.AlphaMode.Premultiplied),
-            DefaultDpi,
-            DefaultDpi,
-            BitmapOptions.None);
-
         return deviceContext.CreateBitmap(
             new SizeI(image.Width, image.Height),
             image.Pixels,
             (uint)image.Stride,
-            properties);
+            ImageProperties);
+    }
+
+    /// <summary>Wraps a texture from <see cref="CreateTexture(ID3D11Device, DecodedImage)"/> or its overload.</summary>
+    internal static ID2D1Bitmap1 Create(ID2D1DeviceContext deviceContext, ID3D11Texture2D texture)
+    {
+        using IDXGISurface surface = texture.QueryInterface<IDXGISurface>();
+        return deviceContext.CreateBitmapFromDxgiSurface(surface, ImageProperties);
+    }
+
+    // Unlike everything else here, the texture methods may run on any thread, because they
+    // only use the Direct3D device, which is free-threaded.
+    internal static unsafe ID3D11Texture2D CreateTexture(ID3D11Device device, DecodedImage image)
+    {
+        fixed (byte* pixels = image.Pixels)
+        {
+            return CreateTexture(device, image.Width, image.Height, (nint)pixels, image.Stride);
+        }
+    }
+
+    internal static ID3D11Texture2D CreateTexture(ID3D11Device device, DecodedImageUpload image) =>
+        CreateTexture(device, image.Width, image.Height, image.Pixels, image.Stride);
+
+    private static ID3D11Texture2D CreateTexture(
+        ID3D11Device device,
+        int width,
+        int height,
+        nint pixels,
+        int stride)
+    {
+        Texture2DDescription description = new(
+            Format.B8G8R8A8_UNorm,
+            (uint)width,
+            (uint)height,
+            arraySize: 1,
+            mipLevels: 1,
+            BindFlags.ShaderResource);
+        return device.CreateTexture2D(description, new SubresourceData(pixels, (uint)stride));
     }
 
     /// <summary>Copies a bitmap to system memory, so it can move to another device.</summary>

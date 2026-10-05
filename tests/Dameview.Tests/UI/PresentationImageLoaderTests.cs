@@ -5,6 +5,7 @@ using Dameview.Imaging.Decoding;
 using Dameview.Imaging.Loading;
 using Dameview.UI.Presentation;
 using Dameview.Win32;
+using Vortice.Direct2D1;
 
 namespace Dameview.Tests.UI;
 
@@ -97,8 +98,7 @@ public sealed class PresentationImageLoaderTests
         using var loader = new PresentationImageLoader(
             producer,
             cache,
-            _ => null!,
-            _ => null!,
+            _ => NoBitmap,
             thumbnails);
         var results = new List<ImageLoaded>();
 
@@ -157,8 +157,7 @@ public sealed class PresentationImageLoaderTests
         using var loader = new PresentationImageLoader(
             producer,
             cache,
-            _ => null!,
-            _ => null!,
+            _ => NoBitmap,
             thumbnails);
         var results = new List<ImageLoaded>();
 
@@ -209,8 +208,7 @@ public sealed class PresentationImageLoaderTests
         using var loader = new PresentationImageLoader(
             producer,
             cache,
-            _ => null!,
-            _ => null!,
+            _ => NoBitmap,
             thumbnails);
         ImageLoaded? preview = null;
 
@@ -259,8 +257,7 @@ public sealed class PresentationImageLoaderTests
         using var loader = new PresentationImageLoader(
             producer,
             cache,
-            _ => null!,
-            _ => null!,
+            _ => NoBitmap,
             thumbnails);
         var results = new List<ImageLoaded>();
 
@@ -308,8 +305,7 @@ public sealed class PresentationImageLoaderTests
         using var loader = new PresentationImageLoader(
             producer,
             cache,
-            _ => null!,
-            _ => null!,
+            _ => NoBitmap,
             thumbnails);
         ImageLoadResult? result = null;
 
@@ -328,10 +324,11 @@ public sealed class PresentationImageLoaderTests
         return new PresentationImageLoader(
             producer,
             cache,
-            _ => null!,
-            _ => null!,
+            _ => NoBitmap,
             NoThumbnailImageLoader.Instance);
     }
+
+    private static Task<ID2D1Bitmap1> NoBitmap => Task.FromResult<ID2D1Bitmap1>(null!);
 
     private static void PumpUntil(BlockingCollection<Action> posted, Func<bool> done)
     {

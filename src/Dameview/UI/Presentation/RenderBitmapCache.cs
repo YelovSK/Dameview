@@ -77,11 +77,12 @@ internal sealed class RenderBitmapCache : IDisposable
     }
 
     /// <summary>Caches a speculative image, unless it is already cached or does not fit.</summary>
+    /// <returns>Whether it was added, which is also whether <paramref name="create"/> was called.</returns>
     /// <remarks>
     /// A preload may use free space but must never evict, or a folder whose images do not all
     /// fit would throw one out to make room for the next and fetch it again a moment later.
     /// </remarks>
-    internal void TryPreload(
+    internal bool TryPreload(
         string path,
         int width,
         int height,
@@ -89,10 +90,13 @@ internal sealed class RenderBitmapCache : IDisposable
         Func<ID2D1Bitmap1> create)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (!_entries.ContainsKey(path) && DecodedImage.GetByteCount(width, height) <= FreeBytes)
+        if (_entries.ContainsKey(path) || DecodedImage.GetByteCount(width, height) > FreeBytes)
         {
-            Add(path, width, height, orientation, create);
+            return false;
         }
+
+        Add(path, width, height, orientation, create);
+        return true;
     }
 
     /// <summary>Also disposes leased bitmaps, so whatever displays them has to be dropped too.</summary>
