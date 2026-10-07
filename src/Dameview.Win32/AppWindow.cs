@@ -635,14 +635,17 @@ internal sealed unsafe class AppWindow : IDisposable
             case WM_ERASEBKGND:
                 return (LRESULT)1;
 
-            case WM_NCCALCSIZE when _customTitleBar && wParam != 0 && !IsFullscreen:
-                var frame = (NCCALCSIZE_PARAMS*)(nint)lParam;
-                int top = frame->rgrc._0.top;
+            // Creating the window sends this without the extra rectangles (wParam is 0), but the
+            // window rectangle comes first either way. Skipping that call would leave the system
+            // caption in place until something else recalculates the frame.
+            case WM_NCCALCSIZE when _customTitleBar && !IsFullscreen:
+                var frame = (RECT*)(nint)lParam;
+                int top = frame->top;
                 LRESULT calculated = DefWindowProc(window, message, wParam, lParam);
                 // The sides and bottom keep their frame to resize by, while the client area takes
                 // over the caption. A maximized window hangs its frame off the screen, so the
                 // client area starts below it.
-                frame->rgrc._0.top = top + (IsZoomed(window) ? GetResizeBorderThickness(window) : 0);
+                frame->top = top + (IsZoomed(window) ? GetResizeBorderThickness(window) : 0);
                 return calculated;
 
             case WM_NCHITTEST when _customTitleBar && !IsFullscreen:
