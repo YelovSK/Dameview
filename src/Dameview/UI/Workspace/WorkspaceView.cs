@@ -59,10 +59,10 @@ internal sealed class WorkspaceView : UiElement, IDisposable
 
     internal void SetActivePane(ViewerPane activePane)
     {
-        bool showIndicator = _paneViews.Count > 1;
+        bool single = _paneViews.Count == 1;
         foreach ((ViewerPane pane, ViewerPaneView paneView) in _paneViews)
         {
-            paneView.ShowActivePaneIndicator = showIndicator && ReferenceEquals(pane, activePane);
+            paneView.IsActivePane = single || ReferenceEquals(pane, activePane);
         }
     }
 

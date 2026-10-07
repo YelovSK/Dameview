@@ -39,6 +39,9 @@ internal sealed class ViewerTabStrip : UiElement
     private readonly AnimatedFloat _drawnTabWidth;
     // In tabs rather than dips, so it stays on its tab while the width animates.
     private readonly AnimatedFloat _drawnSelection;
+    // Whether this strip's pane is the one that takes input. The other panes' strips dim, which
+    // marks the active pane without drawing anything over the image.
+    private readonly AnimatedFloat _activeAmount;
     // How far each tab's label has brightened under the pointer. Hover only touches the label,
     // so it never stacks with the selection highlight.
     private AnimatedFloat[] _hoverAmounts = [];
@@ -73,6 +76,7 @@ internal sealed class ViewerTabStrip : UiElement
         AddChild(_addButton);
         _drawnTabWidth = Animate(MaximumTabWidthDips, LayoutResponse);
         _drawnSelection = Animate(selectedIndex, LayoutResponse);
+        _activeAmount = Animate(1.0f, UiDesign.HoverResponse);
         SetTabs(tabs, selectedIndex);
     }
 
@@ -80,6 +84,12 @@ internal sealed class ViewerTabStrip : UiElement
     /// <summary>The tab under the pointer and its bounds in the strip, which the tab preview follows.</summary>
     internal (ViewerTabInfo Tab, RectangleF Bounds)? HoveredTab =>
         _hoveredIndex >= 0 ? (_tabs[_hoveredIndex], GetTabBounds(_hoveredIndex)) : null;
+    internal bool IsActive
+    {
+        set => _activeAmount.SetTarget(value ? 1.0f : 0.0f);
+    }
+
+    internal override float Opacity => base.Opacity * (0.5f + (0.5f * _activeAmount.Current));
     internal override WindowCursor Cursor => _hoveredIndex >= 0 ? WindowCursor.Pointer : WindowCursor.Default;
 
     internal override bool IsWindowDragArea(PointF position) => HitTestTab(position).Index < 0;
@@ -265,7 +275,7 @@ internal sealed class ViewerTabStrip : UiElement
                     UiDesign.ControlCornerRadius,
                     UiDesign.ControlCornerRadius),
                 context.Palette.Accent,
-                0.18f);
+                0.06f + (0.12f * _activeAmount.Current));
             for (int index = 0; index < _tabs.Length; index++)
             {
                 DrawTab(context, index, x, width);

@@ -25,7 +25,6 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     private readonly Overlay _contentOverlay;
     private readonly ToolbarPanel _toolbarPanel;
     private readonly StatusPanel _statusPanel;
-    private readonly ActivePaneIndicator _activePaneIndicator;
     private ViewerSessionState _state;
     private string _fileName;
     private bool _pointerNearToolbar;
@@ -77,14 +76,12 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             Margin = new UiThickness(UiDesign.WindowMargin),
         };
         _contentOverlay = new Overlay(_imagePanel, _emptyStatePanel, _toolbarPanel, _statusPanel);
-        _activePaneIndicator = new ActivePaneIndicator { IsVisible = false };
         _tabRow = new TabRow(_viewerTabs);
 
         AddChild(new StackPanel(UiOrientation.Vertical, _tabRow, _contentOverlay)
         {
             Fill = _contentOverlay,
         });
-        AddChild(_activePaneIndicator);
 
         UpdateChromeVisibility();
         if (_state.DisplayedImage is { } displayed)
@@ -138,10 +135,9 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     internal void ApplyKeyBindings(ViewerKeyBindings keyBindings) =>
         _emptyStatePanel.ApplyKeyBindings(keyBindings);
 
-    internal bool ShowActivePaneIndicator
+    internal bool IsActivePane
     {
-        get => _activePaneIndicator.IsVisible;
-        set => _activePaneIndicator.IsVisible = value;
+        set => _viewerTabs.IsActive = value;
     }
 
     private void UpdateChromeVisibility()
@@ -327,21 +323,5 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
 
         protected override SizeF MeasureCore(SizeF availableSize) =>
             new(base.MeasureCore(availableSize).Width, TabRowHeightDips);
-    }
-
-    private sealed class ActivePaneIndicator : UiElement
-    {
-        internal override bool IsHitTestVisible => false;
-
-        protected override void DrawCore(in UiDrawContext context)
-        {
-            context.DrawRoundedRectangle(
-                new RoundedRectangle(
-                    new RectangleF(PointF.Empty, Bounds.Size),
-                    UiDesign.ControlCornerRadius,
-                    UiDesign.ControlCornerRadius),
-                context.Palette.Accent,
-                strokeWidthPixels: 2.0f);
-        }
     }
 }
