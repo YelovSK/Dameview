@@ -13,6 +13,7 @@ internal sealed class ViewerWorkspace : IDisposable
     private ViewportSync? _viewportSync;
     private FolderSort _sort = FolderSort.NameAscending;
     private double _zoomStep = ImageViewport.DefaultZoomStep;
+    private int _preloadAhead = 1;
 
     internal ViewerWorkspace(Func<ViewerTab> createTab)
     {
@@ -324,6 +325,21 @@ internal sealed class ViewerWorkspace : IDisposable
         }
     }
 
+    /// <param name="count">How many images every tab preloads in the direction of browsing.</param>
+    internal void SetPreloadAhead(int count)
+    {
+        if (_preloadAhead == count)
+        {
+            return;
+        }
+
+        _preloadAhead = count;
+        foreach (ViewerSession session in Sessions)
+        {
+            session.SetPreloadAhead(count);
+        }
+    }
+
     public void Dispose()
     {
         foreach (ViewerPane pane in Root.Panes)
@@ -337,6 +353,7 @@ internal sealed class ViewerWorkspace : IDisposable
         ViewerTab tab = _createTab();
         tab.Session.SetSort(_sort);
         tab.Session.Viewport.ZoomStep = _zoomStep;
+        tab.Session.SetPreloadAhead(_preloadAhead);
         if (path is not null)
         {
             tab.Session.OpenImage(path);

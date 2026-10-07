@@ -42,12 +42,20 @@ internal sealed record AppSettings
     internal const int MinimumWindowHeight = 240;
     internal const float MinimumWheelZoomPercent = 5.0f;
     internal const float MaximumWheelZoomPercent = 50.0f;
+    internal const int MinimumPreloadAhead = 1;
+    internal const int MaximumPreloadAhead = 10;
+    internal const int MinimumImageCacheMegabytes = 128;
+    internal const int MaximumImageCacheMegabytes = 4096;
 
     public ThemeId Theme { get; init; } = ThemeId.Dark;
     public bool AnimationsEnabled { get; init; } = true;
     public bool SharpPixelsWhenZoomed { get; init; }
     /// <summary>How much one wheel notch zooms in, as a percentage of the current zoom.</summary>
     public float WheelZoomPercent { get; init; } = 20.0f;
+    /// <summary>How many images to load ahead in the direction of browsing.</summary>
+    public int PreloadAhead { get; init; } = 3;
+    /// <summary>How much video memory decoded images may keep, preloaded ones included.</summary>
+    public int ImageCacheMegabytes { get; init; } = 512;
     public bool SingleInstance { get; init; } = true;
     public bool CheckForUpdatesAutomatically { get; init; } = true;
     /// <summary>When the last check for updates succeeded, so automatic checks stay rare.</summary>
@@ -87,6 +95,16 @@ internal sealed record AppSettings
             || WheelZoomPercent > MaximumWheelZoomPercent)
         {
             throw new IniFormatException("Wheel zoom is invalid.");
+        }
+
+        if (PreloadAhead is < MinimumPreloadAhead or > MaximumPreloadAhead)
+        {
+            throw new IniFormatException("Preload count is invalid.");
+        }
+
+        if (ImageCacheMegabytes is < MinimumImageCacheMegabytes or > MaximumImageCacheMegabytes)
+        {
+            throw new IniFormatException("Image cache size is invalid.");
         }
 
         if (Window is { } window && (window.Width < MinimumWindowWidth || window.Height < MinimumWindowHeight))

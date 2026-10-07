@@ -18,11 +18,27 @@ public sealed class FolderNavigatorTests
         navigator.SetFiles(directory.Files, middle);
 
         Assert.AreEqual(middle, navigator.CurrentEntry!.FullName);
-        Assert.AreEqual(last, navigator.GetNextPath());
-        Assert.AreEqual(first, navigator.GetPreviousPath());
+        Assert.AreEqual(last, navigator.GetRelativePaths([1]).Single());
+        Assert.AreEqual(first, navigator.GetRelativePaths([-1]).Single());
 
         navigator.SetCurrent(last);
-        Assert.AreEqual(first, navigator.GetNextPath());
+        Assert.AreEqual(first, navigator.GetRelativePaths([1]).Single());
+    }
+
+    [TestMethod]
+    public void RelativePathsWrapAroundWithoutTheCurrentFileOrRepeats()
+    {
+        var directory = new FolderFiles();
+        string first = directory.CreateFile("a.jpg", 1);
+        string middle = directory.CreateFile("b.jpg", 1);
+        string last = directory.CreateFile("c.jpg", 1);
+
+        var navigator = new FolderNavigator();
+        navigator.SetFiles(directory.Files, middle);
+
+        CollectionAssert.AreEqual(
+            new[] { last, first },
+            navigator.GetRelativePaths([1, -1, 2, 3, 4]));
     }
 
     [TestMethod]
@@ -36,7 +52,7 @@ public sealed class FolderNavigatorTests
         navigator.SetFiles(directory.Files, smaller);
         navigator.SetSort(FolderSort.SizeLargest);
 
-        Assert.AreEqual(larger, navigator.GetPreviousPath());
+        Assert.AreEqual(larger, navigator.GetRelativePaths([-1]).Single());
     }
 
     [TestMethod]
@@ -91,8 +107,8 @@ public sealed class FolderNavigatorTests
             new[] { first, current, nested, last },
             navigator.GetFiles().Select(file => file.FullName).ToArray());
         Assert.AreEqual(current, navigator.CurrentEntry!.FullName);
-        Assert.AreEqual(nested, navigator.GetNextPath());
-        Assert.AreEqual(first, navigator.GetPreviousPath());
+        Assert.AreEqual(nested, navigator.GetRelativePaths([1]).Single());
+        Assert.AreEqual(first, navigator.GetRelativePaths([-1]).Single());
     }
 
     private static FolderEntry Entry(string path) => new(path, 1, default, default);

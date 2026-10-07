@@ -52,6 +52,20 @@ internal static class SettingsIniSerializer
             s => s.WheelZoomPercent,
             (s, value) => s with { WheelZoomPercent = value },
             AppSettings.MaximumWheelZoomPercent),
+        Binding.Int(
+            "loading",
+            "preloadAhead",
+            AppSettings.MinimumPreloadAhead,
+            AppSettings.MaximumPreloadAhead,
+            s => s.PreloadAhead,
+            (s, value) => s with { PreloadAhead = value }),
+        Binding.Int(
+            "loading",
+            "imageCacheMegabytes",
+            AppSettings.MinimumImageCacheMegabytes,
+            AppSettings.MaximumImageCacheMegabytes,
+            s => s.ImageCacheMegabytes,
+            (s, value) => s with { ImageCacheMegabytes = value }),
         Binding.Enum(
             "logging",
             "level",

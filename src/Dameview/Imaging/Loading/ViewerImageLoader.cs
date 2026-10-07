@@ -10,7 +10,7 @@ internal sealed class ViewerImageLoader(IImagePipeline pipeline) : IImageLoader
 {
     private IDisposable? _full;
     private IDisposable? _preview;
-    private List<IDisposable> _preloads = [];
+    private List<PreloadedImage> _preloads = [];
     private bool _disposed;
 
     public void Load(string path, Action<ImageLoadResult> completed)
@@ -55,16 +55,18 @@ internal sealed class ViewerImageLoader(IImagePipeline pipeline) : IImageLoader
     public void Preload(IEnumerable<string?> paths)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        List<IDisposable> previous = _preloads;
+        List<PreloadedImage> previous = _preloads;
         _preloads = [];
         foreach (string? path in paths)
         {
             if (!string.IsNullOrWhiteSpace(path))
             {
-                _preloads.Add(pipeline.Request(
+                var preload = new PreloadedImage();
+                preload.Request = pipeline.Request(
                     new ImageKey(path, ImageVariant.Full),
                     ImagePriority.Preload,
-                    static result => (result as ImageLoaded)?.Dispose()));
+                    result => preload.Image = result as ImageLoaded);
+                _preloads.Add(preload);
             }
         }
 
@@ -89,5 +91,18 @@ internal sealed class ViewerImageLoader(IImagePipeline pipeline) : IImageLoader
         _full?.Dispose();
         DropPreview();
         _preloads.ForEach(preload => preload.Dispose());
+    }
+
+    // Holds on to the loaded image, so the cache keeps it while it is still nearby.
+    private sealed class PreloadedImage : IDisposable
+    {
+        internal IDisposable? Request { get; set; }
+        internal ImageLoaded? Image { get; set; }
+
+        public void Dispose()
+        {
+            Request?.Dispose();
+            Image?.Dispose();
+        }
     }
 }

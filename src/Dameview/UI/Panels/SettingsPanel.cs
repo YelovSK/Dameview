@@ -53,6 +53,8 @@ internal sealed class SettingsPanel : ModalContent
     private readonly Toggle _sharpPixelsToggle;
     private readonly Slider _wheelZoomSlider;
     private readonly SettingsRow _wheelZoomRow;
+    private readonly Slider _preloadAheadSlider;
+    private readonly Slider _imageCacheSlider;
     private readonly Toggle _singleInstanceToggle;
     private readonly Toggle _autoUpdateCheckToggle;
     private readonly Toggle _autoBalancePanesToggle;
@@ -159,6 +161,20 @@ internal sealed class SettingsPanel : ModalContent
             "Zoom speed",
             _wheelZoomSlider,
             "How much one step of the mouse wheel zooms in or out");
+        _preloadAheadSlider = new Slider(
+            AppSettings.MinimumPreloadAhead,
+            AppSettings.MaximumPreloadAhead,
+            step: 1.0,
+            value: 3.0,
+            count => Update(settings => settings with { PreloadAhead = (int)count }),
+            count => $"{count:0}");
+        _imageCacheSlider = new Slider(
+            AppSettings.MinimumImageCacheMegabytes,
+            AppSettings.MaximumImageCacheMegabytes,
+            step: 128.0,
+            value: 512.0,
+            megabytes => Update(settings => settings with { ImageCacheMegabytes = (int)megabytes }),
+            megabytes => $"{megabytes:0} MB");
         _autoUpdateCheckToggle = new Toggle(
             "Check for updates automatically",
             value: true,
@@ -217,7 +233,19 @@ internal sealed class SettingsPanel : ModalContent
             Page(
                 new SettingsGroup("Gallery", _galleryEnabledToggle, _galleryPlacementRow, _galleryThumbnailSizeRow),
                 new SettingsGroup("Panes", _autoBalancePanesToggle)),
-            Page(_sharpPixelsToggle, _wheelZoomRow),
+            Page(
+                _sharpPixelsToggle,
+                _wheelZoomRow,
+                new SettingsGroup(
+                    "Loading",
+                    new SettingsRow(
+                        "Preload ahead",
+                        _preloadAheadSlider,
+                        "How many images to load ahead in the direction you browse"),
+                    new SettingsRow(
+                        "Image memory",
+                        _imageCacheSlider,
+                        "How much video memory loaded images may use"))),
             Page(_sortFieldRow, _sortDirectionRow),
             Page(_singleInstanceToggle),
             Page(_updateStatus, _updateButton, _autoUpdateCheckToggle),
@@ -267,6 +295,8 @@ internal sealed class SettingsPanel : ModalContent
         _animationsToggle.Value = settings.AnimationsEnabled;
         _sharpPixelsToggle.Value = settings.SharpPixelsWhenZoomed;
         _wheelZoomSlider.Value = settings.WheelZoomPercent;
+        _preloadAheadSlider.Value = settings.PreloadAhead;
+        _imageCacheSlider.Value = settings.ImageCacheMegabytes;
         _singleInstanceToggle.Value = settings.SingleInstance;
         _autoUpdateCheckToggle.Value = settings.CheckForUpdatesAutomatically;
         _autoBalancePanesToggle.Value = settings.AutoBalancePanes;

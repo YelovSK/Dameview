@@ -24,7 +24,6 @@ namespace Dameview;
 
 internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
 {
-    private const long RenderBitmapCacheCapacityBytes = 256L * 1024L * 1024L;
     private const long ThumbnailBitmapCacheCapacityBytes = 64L * 1024L * 1024L;
 
     private readonly AppWindow _window;
@@ -35,6 +34,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
     // Cached because a method group allocates a new delegate on every frame.
     private readonly Action<SizeF> _drawFrame;
     private readonly ImagePipeline _images;
+    private readonly RenderBitmapCache _imageCache;
     private readonly FolderSources _folderSources;
     private readonly ViewerWorkspace _workspace;
     private readonly SettingsService _settings;
@@ -88,13 +88,14 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
 
         _performanceMonitor = new PerformanceMonitor();
         var imageBackend = new WindowsImageLoadingBackend();
+        _imageCache = new RenderBitmapCache(ToBytes(startupSettings.ImageCacheMegabytes));
         _images = new ImagePipeline(
             _uiContext,
             new BitmapUploader(_renderer),
             (new FileImageSource(
                     imageBackend,
                     new ImageRepresentationPolicy(checked((int)_renderer.DeviceContext.MaximumBitmapSize))),
-                new RenderBitmapCache(RenderBitmapCacheCapacityBytes)),
+                _imageCache),
             (new ShellThumbnailSource(imageBackend), new RenderBitmapCache(ThumbnailBitmapCacheCapacityBytes)));
         using var imageDecoder = new ImageDecoder();
         HashSet<string> decodableExtensions = imageDecoder.GetProbablySupportedExtensions();
@@ -343,6 +344,8 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         Log.SetMinimumLevel(current.Logging.Level);
         _ui.ApplySettings(current);
         _workspace.AutoBalancePanes = current.AutoBalancePanes;
+        _workspace.SetPreloadAhead(current.PreloadAhead);
+        _imageCache.CapacityBytes = ToBytes(current.ImageCacheMegabytes);
 
         if (previous.Theme != current.Theme)
         {
@@ -363,6 +366,8 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
 
         _window.RequestRepaint();
     }
+
+    private static long ToBytes(int megabytes) => megabytes * 1024L * 1024L;
 
     private void HandleUpdateChanged(UpdateState state)
     {

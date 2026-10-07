@@ -4,16 +4,18 @@ using Vortice.Direct2D1;
 
 namespace Dameview.Imaging.Loading;
 
-// UI-thread owned, except for reserving space. The cache owns every bitmap; displayed images
-// hold leases that protect their entries from eviction.
+// UI-thread owned, except for reserving space. The cache owns every bitmap; images that are
+// shown or preloaded hold leases that protect their entries from eviction. The rest are kept
+// only for as long as nothing wanted needs their room.
 internal sealed class RenderBitmapCache : IDisposable
 {
     private readonly Dictionary<string, LinkedListNode<CachedBitmap>> _entries =
         new(StringComparer.OrdinalIgnoreCase);
     private readonly LinkedList<CachedBitmap> _recentlyUsed = new();
     private readonly Action<ID2D1Bitmap1> _disposeBitmap;
-    private readonly long _capacityBytes;
+    private long _capacityBytes;
     private long _sizeBytes;
+    private long _leasedBytes;
     private long _reservedBytes;
     private bool _disposed;
 
@@ -32,9 +34,22 @@ internal sealed class RenderBitmapCache : IDisposable
         _disposeBitmap = disposeBitmap;
     }
 
-    /// <summary>How many bytes can still be reserved.</summary>
-    internal long FreeBytes =>
-        Math.Max(0, _capacityBytes - Volatile.Read(ref _sizeBytes) - Volatile.Read(ref _reservedBytes));
+    /// <summary>Shrinking it evicts right away, down to what leased bitmaps still hold.</summary>
+    internal long CapacityBytes
+    {
+        get => Volatile.Read(ref _capacityBytes);
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
+            if (value == _capacityBytes)
+            {
+                return;
+            }
+
+            Volatile.Write(ref _capacityBytes, value);
+            Trim();
+        }
+    }
 
     internal bool Contains(string path) => _entries.ContainsKey(path);
 
@@ -75,17 +90,17 @@ internal sealed class RenderBitmapCache : IDisposable
     }
 
     /// <summary>
-    /// Any thread. Sets space aside for an image that is still loading, so that adding it later
-    /// evicts nothing. Fails when the image doesn't fit next to what is cached and reserved.
+    /// Any thread. Sets space aside for an image that is still loading, which unleased entries
+    /// give up once it arrives. Fails when the image doesn't fit next to what is leased and reserved.
     /// </summary>
     /// <remarks>
-    /// Preloads use this, because they must never evict: a folder whose images do not all fit
-    /// would throw one out to make room for the next and fetch it again a moment later.
+    /// Preloads use this, so they never evict each other: a folder whose preloads do not all fit
+    /// would otherwise throw one out to make room for the next and fetch it again a moment later.
     /// </remarks>
     internal bool TryReserve(long bytes)
     {
         long reserved = Volatile.Read(ref _reservedBytes);
-        while (_capacityBytes - Volatile.Read(ref _sizeBytes) - reserved >= bytes)
+        while (CapacityBytes - Volatile.Read(ref _leasedBytes) - reserved >= bytes)
         {
             long observed = Interlocked.CompareExchange(ref _reservedBytes, reserved + bytes, reserved);
             if (observed == reserved)
@@ -119,6 +134,7 @@ internal sealed class RenderBitmapCache : IDisposable
         _entries.Clear();
         _recentlyUsed.Clear();
         _sizeBytes = 0;
+        Volatile.Write(ref _leasedBytes, 0);
     }
 
     /// <summary>
@@ -219,7 +235,11 @@ internal sealed class RenderBitmapCache : IDisposable
 
     private CachedBitmapLease Acquire(CachedBitmap bitmap)
     {
-        bitmap.PinCount++;
+        if (bitmap.PinCount++ == 0)
+        {
+            Interlocked.Add(ref _leasedBytes, bitmap.SizeBytes);
+        }
+
         return new CachedBitmapLease(this, bitmap);
     }
 
@@ -235,7 +255,14 @@ internal sealed class RenderBitmapCache : IDisposable
             throw new InvalidOperationException("The cached bitmap has no active lease.");
         }
 
-        bitmap.PinCount--;
+        // An entry dropped by Clear has stopped counting already.
+        if (--bitmap.PinCount == 0
+            && _entries.TryGetValue(bitmap.Path, out LinkedListNode<CachedBitmap>? node)
+            && ReferenceEquals(node.Value, bitmap))
+        {
+            Interlocked.Add(ref _leasedBytes, -bitmap.SizeBytes);
+        }
+
         Trim();
     }
 

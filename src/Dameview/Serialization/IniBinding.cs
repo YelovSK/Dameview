@@ -30,6 +30,21 @@ internal abstract class IniBinding<TModel>
         where T : struct, System.Enum =>
         new(section, key, IniValue.ParseEnum<T>, IniValue.FormatEnum, get, set);
 
+    internal static IniKeyBinding<TModel, int> Int(
+        string section,
+        string key,
+        int minimum,
+        int maximum,
+        Func<TModel, int> get,
+        Func<TModel, int, TModel> set) =>
+        new(
+            section,
+            key,
+            text => IniValue.ParseInt(text) is int value && value >= minimum && value <= maximum ? value : null,
+            IniValue.FormatInt,
+            get,
+            set);
+
     internal static IniKeyBinding<TModel, float> Float(
         string section,
         string key,

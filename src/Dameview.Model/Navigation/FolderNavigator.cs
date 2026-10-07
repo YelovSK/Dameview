@@ -57,14 +57,29 @@ internal sealed class FolderNavigator
     internal FolderEntry[] GetFiles() =>
         [.. _files.Where(file => file.Metadata is not null).Select(file => file.Metadata!)];
 
-    internal string? GetNextPath()
+    /// <summary>
+    /// The paths at these offsets from the current one, wrapping around, without the current
+    /// path or repeats, which small folders would otherwise produce.
+    /// </summary>
+    internal List<string> GetRelativePaths(IEnumerable<int> offsets)
     {
-        return GetRelativePath(1);
-    }
+        List<string> paths = [];
+        if (_files.Length < 2 || _currentIndex < 0)
+        {
+            return paths;
+        }
 
-    internal string? GetPreviousPath()
-    {
-        return GetRelativePath(-1);
+        foreach (int offset in offsets)
+        {
+            int index = (((_currentIndex + offset) % _files.Length) + _files.Length) % _files.Length;
+            string path = _files[index].Path;
+            if (index != _currentIndex && !paths.Contains(path))
+            {
+                paths.Add(path);
+            }
+        }
+
+        return paths;
     }
 
     internal string? MoveToNextPath()

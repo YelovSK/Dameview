@@ -15,6 +15,7 @@ internal sealed class ViewerSession : IDisposable
     private readonly IFolderMonitor _folderMonitor;
     private readonly IImageLoader _imageLoader;
     private long _scanStarted;
+    private int _preloadAhead = 1;
     private bool _disposed;
 
     internal ViewerSession(
@@ -49,6 +50,17 @@ internal sealed class ViewerSession : IDisposable
         }
 
         StateChanged?.Invoke();
+    }
+
+    /// <param name="count">How many images to preload in the direction of browsing. One behind is always preloaded too.</param>
+    internal void SetPreloadAhead(int count)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
+        _preloadAhead = count;
+        if (!State.IsLoading)
+        {
+            PreloadNeighbours(navigationDirection: 0);
+        }
     }
 
     internal void ShowPreviousImage()
@@ -288,11 +300,10 @@ internal sealed class ViewerSession : IDisposable
     {
         if (!State.IsError && State.FolderError is null)
         {
-            string? previousPath = _folderNavigator.GetPreviousPath();
-            string? nextPath = _folderNavigator.GetNextPath();
-            _imageLoader.Preload(navigationDirection < 0
-                ? [previousPath, nextPath]
-                : [nextPath, previousPath]);
+            // The nearest image on each side comes first, since even a change of direction needs one.
+            int step = navigationDirection < 0 ? -1 : 1;
+            _imageLoader.Preload(_folderNavigator.GetRelativePaths(
+                [step, -step, .. Enumerable.Range(2, _preloadAhead - 1).Select(distance => distance * step)]));
         }
     }
 

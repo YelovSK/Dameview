@@ -98,6 +98,34 @@ public sealed class RenderBitmapCacheTests
     }
 
     [TestMethod]
+    public void UnleasedImagesGiveUpTheirRoomToAReservation()
+    {
+        using var cache = new RenderBitmapCache(400, _ => { });
+        cache.Add("oldest", 10, 5, default, null!).Dispose();
+        cache.Add("older", 10, 5, default, null!).Dispose();
+
+        Assert.IsTrue(cache.TryReserve(200));
+        CachedBitmapLease preload = cache.Add("preload", 10, 5, default, null!);
+        cache.Unreserve(200);
+        cache.Trim();
+
+        Assert.IsFalse(cache.Contains("oldest"));
+        Assert.IsTrue(cache.Contains("older"));
+        Assert.IsTrue(cache.Contains("preload"));
+        preload.Dispose();
+    }
+
+    [TestMethod]
+    public void LeasedImagesKeepTheirRoomFromReservations()
+    {
+        using var cache = new RenderBitmapCache(400, _ => { });
+        using CachedBitmapLease first = cache.Add("first", 10, 5, default, null!);
+        using CachedBitmapLease second = cache.Add("second", 10, 5, default, null!);
+
+        Assert.IsFalse(cache.TryReserve(1));
+    }
+
+    [TestMethod]
     public void TrimmingKeepsReservedSpaceFree()
     {
         using var cache = new RenderBitmapCache(400, _ => { });

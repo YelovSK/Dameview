@@ -305,7 +305,7 @@ internal sealed class ImagePipeline : IImagePipeline, IDisposable
     {
         private readonly ComWorkerQueue<object?> _queue =
             new(source.WorkerName, source.WorkerCount, source.CreateWorkerState);
-        // A worker of their own, so preloads never hold up an image on display. Started on the
+        // Workers of their own, so preloads never hold up an image on display. Started on the
         // first preload, which some sources never get.
         private ComWorkerQueue<object?>? _preloadQueue;
 
@@ -314,7 +314,7 @@ internal sealed class ImagePipeline : IImagePipeline, IDisposable
 
         internal ComWorkerQueue<object?> QueueFor(ImagePriority priority) =>
             priority == ImagePriority.Preload
-                ? _preloadQueue ??= new($"{Source.WorkerName} preloads", 1, Source.CreateWorkerState)
+                ? _preloadQueue ??= new($"{Source.WorkerName} preloads", 2, Source.CreateWorkerState)
                 : _queue;
 
         public void Dispose()
