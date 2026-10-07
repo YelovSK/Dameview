@@ -12,6 +12,7 @@ using Dameview.Rendering;
 using Dameview.Settings;
 using Dameview.UI;
 using Dameview.UI.Components;
+using Dameview.UI.Foundation;
 using Dameview.Updates;
 using Dameview.Viewing;
 using Dameview.Win32;
@@ -175,6 +176,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
 
         // The window was created with its placement already.
         ApplyPreferences(new AppSettings(), startupSettings);
+        ApplyHiddenTop();
         StartupTrace.Mark("wiring");
     }
 
@@ -449,8 +451,14 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
     private void HandleResize(int width, int height)
     {
         _renderer.Resize(width, height);
+        ApplyHiddenTop();
         _window.RequestRepaint();
     }
+
+    // Maximizing, fullscreen and DPI changes all resize the window, so this follows each of them.
+    // The window has its new DPI by then, which the UI only gets afterwards.
+    private void ApplyHiddenTop() =>
+        _ui.SetHiddenTop(UiDpi.PixelsToDips(_window.HiddenTopPixels, _window.Dpi));
 
     private void HandleWindowShown()
     {

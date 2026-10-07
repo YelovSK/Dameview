@@ -296,8 +296,11 @@ internal sealed class ViewerUi : UiElement, IDisposable
     /// <summary>Whether a point in window pixels is title bar background, which drags the window.</summary>
     internal bool IsWindowDragAreaAt(PointF pixelPosition) =>
         _chromeVisible
-        && pixelPosition.Y < _host.Root.DipsToPixels(TitleBarHeightDips)
+        && pixelPosition.Y < _host.Root.DipsToPixels(Margin.Top + TitleBarHeightDips)
         && _host.Root.IsWindowDragArea(pixelPosition);
+
+    /// <summary>Keeps everything below the part of the window that is off the screen.</summary>
+    internal void SetHiddenTop(float dips) => Margin = new UiThickness(0.0f, dips, 0.0f, 0.0f);
 
     internal void CenterGallerySelection() => _galleryPanel.CenterSelection();
 

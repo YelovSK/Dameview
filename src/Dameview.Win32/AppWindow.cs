@@ -92,6 +92,13 @@ internal sealed unsafe class AppWindow : IDisposable
     internal float Dpi { get; private set; }
     internal bool IsFullscreen => _windowedPlacement.HasValue;
     internal bool IsMaximized => Handle != 0 && IsZoomed((HWND)Handle);
+
+    /// <summary>
+    /// How many client pixels at the top are off the screen. A maximized window hangs its frame
+    /// past the screen edges, and with a custom title bar that part of the top is client area.
+    /// </summary>
+    internal int HiddenTopPixels =>
+        _customTitleBar && !IsFullscreen && IsMaximized ? GetResizeBorderThickness((HWND)Handle) : 0;
     /// <summary>With a custom title bar, whether a client point in pixels drags the window.</summary>
     internal Func<PointF, bool>? IsDragArea { get; set; }
 
@@ -643,9 +650,9 @@ internal sealed unsafe class AppWindow : IDisposable
                 int top = frame->top;
                 LRESULT calculated = DefWindowProc(window, message, wParam, lParam);
                 // The sides and bottom keep their frame to resize by, while the client area takes
-                // over the caption. A maximized window hangs its frame off the screen, so the
-                // client area starts below it.
-                frame->top = top + (IsZoomed(window) ? GetResizeBorderThickness(window) : 0);
+                // over the caption. Even maximized, the top stays client area where it hangs off
+                // the screen, since an empty frame there shows while the window animates open.
+                frame->top = top;
                 return calculated;
 
             case WM_NCHITTEST when _customTitleBar && !IsFullscreen:
