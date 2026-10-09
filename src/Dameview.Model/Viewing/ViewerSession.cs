@@ -37,6 +37,9 @@ internal sealed class ViewerSession : IDisposable
     internal ImageViewport Viewport { get; }
     internal ViewportAnimator Animator { get; }
 
+    /// <summary>Whether next and previous lead to another image, which the name filter may rule out.</summary>
+    internal bool HasOtherImages => _folderNavigator.HasOtherMatch;
+
     /// <summary>The sort this tab uses while it has no sort of its own.</summary>
     internal void SetDefaultSort(FolderSort sort)
     {
@@ -54,9 +57,26 @@ internal sealed class ViewerSession : IDisposable
         ApplySort();
     }
 
+    /// <summary>Lists and navigates only the images whose names contain the filter, without leaving the current image.</summary>
+    internal void SetNameFilter(string filter)
+    {
+        if (filter == State.NameFilter)
+        {
+            return;
+        }
+
+        StoreNameFilter(filter);
+        RefreshFolderEntries();
+    }
+
     private void ApplySort()
     {
         _folderNavigator.SetSort(State.SortOverride ?? _defaultSort);
+        RefreshFolderEntries();
+    }
+
+    private void RefreshFolderEntries()
+    {
         State = State with
         {
             FolderEntries = _folderNavigator.GetFiles(),
@@ -127,8 +147,10 @@ internal sealed class ViewerSession : IDisposable
             return;
         }
 
+        // A filter was typed for the folder it narrows, so another folder starts without one.
         if (isFolder)
         {
+            StoreNameFilter(string.Empty);
             OpenFolder(new FolderScope(directoryPath, State.FlattensFolder), imagePath: null);
             State = State with
             {
@@ -148,6 +170,7 @@ internal sealed class ViewerSession : IDisposable
             return;
         }
 
+        StoreNameFilter(string.Empty);
         OpenFolder(new FolderScope(directoryPath, State.FlattensFolder), fullPath);
         BeginImageLoad(fullPath, navigationDirection: 0);
     }
@@ -299,6 +322,12 @@ internal sealed class ViewerSession : IDisposable
         StateChanged?.Invoke();
     }
 
+    private void StoreNameFilter(string filter)
+    {
+        _folderNavigator.NameFilter = filter;
+        State = State with { NameFilter = filter };
+    }
+
     private void OpenFolder(FolderScope scope, string? imagePath)
     {
         _folderNavigator.Clear();
@@ -442,5 +471,6 @@ internal sealed record ViewerSessionState(
     string? FolderError = null,
     bool FlattensFolder = false,
     FolderSort? SortOverride = null,
+    string NameFilter = "",
     bool IsScanning = false,
     TimeSpan ScanDuration = default);

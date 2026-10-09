@@ -24,6 +24,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private const float LabelWidthStep = 8.0f;
     private const float FooterHeight = 32.0f;
     private const float FooterPadding = 4.0f;
+    private const float SearchHeight = 40.0f;
     private static readonly UiFont LabelFont = new(12.0f, Alignment: TextAlignment.Center, Ellipsis: true);
     private static readonly UiFont FooterFont = new(12.0f, Ellipsis: true);
 
@@ -37,6 +38,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private readonly Button _flattenButton;
     private readonly Button _sortButton;
     private readonly Button _recenterButton;
+    private readonly TextInput _searchInput;
     private readonly Dictionary<string, GalleryItemSlot> _slots =
         new(StringComparer.OrdinalIgnoreCase);
     // A scratch buffer, empty between calls. It is a field only so that refreshing on every
@@ -61,6 +63,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         Action<string> openInNewTab,
         Action toggleFlattenFolder,
         Action<UiElement> showSortMenu,
+        Action<string> setNameFilter,
         Action<string, WorkspaceDragEvent>? dragPointer = null,
         Action<string, PointF>? contextMenuRequested = null)
     {
@@ -95,20 +98,24 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         {
             ToolTip = new("Scroll to the current image"),
         };
+        _searchInput = new TextInput("Filter by name");
+        _searchInput.TextChanged += setNameFilter;
         AddChild(_scrollbar);
+        AddChild(_searchInput);
         AddChild(_flattenButton);
         AddChild(_sortButton);
         AddChild(_recenterButton);
     }
 
-    internal override bool PreservesFocusOnPointerPress => true;
     internal override WindowCursor Cursor => _hoveredIndex >= 0 ? WindowCursor.Pointer : WindowCursor.Default;
 
     private GalleryLayout Layout =>
         new(GridBounds.Size, _orientation, _thumbnailSize, _state.Entries.Length);
 
     private RectangleF GridBounds =>
-        new(0.0f, 0.0f, Bounds.Width, MathF.Max(0.0f, Bounds.Height - FooterHeight));
+        new(0.0f, 0.0f, Bounds.Width, MathF.Max(0.0f, Bounds.Height - SearchHeight - FooterHeight));
+
+    private float FooterTop => GridBounds.Bottom + SearchHeight;
 
     /// <param name="tab">The active tab, whose gallery keeps its own scroll position.</param>
     internal void ApplyState(ViewerTab tab, ViewerSessionState session)
@@ -125,6 +132,8 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             _sortButton.IsSelected = sorted;
             InvalidateVisual();
         }
+
+        _searchInput.Text = session.NameFilter;
 
         bool stateChanged = !ReferenceEquals(_state, state);
         bool entriesChanged = !ReferenceEquals(state.Entries, session.FolderEntries);
@@ -208,6 +217,11 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     protected override void ArrangeCore(SizeF finalSize)
     {
         _scrollbar.Arrange(Layout.ScrollbarBounds);
+        _searchInput.Arrange(new RectangleF(
+            FooterPadding,
+            GridBounds.Bottom + FooterPadding,
+            MathF.Max(0.0f, Bounds.Width - (2.0f * FooterPadding)),
+            SearchHeight - (2.0f * FooterPadding)));
         _flattenButton.Arrange(GetFooterButtonBounds(0.0f));
         _sortButton.Arrange(GetFooterButtonBounds(FooterHeight));
         _recenterButton.Arrange(GetFooterButtonBounds(Bounds.Width - FooterHeight));
@@ -216,7 +230,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
     private RectangleF GetFooterButtonBounds(float x) => new(
         x + FooterPadding,
-        GridBounds.Bottom + FooterPadding,
+        FooterTop + FooterPadding,
         FooterHeight - (2.0f * FooterPadding),
         FooterHeight - (2.0f * FooterPadding));
 
@@ -252,7 +266,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         context.DrawText(
             _footerText,
             FooterFont,
-            new Rect(textX, grid.Bottom, MathF.Max(0.0f, Bounds.Width - textX - FooterHeight), FooterHeight),
+            new Rect(textX, FooterTop, MathF.Max(0.0f, Bounds.Width - textX - FooterHeight), FooterHeight),
             context.Palette.SecondaryText,
             DrawTextOptions.Clip);
     }
@@ -260,11 +274,37 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private static string GetFooterText(ViewerSessionState session)
     {
         int count = session.FolderEntries.Length;
-        string images = count == 1 ? "1 image" : $"{count:N0} images";
+        string images = session.NameFilter.Length > 0
+            ? count switch { 0 => "No matches", 1 => "1 match", _ => $"{count:N0} matches" }
+            : count == 1 ? "1 image" : $"{count:N0} images";
         TimeSpan duration = session.ScanDuration;
         return session.IsScanning ? $"{images} · Scanning…"
             : duration < TimeSpan.FromSeconds(1) ? $"{images} · {duration.TotalMilliseconds:0} ms"
             : $"{images} · {duration.TotalSeconds:0.00} s";
+    }
+
+    // Enter keeps the filter and hands the keys back to the viewer; Escape clears it first.
+    internal override bool OnKeyEvent(WindowKeyEvent input)
+    {
+        // The footer buttons take focus too, and their Escape belongs to the viewer.
+        if (!ReferenceEquals(Root?.FocusedElement, _searchInput))
+        {
+            return false;
+        }
+
+        switch (input.Key)
+        {
+            case WindowKey.Escape when _searchInput.Text.Length > 0:
+                _searchInput.Clear();
+                return true;
+
+            case WindowKey.Escape or WindowKey.Enter:
+                Root?.SetFocus(null);
+                return true;
+
+            default:
+                return false;
+        }
     }
 
     internal override UiPointerResult OnPointerEvent(in WindowPointerEvent input)

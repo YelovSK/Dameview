@@ -155,6 +155,8 @@ internal sealed class ViewerWorkspace : IDisposable
             copy.Session.OpenImage(path);
         }
 
+        copy.Session.SetNameFilter(state.NameFilter);
+
         pane.InsertTab(copy, pane.Count, select: true);
     }
 

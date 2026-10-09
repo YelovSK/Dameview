@@ -257,7 +257,7 @@ internal sealed class UiRoot
             return true;
         }
 
-        bool bubbleWithinScope = IsWithin(FocusedElement, scope);
+        bool focusInScope = IsWithin(FocusedElement, scope);
         for (UiElement? element = FocusedElement; element is not null; element = element.Parent)
         {
             if (element.OnKeyEvent(input))
@@ -265,14 +265,14 @@ internal sealed class UiRoot
                 return true;
             }
 
-            if (!bubbleWithinScope || ReferenceEquals(element, scope))
+            if (ReferenceEquals(element, scope))
             {
                 break;
             }
         }
 
         // The scope handles keys for everything in it, so it hears them even with nothing focused there.
-        if (!bubbleWithinScope && scope.OnKeyEvent(input))
+        if (!focusInScope && scope.OnKeyEvent(input))
         {
             return true;
         }

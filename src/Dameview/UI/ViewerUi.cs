@@ -102,6 +102,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
             app.OpenImageInNewTab,
             () => app.Execute(AppCommands.ToggleFlattenFolder, app.ActiveContext),
             button => _contextMenus.ShowSortMenu(workspace.ActiveTab, button),
+            filter => workspace.ActiveTab.Session.SetNameFilter(filter),
             (path, input) => _dragController.HandleGalleryPointer(_galleryPanel!, path, input),
             (path, point) => _contextMenus.ShowForGalleryItem(path, _galleryPanel!, point));
         _splitView = new SplitView(

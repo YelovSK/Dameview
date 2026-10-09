@@ -130,8 +130,12 @@ internal sealed class TextInput : UiElement
 
                 return true;
 
+            // Keys that type text belong to the text, so a shortcut on the same key does not fire too.
             default:
-                return false;
+                return !input.Control && input.Key is WindowKey.Space
+                    or (>= WindowKey.Number0 and <= WindowKey.Z)
+                    or (>= WindowKey.Numpad0 and <= WindowKey.NumpadDivide)
+                    or >= WindowKey.Semicolon;
         }
     }
 

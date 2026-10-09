@@ -240,7 +240,7 @@ internal static class AppCommands
         ShowCommandPalette,
     ];
 
-    private static bool HasOtherImages(ViewerTab tab) => tab.Session.State.FolderEntries.Length > 1;
+    private static bool HasOtherImages(ViewerTab tab) => tab.Session.HasOtherImages;
 
     private static bool ShowsImage(ViewerTab tab) => tab.Session.State.DisplayedImage is not null;
 

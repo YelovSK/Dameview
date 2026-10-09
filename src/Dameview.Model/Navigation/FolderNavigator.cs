@@ -14,6 +14,12 @@ internal sealed class FolderNavigator
 
     internal FolderSort Sort { get; private set; }
 
+    /// <summary>
+    /// Only files whose names contain this are listed and navigated to. The current file stays
+    /// current even when it does not match.
+    /// </summary>
+    internal string NameFilter { get; set; } = string.Empty;
+
     internal FolderEntry? CurrentEntry => _currentIndex >= 0 ? _files[_currentIndex].Metadata : null;
 
     internal void Clear()
@@ -55,7 +61,7 @@ internal sealed class FolderNavigator
     }
 
     internal FolderEntry[] GetFiles() =>
-        [.. _files.Where(file => file.Metadata is not null).Select(file => file.Metadata!)];
+        [.. _files.Where(file => file.Metadata is not null && Matches(file)).Select(file => file.Metadata!)];
 
     /// <summary>
     /// The paths at these offsets from the current one, wrapping around, without the current
@@ -64,18 +70,29 @@ internal sealed class FolderNavigator
     internal List<string> GetRelativePaths(IEnumerable<int> offsets)
     {
         List<string> paths = [];
-        if (_files.Length < 2 || _currentIndex < 0)
-        {
-            return paths;
-        }
-
+        // Each direction is walked once, going on from where the previous offset stopped, since
+        // with a narrow filter every step can scan much of the folder.
+        (int Distance, int Index) forward = (0, _currentIndex);
+        (int Distance, int Index) backward = (0, _currentIndex);
         foreach (int offset in offsets)
         {
-            int index = (((_currentIndex + offset) % _files.Length) + _files.Length) % _files.Length;
-            string path = _files[index].Path;
-            if (index != _currentIndex && !paths.Contains(path))
+            ref (int Distance, int Index) walk = ref offset > 0 ? ref forward : ref backward;
+            int distance = Math.Abs(offset);
+            if (distance < walk.Distance)
             {
-                paths.Add(path);
+                walk = (0, _currentIndex);
+            }
+
+            while (walk.Distance < distance && walk.Index >= 0)
+            {
+                int next = FindMatch(walk.Index, Math.Sign(offset));
+                // Back at the start, every further step only repeats.
+                walk = (walk.Distance + 1, next == _currentIndex ? -1 : next);
+            }
+
+            if (walk.Distance == distance && walk.Index >= 0 && !paths.Contains(_files[walk.Index].Path))
+            {
+                paths.Add(_files[walk.Index].Path);
             }
         }
 
@@ -132,27 +149,41 @@ internal sealed class FolderNavigator
     private int IndexOf(string path) =>
         Array.FindIndex(_files, file => _pathComparer.Equals(file.Path, path));
 
-    private string? GetRelativePath(int offset)
+    private string? MoveToRelativePath(int direction)
     {
-        if (_files.Length < 2 || _currentIndex < 0)
+        int index = FindMatch(_currentIndex, direction);
+        if (index < 0)
         {
             return null;
         }
 
-        int index = (_currentIndex + offset + _files.Length) % _files.Length;
+        _currentIndex = index;
         return _files[index].Path;
     }
 
-    private string? MoveToRelativePath(int offset)
+    /// <summary>The nearest other matching file in a direction, wrapping around, or -1 when there is none.</summary>
+    private int FindMatch(int from, int direction)
     {
-        string? path = GetRelativePath(offset);
-        if (path is not null)
+        if (from < 0)
         {
-            _currentIndex = (_currentIndex + offset + _files.Length) % _files.Length;
+            return -1;
         }
 
-        return path;
+        for (int distance = 1; distance < _files.Length; distance++)
+        {
+            int index = (from + (direction * distance) + _files.Length) % _files.Length;
+            if (Matches(_files[index]))
+            {
+                return index;
+            }
+        }
+
+        return -1;
     }
+
+    internal bool HasOtherMatch => FindMatch(_currentIndex, 1) >= 0;
+
+    private bool Matches(NavigationEntry file) => file.Name.Contains(NameFilter, StringComparison.OrdinalIgnoreCase);
 
     private static void SortFiles(NavigationEntry[] files, FolderSort sort)
     {

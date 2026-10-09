@@ -41,6 +41,29 @@ public sealed class FolderNavigatorTests
     }
 
     [TestMethod]
+    public void NameFilterSkipsNonMatchesButKeepsTheCurrentFile()
+    {
+        var directory = new FolderFiles();
+        string catA = directory.CreateFile("cat-a.jpg", 1);
+        string dog = directory.CreateFile("dog.jpg", 1);
+        string catB = directory.CreateFile("CAT-b.jpg", 1);
+
+        var navigator = new FolderNavigator();
+        navigator.SetFiles(directory.Files, dog);
+        navigator.NameFilter = "cat";
+
+        Assert.AreEqual(dog, navigator.CurrentEntry!.FullName);
+        CollectionAssert.AreEqual(new[] { catA, catB }, navigator.GetFiles().Select(file => file.FullName).ToArray());
+        CollectionAssert.AreEqual(new[] { catA, catB }, navigator.GetRelativePaths([1, -1, 2]));
+        Assert.AreEqual(catA, navigator.MoveToNextPath());
+        Assert.AreEqual(catB, navigator.MoveToNextPath());
+
+        navigator.NameFilter = "bird";
+        Assert.IsNull(navigator.MoveToNextPath());
+        Assert.AreEqual(catB, navigator.CurrentEntry!.FullName);
+    }
+
+    [TestMethod]
     public void ChangingSortKeepsTheCurrentFileSelected()
     {
         var directory = new FolderFiles();
