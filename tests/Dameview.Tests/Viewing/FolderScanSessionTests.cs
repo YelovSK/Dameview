@@ -155,6 +155,23 @@ public sealed class FolderScanSessionTests
     }
 
     [TestMethod]
+    public void DeletingTheShownImageShowsTheNextOne()
+    {
+        using var fixture = new Fixture();
+        fixture.Session.OpenImage(Fixture.Second);
+        fixture.Scanner.Complete(0, Fixture.First, Fixture.Second, Fixture.Third);
+        fixture.DeliverScan();
+
+        fixture.Watcher.RaiseDeleted(Fixture.Second);
+        fixture.Scanner.Complete(1, Fixture.First, Fixture.Third);
+        fixture.DeliverScan();
+
+        Assert.AreEqual(Fixture.Third, fixture.Loader.Path);
+        Assert.AreEqual(Fixture.Third, fixture.Session.State.RequestedPath);
+        Assert.HasCount(2, fixture.Session.State.FolderEntries);
+    }
+
+    [TestMethod]
     public void OpeningImageInTheWatchedFolderDoesNotRescan()
     {
         using var fixture = new Fixture();

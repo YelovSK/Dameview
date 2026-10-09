@@ -276,6 +276,14 @@ internal sealed class ViewerSession : IDisposable
             }
             else
             {
+                bool wasRemoved = _folderNavigator.CurrentEntry is { } shown && !update.Entries.Any(
+                    entry => string.Equals(entry.FullName, shown.FullName, StringComparison.OrdinalIgnoreCase));
+
+                if (wasRemoved)
+                {
+                    ShowNextImage();
+                }
+
                 _folderNavigator.SetFiles(update.Entries, State.RequestedPath);
             }
         }
