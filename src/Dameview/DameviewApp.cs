@@ -184,9 +184,13 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
     {
         _settings.Start();
 
-        if (args.FirstOrDefault() is string imagePath)
+        if (args.Length > 0)
         {
-            _workspace.OpenImage(imagePath);
+            _workspace.OpenImage(args[0]);
+            foreach (string path in args[1..])
+            {
+                _workspace.OpenImageInNewTab(path);
+            }
         }
 
         StartupTrace.Mark("args");
