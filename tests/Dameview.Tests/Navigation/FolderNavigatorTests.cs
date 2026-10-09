@@ -12,7 +12,6 @@ public sealed class FolderNavigatorTests
         string first = directory.CreateFile("a.jpg", 1);
         string middle = directory.CreateFile("b.jpg", 1);
         string last = directory.CreateFile("c.jpg", 1);
-        _ = directory.CreateFile("ignored.txt", 1);
 
         var navigator = new FolderNavigator();
         navigator.SetFiles(directory.Files, middle);

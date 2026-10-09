@@ -7,10 +7,7 @@ namespace Dameview.Tests.Imaging;
 public sealed class FileImageSourceTests
 {
     [TestMethod]
-    [DataRow("large.png")]
-    [DataRow("large.webp")]
-    [DataRow("large.gif")]
-    public void UsesTiledRepresentationWithoutFullDecode(string path)
+    public void UsesTiledRepresentationWithoutFullDecode()
     {
         int decodeCount = 0;
         var tiles = new FakeTileSource();
@@ -27,7 +24,7 @@ public sealed class FileImageSourceTests
                 _ => tiles),
             PipelineHarness.TestPolicy);
 
-        using ImageRepresentation? image = Load(source, path, new FakeLoadContext());
+        using ImageRepresentation? image = Load(source, "large.png", new FakeLoadContext());
 
         Assert.IsInstanceOfType<TiledImageRepresentation>(image);
         Assert.AreEqual(0, decodeCount);

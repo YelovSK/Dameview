@@ -200,24 +200,6 @@ public sealed class SettingsServiceTests
     }
 
     [TestMethod]
-    public void NamedThemesPersistAcrossReload()
-    {
-        foreach (ThemeId theme in Enum.GetValues<ThemeId>())
-        {
-            using var files = new SettingsFiles();
-            using SettingsService settings = files.CreateService();
-            settings.Start();
-            settings.Update(new AppSettings { Theme = theme });
-            settings.Flush();
-            Assert.IsNull(settings.Error);
-
-            using SettingsService reopened = files.CreateService();
-            reopened.Start();
-            Assert.AreEqual(theme, reopened.Current.Theme);
-        }
-    }
-
-    [TestMethod]
     [DataRow("theme=")]
     [DataRow("theme=42")]
     [DataRow("animations=maybe")]

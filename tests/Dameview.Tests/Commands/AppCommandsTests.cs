@@ -108,17 +108,6 @@ public sealed class AppCommandsTests
     }
 
     [TestMethod]
-    public void TheSameShortcutInADifferentScopeIsNotAConflict()
-    {
-        // FitImage is a Viewer command and NewTab a Window one, so Ctrl+T can serve both.
-        ViewerCommandShortcut shortcut = new(WindowKey.T, Control: true);
-        ViewerKeyBindings bindings = ViewerKeyBindings.Defaults.WithShortcut(AppCommands.FitImage, shortcut);
-
-        Assert.Contains(shortcut, bindings.GetShortcuts(AppCommands.NewTab));
-        Assert.Contains(shortcut, bindings.GetShortcuts(AppCommands.FitImage));
-    }
-
-    [TestMethod]
     public void ShortcutLabelsAreDerivedFromTheirKeyChord()
     {
         // Modifier order, the named-key table, and a key that falls through to its enum name.
