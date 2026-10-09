@@ -9,14 +9,7 @@ namespace Dameview.Imaging.Decoding;
 
 internal sealed class ImageDecoder : IImageDecoder
 {
-
     private readonly IWICImagingFactory2 _factory = new();
-    private readonly NativePixelBufferPool? _uploadPool;
-
-    internal ImageDecoder(NativePixelBufferPool? uploadPool = null)
-    {
-        _uploadPool = uploadPool;
-    }
 
     internal DecodedImage Decode(string path)
     {
@@ -39,7 +32,7 @@ internal sealed class ImageDecoder : IImageDecoder
         int width = frame.Size.Width;
         int height = frame.Size.Height;
         int stride = DecodedImage.GetStride(width);
-        DecodedImageUpload upload = AllocateUpload(width, height, stride, orientation);
+        var upload = DecodedImageUpload.Allocate(width, height, stride, orientation);
         try
         {
             converter.CopyPixels((uint)stride, upload.Span);
@@ -180,17 +173,6 @@ internal sealed class ImageDecoder : IImageDecoder
     public void Dispose()
     {
         _factory.Dispose();
-    }
-
-    private DecodedImageUpload AllocateUpload(
-        int width,
-        int height,
-        int stride,
-        ImageOrientation orientation)
-    {
-        return _uploadPool is null
-            ? DecodedImageUpload.Allocate(width, height, stride, orientation)
-            : DecodedImageUpload.Rent(_uploadPool, width, height, stride, orientation);
     }
 
     internal unsafe HashSet<string> GetProbablySupportedExtensions()
