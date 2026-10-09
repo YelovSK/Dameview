@@ -95,10 +95,6 @@ internal sealed class FileLogSink : IDisposable
                 }
             }
         }
-        catch
-        {
-            // A logging failure must not affect the application.
-        }
         finally
         {
             writer?.Dispose();
@@ -150,6 +146,21 @@ internal sealed class FileLogSink : IDisposable
             }
 
             writer.Flush();
+        }
+        catch
+        {
+            // A logging failure must not affect the application. This batch is lost,
+            // and the next one reopens the file.
+            StreamWriter? failed = writer;
+            writer = null;
+            try
+            {
+                failed?.Dispose();
+            }
+            catch
+            {
+                // The file is already broken; closing it is best effort.
+            }
         }
         finally
         {
