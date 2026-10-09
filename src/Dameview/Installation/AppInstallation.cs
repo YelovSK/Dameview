@@ -289,7 +289,8 @@ internal static class AppInstallation
         var startInfo = new ProcessStartInfo
         {
             FileName = Environment.GetEnvironmentVariable("ComSpec") ?? "cmd.exe",
-            Arguments = $"/D /C \"{command.Replace("\"", "\"\"")}\"",
+            // cmd strips only the outer quotes, so the inner path quotes stay as they are.
+            Arguments = $"/D /C \"{command}\"",
             CreateNoWindow = true,
             UseShellExecute = false,
             WindowStyle = ProcessWindowStyle.Hidden,
