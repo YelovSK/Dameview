@@ -43,22 +43,6 @@ internal sealed class Dropdown<T> : InteractiveControl
         set => Select(FindIndex(value), notify: false);
     }
 
-    internal void SetOptionLabel(T value, string label)
-    {
-        int index = FindIndex(value);
-        if (_options[index].Label == label)
-        {
-            return;
-        }
-
-        _options[index] = _options[index] with { Label = label };
-        _popupList.SetLabel(index, label);
-        if (index == SelectedIndex)
-        {
-            InvalidateVisual();
-        }
-    }
-
     internal override bool OnKeyEvent(WindowKeyEvent input)
     {
         if (!IsEnabled)
@@ -224,7 +208,6 @@ internal sealed class Dropdown<T> : InteractiveControl
             }
         }
 
-        internal void SetLabel(int index, string label) => _buttons[index].Label = label;
 
         // The host widens the list to its dropdown.
         protected override SizeF MeasureCore(SizeF availableSize)

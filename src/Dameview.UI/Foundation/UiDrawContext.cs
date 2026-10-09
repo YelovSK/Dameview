@@ -136,9 +136,6 @@ internal readonly record struct UiDrawContext
         return new TransformScope(RenderTarget, previous);
     }
 
-    /// <summary>Counts a draw an element issued against <see cref="RenderTarget"/> itself.</summary>
-    internal void CountOperation() => _tally.Operations++;
-
     internal void DrawTextLayout(IDWriteTextLayout layout, Vector2 origin, Color4 color,
         DrawTextOptions options = DrawTextOptions.None, float opacity = 1.0f)
     {

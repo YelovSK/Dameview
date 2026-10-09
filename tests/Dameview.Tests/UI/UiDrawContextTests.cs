@@ -120,14 +120,6 @@ public sealed class UiDrawContextTests
         return pixels[((y * width) + x) * 4 + 3];
     }
 
-    private sealed class PaletteElement : UiElement
-    {
-        protected override void DrawCore(in UiDrawContext context)
-        {
-            context.FillRoundedRectangle(Block(0), context.Palette.PrimaryText);
-        }
-    }
-
     private sealed class BorderElement : UiElement
     {
         protected override void DrawCore(in UiDrawContext context)
