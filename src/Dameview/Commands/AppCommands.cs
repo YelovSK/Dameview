@@ -166,7 +166,8 @@ internal static class AppCommands
 
     internal static readonly Command ToggleViewportSync = Command.Global(
         "toggleViewportSync", "Toggle synced zoom and pan", CommandScope.Window,
-        host => host.Workspace.ToggleViewportSync());
+        host => host.Workspace.ToggleViewportSync(),
+        shortcuts: [new(WindowKey.L, Control: true)]);
 
     internal static readonly Command BalancePanes = Command.Global(
         "balancePanes", "Balance pane layout", CommandScope.Window,

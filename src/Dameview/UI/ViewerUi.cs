@@ -168,6 +168,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         workspace.PaneActiveTabChanged += HandleActiveTabChanged;
         workspace.PaneSessionStateChanged += HandleSessionStateChanged;
         workspace.PaneTabsChanged += pane => _workspaceView.FindPaneView(pane)?.ApplyTabs();
+        workspace.ViewportSyncChanged += HandleViewportSyncChanged;
 
         ApplyActivePaneState();
     }
@@ -215,6 +216,22 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _workspaceView.ApplyLayout(_workspace.Root, openingSplit);
         _workspaceView.SetActivePane(_workspace.ActivePane);
         ApplyTitleBar();
+        ApplyViewportSync();
+    }
+
+    private void HandleViewportSyncChanged()
+    {
+        ApplyViewportSync();
+    }
+
+    private void ApplyViewportSync()
+    {
+        foreach (ViewerPaneView paneView in _workspaceView.PaneViews)
+        {
+            paneView.SetViewportSync(_workspace.IsSplit, _workspace.IsViewportSynced);
+        }
+
+        _host.Root.InvalidateVisual();
     }
 
     private void HandlePaneRatiosChanged()

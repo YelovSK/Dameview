@@ -31,6 +31,7 @@ internal sealed class ViewerWorkspace : IDisposable
     internal event Action<ViewerPane>? PaneActiveTabChanged;
     internal event Action<ViewerPane>? PaneSessionStateChanged;
     internal event Action<ViewerPane>? PaneTabsChanged;
+    internal event Action? ViewportSyncChanged;
 
     internal WorkspaceNode Root { get; private set; }
     internal ViewerPane ActivePane { get; private set; }
@@ -41,12 +42,17 @@ internal sealed class ViewerWorkspace : IDisposable
         Root.Panes.SelectMany(pane => pane.Tabs).Select(tab => tab.Session);
 
     internal bool IsSplit => Root is not ViewerPane;
+    internal bool IsViewportSynced => _viewportSync is not null;
     internal bool HasClosedTabs => _closedTabs.Count > 0;
 
     internal ViewerTab ActiveTab => ActivePane.ActiveTab;
     internal ViewerSession ActiveSession => ActivePane.ActiveSession;
 
-    internal void ToggleViewportSync() => _viewportSync = _viewportSync is null ? new ViewportSync() : null;
+    internal void ToggleViewportSync()
+    {
+        _viewportSync = _viewportSync is null ? new ViewportSync() : null;
+        ViewportSyncChanged?.Invoke();
+    }
 
     /// <summary>Lines up the panes' views when they are synced. Called once per frame.</summary>
     internal void SyncViewports()
