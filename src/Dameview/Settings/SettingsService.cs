@@ -146,6 +146,7 @@ internal sealed class SettingsService : IDisposable
         }
         catch (Exception exception) when (IsSettingsError(exception))
         {
+            _savePending = true;
             Log.Error("Settings", "Could not save settings.", exception);
             Fail($"Could not save settings: {exception.Message}");
         }
