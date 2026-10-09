@@ -142,7 +142,20 @@ internal sealed class ViewerWorkspace : IDisposable
     internal void DuplicateTab(ViewerTab tab)
     {
         ViewerPane pane = PaneOf(tab);
-        pane.InsertTab(CreateTab(tab.Session.State.RequestedPath), pane.Count, select: true);
+        ViewerSessionState state = tab.Session.State;
+        ViewerTab copy = CreateTab();
+        if (state.FlattensFolder)
+        {
+            copy.Session.ToggleFlattenFolder();
+        }
+
+        copy.Session.SetSortOverride(state.SortOverride);
+        if (state.RequestedPath is { } path)
+        {
+            copy.Session.OpenImage(path);
+        }
+
+        pane.InsertTab(copy, pane.Count, select: true);
     }
 
     internal void SelectTab(ViewerPane pane, int index)
@@ -311,7 +324,7 @@ internal sealed class ViewerWorkspace : IDisposable
         _sort = sort;
         foreach (ViewerSession session in Sessions)
         {
-            session.SetSort(sort);
+            session.SetDefaultSort(sort);
         }
     }
 
@@ -351,7 +364,7 @@ internal sealed class ViewerWorkspace : IDisposable
     private ViewerTab CreateTab(string? path = null)
     {
         ViewerTab tab = _createTab();
-        tab.Session.SetSort(_sort);
+        tab.Session.SetDefaultSort(_sort);
         tab.Session.Viewport.ZoomStep = _zoomStep;
         tab.Session.SetPreloadAhead(_preloadAhead);
         if (path is not null)

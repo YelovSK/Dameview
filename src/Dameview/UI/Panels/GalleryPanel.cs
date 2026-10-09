@@ -35,6 +35,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private readonly Action<string, PointF>? _contextMenuRequested;
     private readonly Scrollbar _scrollbar;
     private readonly Button _flattenButton;
+    private readonly Button _sortButton;
     private readonly Button _recenterButton;
     private readonly Dictionary<string, GalleryItemSlot> _slots =
         new(StringComparer.OrdinalIgnoreCase);
@@ -59,6 +60,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         Action<string> openImage,
         Action<string> openInNewTab,
         Action toggleFlattenFolder,
+        Action<UiElement> showSortMenu,
         Action<string, WorkspaceDragEvent>? dragPointer = null,
         Action<string, PointF>? contextMenuRequested = null)
     {
@@ -77,6 +79,14 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         {
             ToolTip = new("Include images from subfolders"),
         };
+        _sortButton = new Button(
+            UiTypography.SortIcon,
+            () => showSortMenu(_sortButton!),
+            fontFamily: UiTypography.IconFontFamily,
+            fontSize: 16.0f)
+        {
+            ToolTip = new("Sort this tab"),
+        };
         _recenterButton = new Button(
             UiTypography.LocateIcon,
             CenterSelection,
@@ -87,6 +97,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         };
         AddChild(_scrollbar);
         AddChild(_flattenButton);
+        AddChild(_sortButton);
         AddChild(_recenterButton);
     }
 
@@ -104,10 +115,14 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     {
         GalleryPanelState state = GetTabState(tab);
         string footerText = GetFooterText(session);
-        if (_footerText != footerText || _flattenButton.IsSelected != session.FlattensFolder)
+        bool sorted = session.SortOverride is not null;
+        if (_footerText != footerText
+            || _flattenButton.IsSelected != session.FlattensFolder
+            || _sortButton.IsSelected != sorted)
         {
             _footerText = footerText;
             _flattenButton.IsSelected = session.FlattensFolder;
+            _sortButton.IsSelected = sorted;
             InvalidateVisual();
         }
 
@@ -194,6 +209,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     {
         _scrollbar.Arrange(Layout.ScrollbarBounds);
         _flattenButton.Arrange(GetFooterButtonBounds(0.0f));
+        _sortButton.Arrange(GetFooterButtonBounds(FooterHeight));
         _recenterButton.Arrange(GetFooterButtonBounds(Bounds.Width - FooterHeight));
         SyncScroll();
     }
@@ -232,7 +248,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         context.FillRoundedRectangle(
             new RoundedRectangle(new RectangleF(0.0f, grid.Bottom, Bounds.Width, 1.0f), 0.0f, 0.0f),
             context.Palette.SurfaceBorder);
-        float textX = FooterHeight + FooterPadding;
+        float textX = (2.0f * FooterHeight) + FooterPadding;
         context.DrawText(
             _footerText,
             FooterFont,

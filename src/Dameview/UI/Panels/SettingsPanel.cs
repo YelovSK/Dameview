@@ -211,7 +211,10 @@ internal sealed class SettingsPanel : ModalContent
             ],
             SortDirection.First,
             SetSortDirection);
-        _sortFieldRow = new SettingsRow("Sort by", _sortField);
+        _sortFieldRow = new SettingsRow(
+            "Default sort",
+            _sortField,
+            "Used by every tab unless you pick a sort for it in the gallery");
         _sortDirectionRow = new SettingsRow("Direction", _sortDirection);
 
         _updateStatus = new TextBlock(

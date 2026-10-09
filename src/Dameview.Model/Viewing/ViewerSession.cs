@@ -16,6 +16,7 @@ internal sealed class ViewerSession : IDisposable
     private readonly IImageLoader _imageLoader;
     private long _scanStarted;
     private int _preloadAhead = 1;
+    private FolderSort _defaultSort = FolderSort.NameAscending;
     private bool _disposed;
 
     internal ViewerSession(
@@ -36,9 +37,26 @@ internal sealed class ViewerSession : IDisposable
     internal ImageViewport Viewport { get; }
     internal ViewportAnimator Animator { get; }
 
-    internal void SetSort(FolderSort sort)
+    /// <summary>The sort this tab uses while it has no sort of its own.</summary>
+    internal void SetDefaultSort(FolderSort sort)
     {
-        _folderNavigator.SetSort(sort);
+        _defaultSort = sort;
+        if (State.SortOverride is null)
+        {
+            ApplySort();
+        }
+    }
+
+    /// <param name="sort">This tab's own sort, or null to follow the default.</param>
+    internal void SetSortOverride(FolderSort? sort)
+    {
+        State = State with { SortOverride = sort };
+        ApplySort();
+    }
+
+    private void ApplySort()
+    {
+        _folderNavigator.SetSort(State.SortOverride ?? _defaultSort);
         State = State with
         {
             FolderEntries = _folderNavigator.GetFiles(),
@@ -423,5 +441,6 @@ internal sealed record ViewerSessionState(
     FolderEntry? CurrentEntry = null,
     string? FolderError = null,
     bool FlattensFolder = false,
+    FolderSort? SortOverride = null,
     bool IsScanning = false,
     TimeSpan ScanDuration = default);

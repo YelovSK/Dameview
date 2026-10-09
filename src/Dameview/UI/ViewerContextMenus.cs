@@ -1,6 +1,7 @@
 using System.Drawing;
 using Dameview.Commands;
 using Dameview.Installation;
+using Dameview.Navigation;
 using Dameview.UI.Components;
 using Dameview.UI.Foundation;
 using Dameview.Viewing;
@@ -24,6 +25,7 @@ internal sealed class ViewerContextMenus
     }
 
     internal ViewerKeyBindings KeyBindings { get; set; } = ViewerKeyBindings.Defaults;
+    internal FolderSort DefaultSort { get; set; }
 
     /// <param name="point">Where the image panel was clicked, in its own coordinates.</param>
     internal void ShowForImage(ViewerTab tab, UiElement imagePanel, PointF point)
@@ -72,6 +74,18 @@ internal sealed class ViewerContextMenus
         ]);
     }
 
+    internal void ShowSortMenu(ViewerTab tab, UiElement button)
+    {
+        FolderSort? current = tab.Session.State.SortOverride;
+        ContextMenu.ShowBelow(
+            _popupHost,
+            button,
+            [
+                [SortItem(tab, null, $"Default ({SortLabel(DefaultSort)})", current is null)],
+                [.. Enum.GetValues<FolderSort>().Select(sort => SortItem(tab, sort, SortLabel(sort), current == sort))],
+            ]);
+    }
+
     /// <summary>Opens the app menu below its button in the title bar.</summary>
     internal void ShowAppMenu(UiElement button)
     {
@@ -88,6 +102,22 @@ internal sealed class ViewerContextMenus
             ],
             $"Dameview {AppInstallation.CurrentDisplayVersion}");
     }
+
+    private static ContextMenuItem SortItem(ViewerTab tab, FolderSort? sort, string label, bool isChecked) =>
+        new(label, () => tab.Session.SetSortOverride(sort), IsChecked: isChecked);
+
+    private static string SortLabel(FolderSort sort) => sort switch
+    {
+        FolderSort.NameAscending => "Name, A–Z",
+        FolderSort.NameDescending => "Name, Z–A",
+        FolderSort.DateModifiedNewest => "Modified, newest",
+        FolderSort.DateModifiedOldest => "Modified, oldest",
+        FolderSort.DateCreatedNewest => "Created, newest",
+        FolderSort.DateCreatedOldest => "Created, oldest",
+        FolderSort.SizeLargest => "Size, largest",
+        FolderSort.SizeSmallest => "Size, smallest",
+        _ => throw new ArgumentOutOfRangeException(nameof(sort), sort, null),
+    };
 
     // The palette acts on the active tab whatever was clicked, so it is the one global item the
     // right-click menus offer, there for anyone who does not know its shortcut.

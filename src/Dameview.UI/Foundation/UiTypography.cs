@@ -9,4 +9,6 @@ internal static class UiTypography
     internal const string SettingsIcon = "\uE713";
     internal const string OpenFolderIcon = "\uE838";
     internal const string LocateIcon = "\uE81D";
+    internal const string SortIcon = "\uE8CB";
+    internal const string CheckMarkIcon = "\uE73E";
 }

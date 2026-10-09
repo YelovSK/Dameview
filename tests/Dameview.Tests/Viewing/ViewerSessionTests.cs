@@ -28,7 +28,7 @@ public sealed class ViewerSessionTests
         session.Viewport.SetActualSizeAt(new PointF(400, 300), session.Viewport.ImageCenter);
         ImageLoaded? displayed = session.State.DisplayedImage;
         PointF center = session.Viewport.Center;
-        session.SetSort(FolderSort.NameDescending);
+        session.SetSortOverride(FolderSort.NameDescending);
         Assert.AreSame(displayed, session.State.DisplayedImage);
         Assert.AreEqual(center, session.Viewport.Center);
         Assert.AreEqual(ViewportMode.ActualSize, session.Viewport.Mode);
@@ -38,6 +38,22 @@ public sealed class ViewerSessionTests
         CollectionAssert.AreEqual(new[] { files.Third, files.Second }, loader.Preloads);
         session.ShowNextImage();
         Assert.AreEqual(files.Third, session.State.RequestedPath);
+    }
+
+    [TestMethod]
+    public void DefaultSortAppliesOnlyWithoutAnOverride()
+    {
+        using var files = new SessionFiles();
+        using ViewerSession session = CreateSession(new ManualImageLoader());
+        session.OpenImage(files.First);
+        DeliverFolder(session);
+
+        session.SetSortOverride(FolderSort.NameDescending);
+        session.SetDefaultSort(FolderSort.NameAscending);
+        Assert.AreEqual(files.Third, session.State.FolderEntries[0].FullName);
+
+        session.SetSortOverride(null);
+        Assert.AreEqual(files.First, session.State.FolderEntries[0].FullName);
     }
 
     [TestMethod]

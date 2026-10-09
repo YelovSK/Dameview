@@ -13,7 +13,8 @@ internal sealed record ContextMenuItem(
     Action Invoke,
     string? Shortcut = null,
     bool IsEnabled = true,
-    UiButtonTone Tone = UiButtonTone.Default);
+    UiButtonTone Tone = UiButtonTone.Default,
+    bool IsChecked = false);
 
 /// <summary>Actions offered at a point, in groups divided by separators.</summary>
 /// <remarks>
@@ -217,6 +218,10 @@ internal sealed class ContextMenu : UiElement
         private const float ShortcutGap = 32.0f;
         private static readonly UiFont LabelFont = new(UiDesign.BodyFontSize, FontWeight.Medium);
         private static readonly UiFont ShortcutFont = new(12.0f, Alignment: TextAlignment.Trailing);
+        private static readonly UiFont CheckFont = new(
+            12.0f,
+            Alignment: TextAlignment.Trailing,
+            Family: UiTypography.IconFontFamily);
 
         private readonly ContextMenu _menu;
 
@@ -239,6 +244,10 @@ internal sealed class ContextMenu : UiElement
             if (Item.Shortcut is { } shortcut)
             {
                 width += ShortcutGap + MeasureText(shortcut, ShortcutFont);
+            }
+            else if (Item.IsChecked)
+            {
+                width += ShortcutGap + MeasureText(UiTypography.CheckMarkIcon, CheckFont);
             }
 
             return new SizeF(width, Height);
@@ -268,6 +277,10 @@ internal sealed class ContextMenu : UiElement
             if (Item.Shortcut is { } shortcut)
             {
                 context.DrawText(shortcut, ShortcutFont, text, context.Palette.SecondaryText, DrawTextOptions.Clip);
+            }
+            else if (Item.IsChecked)
+            {
+                context.DrawText(UiTypography.CheckMarkIcon, CheckFont, text, context.Palette.Accent, DrawTextOptions.Clip);
             }
         }
 

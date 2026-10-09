@@ -101,6 +101,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
             app.SelectImage,
             app.OpenImageInNewTab,
             () => app.Execute(AppCommands.ToggleFlattenFolder, app.ActiveContext),
+            button => _contextMenus.ShowSortMenu(workspace.ActiveTab, button),
             (path, input) => _dragController.HandleGalleryPointer(_galleryPanel!, path, input),
             (path, point) => _contextMenus.ShowForGalleryItem(path, _galleryPanel!, point));
         _splitView = new SplitView(
@@ -262,6 +263,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
             }
         }
 
+        _contextMenus.DefaultSort = settings.Sort;
         _galleryEnabled = settings.GalleryEnabled;
         _splitView.SetEdge(GetGalleryEdge(settings.GalleryPlacement));
         _galleryPanel.SetOrientation(_splitView.IsHorizontal
