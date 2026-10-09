@@ -35,6 +35,7 @@ GetWindowLongPtr
 LoadCursor
 SetCursor
 MonitorFromPoint
+MonitorFromRect
 MonitorFromWindow
 GetMonitorInfo
 LoadIcon

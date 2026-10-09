@@ -516,7 +516,7 @@ internal sealed unsafe class AppWindow : IDisposable
         WINDOW_STYLE style = WINDOW_STYLE.WS_OVERLAPPEDWINDOW;
         int x = CW_USEDEFAULT;
         int y = CW_USEDEFAULT;
-        if (placement is { IsUsable: true } saved)
+        if (placement is { IsUsable: true } saved && IsOnAnyMonitor(saved))
         {
             x = saved.X;
             y = saved.Y;
@@ -548,6 +548,20 @@ internal sealed unsafe class AppWindow : IDisposable
 
             return window;
         }
+    }
+
+    // CreateWindowEx doesn't pull a window back on screen the way SetWindowPlacement does,
+    // so a placement saved on a monitor that's gone would open off-screen.
+    private static bool IsOnAnyMonitor(WindowPlacementState placement)
+    {
+        RECT bounds = new()
+        {
+            left = placement.X,
+            top = placement.Y,
+            right = placement.X + placement.Width,
+            bottom = placement.Y + placement.Height,
+        };
+        return !MonitorFromRect(bounds, MONITOR_FROM_FLAGS.MONITOR_DEFAULTTONULL).IsNull;
     }
 
     private static void RegisterWindowClass(nint instance)
