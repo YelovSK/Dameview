@@ -1,5 +1,6 @@
 using System.Drawing;
 using Dameview.Commands;
+using Dameview.Imaging;
 using Dameview.Imaging.Loading;
 using Dameview.UI.Foundation;
 using Dameview.UI.Layout;
@@ -25,6 +26,10 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     private readonly Overlay _contentOverlay;
     private readonly ToolbarPanel _toolbarPanel;
     private readonly StatusPanel _statusPanel;
+    private readonly ImageDetailsReader _detailsReader;
+    // The image whose info is read or being read; none while the panel is collapsed.
+    private string? _infoPath;
+    private CancellationTokenSource? _infoCancellation;
     private ViewerSessionState _state;
     private string _fileName;
     private bool _pointerNearToolbar;
@@ -37,11 +42,13 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         ViewerContextMenus contextMenus,
         Action<int> selectTab,
         Action<ViewerPane, int, WorkspaceDragEvent> tabDragPointer,
-        ViewerKeyBindings keyBindings)
+        ViewerKeyBindings keyBindings,
+        ImageDetailsReader detailsReader)
     {
         void Run(Command command, ViewerTab target) => commands.Execute(command, CommandContext.For(target));
 
         Pane = pane;
+        _detailsReader = detailsReader;
         ViewerTab tab = pane.ActiveTab;
         ViewerSession session = tab.Session;
         _state = session.State;
@@ -69,7 +76,9 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             VerticalAlignment = UiAlignment.Start,
             Margin = new UiThickness(UiDesign.WindowMargin),
         };
-        _statusPanel = new StatusPanel
+        _statusPanel = new StatusPanel(
+            () => Run(AppCommands.ToggleImageInfo, Pane.ActiveTab),
+            AppCommands.ToggleImageInfo.Label)
         {
             HorizontalAlignment = UiAlignment.Center,
             VerticalAlignment = UiAlignment.End,
@@ -117,6 +126,17 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         }
     } = true;
 
+    internal bool InfoExpanded
+    {
+        get => _statusPanel.IsExpanded;
+        set
+        {
+            _statusPanel.IsExpanded = value;
+            UpdateChromeVisibility();
+            RefreshInfo();
+        }
+    }
+
     internal bool SharpPixels
     {
         get => _imagePanel.SharpPixels;
@@ -152,7 +172,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         // The title bar stays to drag the window by even with no tabs to show.
         _tabRow.IsVisible = _viewerTabs.IsVisible || _tabRow.InTitleBar;
         _toolbarPanel.IsPresent = ChromeVisible && hasImage && _pointerNearToolbar;
-        _statusPanel.IsPresent = ChromeVisible && HasStatus && (_pointerNearStatus || _statusPanel.HasMessage);
+        _statusPanel.IsPresent = ChromeVisible && HasStatus && (_pointerNearStatus || _statusPanel.HasMessage || _statusPanel.IsExpanded);
     }
 
     internal RectangleF GetImageBoundsRelativeTo(UiElement ancestor) => _imagePanel.GetBoundsRelativeTo(ancestor);
@@ -180,7 +200,53 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         }
 
         UpdateChromeVisibility();
+        RefreshInfo();
         InvalidateVisual();
+    }
+
+    // Reading the info touches the file, so it only happens while the panel shows it.
+    private void RefreshInfo()
+    {
+        string? path = _statusPanel.IsExpanded ? _state.DisplayedImage?.Path : null;
+        if (path == _infoPath)
+        {
+            return;
+        }
+
+        _infoCancellation?.Cancel();
+        _infoCancellation = null;
+        _infoPath = path;
+        if (path is not null)
+        {
+            _infoCancellation = new CancellationTokenSource();
+            _ = LoadInfoAsync(path, _infoCancellation);
+        }
+    }
+
+    // Owns the cancellation source, so a newer read only cancels it and never disposes it while this one uses it.
+    private async Task LoadInfoAsync(string path, CancellationTokenSource cancellation)
+    {
+        CancellationToken token = cancellation.Token;
+        try
+        {
+            ImageDetails info = await _detailsReader.ReadAsync(path, token);
+            if (!token.IsCancellationRequested)
+            {
+                _statusPanel.SetInfo(info);
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            if (ReferenceEquals(_infoCancellation, cancellation))
+            {
+                _infoCancellation = null;
+            }
+
+            cancellation.Dispose();
+        }
     }
 
     internal void ApplyTabs()
@@ -266,6 +332,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
 
     public void Dispose()
     {
+        _infoCancellation?.Cancel();
         _emptyStatePanel.Dispose();
         _imagePanel.Dispose();
     }

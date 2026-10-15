@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Drawing;
 using Dameview.Commands;
 using Dameview.Diagnostics;
+using Dameview.Imaging;
 using Dameview.Imaging.Loading;
 using Dameview.Notifications;
 using Dameview.Settings;
@@ -50,6 +51,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     // Read when a pane view is created, so panes opened later show the current bindings.
     private ViewerKeyBindings _keyBindings = ViewerKeyBindings.Defaults;
     private bool _sharpPixels;
+    private bool _infoExpanded;
     // In DIPs; the window center stands in until the pointer first moves.
     private PointF? _pointer;
 
@@ -64,6 +66,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
         PerformanceMonitor performanceMonitor,
         ToastService toasts,
         WindowButtons windowButtons,
+        ImageDetailsReader detailsReader,
         TimeProvider? timeProvider = null)
     {
         _host = new UiHost(this, deviceContext, directWriteFactory, dpi, theme, timeProvider);
@@ -82,10 +85,12 @@ internal sealed class ViewerUi : UiElement, IDisposable
                 _contextMenus,
                 index => app.SelectTab(pane, index),
                 (tabPane, tabIndex, input) => _dragController!.HandleTabPointer(tabPane, tabIndex, input),
-                _keyBindings)
+                _keyBindings,
+                detailsReader)
             {
                 SharpPixels = _sharpPixels,
                 ChromeVisible = _chromeVisible,
+                InfoExpanded = _infoExpanded,
             },
             _host.CreateSnapshot);
         _workspaceView.SetActivePane(workspace.ActivePane);
@@ -323,6 +328,15 @@ internal sealed class ViewerUi : UiElement, IDisposable
     internal void SetHiddenTop(float dips) => Margin = new UiThickness(0.0f, dips, 0.0f, 0.0f);
 
     internal void CenterGallerySelection() => _galleryPanel.CenterSelection();
+
+    internal void ToggleImageInfo()
+    {
+        _infoExpanded = !_infoExpanded;
+        foreach (ViewerPaneView paneView in _workspaceView.PaneViews)
+        {
+            paneView.InfoExpanded = _infoExpanded;
+        }
+    }
 
     internal void TogglePerformanceOverlay()
     {

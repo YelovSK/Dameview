@@ -3,6 +3,7 @@ using System.Drawing;
 using Dameview.App;
 using Dameview.Commands;
 using Dameview.Diagnostics;
+using Dameview.Imaging;
 using Dameview.Imaging.Decoding;
 using Dameview.Imaging.Loading;
 using Dameview.Installation;
@@ -45,6 +46,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
     private readonly Timer _updateCheckTimer;
     private readonly ToastService _toasts = new();
     private readonly FileActions _files;
+    private readonly ImageDetailsReader _detailsReader = new();
     private Task<ID3D11Device>? _pendingHardwareDevice;
     private long _memorySampled;
 
@@ -139,7 +141,8 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
             _images,
             _performanceMonitor,
             _toasts,
-            windowButtons);
+            windowButtons,
+            _detailsReader);
         _drawFrame = _ui.DrawFrame;
         StartupTrace.Mark("ui");
         _ui.Invalidated += _window.RequestRepaint;
@@ -216,6 +219,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         _updateCheckTimer.Dispose();
         _settings.Dispose();
         _files.Dispose();
+        _detailsReader.Dispose();
         // Closing before the hardware device arrives leaves nothing else to own it.
         _ = _pendingHardwareDevice?.ContinueWith(
             static completed => completed.Result.Dispose(),

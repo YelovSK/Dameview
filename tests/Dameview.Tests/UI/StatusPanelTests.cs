@@ -27,7 +27,7 @@ public sealed class StatusPanelTests
     {
         using IDWriteFactory1 factory = DWriteCreateFactory<IDWriteFactory1>();
         using var layouts = new UiTextLayoutCache(factory);
-        var panel = new StatusPanel();
+        var panel = new StatusPanel(() => { }, "Toggle");
         _ = new UiRoot(panel, UiDpi.Default, layouts);
         panel.SetStatus(new ViewerStatus("photo.png", 1920, 1080, 2048L, 100, null, false));
         var available = new SizeF(600.0f, StatusPanel.HeightDips);

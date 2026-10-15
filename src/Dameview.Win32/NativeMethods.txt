@@ -72,6 +72,12 @@ SHObjectProperties
 SHFileOperation
 FO_DELETE
 FILEOPERATION_FLAGS
+IPropertyStore
+GETPROPERTYSTOREFLAGS
+PSGetPropertyKeyFromName
+PSFormatForDisplayAlloc
+PROPDESC_FORMAT_FLAGS
+PropVariantClear
 
 // Ole32
 CoInitializeEx

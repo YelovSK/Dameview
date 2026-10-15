@@ -150,6 +150,11 @@ internal static class AppCommands
         host => host.UpdateSettings(settings => settings with { GalleryEnabled = !settings.GalleryEnabled }),
         shortcuts: [new(WindowKey.G, Control: true)]);
 
+    internal static readonly Command ToggleImageInfo = Command.Global(
+        "toggleImageInfo", "Toggle image info", CommandScope.Viewer,
+        host => host.Ui.ToggleImageInfo(),
+        shortcuts: [new(WindowKey.I)]);
+
     internal static readonly Command ToggleFlattenFolder = Command.ForTab(
         "toggleFlattenFolder", "Toggle flatten folder", CommandScope.Viewer,
         (_, tab) => tab.Session.ToggleFlattenFolder());
@@ -229,6 +234,7 @@ internal static class AppCommands
         DeleteFile,
         ToggleFullscreen,
         ToggleGallery,
+        ToggleImageInfo,
         ToggleFlattenFolder,
         SplitRight,
         SplitDown,

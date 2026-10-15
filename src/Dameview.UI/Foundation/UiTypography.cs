@@ -12,4 +12,6 @@ internal static class UiTypography
     internal const string SortIcon = "\uE8CB";
     internal const string LinkIcon = "\uE71B";
     internal const string CheckMarkIcon = "\uE73E";
+    internal const string ChevronUpIcon = "\uE70E";
+    internal const string ChevronDownIcon = "\uE70D";
 }
