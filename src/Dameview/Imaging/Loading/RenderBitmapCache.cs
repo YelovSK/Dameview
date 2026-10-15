@@ -128,7 +128,7 @@ internal sealed class RenderBitmapCache : IDisposable
                 _disposeBitmap(entry.Bitmap);
             }
 
-            entry.Pixels = null;
+            entry.ReleasePixels();
         }
 
         _entries.Clear();
@@ -169,7 +169,7 @@ internal sealed class RenderBitmapCache : IDisposable
         {
             foreach (CachedBitmap entry in _recentlyUsed)
             {
-                entry.Pixels = null;
+                entry.ReleasePixels();
             }
 
             throw;
@@ -205,7 +205,7 @@ internal sealed class RenderBitmapCache : IDisposable
         foreach (CachedBitmap entry in _recentlyUsed)
         {
             entry.Bitmap = uploaded[index++];
-            entry.Pixels = null;
+            entry.ReleasePixels();
         }
     }
 
@@ -308,12 +308,18 @@ internal sealed class CachedBitmap(
     /// Held only between reading the bitmap back and uploading it again; while it is set,
     /// <see cref="Bitmap"/> has been released.
     /// </summary>
-    internal DecodedImage? Pixels { get; set; }
+    internal DecodedImageUpload? Pixels { get; set; }
     internal int Width { get; } = width;
     internal int Height { get; } = height;
     internal ImageOrientation Orientation { get; } = orientation;
     internal long SizeBytes { get; } = sizeBytes;
     internal int PinCount { get; set; }
+
+    internal void ReleasePixels()
+    {
+        Pixels?.Dispose();
+        Pixels = null;
+    }
 }
 
 /// <summary>Keeps a cached bitmap from being evicted until disposed.</summary>

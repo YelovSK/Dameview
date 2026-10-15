@@ -223,7 +223,7 @@ internal sealed class FakeTileSource : IImageTileSource
     public int Height => 10_000;
     public ImageOrientation Orientation => default;
     public int TileSize => 2048;
-    public DecodedImage Overview { get; } = FakeImageDecoder.CreateImage();
+    public DecodedImageUpload Overview { get; } = DecodedImageUpload.Allocate(1, 1, 4);
     internal bool IsDisposed { get; private set; }
 
     public IImageTileDecoder CreateTileDecoder() => throw new NotSupportedException();

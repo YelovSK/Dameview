@@ -7,14 +7,14 @@ internal interface IImageTileSource : IDisposable
     /// <summary>Tiles and the overview are in stored order; this says how to show them.</summary>
     public ImageOrientation Orientation { get; }
     public int TileSize { get; }
-    public DecodedImage Overview { get; }
+    public DecodedImageUpload Overview { get; }
 
     public IImageTileDecoder CreateTileDecoder();
 }
 
 internal interface IImageTileDecoder : IDisposable
 {
-    public DecodedImage DecodeTile(ImageTile tile, CancellationToken cancellationToken);
+    public DecodedImageUpload DecodeTile(ImageTile tile, CancellationToken cancellationToken);
 }
 
 internal readonly record struct ImageTile(

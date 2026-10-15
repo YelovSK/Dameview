@@ -13,7 +13,7 @@ internal sealed class TileDecodeScheduler : IDisposable
 
     private readonly IImageTileSource _source;
     private readonly SynchronizationContext _uiContext;
-    private readonly Action<ImageTile, DecodedImage?> _completed;
+    private readonly Action<ImageTile, DecodedImageUpload?> _completed;
     private readonly int _maximumWorkers;
     private readonly Lock _gate = new();
     private readonly List<ImageTile> _pending = [];
@@ -24,7 +24,7 @@ internal sealed class TileDecodeScheduler : IDisposable
 
     internal TileDecodeScheduler(
         IImageTileSource source,
-        Action<ImageTile, DecodedImage?> completed,
+        Action<ImageTile, DecodedImageUpload?> completed,
         int? maximumWorkers = null,
         SynchronizationContext? uiContext = null)
     {
@@ -83,7 +83,7 @@ internal sealed class TileDecodeScheduler : IDisposable
             {
                 try
                 {
-                    DecodedImage image = decoder.DecodeTile(tile, token);
+                    DecodedImageUpload image = decoder.DecodeTile(tile, token);
                     Publish(tile, image, token);
                 }
                 catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -165,7 +165,7 @@ internal sealed class TileDecodeScheduler : IDisposable
 
     private void Publish(
         ImageTile tile,
-        DecodedImage? image,
+        DecodedImageUpload? image,
         CancellationToken token)
     {
         var published = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -179,6 +179,7 @@ internal sealed class TileDecodeScheduler : IDisposable
                 }
                 finally
                 {
+                    image?.Dispose();
                     lock (_gate)
                     {
                         _scheduled.Remove(tile);
@@ -195,6 +196,8 @@ internal sealed class TileDecodeScheduler : IDisposable
         }
         catch
         {
+            // Only posting can fail here, so the callback never got the image.
+            image?.Dispose();
             lock (_gate)
             {
                 _scheduled.Remove(tile);

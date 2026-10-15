@@ -1,5 +1,4 @@
 using Dameview.Imaging.Decoding;
-using SharpGen.Runtime;
 using Vortice.Mathematics;
 using Vortice.WIC;
 
@@ -18,7 +17,7 @@ internal sealed class WicImageTileSource : IImageTileSource
         int width,
         int height,
         ImageOrientation orientation,
-        DecodedImage overview)
+        DecodedImageUpload overview)
     {
         _path = path;
         Width = width;
@@ -31,7 +30,7 @@ internal sealed class WicImageTileSource : IImageTileSource
     public int Height { get; }
     public ImageOrientation Orientation { get; }
     public int TileSize => DefaultTileSize;
-    public DecodedImage Overview { get; }
+    public DecodedImageUpload Overview { get; }
 
     internal static IImageTileSource Open(string path)
     {
@@ -46,7 +45,7 @@ internal sealed class WicImageTileSource : IImageTileSource
         int width = frame.Size.Width;
         int height = frame.Size.Height;
         (int overviewWidth, int overviewHeight) = CalculateOverviewSize(width, height);
-        DecodedImage overview = DecodeSource(factory, frame, overviewWidth, overviewHeight);
+        DecodedImageUpload overview = DecodeSource(factory, frame, overviewWidth, overviewHeight);
         return new WicImageTileSource(fullPath, width, height, ImageDecoder.GetOrientation(frame), overview);
     }
 
@@ -56,7 +55,7 @@ internal sealed class WicImageTileSource : IImageTileSource
         return new TileDecoder(_path, Width, Height);
     }
 
-    private static DecodedImage DecodeTileCore(
+    private static DecodedImageUpload DecodeTileCore(
         IWICImagingFactory2 factory,
         IWICBitmapFrameDecode frame,
         int imageWidth,
@@ -86,11 +85,7 @@ internal sealed class WicImageTileSource : IImageTileSource
             converter.Initialize(scaler, PixelFormat.Format32bppPBGRA).CheckError();
         }
 
-        int stride = DecodedImage.GetStride(tile.Width);
-        byte[] pixels = GC.AllocateUninitializedArray<byte>(checked(stride * tile.Height));
-        converter.CopyPixels((uint)stride, pixels);
-        token.ThrowIfCancellationRequested();
-        return new DecodedImage(tile.Width, tile.Height, stride, pixels);
+        return CopyPixels(converter, tile.Width, tile.Height, token);
     }
 
     private sealed class TileDecoder : IImageTileDecoder
@@ -122,7 +117,7 @@ internal sealed class WicImageTileSource : IImageTileSource
             }
         }
 
-        public DecodedImage DecodeTile(ImageTile tile, CancellationToken cancellationToken)
+        public DecodedImageUpload DecodeTile(ImageTile tile, CancellationToken cancellationToken)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             int levelWidth = ImageTile.GetLevelDimension(_width, tile.Level);
@@ -154,7 +149,7 @@ internal sealed class WicImageTileSource : IImageTileSource
         }
     }
 
-    private static DecodedImage DecodeSource(
+    private static DecodedImageUpload DecodeSource(
         IWICImagingFactory factory,
         IWICBitmapFrameDecode frame,
         int width,
@@ -164,10 +159,27 @@ internal sealed class WicImageTileSource : IImageTileSource
         scaler.Initialize(frame, (uint)width, (uint)height, BitmapInterpolationMode.Fant);
         using IWICFormatConverter converter = factory.CreateFormatConverter();
         converter.Initialize(scaler, PixelFormat.Format32bppPBGRA).CheckError();
-        int stride = DecodedImage.GetStride(width);
-        byte[] pixels = GC.AllocateUninitializedArray<byte>(checked(stride * height));
-        converter.CopyPixels((uint)stride, pixels);
-        return new DecodedImage(width, height, stride, pixels);
+        return CopyPixels(converter, width, height, CancellationToken.None);
+    }
+
+    private static DecodedImageUpload CopyPixels(
+        IWICBitmapSource source,
+        int width,
+        int height,
+        CancellationToken token)
+    {
+        var pixels = DecodedImageUpload.Allocate(width, height, DecodedImage.GetStride(width));
+        try
+        {
+            source.CopyPixels((uint)pixels.Stride, pixels.Span);
+            token.ThrowIfCancellationRequested();
+            return pixels;
+        }
+        catch
+        {
+            pixels.Dispose();
+            throw;
+        }
     }
 
     private static (int Width, int Height) CalculateOverviewSize(int width, int height)
@@ -183,6 +195,6 @@ internal sealed class WicImageTileSource : IImageTileSource
     public void Dispose()
     {
         _disposed = true;
-        Overview.Pixels.AsSpan().Clear();
+        Overview.Dispose();
     }
 }

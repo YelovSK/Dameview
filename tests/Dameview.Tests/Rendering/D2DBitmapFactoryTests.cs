@@ -26,7 +26,7 @@ public sealed class D2DBitmapFactoryTests
         DecodedImage source = CreateImage(width, height);
 
         using ID2D1Bitmap1 bitmap = D2DBitmapFactory.Create(device.Context, source);
-        DecodedImage readBack = D2DBitmapFactory.ReadBack(device.Context, bitmap);
+        using DecodedImageUpload readBack = D2DBitmapFactory.ReadBack(device.Context, bitmap);
 
         Assert.AreEqual(source.Width, readBack.Width);
         Assert.AreEqual(source.Height, readBack.Height);
@@ -44,9 +44,9 @@ public sealed class D2DBitmapFactoryTests
         DecodedImage source = CreateImage(width, height);
 
         using ID2D1Bitmap1 original = D2DBitmapFactory.Create(first.Context, source);
-        DecodedImage moved = D2DBitmapFactory.ReadBack(first.Context, original);
+        using DecodedImageUpload moved = D2DBitmapFactory.ReadBack(first.Context, original);
         using ID2D1Bitmap1 uploaded = D2DBitmapFactory.Create(second.Context, moved);
-        DecodedImage arrived = D2DBitmapFactory.ReadBack(second.Context, uploaded);
+        using DecodedImageUpload arrived = D2DBitmapFactory.ReadBack(second.Context, uploaded);
 
         AssertSameRows(source, arrived);
     }
@@ -64,7 +64,7 @@ public sealed class D2DBitmapFactoryTests
         return new DecodedImage(width, height, stride, pixels);
     }
 
-    private static void AssertSameRows(DecodedImage expected, DecodedImage actual)
+    private static void AssertSameRows(DecodedImage expected, DecodedImageUpload actual)
     {
         int rowBytes = expected.Width * 4;
         for (int y = 0; y < expected.Height; y++)
@@ -73,7 +73,7 @@ public sealed class D2DBitmapFactoryTests
             {
                 Assert.AreEqual(
                     expected.Pixels[(y * expected.Stride) + x],
-                    actual.Pixels[(y * actual.Stride) + x],
+                    actual.Span[(y * actual.Stride) + x],
                     $"row {y}, byte {x}");
             }
         }

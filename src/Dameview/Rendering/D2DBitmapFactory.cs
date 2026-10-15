@@ -1,5 +1,4 @@
 using System.Numerics;
-using System.Runtime.InteropServices;
 using Dameview.Imaging;
 using Vortice.DCommon;
 using Vortice.Direct2D1;
@@ -42,6 +41,13 @@ internal static class D2DBitmapFactory
         }
     }
 
+    internal static ID2D1Bitmap1 Create(ID2D1DeviceContext deviceContext, DecodedImageUpload image) =>
+        deviceContext.CreateBitmap(
+            new SizeI(image.Width, image.Height),
+            image.Pixels,
+            (uint)image.Stride,
+            ImageProperties);
+
     /// <summary>Wraps a texture from <see cref="CreateTexture(ID3D11Device, DecodedImage)"/> or its overload.</summary>
     internal static ID2D1Bitmap1 Create(ID2D1DeviceContext deviceContext, ID3D11Texture2D texture)
     {
@@ -80,7 +86,7 @@ internal static class D2DBitmapFactory
     }
 
     /// <summary>Copies a bitmap to system memory, so it can move to another device.</summary>
-    internal static DecodedImage ReadBack(ID2D1DeviceContext deviceContext, ID2D1Bitmap1 bitmap)
+    internal static unsafe DecodedImageUpload ReadBack(ID2D1DeviceContext deviceContext, ID2D1Bitmap1 bitmap)
     {
         SizeI pixelSize = bitmap.PixelSize;
         BitmapProperties1 properties = new(
@@ -95,9 +101,9 @@ internal static class D2DBitmapFactory
         try
         {
             int stride = checked((int)mapped.Pitch);
-            byte[] pixels = new byte[(long)stride * pixelSize.Height];
-            Marshal.Copy(mapped.Bits, pixels, 0, pixels.Length);
-            return new DecodedImage(pixelSize.Width, pixelSize.Height, stride, pixels);
+            var pixels = DecodedImageUpload.Allocate(pixelSize.Width, pixelSize.Height, stride);
+            new ReadOnlySpan<byte>((void*)mapped.Bits, pixels.Length).CopyTo(pixels.Span);
+            return pixels;
         }
         finally
         {

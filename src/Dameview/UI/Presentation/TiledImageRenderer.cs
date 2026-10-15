@@ -244,7 +244,7 @@ internal sealed class TiledImageRenderer : IDisposable
 
     // A decode that is no longer wanted is kept anyway: eviction drops unwanted tiles first,
     // and panning back would otherwise pay for the same decode again.
-    private void CompleteTile(ImageTile tile, DecodedImage? image)
+    private void CompleteTile(ImageTile tile, DecodedImageUpload? image)
     {
         if (_disposed)
         {

@@ -201,19 +201,19 @@ public sealed class TileDecodeSchedulerTests
     private static ImageTile[] CreateTiles(int startX, int count) =>
         [.. Enumerable.Range(startX, count).Select(x => new ImageTile(x, 0, 1, 1))];
 
-    private static DecodedImage CreateImage() => new(1, 1, 4, [0, 0, 0, 255]);
+    private static DecodedImageUpload CreateImage() => DecodedImageUpload.Allocate(1, 1, 4);
 
     private sealed class FakeTileSource(
-        Func<ImageTile, CancellationToken, DecodedImage> decode) : IImageTileSource
+        Func<ImageTile, CancellationToken, DecodedImageUpload> decode) : IImageTileSource
     {
-        private readonly Func<ImageTile, CancellationToken, DecodedImage> _decode = decode;
+        private readonly Func<ImageTile, CancellationToken, DecodedImageUpload> _decode = decode;
         private int _createdDecoders;
 
         public int Width => 10_000;
         public int Height => 10_000;
         public ImageOrientation Orientation => default;
         public int TileSize => 1;
-        public DecodedImage Overview { get; } = CreateImage();
+        public DecodedImageUpload Overview { get; } = CreateImage();
         internal int CreatedDecoders => Volatile.Read(ref _createdDecoders);
 
         public IImageTileDecoder CreateTileDecoder()
@@ -227,9 +227,9 @@ public sealed class TileDecodeSchedulerTests
         }
 
         private sealed class FakeTileDecoder(
-            Func<ImageTile, CancellationToken, DecodedImage> decode) : IImageTileDecoder
+            Func<ImageTile, CancellationToken, DecodedImageUpload> decode) : IImageTileDecoder
         {
-            public DecodedImage DecodeTile(ImageTile tile, CancellationToken cancellationToken) =>
+            public DecodedImageUpload DecodeTile(ImageTile tile, CancellationToken cancellationToken) =>
                 decode(tile, cancellationToken);
 
             public void Dispose()
