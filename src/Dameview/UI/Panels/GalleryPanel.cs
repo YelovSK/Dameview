@@ -52,7 +52,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private string _footerText = string.Empty;
     private GalleryThumbnailSize _thumbnailSize = GalleryThumbnailSize.Medium;
     private UiOrientation _orientation = UiOrientation.Vertical;
-    private SelectionScrollAlignment? _pendingSelectionScroll;
+    private SelectionScroll? _pendingSelectionScroll;
     private int _hoveredIndex = -1;
     private string? _pressedPath;
 
@@ -156,20 +156,25 @@ internal sealed class GalleryPanel : UiElement, IDisposable
             SetHoveredIndex(-1);
         }
 
+        _selectedPath = session.RequestedPath;
         if (entriesChanged)
         {
+            // A selection that was already listed keeps the place the user scrolled to. One that
+            // just appeared, as in a newly opened folder, has no place yet, so it starts centered.
+            bool wasListed = IndexOfSelection() >= 0;
             _state.Entries = session.FolderEntries;
-            _pendingSelectionScroll = SelectionScrollAlignment.EnsureVisible;
+            _pendingSelectionScroll = new(
+                wasListed ? SelectionScrollAlignment.Nearest : SelectionScrollAlignment.Center,
+                Animated: false);
         }
 
-        _selectedPath = session.RequestedPath;
         SyncScroll();
         InvalidateVisual();
     }
 
     internal void CenterSelection()
     {
-        _pendingSelectionScroll = SelectionScrollAlignment.Center;
+        _pendingSelectionScroll = new(SelectionScrollAlignment.Center, Animated: true);
         RevealSelectionIfPending();
     }
 
@@ -192,7 +197,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         }
 
         _thumbnailSize = size;
-        _pendingSelectionScroll = SelectionScrollAlignment.EnsureVisible;
+        _pendingSelectionScroll = new(SelectionScrollAlignment.Nearest, Animated: false);
         InvalidateLayout();
     }
 
@@ -568,7 +573,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     {
         GalleryLayout layout = Layout;
         // An unsized panel is about to be arranged, so the request waits for that call.
-        if (_pendingSelectionScroll is not { } alignment || layout.ViewportLength <= 0.0f)
+        if (_pendingSelectionScroll is not { } request || layout.ViewportLength <= 0.0f)
         {
             return;
         }
@@ -576,25 +581,28 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         // A selection outside the folder may never appear, and reviving the request later
         // would scroll somewhere the user has long stopped expecting. Reveal it now or never.
         _pendingSelectionScroll = null;
-        int selected = Array.FindIndex(_state.Entries, entry => SamePath(entry.FullName, _selectedPath));
+        int selected = IndexOfSelection();
         if (selected < 0)
         {
             return;
         }
 
-        if (alignment == SelectionScrollAlignment.Center)
+        float offset = request.Alignment == SelectionScrollAlignment.Center
+            ? layout.GetCenteredOffset(selected)
+            : layout.GetRevealOffset(selected, _state.ScrollOffset.TargetOffset);
+
+        if (!request.Animated)
         {
-            if (_state.ScrollOffset.SetTarget(layout.GetCenteredOffset(selected)))
-            {
-                InvalidateVisual();
-            }
-
-            return;
+            _state.ScrollOffset.SetImmediate(offset);
         }
-
-        _state.ScrollOffset.SetImmediate(
-            layout.GetRevealOffset(selected, _state.ScrollOffset.TargetOffset));
+        else if (_state.ScrollOffset.SetTarget(offset))
+        {
+            InvalidateVisual();
+        }
     }
+
+    private int IndexOfSelection() =>
+        Array.FindIndex(_state.Entries, entry => SamePath(entry.FullName, _selectedPath));
 
     private void SyncScroll()
     {
@@ -639,7 +647,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
 
         _state.Orientation = _orientation;
         _state.ScrollOffset.SetImmediate(0.0f);
-        _pendingSelectionScroll = SelectionScrollAlignment.EnsureVisible;
+        _pendingSelectionScroll = new(SelectionScrollAlignment.Center, Animated: false);
     }
 
     private void ClearSlots()
@@ -652,9 +660,14 @@ internal sealed class GalleryPanel : UiElement, IDisposable
         _slots.Clear();
     }
 
+    private readonly record struct SelectionScroll(SelectionScrollAlignment Alignment, bool Animated);
+
     private enum SelectionScrollAlignment
     {
-        EnsureVisible,
+        /// <summary>Moves by as little as it takes to show the selection.</summary>
+        Nearest,
+
+        /// <summary>Puts the selection in the middle.</summary>
         Center,
     }
 }
