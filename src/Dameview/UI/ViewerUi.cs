@@ -173,7 +173,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
         workspace.PaneActiveTabChanged += HandleActiveTabChanged;
         workspace.PaneSessionStateChanged += HandleSessionStateChanged;
         workspace.PaneTabsChanged += pane => _workspaceView.FindPaneView(pane)?.ApplyTabs();
-        workspace.ViewportSyncChanged += HandleViewportSyncChanged;
+        workspace.ViewportSyncChanged += ApplyPaneButtons;
+        workspace.MaximizedPaneChanged += HandleMaximizedPaneChanged;
 
         ApplyActivePaneState();
     }
@@ -221,19 +222,24 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _workspaceView.ApplyLayout(_workspace.Root, openingSplit);
         _workspaceView.SetActivePane(_workspace.ActivePane);
         ApplyTitleBar();
-        ApplyViewportSync();
+        ApplyPaneButtons();
     }
 
-    private void HandleViewportSyncChanged()
+    private void HandleMaximizedPaneChanged()
     {
-        ApplyViewportSync();
+        _host.Root.ClearPointer();
+        _workspaceView.SetMaximizedPane(_workspace.MaximizedPane);
+        ApplyPaneButtons();
     }
 
-    private void ApplyViewportSync()
+    private void ApplyPaneButtons()
     {
         foreach (ViewerPaneView paneView in _workspaceView.PaneViews)
         {
-            paneView.SetViewportSync(_workspace.IsSplit, _workspace.IsViewportSynced);
+            paneView.SetPaneButtons(
+                _workspace.IsSplit,
+                _workspace.IsViewportSynced,
+                ReferenceEquals(paneView.Pane, _workspace.MaximizedPane));
         }
 
         _host.Root.InvalidateVisual();

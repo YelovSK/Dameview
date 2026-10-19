@@ -724,6 +724,63 @@ public sealed class ViewerWorkspaceTests
         Assert.IsFalse(workspace.ReopenClosedTab());
     }
 
+    [TestMethod]
+    public void TogglingMaximizesTheActivePaneAndTogglingAgainRestoresIt()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane first = workspace.ActivePane;
+        workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
+        int changes = 0;
+        workspace.MaximizedPaneChanged += () => changes++;
+
+        workspace.ToggleMaximizedPane();
+        Assert.AreSame(first, workspace.MaximizedPane);
+        Assert.AreSame(first, workspace.ActivePane);
+
+        workspace.ToggleMaximizedPane();
+        Assert.IsNull(workspace.MaximizedPane);
+        Assert.AreEqual(2, changes);
+    }
+
+    [TestMethod]
+    public void ASinglePaneHasNothingToBeMaximizedOver()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+
+        workspace.ToggleMaximizedPane();
+
+        Assert.IsNull(workspace.MaximizedPane);
+    }
+
+    [TestMethod]
+    public void SelectingAnotherPaneRestoresTheMaximizedOne()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane first = workspace.ActivePane;
+        ViewerPane second = workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
+        workspace.SelectPane(second);
+        workspace.ToggleMaximizedPane();
+
+        workspace.SelectPane(first);
+
+        Assert.IsNull(workspace.MaximizedPane);
+    }
+
+    [TestMethod]
+    public void ChangingTheLayoutEndsAMaximize()
+    {
+        using var workspace = new ViewerWorkspace(CreateTab);
+        ViewerPane first = workspace.ActivePane;
+        workspace.SplitPane(first, WorkspaceSplitOrientation.Horizontal);
+        workspace.ToggleMaximizedPane();
+        ViewerPane? maximizedDuringChange = first;
+        workspace.LayoutChanged += _ => maximizedDuringChange = workspace.MaximizedPane;
+
+        workspace.SplitPane(first, WorkspaceSplitOrientation.Vertical);
+
+        Assert.IsNull(maximizedDuringChange);
+    }
+
     private static ViewerTab CreateTab()
     {
         var monitor = new SilentFolderMonitor();

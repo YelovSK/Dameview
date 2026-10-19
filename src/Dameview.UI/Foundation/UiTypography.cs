@@ -11,6 +11,8 @@ internal static class UiTypography
     internal const string LocateIcon = "\uE81D";
     internal const string SortIcon = "\uE8CB";
     internal const string LinkIcon = "\uE71B";
+    internal const string FullScreenIcon = "\uE740";
+    internal const string BackToWindowIcon = "\uE73F";
     internal const string CheckMarkIcon = "\uE73E";
     internal const string ChevronUpIcon = "\uE70E";
     internal const string ChevronDownIcon = "\uE70D";

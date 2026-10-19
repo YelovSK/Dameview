@@ -34,7 +34,7 @@ public sealed class AppCommandsTests
                 "previousImage", "nextImage", "fitImage", "showActualSize", "toggleFitActualSize",
                 "rotateLeft", "rotateRight", "flipHorizontal", "flipVertical", "copyImage", "copyFilePath", "copyFile", "showInFolder", "openWith", "showProperties",
                 "deleteFile", "toggleFullscreen", "toggleGallery", "toggleImageInfo", "toggleFlattenFolder",
-                "splitRight", "splitDown", "toggleViewportSync", "balancePanes", "optimizePaneLayout", "togglePerformanceOverlay",
+                "splitRight", "splitDown", "toggleViewportSync", "toggleMaximizedPane", "balancePanes", "optimizePaneLayout", "togglePerformanceOverlay",
                 "showSettings", "openDataFolder", "showCommandPalette",
             },
             AppCommands.All.Select(command => command.Id).ToArray());

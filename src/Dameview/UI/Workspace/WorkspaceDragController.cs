@@ -185,7 +185,8 @@ internal sealed class WorkspaceDragController
         foreach (ViewerPaneView paneView in _workspaceView.PaneViews)
         {
             RectangleF paneBounds = paneView.GetBoundsRelativeTo(_coordinateSpace);
-            if (!paneBounds.Contains(point))
+            // Panes covered by a maximized one are hidden with stale bounds.
+            if (!paneView.IsVisible || !paneBounds.Contains(point))
             {
                 continue;
             }

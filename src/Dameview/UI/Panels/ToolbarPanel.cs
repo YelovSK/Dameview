@@ -12,9 +12,10 @@ internal sealed class ToolbarPanel : UiElement
 {
     internal const float HeightDips = 46.0f;
     private const float WidthDips = 342.0f;
-    private const float SyncButtonWidthDips = 68.0f;
+    private const float PaneButtonWidthDips = 68.0f;
 
     private readonly Button _syncButton;
+    private readonly Button _maximizeButton;
 
     internal ToolbarPanel(ICommandRunner commands, ViewerPane pane)
     {
@@ -22,15 +23,15 @@ internal sealed class ToolbarPanel : UiElement
         Button CommandButton(string text, Command command) =>
             new(text, () => Run(command)) { ToolTip = new(command.Label) };
 
-        _syncButton = new Button(
-            UiTypography.LinkIcon,
-            () => Run(AppCommands.ToggleViewportSync),
-            fontFamily: UiTypography.IconFontFamily,
-            fontSize: 16.0f)
-        {
-            ToolTip = new(AppCommands.ToggleViewportSync.Label),
-            IsVisible = false,
-        };
+        Button PaneButton(string icon, Command command) =>
+            new(icon, () => Run(command), fontFamily: UiTypography.IconFontFamily, fontSize: 16.0f)
+            {
+                ToolTip = new(command.Label),
+                IsVisible = false,
+            };
+
+        _syncButton = PaneButton(UiTypography.LinkIcon, AppCommands.ToggleViewportSync);
+        _maximizeButton = PaneButton(UiTypography.FullScreenIcon, AppCommands.ToggleMaximizedPane);
         Button[] buttons =
         [
             CommandButton("←", AppCommands.PreviousImage),
@@ -38,6 +39,7 @@ internal sealed class ToolbarPanel : UiElement
             CommandButton("Fit", AppCommands.FitImage),
             CommandButton("1:1", AppCommands.ShowActualSize),
             _syncButton,
+            _maximizeButton,
             new Button(
                 UiTypography.SettingsIcon,
                 () => Run(AppCommands.ShowSettings),
@@ -63,11 +65,14 @@ internal sealed class ToolbarPanel : UiElement
         IsPresent = false;
     }
 
-    /// <param name="available">Whether there are other panes to sync with.</param>
-    internal void SetViewportSync(bool available, bool synced)
+    /// <summary>Shows the buttons that only mean something with other panes around.</summary>
+    internal void SetPaneButtons(bool split, bool synced, bool maximized)
     {
-        _syncButton.IsVisible = available;
+        _syncButton.IsVisible = split;
         _syncButton.IsSelected = synced;
-        MaxWidth = available ? WidthDips + SyncButtonWidthDips : WidthDips;
+        _maximizeButton.IsVisible = split;
+        _maximizeButton.IsSelected = maximized;
+        _maximizeButton.Label = maximized ? UiTypography.BackToWindowIcon : UiTypography.FullScreenIcon;
+        MaxWidth = split ? WidthDips + (2.0f * PaneButtonWidthDips) : WidthDips;
     }
 }

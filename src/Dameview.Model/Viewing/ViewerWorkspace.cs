@@ -24,7 +24,7 @@ internal sealed class ViewerWorkspace : IDisposable
     }
 
     internal event Action<ViewerPane>? ActivePaneChanged;
-    /// <summary>Raised when panes are added, removed or rearranged.</summary>
+    /// <summary>Raised when panes are added, removed or rearranged, which also ends any maximize.</summary>
     /// <remarks>A removed pane is disposed only after this returns, so listeners can still read it.</remarks>
     internal event Action<WorkspaceSplit?>? LayoutChanged;
     internal event Action? PaneRatiosChanged;
@@ -32,9 +32,12 @@ internal sealed class ViewerWorkspace : IDisposable
     internal event Action<ViewerPane>? PaneSessionStateChanged;
     internal event Action<ViewerPane>? PaneTabsChanged;
     internal event Action? ViewportSyncChanged;
+    internal event Action? MaximizedPaneChanged;
 
     internal WorkspaceNode Root { get; private set; }
     internal ViewerPane ActivePane { get; private set; }
+    /// <summary>The pane shown in place of the whole layout, which is always the active one.</summary>
+    internal ViewerPane? MaximizedPane { get; private set; }
     internal bool AutoBalancePanes { get; set; }
 
     /// <summary>Every session in the workspace, including the tabs that are not active.</summary>
@@ -52,6 +55,14 @@ internal sealed class ViewerWorkspace : IDisposable
     {
         _viewportSync = _viewportSync is null ? new ViewportSync() : null;
         ViewportSyncChanged?.Invoke();
+    }
+
+    internal void ToggleMaximizedPane()
+    {
+        if (MaximizedPane is not null || IsSplit)
+        {
+            SetMaximizedPane(MaximizedPane is null ? ActivePane : null);
+        }
     }
 
     /// <summary>Lines up the panes' views when they are synced. Called once per frame.</summary>
@@ -238,7 +249,7 @@ internal sealed class ViewerWorkspace : IDisposable
             return;
         }
 
-        Root = optimized;
+        ReplaceNode(Root, optimized);
         LayoutChanged?.Invoke(null);
     }
 
@@ -250,8 +261,19 @@ internal sealed class ViewerWorkspace : IDisposable
             return;
         }
 
+        if (MaximizedPane is not null)
+        {
+            SetMaximizedPane(null);
+        }
+
         ActivePane = pane;
         ActivePaneChanged?.Invoke(pane);
+    }
+
+    private void SetMaximizedPane(ViewerPane? pane)
+    {
+        MaximizedPane = pane;
+        MaximizedPaneChanged?.Invoke();
     }
 
     private static (int PaneCount, bool Changed) BalanceSubtree(WorkspaceNode node)
@@ -522,8 +544,11 @@ internal sealed class ViewerWorkspace : IDisposable
         }
     }
 
+    // Every change to the tree goes through here, and the LayoutChanged that follows reports the
+    // maximize as over.
     private void ReplaceNode(WorkspaceNode node, WorkspaceNode replacement)
     {
+        MaximizedPane = null;
         if (ReferenceEquals(Root, node))
         {
             Root = replacement;

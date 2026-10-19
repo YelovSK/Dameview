@@ -152,7 +152,8 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         }
     }
 
-    internal void SetViewportSync(bool available, bool synced) => _toolbarPanel.SetViewportSync(available, synced);
+    internal void SetPaneButtons(bool split, bool synced, bool maximized) =>
+        _toolbarPanel.SetPaneButtons(split, synced, maximized);
 
     internal void ApplyKeyBindings(ViewerKeyBindings keyBindings) =>
         _emptyStatePanel.ApplyKeyBindings(keyBindings);

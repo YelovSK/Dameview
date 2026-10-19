@@ -174,6 +174,12 @@ internal static class AppCommands
         host => host.Workspace.ToggleViewportSync(),
         shortcuts: [new(WindowKey.L, Control: true)]);
 
+    internal static readonly Command ToggleMaximizedPane = Command.Global(
+        "toggleMaximizedPane", "Toggle maximized pane", CommandScope.Window,
+        host => host.Workspace.ToggleMaximizedPane(),
+        host => host.Workspace.IsSplit,
+        [new(WindowKey.M, Control: true)]);
+
     internal static readonly Command BalancePanes = Command.Global(
         "balancePanes", "Balance pane layout", CommandScope.Window,
         host => host.Workspace.BalancePanes(),
@@ -239,6 +245,7 @@ internal static class AppCommands
         SplitRight,
         SplitDown,
         ToggleViewportSync,
+        ToggleMaximizedPane,
         BalancePanes,
         OptimizePaneLayout,
         TogglePerformanceOverlay,
