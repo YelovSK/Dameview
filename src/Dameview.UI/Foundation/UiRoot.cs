@@ -15,18 +15,22 @@ internal sealed class UiRoot
     // Where changed elements were drawn, in root DIPs. Where they are now is only known after layout.
     private readonly List<RectangleF> _dirtyBounds = [];
     private readonly HashSet<UiElement> _dirtyElements = [];
+    // Timestamps of Time.
+    private readonly List<long> _updateTimes = [];
     private int _activeResizes;
 
-    internal UiRoot(UiElement content, float dpi, UiTextLayoutCache textLayouts)
+    internal UiRoot(UiElement content, float dpi, UiTextLayoutCache textLayouts, TimeProvider? time = null)
     {
         ArgumentNullException.ThrowIfNull(textLayouts);
         _content = content;
         Dpi = dpi;
         TextLayouts = textLayouts;
+        Time = time ?? TimeProvider.System;
         content.AttachToRoot(this);
     }
 
     internal event Action? Invalidated;
+    internal event Action? UpdateRequested;
     internal event Action<WindowCursor>? CursorChanged;
     internal event Action<UiElement?>? PointerPressed;
     /// <summary>
@@ -40,6 +44,7 @@ internal sealed class UiRoot
     internal UiElement? KeyboardCaptor { get; private set; }
     internal UiElement? FocusedElement { get; private set; }
     internal float Dpi { get; private set; }
+    internal TimeProvider Time { get; }
     /// <summary>The shared text layouts, for elements that measure text to size themselves.</summary>
     internal UiTextLayoutCache TextLayouts { get; }
     /// <summary>How many times the tree has actually been measured and arranged.</summary>
@@ -95,7 +100,47 @@ internal sealed class UiRoot
 
     /// <summary>Advances animations in the UI tree.</summary>
     /// <returns><see langword="true"/> when another update may be needed.</returns>
-    internal bool Update(in UiUpdateContext context) => _content.UpdateTree(context);
+    internal bool Update(in UiUpdateContext context)
+    {
+        long now = Time.GetTimestamp();
+        for (int index = _updateTimes.Count - 1; index >= 0; index--)
+        {
+            if (_updateTimes[index] <= now)
+            {
+                _updateTimes.RemoveAt(index);
+            }
+        }
+
+        return _content.UpdateTree(context);
+    }
+
+    /// <summary>Updates the tree again after a delay, for things that wait rather than animate.</summary>
+    /// <remarks>Something else can update the tree sooner, so the caller checks whether its time has come.</remarks>
+    internal void RequestUpdateAfter(TimeSpan delay)
+    {
+        _updateTimes.Add(Time.GetTimestamp() + (long)(delay.TotalSeconds * Time.TimestampFrequency));
+        UpdateRequested?.Invoke();
+    }
+
+    internal TimeSpan? NextUpdateDelay
+    {
+        get
+        {
+            if (_updateTimes.Count == 0)
+            {
+                return null;
+            }
+
+            long next = _updateTimes[0];
+            for (int index = 1; index < _updateTimes.Count; index++)
+            {
+                next = Math.Min(next, _updateTimes[index]);
+            }
+
+            TimeSpan delay = Time.GetElapsedTime(Time.GetTimestamp(), next);
+            return delay > TimeSpan.Zero ? delay : TimeSpan.Zero;
+        }
+    }
     /// <summary>Ensures the tree is arranged for the specified pixel surface.</summary>
     internal void Arrange(SizeF pixelSize) => EnsureLayout(pixelSize);
 

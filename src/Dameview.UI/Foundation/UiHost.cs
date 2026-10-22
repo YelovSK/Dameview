@@ -35,7 +35,7 @@ internal sealed class UiHost : IDisposable
         _textLayouts = new UiTextLayoutCache(directWriteFactory);
         _animationClock = new UiAnimationClock(timeProvider);
         Palette = palette;
-        Root = new UiRoot(content, dpi, _textLayouts);
+        Root = new UiRoot(content, dpi, _textLayouts, timeProvider);
     }
 
     internal UiRoot Root { get; }
@@ -58,18 +58,24 @@ internal sealed class UiHost : IDisposable
             }
 
             field = value;
-            ResetClock();
+            _animationClock.Reset();
             Root.InvalidateVisual();
         }
     } = true;
 
     /// <summary>Advances the tree's animations by the time since the previous update.</summary>
     /// <returns><see langword="true"/> while another update is needed.</returns>
-    internal bool Update() =>
-        Root.Update(_animationClock.GetNextFrame(AnimationsEnabled)) | RedrawFlashes.IsFading;
+    internal bool Update()
+    {
+        bool continues = Root.Update(_animationClock.GetNextFrame(AnimationsEnabled)) | RedrawFlashes.IsFading;
+        // The next animation starts from a still frame, not from however long the window idled.
+        if (!continues)
+        {
+            _animationClock.Reset();
+        }
 
-    /// <summary>Forgets the previous update, so the next one does not count the idle time before it.</summary>
-    internal void ResetClock() => _animationClock.Reset();
+        return continues;
+    }
 
     /// <summary>Lays out the tree and returns the pixels that changed since the previous frame.</summary>
     /// <remarks>The region belongs to the host and is only valid until the next call.</remarks>

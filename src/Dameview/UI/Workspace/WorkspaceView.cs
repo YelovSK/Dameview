@@ -40,25 +40,6 @@ internal sealed class WorkspaceView : UiElement, IDisposable
         Rebuild(root, openingSplit: null);
     }
 
-    internal TimeSpan? NextAnimationFrameDelay
-    {
-        get
-        {
-            TimeSpan? nextDelay = null;
-            foreach (ViewerPaneView paneView in _paneViews.Values)
-            {
-                if (!paneView.IsVisible || paneView.NextAnimationFrameDelay is not { } delay)
-                {
-                    continue;
-                }
-
-                nextDelay = nextDelay is null || delay < nextDelay ? delay : nextDelay;
-            }
-
-            return nextDelay;
-        }
-    }
-
     internal ViewerPaneView? FindPaneView(ViewerPane pane)
     {
         return _paneViews.GetValueOrDefault(pane);

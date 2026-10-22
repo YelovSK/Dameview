@@ -553,6 +553,8 @@ internal abstract class UiElement
         return animation;
     }
 
+    /// <inheritdoc cref="UiRoot.RequestUpdateAfter"/>
+    protected void RequestUpdateAfter(TimeSpan delay) => Root?.RequestUpdateAfter(delay);
     /// <summary>Requests a redraw of this element without forcing layout.</summary>
     protected void InvalidateVisual() => Root?.InvalidateVisual(this);
     /// <summary>Requests layout and a redraw of this element from the owning root.</summary>

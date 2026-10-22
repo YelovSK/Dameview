@@ -171,16 +171,7 @@ internal sealed class InstallerUi : UiElement, IFrameContent, IDisposable
 
     internal void SetDpi(float dpi) => _host.Root.SetDpi(dpi);
 
-    internal bool Update()
-    {
-        bool continues = _host.Update();
-        if (!continues)
-        {
-            _host.ResetClock();
-        }
-
-        return continues;
-    }
+    internal bool Update() => _host.Update();
 
     // The installer is small and still repaints from outside the tree, so it redraws whole frames.
     public UiDirtyRegion PrepareFrame(Size pixelSize)

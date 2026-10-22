@@ -10,7 +10,7 @@ namespace Dameview.UI.Workspace;
 
 internal sealed class TabPreview : UiElement, IDisposable
 {
-    private const double HoverDelaySeconds = 0.45;
+    private static readonly TimeSpan HoverDelay = TimeSpan.FromSeconds(0.45);
     private const float PreviewWidthDips = 280.0f;
     private const float PreviewHeightDips = 190.0f;
     private const float MarginDips = 8.0f;
@@ -29,7 +29,7 @@ internal sealed class TabPreview : UiElement, IDisposable
     // Kept as the strip and the tab's place in it, so the preview follows the strip if it moves.
     private ViewerTabStrip? _strip;
     private RectangleF _tabBounds;
-    private double _hoverSeconds;
+    private long _hoverStarted;
     private bool _waiting;
     private int _version;
 
@@ -56,8 +56,9 @@ internal sealed class TabPreview : UiElement, IDisposable
         _caption = Path.GetFileName(path);
         _strip = strip;
         _tabBounds = tab.Bounds;
-        _hoverSeconds = 0.0;
         _waiting = true;
+        _hoverStarted = Root?.Time.GetTimestamp() ?? 0;
+        RequestUpdateAfter(HoverDelay);
         InvalidateLayout();
     }
 
@@ -98,15 +99,9 @@ internal sealed class TabPreview : UiElement, IDisposable
             _lease = null;
         }
 
-        if (!_waiting || _path is null)
+        if (!_waiting || _path is null || Root is not { } root || root.Time.GetElapsedTime(_hoverStarted) < HoverDelay)
         {
             return false;
-        }
-
-        _hoverSeconds += context.ElapsedSeconds;
-        if (_hoverSeconds < HoverDelaySeconds)
-        {
-            return true;
         }
 
         _waiting = false;

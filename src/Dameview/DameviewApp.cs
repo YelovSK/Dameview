@@ -142,6 +142,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
             _detailsReader);
         StartupTrace.Mark("ui");
         _ui.Invalidated += _window.RequestRepaint;
+        _ui.UpdateRequested += ScheduleUpdate;
         _ui.CursorChanged += _window.ApplyCursor;
         _workspace.ActivePaneChanged += UpdateTitle;
         _workspace.PaneActiveTabChanged += UpdateTitle;
@@ -542,6 +543,14 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         }
     }
 
+    private void ScheduleUpdate()
+    {
+        if (_ui.NextUpdateDelay is { } delay)
+        {
+            _window.RequestRepaintAfter(delay);
+        }
+    }
+
     private void HandleRenderFrame()
     {
         long frameStarted = Stopwatch.GetTimestamp();
@@ -578,9 +587,9 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         {
             _window.RequestRepaint();
         }
-        else if (_ui.NextAnimationFrameDelay is { } delay)
+        else
         {
-            _window.RequestRepaintAfter(delay);
+            ScheduleUpdate();
         }
     }
 }

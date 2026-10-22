@@ -197,9 +197,13 @@ internal sealed class ViewerUi : UiElement, IFrameContent, IDisposable
         get => _host.Palette;
         set => _host.Palette = value;
     }
-    internal TimeSpan? NextAnimationFrameDelay =>
-        _workspaceView.NextAnimationFrameDelay
-        ?? (_performanceOverlay.IsVisible ? PerformanceOverlay.HeartbeatInterval : null);
+    internal TimeSpan? NextUpdateDelay => _host.Root.NextUpdateDelay;
+
+    internal event Action? UpdateRequested
+    {
+        add => _host.Root.UpdateRequested += value;
+        remove => _host.Root.UpdateRequested -= value;
+    }
     internal PaneLayoutArea PaneLayoutArea => new(
         MathF.Max(1.0f, _host.Root.DipsToPixels(_workspaceView.Bounds.Width)),
         MathF.Max(1.0f, _host.Root.DipsToPixels(_workspaceView.Bounds.Height)),
@@ -446,18 +450,7 @@ internal sealed class ViewerUi : UiElement, IFrameContent, IDisposable
 
     internal void EndResize() => _host.Root.EndResize();
 
-    internal bool Update()
-    {
-        bool continues = _host.Update();
-        // Only real animation work counts: a heartbeat that merely keeps the overlay ticking
-        // must not hold the clock open, or the next animation starts with a frame's backlog.
-        if (!continues && _workspaceView.NextAnimationFrameDelay is null)
-        {
-            _host.ResetClock();
-        }
-
-        return continues;
-    }
+    internal bool Update() => _host.Update();
 
     /// <summary>What the last frame spent laying the tree out, for the performance overlay.</summary>
     internal TimeSpan LastLayoutTime { get; private set; }

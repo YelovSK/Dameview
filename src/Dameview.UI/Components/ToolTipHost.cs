@@ -10,7 +10,7 @@ namespace Dameview.UI.Components;
 /// <summary>Shows the tooltip of the hovered element once the pointer has rested on it.</summary>
 internal sealed class ToolTipHost : UiElement
 {
-    private const double DelaySeconds = 0.5;
+    private static readonly TimeSpan Delay = TimeSpan.FromSeconds(0.5);
     private const float PaddingXDips = 8.0f;
     private const float PaddingYDips = 4.0f;
     private const float GapDips = 6.0f;
@@ -24,7 +24,7 @@ internal sealed class ToolTipHost : UiElement
     private string? _text;
     private RectangleF _anchor;
     private bool _waiting;
-    private double _waitedSeconds;
+    private long _waitStarted;
 
     internal ToolTipHost()
     {
@@ -52,8 +52,12 @@ internal sealed class ToolTipHost : UiElement
         _text = text;
         _anchor = anchor;
         _waiting = text is not null;
-        _waitedSeconds = 0.0;
         _bubble.IsPresent = false;
+        if (_waiting && Root is { } root)
+        {
+            _waitStarted = root.Time.GetTimestamp();
+            RequestUpdateAfter(Delay);
+        }
     }
 
     internal void Hide()
@@ -98,15 +102,9 @@ internal sealed class ToolTipHost : UiElement
 
     protected override bool UpdateCore(in UiUpdateContext context)
     {
-        if (!_waiting || _text is null)
+        if (!_waiting || _text is null || Root is not { } root || root.Time.GetElapsedTime(_waitStarted) < Delay)
         {
             return false;
-        }
-
-        _waitedSeconds += context.ElapsedSeconds;
-        if (_waitedSeconds < DelaySeconds)
-        {
-            return true;
         }
 
         _bubble.Text = _text;

@@ -63,7 +63,14 @@ internal sealed class ToastHost : UiElement, IDisposable
             }
         }
 
-        return expired || _views.Count > 0;
+        // A leaving view is removed only on the update after its exit ends, and until then still takes clicks.
+        bool leaving = false;
+        foreach (ToastView view in _views)
+        {
+            leaving |= !view.IsPresent;
+        }
+
+        return expired || leaving;
     }
 
     protected override bool HitTestCore(PointF position) => false;
@@ -87,6 +94,7 @@ internal sealed class ToastHost : UiElement, IDisposable
             var view = new ToastView(toast, () => _toasts.Dismiss(toast.Id));
             _views.Add(view);
             AddChild(view);
+            RequestUpdateAfter(ToastService.Lifetime);
         }
 
         foreach (ToastView view in _views)

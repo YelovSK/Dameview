@@ -301,6 +301,37 @@ public sealed class UiRootTests
         return new WindowPointerEvent(kind, new PointF(x, y), PointerButton.Primary);
     }
 
+    [TestMethod]
+    public void RequestedUpdatesCountDownAndClearOnceDue()
+    {
+        var time = new ManualTimeProvider();
+        var root = new UiRoot(new TestElement(), UiDpi.Default, TestTextLayouts.Shared, time);
+        Assert.IsNull(root.NextUpdateDelay);
+
+        root.RequestUpdateAfter(TimeSpan.FromMilliseconds(500));
+        root.RequestUpdateAfter(TimeSpan.FromMilliseconds(100));
+        Assert.AreEqual(TimeSpan.FromMilliseconds(100), root.NextUpdateDelay);
+
+        time.Advance(TimeSpan.FromMilliseconds(100));
+        root.Update(new UiUpdateContext(0.0));
+        Assert.AreEqual(TimeSpan.FromMilliseconds(400), root.NextUpdateDelay, "The later request is still waiting.");
+
+        time.Advance(TimeSpan.FromMilliseconds(400));
+        root.Update(new UiUpdateContext(0.0));
+        Assert.IsNull(root.NextUpdateDelay);
+    }
+
+    private sealed class ManualTimeProvider : TimeProvider
+    {
+        private long _timestamp;
+
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
+        public override long GetTimestamp() => _timestamp;
+
+        internal void Advance(TimeSpan elapsed) => _timestamp += elapsed.Ticks;
+    }
+
     private class TestElement(Func<WindowPointerEvent, UiPointerResult>? handle = null) : UiElement
     {
         internal List<WindowPointerEvent> Events { get; } = [];

@@ -33,6 +33,27 @@ public sealed class ToastHostTests
     }
 
     [TestMethod]
+    public void AShownToastSleepsUntilItExpiresInsteadOfAskingForFrames()
+    {
+        var service = new ToastService();
+        using var host = new ToastHost(service);
+        Arrange(host);
+        service.Notify("Saved.", ToastSeverity.Success);
+        Arrange(host);
+
+        var frame = new UiUpdateContext(1.0 / 60.0);
+        bool continues = true;
+        for (int index = 0; index < 60 && continues; index++)
+        {
+            continues = host.UpdateTree(frame);
+        }
+
+        Assert.IsFalse(continues, "A toast that has faded in waits without frames.");
+        Assert.IsNotNull(host.Root!.NextUpdateDelay, "It still wakes up to expire.");
+        Assert.IsTrue(host.Root.NextUpdateDelay <= ToastService.Lifetime);
+    }
+
+    [TestMethod]
     public void AnArrivingToastSlidesItsNeighbourUpInsteadOfJumpingIt()
     {
         var service = new ToastService();

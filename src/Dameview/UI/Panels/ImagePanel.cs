@@ -77,7 +77,6 @@ internal sealed class ImagePanel : UiElement, IDisposable
 
     internal float ZoomPercentage => _viewport.Scale * 100.0f;
     internal SizeF ImageSize => _viewport.ImageSize;
-    internal TimeSpan? NextAnimationFrameDelay => _imageAnimation?.NextFrameDelay ?? SettleDelay;
     internal Exception? AnimationError => _imageAnimation?.Error;
 
     internal void RecreateDeviceResources(ID2D1DeviceContext deviceContext)
@@ -210,10 +209,15 @@ internal sealed class ImagePanel : UiElement, IDisposable
                 UpdateImagePixels(image);
                 Root?.MarkDirty(this);
             }
+
+            if (animation.NextFrameDelay is { } delay)
+            {
+                RequestUpdateAfter(delay);
+            }
         }
 
         // The frame that ends settling draws the image sharply, which nothing else marks as a change.
-        if (_awaitsSettle && SettleDelay is null)
+        if (_awaitsSettle && Stopwatch.GetTimestamp() >= _settlesAt)
         {
             _awaitsSettle = false;
             Root?.MarkDirty(this);
@@ -304,16 +308,6 @@ internal sealed class ImagePanel : UiElement, IDisposable
         ? BitmapInterpolationMode.NearestNeighbor
         : BitmapInterpolationMode.Linear;
 
-    /// <summary>How long until a moved image is drawn sharply, if it is waiting to be.</summary>
-    private TimeSpan? SettleDelay
-    {
-        get
-        {
-            long now = Stopwatch.GetTimestamp();
-            return now < _settlesAt ? Stopwatch.GetElapsedTime(now, _settlesAt) : null;
-        }
-    }
-
     /// <summary>
     /// Whether the image moved too recently to be worth drawing sharply, whatever moved it.
     /// A newly shown image has not moved.
@@ -329,6 +323,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
         else if (placement != _placement)
         {
             _settlesAt = now + SettleTicks;
+            RequestUpdateAfter(Stopwatch.GetElapsedTime(now, _settlesAt));
         }
 
         _placement = placement;

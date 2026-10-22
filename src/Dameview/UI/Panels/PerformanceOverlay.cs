@@ -22,7 +22,7 @@ internal sealed class PerformanceOverlay : UiElement
         TabStop: ColumnWidth);
 
     /// <summary>How often an otherwise idle window repaints while the overlay is visible.</summary>
-    internal static readonly TimeSpan HeartbeatInterval = TimeSpan.FromMilliseconds(500.0);
+    private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromMilliseconds(500.0);
 
     private readonly PerformanceMonitor _monitor;
     private string? _text;
@@ -50,6 +50,8 @@ internal sealed class PerformanceOverlay : UiElement
         {
             RefreshText();
             _lastTextRefresh = now;
+            Root?.MarkDirty(this);
+            RequestUpdateAfter(HeartbeatInterval);
         }
 
         return false;
