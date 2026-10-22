@@ -11,30 +11,24 @@ internal enum ImageRepresentationKind
 
 internal readonly record struct ImageRepresentationPolicy
 {
-    internal const long DefaultMaximumDecodedBytes = 128L * 1024L * 1024L;
-
-    internal ImageRepresentationPolicy(
-        int maximumBitmapDimension,
-        long maximumDecodedBytes = DefaultMaximumDecodedBytes)
+    internal ImageRepresentationPolicy(int maximumBitmapDimension)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumBitmapDimension);
-        ArgumentOutOfRangeException.ThrowIfLessThan(maximumDecodedBytes, DecodedImage.BytesPerPixel);
         MaximumBitmapDimension = maximumBitmapDimension;
-        MaximumDecodedBytes = maximumDecodedBytes;
     }
 
     internal int MaximumBitmapDimension { get; }
-    internal long MaximumDecodedBytes { get; }
 
     /// <param name="canAnimate">Whether an animation decoder handles the image's format.</param>
-    internal ImageRepresentationKind Select(ImageInfo image, bool canAnimate)
+    /// <param name="cacheCapacityBytes">How much the bitmap cache may hold.</param>
+    internal ImageRepresentationKind Select(ImageInfo image, bool canAnimate, long cacheCapacityBytes)
     {
         if (image.FrameCount > 1 && canAnimate)
         {
             return ImageRepresentationKind.Animated;
         }
 
-        if (RequiresTiling(image))
+        if (RequiresTiling(image, cacheCapacityBytes))
         {
             return ImageRepresentationKind.Tiled;
         }
@@ -42,14 +36,15 @@ internal readonly record struct ImageRepresentationPolicy
         return ImageRepresentationKind.Static;
     }
 
-    private bool RequiresTiling(ImageInfo image)
+    // An image that takes more than half the cache would leave no room to preload a neighbour
+    // of its size, and would evict everything else for nothing. Tiled, it stays out of the cache.
+    private bool RequiresTiling(ImageInfo image, long cacheCapacityBytes)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(image.Width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(image.Height);
 
         return image.Width > MaximumBitmapDimension
             || image.Height > MaximumBitmapDimension
-            // Divided rather than multiplied, since a corrupt header can claim any size.
-            || (long)image.Width * image.Height > MaximumDecodedBytes / DecodedImage.BytesPerPixel;
+            || DecodedImage.GetByteCount(image.Width, image.Height) > cacheCapacityBytes / 2;
     }
 }

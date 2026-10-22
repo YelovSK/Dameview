@@ -238,21 +238,22 @@ public sealed class ImagePipelineTests
                 },
                 path => path == "small" ? new ImageInfo(1, 1, 1) : new ImageInfo(10, 10, 1))),
             PipelineHarness.TestPolicy);
-        // 400 bytes for each of the large two and 4 for the small one, so only one large one fits.
-        using var harness = new PipelineHarness(source, fullCacheBytes: 404);
+        // 400 bytes for each of the large three and 4 for the small one, so only two large ones fit.
+        using var harness = new PipelineHarness(source, fullCacheBytes: 900);
         var delivered = new List<ImageLoadResult>();
 
         IDisposable[] preloads =
         [
             harness.Pipeline.Request(Full("first"), ImagePriority.Preload, delivered.Add),
             harness.Pipeline.Request(Full("second"), ImagePriority.Preload, delivered.Add),
+            harness.Pipeline.Request(Full("third"), ImagePriority.Preload, delivered.Add),
             harness.Pipeline.Request(Full("small"), ImagePriority.Preload, delivered.Add),
         ];
-        harness.PumpUntil(() => delivered.Count == 2);
+        harness.PumpUntil(() => delivered.Count == 3);
         harness.PumpPending();
 
-        Assert.HasCount(2, delivered);
-        Assert.HasCount(2, decoded);
+        Assert.HasCount(3, delivered);
+        Assert.HasCount(3, decoded);
         CollectionAssert.Contains(decoded.ToArray(), "small");
         DisposeAll(delivered);
         Array.ForEach(preloads, preload => preload.Dispose());

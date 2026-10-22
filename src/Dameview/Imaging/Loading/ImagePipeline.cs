@@ -349,6 +349,7 @@ internal sealed class ImagePipeline : IImagePipeline, IDisposable
 
         internal ImagePriority QueuedPriority { get; } = job.Priority;
         internal override CancellationToken CancellationToken => _cancellation.Token;
+        internal override long CacheCapacityBytes => job.Store.Cache.CapacityBytes;
         internal bool IsCancelled => _cancellation.IsCancellationRequested;
 
         /// <summary>Set by the worker, once it has uploaded a static image.</summary>

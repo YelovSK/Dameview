@@ -121,10 +121,13 @@ internal sealed class FakeUploader : IBitmapUploader
     }
 }
 
-internal sealed class FakeLoadContext(Func<long?, bool>? shouldLoad = null) : ImageLoadContext
+internal sealed class FakeLoadContext(
+    Func<long?, bool>? shouldLoad = null,
+    long cacheCapacityBytes = long.MaxValue) : ImageLoadContext
 {
     internal List<long?> Asked { get; } = [];
     internal override CancellationToken CancellationToken => CancellationToken.None;
+    internal override long CacheCapacityBytes => cacheCapacityBytes;
 
     internal override bool ShouldLoad(long? cachedBytes)
     {

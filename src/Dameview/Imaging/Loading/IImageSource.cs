@@ -27,6 +27,9 @@ internal abstract class ImageLoadContext
 {
     internal abstract CancellationToken CancellationToken { get; }
 
+    /// <summary>The capacity of the cache the image would be kept in.</summary>
+    internal abstract long CacheCapacityBytes { get; }
+
     /// <summary>
     /// Sources that learn an image's size before decoding it ask this, so a preload that
     /// would not be kept is dropped before its pixels are decoded.

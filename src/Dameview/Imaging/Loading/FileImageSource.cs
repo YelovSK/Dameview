@@ -23,7 +23,10 @@ internal sealed class FileImageSource(
         cancellationToken.ThrowIfCancellationRequested();
         using IOpenedImage opened = decoder.Open(path);
         ImageInfo info = opened.Info;
-        ImageRepresentationKind kind = representationPolicy.Select(info, backend.SupportsAnimation(path));
+        ImageRepresentationKind kind = representationPolicy.Select(
+            info,
+            backend.SupportsAnimation(path),
+            context.CacheCapacityBytes);
         long? cachedBytes = kind == ImageRepresentationKind.Static
             ? DecodedImage.GetByteCount(info.Width, info.Height)
             : null;
