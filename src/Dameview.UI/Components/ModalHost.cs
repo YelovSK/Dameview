@@ -128,7 +128,7 @@ internal sealed class ModalHost : UiElement
                     _dismiss!();
                 }
 
-                return new UiPointerResult(Consumed: true, NeedsRepaint: true);
+                return new UiPointerResult(Consumed: true);
 
             case WindowPointerEventKind.Cancelled:
                 _backdropPressed = false;

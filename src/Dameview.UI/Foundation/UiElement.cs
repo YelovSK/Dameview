@@ -17,6 +17,8 @@ internal abstract class UiElement
     private readonly List<AnimatedFloat> _animations = [];
     // How far the element has entered, easing toward IsPresent. Only exists with a Transition.
     private AnimatedFloat? _presence;
+    // The frame an animation finishes on still moves it, so it is redrawn once more after.
+    private bool _changedLastUpdate;
 
     internal RectangleF Bounds { get; private set; }
     internal SizeF DesiredSize { get; private set; }
@@ -24,6 +26,14 @@ internal abstract class UiElement
     internal UiRoot? Root { get; private set; }
     internal IReadOnlyList<UiElement> Children => _children;
     internal UiVisualState VisualState { get; private set; }
+    /// <summary>Where the element was last drawn, in root DIPs, which is what has to be redrawn when it changes.</summary>
+    internal RectangleF LastDrawnBounds { get; set; }
+    /// <summary>Whether the element itself, not its children, drew anything the last time it was drawn.</summary>
+    /// <remarks>
+    /// Layers spanning the window often draw nothing themselves and only place their children.
+    /// Their layout and update ticks say nothing about their own pixels, so those don't redraw them.
+    /// </remarks>
+    internal bool PaintedLastDraw { get; set; } = true;
     internal bool HasFocusWithin { get; private set; }
     /// <summary>Shown after the pointer rests on this element or anything inside it.</summary>
     internal UiToolTip? ToolTip
@@ -62,6 +72,7 @@ internal abstract class UiElement
             }
 
             field = value;
+            Root?.InvalidatePainted(this);
             InvalidateLayout();
         }
     } = true;
@@ -244,7 +255,13 @@ internal abstract class UiElement
             DesiredSize.Height - Margin.Vertical,
             MaxHeight,
             VerticalAlignment);
-        Bounds = new RectangleF(x, y, width, height);
+        var bounds = new RectangleF(x, y, width, height);
+        if (bounds != Bounds)
+        {
+            Root?.MarkDirty(this);
+        }
+
+        Bounds = bounds;
         ArrangeCore(Bounds.Size);
     }
 
@@ -277,13 +294,22 @@ internal abstract class UiElement
             return false;
         }
 
-        bool continues = UpdatePresence(context);
+        bool animating = UpdatePresence(context);
         foreach (AnimatedFloat animation in _animations)
         {
-            continues |= animation.Update(context);
+            animating |= animation.Update(context);
         }
 
-        continues |= UpdateCore(context);
+        // Many elements tick only to wait for something, so that alone redraws only elements that paint.
+        bool ticking = UpdateCore(context);
+        bool changing = animating || (ticking && PaintedLastDraw);
+        if (changing || _changedLastUpdate)
+        {
+            Root?.MarkDirty(this);
+        }
+
+        _changedLastUpdate = changing;
+        bool continues = animating | ticking;
         foreach (UiElement child in _children)
         {
             continues |= child.UpdateTree(context);
@@ -415,7 +441,11 @@ internal abstract class UiElement
 
         VisualState = updated;
         OnVisualStateChanged();
-        InvalidateVisual();
+        // Layers that only hold children get hovered and pressed too, but don't look any different for it.
+        if (PaintedLastDraw)
+        {
+            InvalidateVisual();
+        }
     }
 
     /// <summary>Determines whether the specified visual state is active.</summary>
@@ -499,6 +529,7 @@ internal abstract class UiElement
             return;
         }
 
+        Root?.MarkDirty(child);
         Root?.DisconnectSubtree(child);
         child.Parent = null;
         child.DetachFromRoot();
@@ -522,10 +553,10 @@ internal abstract class UiElement
         return animation;
     }
 
-    /// <summary>Requests a redraw without forcing layout.</summary>
-    protected void InvalidateVisual() => Root?.InvalidateVisual();
-    /// <summary>Requests layout and a redraw from the owning root.</summary>
-    protected void InvalidateLayout() => Root?.InvalidateLayout();
+    /// <summary>Requests a redraw of this element without forcing layout.</summary>
+    protected void InvalidateVisual() => Root?.InvalidateVisual(this);
+    /// <summary>Requests layout and a redraw of this element from the owning root.</summary>
+    protected void InvalidateLayout() => Root?.InvalidateLayout(this);
     /// <summary>Calculates the desired size for this element, by default the largest of its visible children.</summary>
     protected virtual SizeF MeasureCore(SizeF availableSize)
     {
@@ -602,6 +633,26 @@ internal abstract class UiElement
         {
             Position = new PointF(input.Position.X - origin.X, input.Position.Y - origin.Y),
         };
+    }
+
+    /// <summary>Where the element sits now in root DIPs, or empty when it or an ancestor is hidden.</summary>
+    internal RectangleF GetRootVisualBounds()
+    {
+        float x = 0.0f;
+        float y = 0.0f;
+        for (UiElement? element = this; element is not null; element = element.Parent)
+        {
+            if (!element.IsVisible)
+            {
+                return RectangleF.Empty;
+            }
+
+            PointF offset = element.VisualOffset;
+            x += element.Bounds.X + offset.X;
+            y += element.Bounds.Y + offset.Y;
+        }
+
+        return new RectangleF(x, y, Bounds.Width, Bounds.Height);
     }
 
     private RectangleF GetVisualBounds()

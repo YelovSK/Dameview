@@ -5,6 +5,7 @@ using Dameview.Diagnostics;
 using Dameview.Imaging;
 using Dameview.Imaging.Loading;
 using Dameview.Notifications;
+using Dameview.Rendering;
 using Dameview.Settings;
 using Dameview.UI.Components;
 using Dameview.UI.Foundation;
@@ -19,7 +20,7 @@ using Vortice.DirectWrite;
 
 namespace Dameview.UI;
 
-internal sealed class ViewerUi : UiElement, IDisposable
+internal sealed class ViewerUi : UiElement, IFrameContent, IDisposable
 {
     // The panes' tab rows make up the title bar, so it is as tall as one.
     internal const float TitleBarHeightDips = ViewerPaneView.TabRowHeightDips;
@@ -241,8 +242,6 @@ internal sealed class ViewerUi : UiElement, IDisposable
                 _workspace.IsViewportSynced,
                 ReferenceEquals(paneView.Pane, _workspace.MaximizedPane));
         }
-
-        _host.Root.InvalidateVisual();
     }
 
     private void HandlePaneRatiosChanged()
@@ -264,8 +263,6 @@ internal sealed class ViewerUi : UiElement, IDisposable
         {
             ApplyActivePaneState();
         }
-
-        _host.Root.InvalidateVisual();
     }
 
     internal void RecreateDeviceResources(ID2D1DeviceContext deviceContext)
@@ -349,6 +346,8 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _performanceOverlay.Toggle();
         _host.Root.InvalidateVisual();
     }
+
+    internal void ToggleRedrawRegions() => _host.RedrawFlashes.Enabled = !_host.RedrawFlashes.Enabled;
 
     internal void HandleKey(WindowKeyEvent input)
     {
@@ -473,7 +472,7 @@ internal sealed class ViewerUi : UiElement, IDisposable
     internal int LastDrawnElements => _host.LastDrawnElements;
     internal int LastDrawOperations => _host.LastDrawOperations;
 
-    internal void DrawFrame(SizeF pixelSize)
+    public UiDirtyRegion PrepareFrame(Size pixelSize)
     {
         _workspaceView.UpdateStatuses();
 
@@ -481,9 +480,14 @@ internal sealed class ViewerUi : UiElement, IDisposable
         _host.Root.Arrange(pixelSize);
         LastLayoutTime = Stopwatch.GetElapsedTime(layoutStarted);
 
-        // The tree is arranged by now, so this only walks and draws it.
+        // The tree is arranged by now, so this only collects what changed.
+        return _host.PrepareFrame(pixelSize);
+    }
+
+    public void DrawFrame(UiDirtyRegion region)
+    {
         long drawStarted = Stopwatch.GetTimestamp();
-        _host.Draw(pixelSize);
+        _host.Draw(region);
         LastDrawTime = Stopwatch.GetElapsedTime(drawStarted);
     }
 

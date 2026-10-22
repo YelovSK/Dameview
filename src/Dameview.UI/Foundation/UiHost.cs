@@ -5,6 +5,7 @@ using Vortice.Direct2D1;
 using Vortice.DirectWrite;
 using Vortice.DXGI;
 using Vortice.Mathematics;
+using Size = System.Drawing.Size;
 
 namespace Dameview.UI.Foundation;
 
@@ -18,6 +19,7 @@ internal sealed class UiHost : IDisposable
     private readonly UiTextLayoutCache _textLayouts;
     private readonly UiAnimationClock _animationClock;
     private readonly UiDrawTally _drawTally = new();
+    private readonly UiDirtyRegion _changed = new();
     private ID2D1SolidColorBrush _brush;
 
     internal UiHost(
@@ -42,6 +44,7 @@ internal sealed class UiHost : IDisposable
     internal UiTheme Palette { get; set; }
     internal int LastDrawnElements => _drawTally.Elements;
     internal int LastDrawOperations => _drawTally.Operations;
+    internal UiRedrawFlashes RedrawFlashes { get; } = new();
 
     /// <summary>Whether animations play or jump straight to their end.</summary>
     internal bool AnimationsEnabled
@@ -62,16 +65,40 @@ internal sealed class UiHost : IDisposable
 
     /// <summary>Advances the tree's animations by the time since the previous update.</summary>
     /// <returns><see langword="true"/> while another update is needed.</returns>
-    internal bool Update() => Root.Update(_animationClock.GetNextFrame(AnimationsEnabled));
+    internal bool Update() =>
+        Root.Update(_animationClock.GetNextFrame(AnimationsEnabled)) | RedrawFlashes.IsFading;
 
     /// <summary>Forgets the previous update, so the next one does not count the idle time before it.</summary>
     internal void ResetClock() => _animationClock.Reset();
 
-    internal void Draw(SizeF pixelSize)
+    /// <summary>Lays out the tree and returns the pixels that changed since the previous frame.</summary>
+    /// <remarks>The region belongs to the host and is only valid until the next call.</remarks>
+    internal UiDirtyRegion PrepareFrame(Size pixelSize)
+    {
+        Root.CollectDirtyRegion(pixelSize, _changed);
+        RedrawFlashes.Track(_changed);
+        return _changed;
+    }
+
+    /// <summary>Draws the tree within a region, which may be larger than what changed.</summary>
+    internal void Draw(UiDirtyRegion region)
     {
         _drawTally.Reset();
-        var context = new UiDrawContext(DeviceContext, _brush, _textLayouts, _drawTally, Palette, Root.Dpi);
-        Root.Draw(context, pixelSize);
+        foreach (Rectangle pixels in region.Rectangles)
+        {
+            RectangleF bounds = UiDpi.PixelsToDips(pixels, Root.Dpi);
+            DeviceContext.PushAxisAlignedClip(
+                new Rect(bounds.X, bounds.Y, bounds.Width, bounds.Height),
+                AntialiasMode.Aliased);
+            DeviceContext.Clear(Palette.Background);
+            Root.Draw(new UiDrawContext(DeviceContext, _brush, _textLayouts, _drawTally, Palette, Root.Dpi)
+            {
+                CullBounds = bounds,
+            });
+            DeviceContext.PopAxisAlignedClip();
+        }
+
+        RedrawFlashes.Draw(DeviceContext, _brush, Root.Dpi);
     }
 
     /// <summary>Draws an element as it looks now into a picture that can outlive it.</summary>

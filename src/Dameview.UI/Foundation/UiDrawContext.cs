@@ -35,6 +35,11 @@ internal readonly record struct UiDrawContext
     internal UiTheme Palette { get; }
     internal float Dpi { get; }
     internal float Opacity { get; private init; }
+    /// <summary>
+    /// The part of the root being redrawn, in DIPs. Elements outside it are skipped, and drawn
+    /// ones remember where they were drawn. Without it everything is drawn and nothing remembered.
+    /// </summary>
+    internal RectangleF? CullBounds { get; init; }
 
     internal void FillRoundedRectangle(RoundedRectangle rectangle, Color4 color, float opacity = 1.0f)
     {
@@ -154,7 +159,6 @@ internal readonly record struct UiDrawContext
 
     internal void DrawElement(UiElement element)
     {
-        _tally.Elements++;
         RectangleF bounds = element.Bounds;
         PointF offset = element.VisualOffset;
         Matrix3x2 previousTransform = RenderTarget.Transform;
@@ -166,13 +170,32 @@ internal readonly record struct UiDrawContext
                 * transform;
         }
 
-        RenderTarget.Transform = transform * previousTransform;
+        transform *= previousTransform;
+        if (CullBounds is { } cull)
+        {
+            RectangleF drawn = TransformBounds(transform, bounds.Size);
+            if (!drawn.IntersectsWith(cull))
+            {
+                return;
+            }
+
+            element.LastDrawnBounds = drawn;
+        }
+
+        _tally.Elements++;
+        RenderTarget.Transform = transform;
         PushClip(new RectangleF(0.0f, 0.0f, bounds.Width, bounds.Height));
 
         try
         {
             UiDrawContext elementContext = WithOpacity(element.Opacity);
+            int operations = _tally.Operations;
             element.Draw(elementContext);
+            if (CullBounds is not null)
+            {
+                element.PaintedLastDraw = _tally.Operations != operations;
+            }
+
             foreach (UiElement child in element.Children)
             {
                 if (child.IsVisible)
@@ -186,6 +209,17 @@ internal readonly record struct UiDrawContext
             PopClip();
             RenderTarget.Transform = previousTransform;
         }
+    }
+
+    private static RectangleF TransformBounds(Matrix3x2 transform, SizeF size)
+    {
+        var topLeft = Vector2.Transform(Vector2.Zero, transform);
+        var topRight = Vector2.Transform(new Vector2(size.Width, 0.0f), transform);
+        var bottomLeft = Vector2.Transform(new Vector2(0.0f, size.Height), transform);
+        var bottomRight = Vector2.Transform(new Vector2(size.Width, size.Height), transform);
+        var min = Vector2.Min(Vector2.Min(topLeft, topRight), Vector2.Min(bottomLeft, bottomRight));
+        var max = Vector2.Max(Vector2.Max(topLeft, topRight), Vector2.Max(bottomLeft, bottomRight));
+        return RectangleF.FromLTRB(min.X, min.Y, max.X, max.Y);
     }
 
     internal UiDrawContext WithOpacity(float opacity)

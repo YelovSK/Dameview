@@ -36,6 +36,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
     private ID2D1Bitmap1? _placedImage;
     private Matrix3x2 _placement;
     private long _settlesAt;
+    private bool _awaitsSettle;
     private bool _pointerPressed;
     private PointF _panFrom;
     private bool _isPreview;
@@ -64,6 +65,11 @@ internal sealed class ImagePanel : UiElement, IDisposable
         get;
         set
         {
+            if (field == value)
+            {
+                return;
+            }
+
             field = value;
             InvalidateVisual();
         }
@@ -94,6 +100,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
         ReleaseContent();
         ClearPreviewTransition();
         _isPreview = false;
+        InvalidateVisual();
     }
 
     // Drops whatever the current image is drawn from. The preview fade is handled separately.
@@ -160,6 +167,8 @@ internal sealed class ImagePanel : UiElement, IDisposable
             default:
                 throw new NotSupportedException($"Unsupported image representation: {image.GetType().Name}");
         }
+
+        InvalidateVisual();
     }
 
     private void SetBitmap(DecodedImage image)
@@ -199,7 +208,15 @@ internal sealed class ImagePanel : UiElement, IDisposable
             if (animation.TryTakeUpdatedImage(out DecodedImage image))
             {
                 UpdateImagePixels(image);
+                Root?.MarkDirty(this);
             }
+        }
+
+        // The frame that ends settling draws the image sharply, which nothing else marks as a change.
+        if (_awaitsSettle && SettleDelay is null)
+        {
+            _awaitsSettle = false;
+            Root?.MarkDirty(this);
         }
 
         return continues;
@@ -315,7 +332,9 @@ internal sealed class ImagePanel : UiElement, IDisposable
         }
 
         _placement = placement;
-        return now < _settlesAt;
+        bool settling = now < _settlesAt;
+        _awaitsSettle |= settling;
+        return settling;
     }
 
     private void DrawPreviewTransition(in UiDrawContext context)

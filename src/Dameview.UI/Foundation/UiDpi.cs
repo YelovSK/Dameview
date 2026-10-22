@@ -1,3 +1,5 @@
+using System.Drawing;
+
 namespace Dameview.UI.Foundation;
 
 internal static class UiDpi
@@ -18,6 +20,12 @@ internal static class UiDpi
     {
         return pixels / GetScale(dpi);
     }
+
+    internal static RectangleF PixelsToDips(Rectangle pixels, float dpi) => RectangleF.FromLTRB(
+        PixelsToDips(pixels.Left, dpi),
+        PixelsToDips(pixels.Top, dpi),
+        PixelsToDips(pixels.Right, dpi),
+        PixelsToDips(pixels.Bottom, dpi));
 
     internal static float SnapToPixel(float dips, float dpi)
     {

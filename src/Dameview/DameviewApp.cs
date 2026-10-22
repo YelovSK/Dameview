@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Drawing;
 using Dameview.App;
 using Dameview.Commands;
 using Dameview.Diagnostics;
@@ -33,8 +32,6 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
     private readonly D2DRenderer _renderer;
     private readonly PerformanceMonitor _performanceMonitor;
     private readonly ViewerUi _ui;
-    // Cached because a method group allocates a new delegate on every frame.
-    private readonly Action<SizeF> _drawFrame;
     private readonly ImagePipeline _images;
     private readonly RenderBitmapCache _imageCache;
     private readonly FolderSources _folderSources;
@@ -143,7 +140,6 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
             _toasts,
             windowButtons,
             _detailsReader);
-        _drawFrame = _ui.DrawFrame;
         StartupTrace.Mark("ui");
         _ui.Invalidated += _window.RequestRepaint;
         _ui.CursorChanged += _window.ApplyCursor;
@@ -561,10 +557,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         bool animationContinues = _ui.Update();
         _workspace.SyncViewports();
         TimeSpan updateTime = Stopwatch.GetElapsedTime(frameStarted);
-        RenderTiming timing = _renderer.Render(
-            _drawFrame,
-            _ui.Palette.Background,
-            _performanceMonitor.Enabled);
+        RenderTiming timing = _renderer.Render(_ui, _performanceMonitor.Enabled);
         StartupTrace.Mark("frame");
         _performanceMonitor.Record(new PerformanceFrameTiming(
             frameStarted,

@@ -73,6 +73,11 @@ internal abstract class ChoiceStrip<T> : UiElement
     internal void SetChoiceLabel(T value, string label)
     {
         int index = FindIndex(value);
+        if (_choices[index].Label == label)
+        {
+            return;
+        }
+
         _choices[index] = _choices[index] with { Label = label };
         _segments[index].InvalidateLabel();
     }

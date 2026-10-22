@@ -202,7 +202,6 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
 
         UpdateChromeVisibility();
         RefreshInfo();
-        InvalidateVisual();
     }
 
     // Reading the info touches the file, so it only happens while the panel shows it.

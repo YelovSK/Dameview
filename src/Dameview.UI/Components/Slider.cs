@@ -70,7 +70,13 @@ internal sealed class Slider : InteractiveControl
         get;
         set
         {
-            field = Snap(value);
+            double snapped = Snap(value);
+            if (snapped == field)
+            {
+                return;
+            }
+
+            field = snapped;
             _shownFraction.SetTarget(GetFraction(field));
             InvalidateVisual();
         }

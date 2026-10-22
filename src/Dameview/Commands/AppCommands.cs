@@ -195,6 +195,11 @@ internal static class AppCommands
         host => host.Ui.TogglePerformanceOverlay(),
         shortcuts: [new(WindowKey.F3)]);
 
+    internal static readonly Command ToggleRedrawRegions = Command.Global(
+        "toggleRedrawRegions", "Toggle redraw regions", CommandScope.Window,
+        host => host.Ui.ToggleRedrawRegions(),
+        shortcuts: [new(WindowKey.F3, Shift: true)]);
+
     internal static readonly Command ShowSettings = Command.Global(
         "showSettings", "Open settings", CommandScope.Window,
         host => host.Ui.ShowSettings(),
@@ -249,6 +254,7 @@ internal static class AppCommands
         BalancePanes,
         OptimizePaneLayout,
         TogglePerformanceOverlay,
+        ToggleRedrawRegions,
         ShowSettings,
         OpenDataFolder,
         ShowCommandPalette,

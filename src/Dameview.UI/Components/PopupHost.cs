@@ -150,11 +150,11 @@ internal sealed class PopupHost : UiElement
             case WindowPointerEventKind.DoubleClicked
                 when input.Button == PointerButton.Primary && !insidePopup:
                 Close();
-                return new UiPointerResult(Consumed: true, NeedsRepaint: true);
+                return new UiPointerResult(Consumed: true);
 
             case WindowPointerEventKind.Wheel when !insidePopup:
                 Close();
-                return new UiPointerResult(Consumed: true, NeedsRepaint: true);
+                return new UiPointerResult(Consumed: true);
 
             case WindowPointerEventKind.Pressed when !insidePopup:
                 _outsidePressed = true;
@@ -163,7 +163,7 @@ internal sealed class PopupHost : UiElement
             case WindowPointerEventKind.Released when _outsidePressed:
                 _outsidePressed = false;
                 Close();
-                return new UiPointerResult(Consumed: true, NeedsRepaint: true);
+                return new UiPointerResult(Consumed: true);
 
             case WindowPointerEventKind.Cancelled:
                 _outsidePressed = false;

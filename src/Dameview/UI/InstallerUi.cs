@@ -1,5 +1,6 @@
 using System.Drawing;
 using Dameview.Installation;
+using Dameview.Rendering;
 using Dameview.Settings;
 using Dameview.UI.Components;
 using Dameview.UI.Foundation;
@@ -10,7 +11,7 @@ using Vortice.DirectWrite;
 
 namespace Dameview.UI;
 
-internal sealed class InstallerUi : UiElement, IDisposable
+internal sealed class InstallerUi : UiElement, IFrameContent, IDisposable
 {
     private readonly UiHost _host;
     private readonly AppInstallationRequest _request;
@@ -181,7 +182,15 @@ internal sealed class InstallerUi : UiElement, IDisposable
         return continues;
     }
 
-    internal void DrawFrame(SizeF pixelSize) => _host.Draw(pixelSize);
+    // The installer is small and still repaints from outside the tree, so it redraws whole frames.
+    public UiDirtyRegion PrepareFrame(Size pixelSize)
+    {
+        UiDirtyRegion region = _host.PrepareFrame(pixelSize);
+        region.AddFull();
+        return region;
+    }
+
+    public void DrawFrame(UiDirtyRegion region) => _host.Draw(region);
 
     internal bool HandlePointer(in WindowPointerEvent input) => _host.Root.HandlePointer(input);
 

@@ -183,7 +183,7 @@ internal sealed class InstallerApp : IDisposable
     private void HandleRenderFrame()
     {
         bool animationContinues = _ui.Update();
-        _renderer.Render(_ui.DrawFrame, _ui.Palette.Background);
+        _renderer.Render(_ui);
         if (animationContinues)
         {
             _window.RequestRepaint();

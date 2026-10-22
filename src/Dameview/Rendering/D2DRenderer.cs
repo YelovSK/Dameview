@@ -1,14 +1,16 @@
 using System.Diagnostics;
 using Dameview.Diagnostics;
 using System.Drawing;
+using Dameview.UI.Foundation;
 using Microsoft.Win32.SafeHandles;
+using Vortice;
 using Vortice.DCommon;
 using Vortice.Direct2D1;
 using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DirectWrite;
 using Vortice.DXGI;
-using Vortice.Mathematics;
+using Size = System.Drawing.Size;
 using static Vortice.Direct2D1.D2D1;
 using static Vortice.Direct3D11.D3D11;
 using static Vortice.DirectWrite.DWrite;
@@ -34,10 +36,16 @@ internal sealed class D2DRenderer : IDisposable
     private readonly Lock _deviceLock = new();
     private DeviceResources _device;
     private ID2D1Bitmap1? _targetBitmap;
-    private ID3D11RenderTargetView? _targetView;
     private int _width;
     private int _height;
     private float _dpi;
+    // The back buffer holds the frame from BufferCount presents ago, so it is behind by what
+    // changed in the frames since, and fresh buffers have nothing in them at all.
+    private readonly UiDirtyRegion _previousChange = new();
+    private readonly UiDirtyRegion _drawn = new();
+    private uint _staleBuffers = BufferCount;
+    // Present1 takes the whole array as the rectangles, so there is one array for each count.
+    private readonly RawRect[][] _presentRectangles = new RawRect[UiDirtyRegion.MaxRectangles + 1][];
 
     internal D2DRenderer(
         nint window,
@@ -115,26 +123,37 @@ internal sealed class D2DRenderer : IDisposable
         }
 
         CreateTargetBitmap();
+        _staleBuffers = BufferCount;
         return adopted;
     }
 
-    internal RenderTiming Render(Action<SizeF> draw, Color4 background, bool measureGpu = false)
+    internal RenderTiming Render(IFrameContent content, bool measureGpu = false)
     {
         if (_width <= 0 || _height <= 0)
         {
             return new RenderTiming(null, Stopwatch.GetTimestamp());
         }
 
-        // Clear before timing: the first backbuffer write can wait for presentation.
-        // Match the premultiplied Direct2D target without splitting its draw batch.
-        _device.D3DContext.ClearRenderTargetView(_targetView!, new Color4(
-            background.R * background.A,
-            background.G * background.A,
-            background.B * background.A,
-            background.A));
+        var size = new Size(_width, _height);
+        UiDirtyRegion changed = content.PrepareFrame(size);
+        _drawn.Reset(size);
+        if (_staleBuffers > 0)
+        {
+            _drawn.AddFull();
+            _staleBuffers--;
+        }
+        else
+        {
+            _drawn.Add(changed);
+            _drawn.Add(_previousChange);
+        }
+
+        _previousChange.Reset(size);
+        _previousChange.Add(changed);
+
         TimeSpan? gpuTime = measureGpu ? _device.GpuFrameTimer.BeginFrame() : null;
         DeviceContext.BeginDraw();
-        draw(new SizeF(_width, _height));
+        content.DrawFrame(_drawn);
 
         long recordingCompleted = Stopwatch.GetTimestamp();
         DeviceContext.EndDraw().CheckError();
@@ -145,8 +164,39 @@ internal sealed class D2DRenderer : IDisposable
         }
 
         long submissionCompleted = Stopwatch.GetTimestamp();
-        _device.SwapChain.Present(1, PresentFlags.None).CheckError();
+        Present();
         return new RenderTiming(gpuTime, submissionCompleted, submitTime);
+    }
+
+    private void Present()
+    {
+        if (_drawn.IsFull)
+        {
+            _device.SwapChain.Present(1, PresentFlags.None).CheckError();
+            return;
+        }
+
+        // A frame is presented even when nothing changed, since waiting for the frame latency
+        // object used up a slot that only a present gives back. No dirty rectangles would mean
+        // the whole buffer changed, so a single unchanged pixel stands in.
+        ReadOnlySpan<Rectangle> rectangles = _drawn.Rectangles;
+        int count = Math.Max(1, rectangles.Length);
+        RawRect[] presented = _presentRectangles[count] ??= new RawRect[count];
+        if (_drawn.IsEmpty)
+        {
+            presented[0] = new RawRect(0, 0, 1, 1);
+        }
+
+        for (int index = 0; index < rectangles.Length; index++)
+        {
+            Rectangle rectangle = rectangles[index];
+            presented[index] = new RawRect(rectangle.Left, rectangle.Top, rectangle.Right, rectangle.Bottom);
+        }
+
+        _device.SwapChain.Present1(1, PresentFlags.None, new PresentParameters
+        {
+            DirtyRectangles = presented,
+        }).CheckError();
     }
 
     internal void Resize(int width, int height)
@@ -167,6 +217,7 @@ internal sealed class D2DRenderer : IDisposable
             Format.B8G8R8A8_UNorm,
             SwapChainFlags.FrameLatencyWaitableObject).CheckError();
         CreateTargetBitmap();
+        _staleBuffers = BufferCount;
     }
 
     internal void SetDpi(float dpi)
@@ -179,6 +230,8 @@ internal sealed class D2DRenderer : IDisposable
             ReleaseTargetBitmap();
             CreateTargetBitmap();
         }
+
+        _staleBuffers = BufferCount;
     }
 
     /// <summary>What this process currently has resident in video memory, and its allowance.</summary>
@@ -213,8 +266,6 @@ internal sealed class D2DRenderer : IDisposable
     private void CreateTargetBitmap()
     {
         using IDXGISurface surface = _device.SwapChain.GetBuffer<IDXGISurface>(0);
-        using ID3D11Texture2D texture = surface.QueryInterface<ID3D11Texture2D>();
-        _targetView = _device.D3DDevice.CreateRenderTargetView(texture);
         BitmapProperties1 properties = new(
             new PixelFormat(
                 Format.B8G8R8A8_UNorm,
@@ -232,8 +283,6 @@ internal sealed class D2DRenderer : IDisposable
         DeviceContext.Target = null;
         _targetBitmap?.Dispose();
         _targetBitmap = null;
-        _targetView?.Dispose();
-        _targetView = null;
     }
 
     /// <summary>

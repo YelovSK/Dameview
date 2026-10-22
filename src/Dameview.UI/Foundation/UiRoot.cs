@@ -11,6 +11,10 @@ internal sealed class UiRoot
     private PointerButton _captureButton;
     private SizeF _pixelSize;
     private bool _layoutDirty = true;
+    private bool _fullyDirty = true;
+    // Where changed elements were drawn, in root DIPs. Where they are now is only known after layout.
+    private readonly List<RectangleF> _dirtyBounds = [];
+    private readonly HashSet<UiElement> _dirtyElements = [];
     private int _activeResizes;
 
     internal UiRoot(UiElement content, float dpi, UiTextLayoutCache textLayouts)
@@ -53,12 +57,41 @@ internal sealed class UiRoot
         InvalidateLayout();
     }
 
-    /// <summary>Lays out the tree for the pixel surface and draws its content.</summary>
-    internal void Draw(in UiDrawContext context, SizeF pixelSize)
+    /// <summary>Lays out the tree for the pixel surface and collects what changed since the last call.</summary>
+    internal void CollectDirtyRegion(Size pixelSize, UiDirtyRegion region)
     {
         EnsureLayout(pixelSize);
-        context.DrawElement(_content);
+        region.Reset(pixelSize);
+        if (_fullyDirty)
+        {
+            region.AddFull();
+        }
+        else
+        {
+            foreach (UiElement element in _dirtyElements)
+            {
+                if (ReferenceEquals(element.Root, this))
+                {
+                    _dirtyBounds.Add(element.GetRootVisualBounds());
+                }
+            }
+
+            foreach (RectangleF bounds in _dirtyBounds)
+            {
+                if (!bounds.IsEmpty)
+                {
+                    region.Add(ToPixels(bounds));
+                }
+            }
+        }
+
+        _dirtyElements.Clear();
+        _dirtyBounds.Clear();
+        _fullyDirty = false;
     }
+
+    /// <summary>Draws the tree, already laid out, skipping elements outside the context's cull bounds.</summary>
+    internal void Draw(in UiDrawContext context) => context.DrawElement(_content);
 
     /// <summary>Advances animations in the UI tree.</summary>
     /// <returns><see langword="true"/> when another update may be needed.</returns>
@@ -341,15 +374,91 @@ internal sealed class UiRoot
         }
     }
 
-    internal void InvalidateVisual() => Invalidated?.Invoke();
+    /// <summary>Requests a redraw of the whole surface.</summary>
+    internal void InvalidateVisual()
+    {
+        _fullyDirty = true;
+        Invalidated?.Invoke();
+    }
+
+    internal void InvalidateVisual(UiElement element)
+    {
+        MarkDirty(element);
+        Invalidated?.Invoke();
+    }
 
     internal void InvalidateLayout()
     {
         _layoutDirty = true;
+        _fullyDirty = true;
         Invalidated?.Invoke();
     }
 
+    /// <summary>Redraws everything in a subtree that paints, such as one that was just shown or hidden.</summary>
+    /// <remarks>
+    /// The subtree's own bounds would do, but layers spanning the window would then redraw all of it
+    /// for a small popup.
+    /// </remarks>
+    internal void InvalidatePainted(UiElement subtree)
+    {
+        MarkPaintedDirty(subtree);
+        Invalidated?.Invoke();
+    }
+
+    private void MarkPaintedDirty(UiElement element)
+    {
+        if (element.PaintedLastDraw)
+        {
+            MarkDirty(element);
+        }
+
+        IReadOnlyList<UiElement> children = element.Children;
+        for (int index = 0; index < children.Count; index++)
+        {
+            if (children[index].IsVisible)
+            {
+                MarkPaintedDirty(children[index]);
+            }
+        }
+    }
+
+    /// <remarks>Elements that layout moves are redrawn anyway, so this only redraws one that paints itself.</remarks>
+    internal void InvalidateLayout(UiElement element)
+    {
+        _layoutDirty = true;
+        if (element.PaintedLastDraw)
+        {
+            MarkDirty(element);
+        }
+
+        Invalidated?.Invoke();
+    }
+
+    /// <summary>Redraws an element where it was and where it is next frame, without requesting the frame.</summary>
+    internal void MarkDirty(UiElement element)
+    {
+        if (_fullyDirty)
+        {
+            return;
+        }
+
+        if (_dirtyElements.Add(element) && !element.LastDrawnBounds.IsEmpty)
+        {
+            _dirtyBounds.Add(element.LastDrawnBounds);
+        }
+    }
+
     internal float DipsToPixels(float value) => UiDpi.DipsToPixels(value, Dpi);
+
+    // Rounded out, with a pixel to spare for antialiased edges.
+    private Rectangle ToPixels(RectangleF bounds)
+    {
+        int left = (int)MathF.Floor(DipsToPixels(bounds.Left)) - 1;
+        int top = (int)MathF.Floor(DipsToPixels(bounds.Top)) - 1;
+        int right = (int)MathF.Ceiling(DipsToPixels(bounds.Right)) + 1;
+        int bottom = (int)MathF.Ceiling(DipsToPixels(bounds.Bottom)) + 1;
+        return Rectangle.FromLTRB(left, top, right, bottom);
+    }
 
     private void EnsureLayout(SizeF pixelSize)
     {
@@ -357,6 +466,7 @@ internal sealed class UiRoot
         {
             _pixelSize = pixelSize;
             _layoutDirty = true;
+            _fullyDirty = true;
         }
 
         if (!_layoutDirty)
@@ -381,7 +491,7 @@ internal sealed class UiRoot
             UiPointerResult result = element.OnPointerEvent(element.ToLocal(input));
             if (result.NeedsRepaint)
             {
-                InvalidateVisual();
+                InvalidateVisual(element);
             }
 
             if (result.CapturePointer && input.Kind == WindowPointerEventKind.Pressed)
