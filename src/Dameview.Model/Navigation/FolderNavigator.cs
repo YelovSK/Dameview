@@ -99,6 +99,18 @@ internal sealed class FolderNavigator
         return paths;
     }
 
+    /// <returns>Null when the file is the current one, or either is not in the folder.</returns>
+    internal BrowseDirection? GetDirectionTo(string path)
+    {
+        int index = IndexOf(Path.GetFullPath(path));
+        if (index < 0 || _currentIndex < 0 || index == _currentIndex)
+        {
+            return null;
+        }
+
+        return index > _currentIndex ? BrowseDirection.Forward : BrowseDirection.Backward;
+    }
+
     internal string? MoveToNextPath()
     {
         return MoveToRelativePath(1);

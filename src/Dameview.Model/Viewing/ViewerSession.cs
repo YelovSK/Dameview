@@ -16,6 +16,7 @@ internal sealed class ViewerSession : IDisposable
     private readonly IImageLoader _imageLoader;
     private long _scanStarted;
     private int _preloadAhead = 1;
+    private BrowseDirection _browseDirection = BrowseDirection.Forward;
     private FolderSort _defaultSort = FolderSort.NameAscending;
     private bool _disposed;
 
@@ -84,7 +85,7 @@ internal sealed class ViewerSession : IDisposable
         };
         if (!State.IsLoading)
         {
-            PreloadNeighbours(navigationDirection: 0);
+            PreloadNeighbours();
         }
 
         StateChanged?.Invoke();
@@ -97,18 +98,20 @@ internal sealed class ViewerSession : IDisposable
         _preloadAhead = count;
         if (!State.IsLoading)
         {
-            PreloadNeighbours(navigationDirection: 0);
+            PreloadNeighbours();
         }
     }
 
     internal void ShowPreviousImage()
     {
-        OpenNavigatedImage(_folderNavigator.MoveToPreviousPath(), direction: -1);
+        _browseDirection = BrowseDirection.Backward;
+        OpenNavigatedImage(_folderNavigator.MoveToPreviousPath());
     }
 
     internal void ShowNextImage()
     {
-        OpenNavigatedImage(_folderNavigator.MoveToNextPath(), direction: 1);
+        _browseDirection = BrowseDirection.Forward;
+        OpenNavigatedImage(_folderNavigator.MoveToNextPath());
     }
 
     /// <summary>Opens an image, or a folder, which then shows the first image its scan finds.</summary>
@@ -165,14 +168,14 @@ internal sealed class ViewerSession : IDisposable
 
         if (_folderMonitor.Scope?.Contains(fullPath) == true)
         {
-            _folderNavigator.SetCurrent(fullPath);
-            BeginImageLoad(fullPath, navigationDirection: 0);
+            MoveTo(fullPath);
+            BeginImageLoad(fullPath);
             return;
         }
 
         StoreNameFilter(string.Empty);
         OpenFolder(new FolderScope(directoryPath, State.FlattensFolder), fullPath);
-        BeginImageLoad(fullPath, navigationDirection: 0);
+        BeginImageLoad(fullPath);
     }
 
     /// <summary>
@@ -228,7 +231,7 @@ internal sealed class ViewerSession : IDisposable
         _imageLoader.Preload([]);
         if (State.RequestedPath is { } path)
         {
-            BeginImageLoad(path, navigationDirection: 0);
+            BeginImageLoad(path);
             return;
         }
 
@@ -243,8 +246,8 @@ internal sealed class ViewerSession : IDisposable
             return;
         }
 
-        _folderNavigator.SetCurrent(path);
-        BeginImageLoad(path, navigationDirection: 0);
+        MoveTo(path);
+        BeginImageLoad(path);
     }
 
     public void Dispose()
@@ -281,7 +284,7 @@ internal sealed class ViewerSession : IDisposable
 
                 if (wasRemoved)
                 {
-                    ShowNextImage();
+                    OpenNavigatedImage(_folderNavigator.MoveToNextPath());
                 }
 
                 _folderNavigator.SetFiles(update.Entries, State.RequestedPath);
@@ -308,7 +311,7 @@ internal sealed class ViewerSession : IDisposable
         {
             string first = State.FolderEntries[0].FullName;
             _folderNavigator.SetCurrent(first);
-            BeginImageLoad(first, navigationDirection: 0);
+            BeginImageLoad(first);
             return;
         }
 
@@ -324,7 +327,7 @@ internal sealed class ViewerSession : IDisposable
 
         if (!State.IsLoading)
         {
-            PreloadNeighbours(navigationDirection: 0);
+            PreloadNeighbours();
         }
 
         StateChanged?.Invoke();
@@ -340,6 +343,7 @@ internal sealed class ViewerSession : IDisposable
     {
         _folderNavigator.Clear();
         _folderNavigator.SetCurrent(imagePath);
+        _browseDirection = BrowseDirection.Forward;
         State = State with
         {
             FolderEntries = [],
@@ -351,12 +355,12 @@ internal sealed class ViewerSession : IDisposable
         _folderMonitor.Open(scope);
     }
 
-    private void PreloadNeighbours(int navigationDirection)
+    private void PreloadNeighbours()
     {
         if (!State.IsError && State.FolderError is null)
         {
             // The nearest image on each side comes first, since even a change of direction needs one.
-            int step = navigationDirection < 0 ? -1 : 1;
+            int step = _browseDirection == BrowseDirection.Backward ? -1 : 1;
             _imageLoader.Preload(_folderNavigator.GetRelativePaths(
                 [step, -step, .. Enumerable.Range(2, _preloadAhead - 1).Select(distance => distance * step)]));
         }
@@ -371,17 +375,25 @@ internal sealed class ViewerSession : IDisposable
             or OverflowException;
     }
 
-    private void OpenNavigatedImage(string? path, int direction)
+    private void OpenNavigatedImage(string? path)
     {
         if (path is not null)
         {
-            BeginImageLoad(path, direction);
+            BeginImageLoad(path);
         }
     }
 
-    private void BeginImageLoad(
-        string path,
-        int navigationDirection)
+    private void MoveTo(string path)
+    {
+        if (_folderNavigator.GetDirectionTo(path) is { } direction)
+        {
+            _browseDirection = direction;
+        }
+
+        _folderNavigator.SetCurrent(path);
+    }
+
+    private void BeginImageLoad(string path)
     {
         State = State with
         {
@@ -392,9 +404,7 @@ internal sealed class ViewerSession : IDisposable
             IsError = false,
         };
         StateChanged?.Invoke();
-        _imageLoader.Load(
-            path,
-            result => CompleteImageLoad(result, navigationDirection));
+        _imageLoader.Load(path, CompleteImageLoad);
     }
 
     private void ShowInViewport(ImageRepresentation representation)
@@ -404,9 +414,7 @@ internal sealed class ViewerSession : IDisposable
             representation.Orientation);
     }
 
-    private void CompleteImageLoad(
-        ImageLoadResult result,
-        int navigationDirection)
+    private void CompleteImageLoad(ImageLoadResult result)
     {
         if (_disposed)
         {
@@ -438,7 +446,7 @@ internal sealed class ViewerSession : IDisposable
                         Message = null,
                         IsError = false,
                     };
-                    PreloadNeighbours(navigationDirection);
+                    PreloadNeighbours();
 
                     break;
 

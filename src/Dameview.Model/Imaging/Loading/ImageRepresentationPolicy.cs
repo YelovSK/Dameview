@@ -20,7 +20,6 @@ internal readonly record struct ImageRepresentationPolicy
     internal int MaximumBitmapDimension { get; }
 
     /// <param name="canAnimate">Whether an animation decoder handles the image's format.</param>
-    /// <param name="cacheCapacityBytes">How much the bitmap cache may hold.</param>
     internal ImageRepresentationKind Select(ImageInfo image, bool canAnimate, long cacheCapacityBytes)
     {
         if (image.FrameCount > 1 && canAnimate)

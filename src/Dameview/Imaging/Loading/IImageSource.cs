@@ -27,7 +27,6 @@ internal abstract class ImageLoadContext
 {
     internal abstract CancellationToken CancellationToken { get; }
 
-    /// <summary>The capacity of the cache the image would be kept in.</summary>
     internal abstract long CacheCapacityBytes { get; }
 
     /// <summary>

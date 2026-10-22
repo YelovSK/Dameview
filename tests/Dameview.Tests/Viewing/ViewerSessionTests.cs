@@ -144,6 +144,39 @@ public sealed class ViewerSessionTests
     }
 
     [TestMethod]
+    public void GallerySelectionPreloadsTowardsWhereItLanded()
+    {
+        using var files = new SessionFiles();
+        var loader = new ManualImageLoader();
+        using ViewerSession session = CreateSession(loader);
+        session.OpenImage(files.Third);
+        DeliverFolder(session);
+        loader.Complete(CreateImage());
+
+        session.SelectImage(files.Second);
+        loader.Complete(CreateImage());
+
+        CollectionAssert.AreEqual(new[] { files.First, files.Third }, loader.Preloads);
+    }
+
+    [TestMethod]
+    public void LaterPreloadsKeepTheDirectionOfBrowsing()
+    {
+        using var files = new SessionFiles();
+        var loader = new ManualImageLoader();
+        using ViewerSession session = CreateSession(loader);
+        session.OpenImage(files.Third);
+        DeliverFolder(session);
+        loader.Complete(CreateImage());
+
+        session.ShowPreviousImage();
+        loader.Complete(CreateImage());
+        session.SetPreloadAhead(1);
+
+        CollectionAssert.AreEqual(new[] { files.First, files.Third }, loader.Preloads);
+    }
+
+    [TestMethod]
     public void SuccessfulLoadAfterFailureClearsTheErrorAndResetsTheViewport()
     {
         using var files = new SessionFiles();
