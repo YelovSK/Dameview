@@ -35,6 +35,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
     private AnimatedImagePlayer? _imageAnimation;
     private ID2D1Bitmap1? _placedImage;
     private Matrix3x2 _placement;
+    private Matrix3x2 _followedTransform;
     private long _settlesAt;
     private bool _awaitsSettle;
     private bool _pointerPressed;
@@ -78,6 +79,17 @@ internal sealed class ImagePanel : UiElement, IDisposable
     internal float ZoomPercentage => _viewport.Scale * 100.0f;
     internal SizeF ImageSize => _viewport.ImageSize;
     internal Exception? AnimationError => _imageAnimation?.Error;
+
+    /// <summary>Redraws if the viewport moved, whatever moved it, such as a pane it is synced with.</summary>
+    internal void FollowViewport()
+    {
+        Matrix3x2 transform = _viewport.ImageTransform;
+        if (transform != _followedTransform)
+        {
+            _followedTransform = transform;
+            Root?.MarkDirty(this);
+        }
+    }
 
     internal void RecreateDeviceResources(ID2D1DeviceContext deviceContext)
     {

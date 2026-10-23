@@ -270,7 +270,14 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         return bounds;
     }
 
-    internal void UpdateStatus()
+    /// <summary>Catches up with model changes nothing reported, once per frame before drawing.</summary>
+    internal void RefreshFromModel()
+    {
+        _imagePanel.FollowViewport();
+        UpdateStatus();
+    }
+
+    private void UpdateStatus()
     {
         if (!HasStatus)
         {

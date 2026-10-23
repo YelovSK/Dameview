@@ -467,7 +467,7 @@ internal sealed class ViewerUi : UiElement, IFrameContent, IDisposable
 
     public UiDirtyRegion PrepareFrame(Size pixelSize)
     {
-        _workspaceView.UpdateStatuses();
+        _workspaceView.RefreshFromModel();
 
         long layoutStarted = Stopwatch.GetTimestamp();
         _host.Root.Arrange(pixelSize);

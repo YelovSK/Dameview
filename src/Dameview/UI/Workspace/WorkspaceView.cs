@@ -142,13 +142,13 @@ internal sealed class WorkspaceView : UiElement, IDisposable
         }
     }
 
-    internal void UpdateStatuses()
+    internal void RefreshFromModel()
     {
         foreach (ViewerPaneView paneView in _paneViews.Values)
         {
             if (paneView.IsVisible)
             {
-                paneView.UpdateStatus();
+                paneView.RefreshFromModel();
             }
         }
     }
