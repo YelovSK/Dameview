@@ -229,18 +229,9 @@ internal sealed class SettingsService : IDisposable
 
     private void Save(AppSettings settings)
     {
-        string temporaryPath = _path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        try
-        {
-            string existing = File.Exists(_path) ? File.ReadAllText(_path) : string.Empty;
-            File.WriteAllText(temporaryPath, SettingsIniSerializer.Write(settings, existing));
-            File.Move(temporaryPath, _path, overwrite: true);
-            _fileSettings = settings;
-        }
-        finally
-        {
-            File.Delete(temporaryPath);
-        }
+        string existing = File.Exists(_path) ? File.ReadAllText(_path) : string.Empty;
+        AtomicFile.WriteAllText(_path, SettingsIniSerializer.Write(settings, existing));
+        _fileSettings = settings;
     }
 
     private void Fail(string message)

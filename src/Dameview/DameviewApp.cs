@@ -35,6 +35,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
     private readonly ImagePipeline _images;
     private readonly RenderBitmapCache _imageCache;
     private readonly FolderSources _folderSources;
+    private readonly FolderSortMemory _folderSorts;
     private readonly ViewerWorkspace _workspace;
     private readonly SettingsService _settings;
     private readonly UpdateService _updates;
@@ -114,6 +115,8 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
                 return source;
             },
             _uiContext);
+        _folderSorts = FolderSortsFile.Load();
+        _folderSorts.Changed += () => FolderSortsFile.Save(_folderSorts);
         _workspace = new ViewerWorkspace(CreateTab);
         _settings = new SettingsService(SettingsService.DefaultPath, _uiContext, loaded: startupSettings);
         _updates = new UpdateService(
@@ -225,6 +228,8 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
             TaskScheduler.Default);
         _ui.Dispose();
         _workspace.Dispose();
+        // Opening folders changes which sorts were used last, and only this save keeps that.
+        FolderSortsFile.Save(_folderSorts);
         _images.Dispose();
         _renderer.Dispose();
         _window.Dispose();
@@ -429,6 +434,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
     {
         var session = new ViewerSession(
             new FolderNavigator(),
+            _folderSorts,
             new FolderMonitor(_folderSources),
             new ViewerImageLoader(_images));
         return new ViewerTab(session);

@@ -12,6 +12,7 @@ namespace Dameview.Viewing;
 internal sealed class ViewerSession : IDisposable
 {
     private readonly FolderNavigator _folderNavigator;
+    private readonly FolderSortMemory _folderSorts;
     private readonly IFolderMonitor _folderMonitor;
     private readonly IImageLoader _imageLoader;
     private long _scanStarted;
@@ -22,13 +23,16 @@ internal sealed class ViewerSession : IDisposable
 
     internal ViewerSession(
         FolderNavigator folderNavigator,
+        FolderSortMemory folderSorts,
         IFolderMonitor folderMonitor,
         IImageLoader imageLoader)
     {
         _folderNavigator = folderNavigator;
+        _folderSorts = folderSorts;
         _imageLoader = imageLoader;
         _folderMonitor = folderMonitor;
         _folderMonitor.Updated += HandleFolderUpdated;
+        _folderSorts.Changed += HandleFolderSortsChanged;
         Viewport = new ImageViewport(Size.Empty);
         Animator = new ViewportAnimator(Viewport);
     }
@@ -41,22 +45,27 @@ internal sealed class ViewerSession : IDisposable
     /// <summary>Whether next and previous lead to another image, which the name filter may rule out.</summary>
     internal bool HasOtherImages => _folderNavigator.HasOtherMatch;
 
-    /// <summary>The sort this tab uses while it has no sort of its own.</summary>
+    /// <summary>The sort used for folders that neither have nor inherit a sort of their own.</summary>
     internal void SetDefaultSort(FolderSort sort)
     {
         _defaultSort = sort;
-        if (State.SortOverride is null)
+        _folderNavigator.SetSort(GetEffectiveSort());
+        RefreshFolderEntries();
+    }
+
+    /// <summary>
+    /// Remembers a sort for the open folder. While subfolders are shown, it applies to them too.
+    /// </summary>
+    /// <param name="sort">Null forgets the folder's own sort, so it inherits one again.</param>
+    internal void SetFolderSort(FolderSort? sort)
+    {
+        if (_folderMonitor.Scope is { } scope)
         {
-            ApplySort();
+            _folderSorts.Set(scope.DirectoryPath, sort, State.FlattensFolder);
         }
     }
 
-    /// <param name="sort">This tab's own sort, or null to follow the default.</param>
-    internal void SetSortOverride(FolderSort? sort)
-    {
-        State = State with { SortOverride = sort };
-        ApplySort();
-    }
+    private FolderSort GetEffectiveSort() => State.SortChoice.Sort ?? _defaultSort;
 
     /// <summary>Lists and navigates only the images whose names contain the filter, without leaving the current image.</summary>
     internal void SetNameFilter(string filter)
@@ -70,10 +79,27 @@ internal sealed class ViewerSession : IDisposable
         RefreshFolderEntries();
     }
 
-    private void ApplySort()
+    private void HandleFolderSortsChanged()
     {
-        _folderNavigator.SetSort(State.SortOverride ?? _defaultSort);
-        RefreshFolderEntries();
+        // Most changes are to folders this tab is not in, which then cost no refresh.
+        if (_folderMonitor.Scope is { } scope && ResolveSort(scope.DirectoryPath))
+        {
+            RefreshFolderEntries();
+        }
+    }
+
+    /// <returns>Whether the folder's sort changed.</returns>
+    private bool ResolveSort(string folderPath)
+    {
+        FolderSortChoice choice = _folderSorts.Resolve(folderPath);
+        if (choice == State.SortChoice)
+        {
+            return false;
+        }
+
+        State = State with { SortChoice = choice };
+        _folderNavigator.SetSort(GetEffectiveSort());
+        return true;
     }
 
     private void RefreshFolderEntries()
@@ -259,6 +285,7 @@ internal sealed class ViewerSession : IDisposable
 
         _disposed = true;
         _folderMonitor.Updated -= HandleFolderUpdated;
+        _folderSorts.Changed -= HandleFolderSortsChanged;
         State.DisplayedImage?.Dispose();
         _imageLoader.Dispose();
         _folderMonitor.Dispose();
@@ -342,6 +369,7 @@ internal sealed class ViewerSession : IDisposable
     private void OpenFolder(FolderScope scope, string? imagePath)
     {
         _folderNavigator.Clear();
+        ResolveSort(scope.DirectoryPath);
         _folderNavigator.SetCurrent(imagePath);
         _browseDirection = BrowseDirection.Forward;
         State = State with
@@ -486,7 +514,7 @@ internal sealed record ViewerSessionState(
     FolderEntry? CurrentEntry = null,
     string? FolderError = null,
     bool FlattensFolder = false,
-    FolderSort? SortOverride = null,
+    FolderSortChoice SortChoice = default,
     string NameFilter = "",
     bool IsScanning = false,
     TimeSpan ScanDuration = default);

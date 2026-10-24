@@ -28,7 +28,7 @@ public sealed class ViewerSessionTests
         session.Viewport.SetActualSizeAt(new PointF(400, 300), session.Viewport.ImageCenter);
         ImageLoaded? displayed = session.State.DisplayedImage;
         PointF center = session.Viewport.Center;
-        session.SetSortOverride(FolderSort.NameDescending);
+        session.SetFolderSort(FolderSort.NameDescending);
         Assert.AreSame(displayed, session.State.DisplayedImage);
         Assert.AreEqual(center, session.Viewport.Center);
         Assert.AreEqual(ViewportMode.ActualSize, session.Viewport.Mode);
@@ -48,12 +48,30 @@ public sealed class ViewerSessionTests
         session.OpenImage(files.First);
         DeliverFolder(session);
 
-        session.SetSortOverride(FolderSort.NameDescending);
+        session.SetFolderSort(FolderSort.NameDescending);
         session.SetDefaultSort(FolderSort.NameAscending);
         Assert.AreEqual(files.Third, session.State.FolderEntries[0].FullName);
 
-        session.SetSortOverride(null);
+        session.SetFolderSort(null);
         Assert.AreEqual(files.First, session.State.FolderEntries[0].FullName);
+    }
+
+    [TestMethod]
+    public void FolderSortReachesOtherTabsInTheSameFolder()
+    {
+        using var files = new SessionFiles();
+        var folderSorts = new FolderSortMemory();
+        using ViewerSession first = CreateSession(new ManualImageLoader(), folderSorts);
+        using ViewerSession second = CreateSession(new ManualImageLoader(), folderSorts);
+        first.OpenImage(files.First);
+        second.OpenImage(files.First);
+        // Both scans are posted to the same queue, so one delivery covers both tabs.
+        DeliverFolder(first);
+
+        first.SetFolderSort(FolderSort.NameDescending);
+
+        Assert.AreEqual(FolderSort.NameDescending, second.State.SortChoice.Own);
+        Assert.AreEqual(files.Third, second.State.FolderEntries[0].FullName);
     }
 
     [TestMethod]
@@ -62,7 +80,7 @@ public sealed class ViewerSessionTests
         using var files = new SessionFiles();
         var loader = new ManualImageLoader();
         var scanner = new ImmediateScanner();
-        using var session = new ViewerSession(new FolderNavigator(), CreateMonitor(scanner), loader);
+        using var session = new ViewerSession(new FolderNavigator(), new FolderSortMemory(), CreateMonitor(scanner), loader);
         session.Viewport.SetViewportSize(new Size(800, 600));
         session.OpenImage(files.First);
         DeliverFolder(session);
@@ -280,9 +298,10 @@ public sealed class ViewerSessionTests
         Assert.IsTrue(tiles.IsDisposed);
     }
 
-    private ViewerSession CreateSession(ManualImageLoader loader)
+    private ViewerSession CreateSession(ManualImageLoader loader, FolderSortMemory? folderSorts = null)
     {
-        var session = new ViewerSession(new FolderNavigator(), CreateMonitor(new ImmediateScanner()), loader);
+        var session = new ViewerSession(
+            new FolderNavigator(), folderSorts ?? new FolderSortMemory(), CreateMonitor(new ImmediateScanner()), loader);
         session.Viewport.SetViewportSize(new Size(800, 600));
         return session;
     }

@@ -784,7 +784,7 @@ public sealed class ViewerWorkspaceTests
     private static ViewerTab CreateTab()
     {
         var monitor = new SilentFolderMonitor();
-        var session = new ViewerSession(new FolderNavigator(), monitor, new SilentImageLoader());
+        var session = new ViewerSession(new FolderNavigator(), new FolderSortMemory(), monitor, new SilentImageLoader());
         return new ViewerTab(session);
     }
 

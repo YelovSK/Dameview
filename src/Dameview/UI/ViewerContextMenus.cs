@@ -76,12 +76,15 @@ internal sealed class ViewerContextMenus
 
     internal void ShowSortMenu(ViewerTab tab, UiElement button)
     {
-        FolderSort? current = tab.Session.State.SortOverride;
+        FolderSort? current = tab.Session.State.SortChoice.Own;
+        string inherited = tab.Session.State.SortChoice.Inherited is { } parent
+            ? $"{SortLabel(parent.Sort)}, from {FolderName(parent.FolderPath)}"
+            : SortLabel(DefaultSort);
         ContextMenu.ShowBelow(
             _popupHost,
             button,
             [
-                [SortItem(tab, null, $"Default ({SortLabel(DefaultSort)})", current is null)],
+                [SortItem(tab, null, $"Default ({inherited})", current is null)],
                 [.. Enum.GetValues<FolderSort>().Select(sort => SortItem(tab, sort, SortLabel(sort), current == sort))],
             ]);
     }
@@ -104,7 +107,10 @@ internal sealed class ViewerContextMenus
     }
 
     private static ContextMenuItem SortItem(ViewerTab tab, FolderSort? sort, string label, bool isChecked) =>
-        new(label, () => tab.Session.SetSortOverride(sort), IsChecked: isChecked);
+        new(label, () => tab.Session.SetFolderSort(sort), IsChecked: isChecked);
+
+    private static string FolderName(string path) =>
+        Path.GetFileName(path) is { Length: > 0 } name ? name : path;
 
     private static string SortLabel(FolderSort sort) => sort switch
     {

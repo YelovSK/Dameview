@@ -122,7 +122,7 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     {
         GalleryPanelState state = GetTabState(tab);
         string footerText = GetFooterText(session);
-        bool sorted = session.SortOverride is not null;
+        bool sorted = session.SortChoice.Sort is not null;
         if (_footerText != footerText
             || _flattenButton.IsSelected != session.FlattensFolder
             || _sortButton.IsSelected != sorted)

@@ -507,7 +507,7 @@ public sealed class FolderScanSessionTests
             Session = CreateSession(Loader);
         }
 
-        internal ViewerSession CreateSession(Loader loader) => new(new FolderNavigator(), new FolderMonitor(_sources), loader);
+        internal ViewerSession CreateSession(Loader loader) => new(new FolderNavigator(), new FolderSortMemory(), new FolderMonitor(_sources), loader);
 
         internal Action TakeScan()
         {

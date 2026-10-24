@@ -166,7 +166,6 @@ internal sealed class ViewerWorkspace : IDisposable
             copy.Session.ToggleFlattenFolder();
         }
 
-        copy.Session.SetSortOverride(state.SortOverride);
         if (state.RequestedPath is { } path)
         {
             copy.Session.OpenImage(path);
