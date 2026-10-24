@@ -95,7 +95,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
             new BitmapUploader(_renderer),
             (new FileImageSource(
                     imageBackend,
-                    new ImageRepresentationPolicy(checked((int)_renderer.DeviceContext.MaximumBitmapSize))),
+                    new ImageRepresentationPolicy(D2DBitmapFactory.MaximumTextureDimension)),
                 _imageCache),
             (new ShellThumbnailSource(imageBackend), new RenderBitmapCache(ThumbnailBitmapCacheCapacityBytes)));
         using var imageDecoder = new ImageDecoder();

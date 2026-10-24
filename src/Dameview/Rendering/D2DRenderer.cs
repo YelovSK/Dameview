@@ -87,9 +87,7 @@ internal sealed class D2DRenderer : IDisposable
             driverType,
             DeviceCreationFlags.BgraSupport,
             Vortice.Direct3D.FeatureLevel.Level_11_1,
-            Vortice.Direct3D.FeatureLevel.Level_11_0,
-            Vortice.Direct3D.FeatureLevel.Level_10_1,
-            Vortice.Direct3D.FeatureLevel.Level_10_0);
+            Vortice.Direct3D.FeatureLevel.Level_11_0);
     }
 
     /// <summary>

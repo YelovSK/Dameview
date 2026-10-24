@@ -13,6 +13,10 @@ internal static class D2DBitmapFactory
 {
     private const float DefaultDpi = 96.0f;
 
+    // D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION. Images reach the screen as Direct3D textures, so this
+    // caps them on every device, even where Direct2D reports a larger maximum bitmap size (WARP does).
+    internal const int MaximumTextureDimension = 16_384;
+
     /// <summary>
     /// A context on the same device for building bitmaps while <paramref name="deviceContext"/>
     /// is in the middle of drawing a frame.
