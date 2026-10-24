@@ -224,14 +224,14 @@ internal sealed class FolderNavigator
             && (left.Metadata is null || right.Metadata is null))
         {
             return left.Metadata is null
-                ? right.Metadata is null ? _pathComparer.Compare(left.Path, right.Path) : 1
+                ? right.Metadata is null ? NaturalOrder.Compare(left.Path, right.Path) : 1
                 : -1;
         }
 
         int result = sort switch
         {
-            FolderSort.NameAscending => _pathComparer.Compare(left.Name, right.Name),
-            FolderSort.NameDescending => _pathComparer.Compare(right.Name, left.Name),
+            FolderSort.NameAscending => NaturalOrder.Compare(left.Name, right.Name),
+            FolderSort.NameDescending => NaturalOrder.Compare(right.Name, left.Name),
             FolderSort.DateModifiedNewest => right.Metadata!.LastWriteTimeUtc.CompareTo(left.Metadata!.LastWriteTimeUtc),
             FolderSort.DateModifiedOldest => left.Metadata!.LastWriteTimeUtc.CompareTo(right.Metadata!.LastWriteTimeUtc),
             FolderSort.DateCreatedNewest => right.Metadata!.CreationTimeUtc.CompareTo(left.Metadata!.CreationTimeUtc),
@@ -243,7 +243,7 @@ internal sealed class FolderNavigator
 
         return result != 0
             ? result
-            : _pathComparer.Compare(left.Path, right.Path);
+            : NaturalOrder.Compare(left.Path, right.Path);
     }
 
     private readonly record struct NavigationEntry(string Path, FolderEntry? Metadata)
