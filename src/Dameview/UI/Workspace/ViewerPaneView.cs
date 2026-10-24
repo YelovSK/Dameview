@@ -199,6 +199,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             ApplyDisplayedImage(displayed);
         }
 
+        UpdateStatus();
         UpdateChromeVisibility();
         RefreshInfo();
     }
@@ -275,6 +276,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     {
         _imagePanel.FollowViewport();
         UpdateStatus();
+        UpdateChromeVisibility();
     }
 
     private void UpdateStatus()
@@ -302,7 +304,6 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             (int)MathF.Round(_imagePanel.ZoomPercentage, MidpointRounding.AwayFromZero),
             message,
             animationError is not null || _state.IsError || _state.FolderError is not null));
-        UpdateChromeVisibility();
     }
 
     protected override bool HitTestCore(PointF position) => false;
