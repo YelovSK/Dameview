@@ -34,14 +34,28 @@ internal sealed class UiHost : IDisposable
         _brush = deviceContext.CreateSolidColorBrush(default(Color4));
         _textLayouts = new UiTextLayoutCache(directWriteFactory);
         _animationClock = new UiAnimationClock(timeProvider);
-        Palette = palette;
         Root = new UiRoot(content, dpi, _textLayouts, timeProvider);
+        Palette = palette;
     }
 
     internal UiRoot Root { get; }
     /// <summary>The context the tree draws with, which is replaced when the graphics device is.</summary>
     internal ID2D1DeviceContext DeviceContext { get; private set; }
-    internal UiTheme Palette { get; set; }
+    internal UiTheme Palette
+    {
+        get;
+        set
+        {
+            if (field == value)
+            {
+                return;
+            }
+
+            field = value;
+            Root.InvalidateVisual();
+        }
+    }
+
     internal int LastDrawnElements => _drawTally.Elements;
     internal int LastDrawOperations => _drawTally.Operations;
     internal UiRedrawFlashes RedrawFlashes { get; } = new();
