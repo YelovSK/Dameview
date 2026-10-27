@@ -1,5 +1,6 @@
 using System.Drawing;
 using Dameview.UI.Foundation;
+using Dameview.UI.Layout;
 
 namespace Dameview.Tests.UI.Layout;
 
@@ -68,6 +69,21 @@ public sealed class UiElementLayoutTests
 
         Assert.AreEqual(new SizeF(20.0f, 10.0f), desired);
         Assert.AreEqual(new RectangleF(80.0f, 0.0f, 20.0f, 50.0f), child.Bounds);
+    }
+
+    [TestMethod]
+    public void RootVisualBoundsAreCutToWhatAncestorsShow()
+    {
+        var content = new FixedElement(new SizeF(50.0f, 500.0f));
+        var scrollView = new ScrollView(content);
+        scrollView.Measure(new SizeF(100.0f, 50.0f));
+        scrollView.Arrange(new RectangleF(10.0f, 20.0f, 100.0f, 50.0f));
+
+        scrollView.SetScrollOffset(100.0f);
+
+        RectangleF visible = content.GetRootVisualBounds();
+        Assert.AreEqual(20.0f, visible.Top);
+        Assert.AreEqual(70.0f, visible.Bottom);
     }
 
     private sealed class FixedElement(SizeF desiredSize) : UiElement

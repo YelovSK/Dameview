@@ -40,6 +40,8 @@ internal readonly record struct UiDrawContext
     /// ones remember where they were drawn. Without it everything is drawn and nothing remembered.
     /// </summary>
     internal RectangleF? CullBounds { get; init; }
+    // What the ancestors' clips leave visible, in root DIPs, so hidden parts are neither drawn nor remembered.
+    private RectangleF? ClipBounds { get; init; }
 
     internal void FillRoundedRectangle(RoundedRectangle rectangle, Color4 color, float opacity = 1.0f)
     {
@@ -171,15 +173,22 @@ internal readonly record struct UiDrawContext
         }
 
         transform *= previousTransform;
+        RectangleF? drawn = null;
         if (CullBounds is { } cull)
         {
-            RectangleF drawn = TransformBounds(transform, bounds.Size);
-            if (!drawn.IntersectsWith(cull))
+            RectangleF visible = TransformBounds(transform, bounds.Size);
+            if (ClipBounds is { } clip)
+            {
+                visible.Intersect(clip);
+            }
+
+            if (!visible.IntersectsWith(cull))
             {
                 return;
             }
 
-            element.LastDrawnBounds = drawn;
+            element.LastDrawnBounds = visible;
+            drawn = visible;
         }
 
         _tally.Elements++;
@@ -188,7 +197,7 @@ internal readonly record struct UiDrawContext
 
         try
         {
-            UiDrawContext elementContext = WithOpacity(element.Opacity);
+            UiDrawContext elementContext = WithOpacity(element.Opacity) with { ClipBounds = drawn };
             int operations = _tally.Operations;
             element.Draw(elementContext);
             if (CullBounds is not null)

@@ -637,11 +637,13 @@ internal abstract class UiElement
         };
     }
 
-    /// <summary>Where the element sits now in root DIPs, or empty when it or an ancestor is hidden.</summary>
+    /// <summary>
+    /// The part of the element that shows now in root DIPs, cut to its ancestors' clips, or empty
+    /// when it or an ancestor is hidden.
+    /// </summary>
     internal RectangleF GetRootVisualBounds()
     {
-        float x = 0.0f;
-        float y = 0.0f;
+        var visible = new RectangleF(PointF.Empty, Bounds.Size);
         for (UiElement? element = this; element is not null; element = element.Parent)
         {
             if (!element.IsVisible)
@@ -649,12 +651,12 @@ internal abstract class UiElement
                 return RectangleF.Empty;
             }
 
+            visible.Intersect(new RectangleF(PointF.Empty, element.Bounds.Size));
             PointF offset = element.VisualOffset;
-            x += element.Bounds.X + offset.X;
-            y += element.Bounds.Y + offset.Y;
+            visible.Offset(element.Bounds.X + offset.X, element.Bounds.Y + offset.Y);
         }
 
-        return new RectangleF(x, y, Bounds.Width, Bounds.Height);
+        return visible;
     }
 
     private RectangleF GetVisualBounds()
