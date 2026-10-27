@@ -82,12 +82,7 @@ internal sealed class ScrollView : UiElement
             target += descendantBounds.Bottom - Bounds.Height;
         }
 
-        if (_scrollOffset.SetImmediate(target))
-        {
-            ArrangeContent(Bounds.Size, _contentWidth);
-            _scrollbar.SetMetrics(_contentHeight, Bounds.Height, _scrollOffset.Offset);
-            InvalidateVisual();
-        }
+        SetScrollOffset(target);
     }
 
     internal void SetScrollOffset(float offset)
@@ -96,7 +91,6 @@ internal sealed class ScrollView : UiElement
         {
             ArrangeContent(Bounds.Size, _contentWidth);
             _scrollbar.SetMetrics(_contentHeight, Bounds.Height, _scrollOffset.Offset);
-            InvalidateVisual();
         }
     }
 

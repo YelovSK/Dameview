@@ -37,9 +37,18 @@ internal sealed class Scrollbar : UiElement
 
     internal void SetMetrics(float contentExtent, float viewportExtent, float offset)
     {
-        _contentExtent = MathF.Max(0.0f, contentExtent);
-        _viewportExtent = MathF.Max(0.0f, viewportExtent);
-        _offset = Math.Clamp(offset, 0.0f, MaximumOffset);
+        contentExtent = MathF.Max(0.0f, contentExtent);
+        viewportExtent = MathF.Max(0.0f, viewportExtent);
+        offset = Math.Clamp(offset, 0.0f, MathF.Max(0.0f, contentExtent - viewportExtent));
+        if (contentExtent == _contentExtent && viewportExtent == _viewportExtent && offset == _offset)
+        {
+            return;
+        }
+
+        _contentExtent = contentExtent;
+        _viewportExtent = viewportExtent;
+        _offset = offset;
+        InvalidateVisual();
     }
 
     internal void SetOrientation(UiOrientation orientation)
