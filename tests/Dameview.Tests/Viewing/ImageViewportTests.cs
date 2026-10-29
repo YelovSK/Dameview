@@ -56,7 +56,7 @@ public sealed class ImageViewportTests
         viewport.SetImageSize(new Size(2000, 1600));
         PointF before = viewport.ViewportToImage(new PointF(600.0f, 400.0f));
 
-        viewport.SetScaleAt(viewport.GetZoomScale(viewport.Scale, 120), new PointF(600.0f, 400.0f), before);
+        viewport.SetScaleAt(viewport.GetZoomScale(viewport.Scale, 1.0f), new PointF(600.0f, 400.0f), before);
 
         PointF after = viewport.ViewportToImage(new PointF(600.0f, 400.0f));
         Assert.AreEqual(ViewportMode.Custom, viewport.Mode);
@@ -170,7 +170,7 @@ public sealed class ImageViewportTests
                 string operation;
                 if (step % 3 == 0)
                 {
-                    int delta = (random.Next(2) == 0 ? -1 : 1) * 120;
+                    float delta = random.Next(2) == 0 ? -1.0f : 1.0f;
                     float scale = viewport.GetZoomScale(viewport.Scale, delta);
                     float x = (float)random.NextDouble() * 1000.0f;
                     float y = (float)random.NextDouble() * 800.0f;

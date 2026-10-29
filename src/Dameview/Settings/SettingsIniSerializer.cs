@@ -52,6 +52,7 @@ internal static class SettingsIniSerializer
             s => s.WheelZoomPercent,
             (s, value) => s with { WheelZoomPercent = value },
             AppSettings.MaximumWheelZoomPercent),
+        Binding.Bool(Root, "wheelNavigates", s => s.WheelNavigates, (s, value) => s with { WheelNavigates = value }),
         Binding.Int(
             "loading",
             "preloadAhead",

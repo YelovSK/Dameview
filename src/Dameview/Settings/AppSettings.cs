@@ -52,6 +52,8 @@ internal sealed record AppSettings
     public bool SharpPixelsWhenZoomed { get; init; }
     /// <summary>How much one wheel notch zooms in, as a percentage of the current zoom.</summary>
     public float WheelZoomPercent { get; init; } = 20.0f;
+    /// <summary>Whether the wheel switches images instead of zooming. Ctrl+wheel zooms either way.</summary>
+    public bool WheelNavigates { get; init; }
     /// <summary>How many images to load ahead in the direction of browsing.</summary>
     public int PreloadAhead { get; init; } = 3;
     /// <summary>How much video memory decoded images may keep, preloaded ones included.</summary>

@@ -19,7 +19,7 @@ public sealed class ScrollViewTests
         scrollView.OnPointerEvent(new WindowPointerEvent(
             WindowPointerEventKind.Wheel,
             PointF.Empty,
-            WheelDelta: -1200));
+            WheelNotches: -10.0f));
 
         AdvanceScroll(scrollView);
         Assert.AreEqual(380.0f, scrollView.ScrollOffset);
@@ -28,7 +28,7 @@ public sealed class ScrollViewTests
         scrollView.OnPointerEvent(new WindowPointerEvent(
             WindowPointerEventKind.Wheel,
             PointF.Empty,
-            WheelDelta: 1200));
+            WheelNotches: 10.0f));
         AdvanceScroll(scrollView);
         Assert.AreEqual(0.0f, scrollView.ScrollOffset);
     }
@@ -44,7 +44,7 @@ public sealed class ScrollViewTests
         scrollView.OnPointerEvent(new WindowPointerEvent(
             WindowPointerEventKind.Wheel,
             PointF.Empty,
-            WheelDelta: -1200));
+            WheelNotches: -10.0f));
         scrollView.UpdateTree(new UiUpdateContext(0.0, AnimationsEnabled: false));
 
         Assert.AreEqual(380.0f, scrollView.ScrollOffset);

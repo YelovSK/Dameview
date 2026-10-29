@@ -24,7 +24,7 @@ public sealed class ViewerTabStripTests
         UiPointerResult result = tabs.OnPointerEvent(new WindowPointerEvent(
             WindowPointerEventKind.Wheel,
             PointF.Empty,
-            WheelDelta: -120));
+            WheelNotches: -1.0f));
         root.Update(new UiUpdateContext(1.0 / 60.0));
 
         Assert.IsTrue(result.Consumed);

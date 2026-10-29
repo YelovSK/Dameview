@@ -223,9 +223,9 @@ public sealed class InteractiveControlsTests
         root.Arrange(new SizeF(216.0f, 36.0f));
         PointF center = new(108.0f, 18.0f);
 
-        root.HandlePointer(new WindowPointerEvent(WindowPointerEventKind.Wheel, center, WheelDelta: 120));
-        root.HandlePointer(new WindowPointerEvent(WindowPointerEventKind.Wheel, center, WheelDelta: -60));
-        root.HandlePointer(new WindowPointerEvent(WindowPointerEventKind.Wheel, center, WheelDelta: -60));
+        root.HandlePointer(new WindowPointerEvent(WindowPointerEventKind.Wheel, center, WheelNotches: 1.0f));
+        root.HandlePointer(new WindowPointerEvent(WindowPointerEventKind.Wheel, center, WheelNotches: -0.5f));
+        root.HandlePointer(new WindowPointerEvent(WindowPointerEventKind.Wheel, center, WheelNotches: -0.5f));
 
         CollectionAssert.AreEqual(new[] { 6.0, 5.0 }, changes);
     }

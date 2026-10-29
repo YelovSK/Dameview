@@ -75,16 +75,16 @@ internal sealed class ViewportAnimator
         return true;
     }
 
-    internal bool ZoomAt(PointF viewportPoint, int wheelDelta)
+    internal bool ZoomAt(PointF viewportPoint, float wheelNotches)
     {
-        if (wheelDelta == 0)
+        if (wheelNotches == 0.0f)
         {
             return false;
         }
 
         // Wheel steps add up: a zoom that is still running continues from where it was headed.
         float baseScale = _move is { TargetMode: ViewportMode.Custom } zoom ? zoom.TargetScale : _viewport.Scale;
-        float targetScale = _viewport.GetZoomScale(baseScale, wheelDelta);
+        float targetScale = _viewport.GetZoomScale(baseScale, wheelNotches);
         if (targetScale == _viewport.Scale)
         {
             _move = null;

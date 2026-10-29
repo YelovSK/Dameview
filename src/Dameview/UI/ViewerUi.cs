@@ -52,6 +52,7 @@ internal sealed class ViewerUi : UiElement, IFrameContent, IDisposable
     // Read when a pane view is created, so panes opened later show the current bindings.
     private ViewerKeyBindings _keyBindings = ViewerKeyBindings.Defaults;
     private bool _sharpPixels;
+    private bool _wheelNavigates;
     private bool _infoExpanded;
     // In DIPs; the window center stands in until the pointer first moves.
     private PointF? _pointer;
@@ -90,6 +91,7 @@ internal sealed class ViewerUi : UiElement, IFrameContent, IDisposable
                 detailsReader)
             {
                 SharpPixels = _sharpPixels,
+                WheelNavigates = _wheelNavigates,
                 ChromeVisible = _chromeVisible,
                 InfoExpanded = _infoExpanded,
             },
@@ -303,9 +305,11 @@ internal sealed class ViewerUi : UiElement, IFrameContent, IDisposable
         _galleryPanel.SetThumbnailSize(settings.GalleryThumbnailSize);
         _settingsPanel.ApplySettings(settings);
         _sharpPixels = settings.SharpPixelsWhenZoomed;
+        _wheelNavigates = settings.WheelNavigates;
         foreach (ViewerPaneView paneView in _workspaceView.PaneViews)
         {
             paneView.SharpPixels = _sharpPixels;
+            paneView.WheelNavigates = _wheelNavigates;
         }
 
         ApplyActivePaneState();

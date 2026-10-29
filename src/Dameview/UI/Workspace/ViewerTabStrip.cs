@@ -226,7 +226,7 @@ internal sealed class ViewerTabStrip : UiElement
                 SetHoveredTab(-1);
                 _hoveringClose = false;
                 bool scrollChanged = _scrollOffset.ScrollBy(
-                    -input.WheelDelta / 120.0f * WheelStepDips);
+                    -input.WheelNotches * WheelStepDips);
                 return new UiPointerResult(Consumed: true, NeedsRepaint: scrollChanged);
 
             default:

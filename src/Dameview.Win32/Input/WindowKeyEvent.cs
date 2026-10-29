@@ -4,6 +4,8 @@ namespace Dameview.Win32.Input;
 // that are not named in this enum yet.
 internal enum WindowKey : uint
 {
+    MouseBack = 0x05,
+    MouseForward = 0x06,
     Backspace = 0x08,
     Tab = 0x09,
     Enter = 0x0D,

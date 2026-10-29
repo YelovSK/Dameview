@@ -17,7 +17,7 @@ public sealed class ViewportAnimatorTests
         var animator = new ViewportAnimator(viewport, timeProvider);
         PointF imagePosition = viewport.ViewportToImage(new PointF(600.0f, 400.0f));
 
-        Assert.IsTrue(animator.ZoomAt(new PointF(600.0f, 400.0f), 120));
+        Assert.IsTrue(animator.ZoomAt(new PointF(600.0f, 400.0f), 1.0f));
         Assert.IsTrue(animator.Update(0.016));
 
         Assert.IsGreaterThan(0.5f, viewport.Scale);
@@ -78,7 +78,7 @@ public sealed class ViewportAnimatorTests
         viewport.SetImageSize(new Size(2000, 1600));
         var animator = new ViewportAnimator(viewport, new ManualTimeProvider());
 
-        Assert.IsTrue(animator.ZoomAt(new PointF(600.0f, 400.0f), 120));
+        Assert.IsTrue(animator.ZoomAt(new PointF(600.0f, 400.0f), 1.0f));
 
         animator.BeginPan(new PointF(600.0f, 400.0f));
 
@@ -100,7 +100,7 @@ public sealed class ViewportAnimatorTests
         Assert.IsTrue(animator.EndPan());
         float centerBeforeZoom = viewport.ViewportToImage(new PointF(250.0f, 250.0f)).X;
 
-        Assert.IsTrue(animator.ZoomAt(new PointF(250.0f, 250.0f), 120));
+        Assert.IsTrue(animator.ZoomAt(new PointF(250.0f, 250.0f), 1.0f));
         animator.Update(0.016);
 
         Assert.AreEqual(centerBeforeZoom, viewport.ViewportToImage(new PointF(250.0f, 250.0f)).X, 0.001f);
@@ -267,7 +267,7 @@ public sealed class ViewportAnimatorTests
         viewport.SetImageSize(new Size(2000, 1600));
         var animator = new ViewportAnimator(viewport, new ManualTimeProvider());
 
-        Assert.IsTrue(animator.ZoomAt(new PointF(600.0f, 400.0f), 120));
+        Assert.IsTrue(animator.ZoomAt(new PointF(600.0f, 400.0f), 1.0f));
         Assert.IsFalse(animator.Update(0.0, animationsEnabled: false));
 
         Assert.IsFalse(animator.IsAnimating);
@@ -314,7 +314,7 @@ public sealed class ViewportAnimatorTests
         float middleBefore = GetMiddleY(viewport);
 
         // Three wheel steps near the top make the image taller than the window.
-        Assert.IsTrue(animator.ZoomAt(new PointF(500.0f, 100.0f), 360));
+        Assert.IsTrue(animator.ZoomAt(new PointF(500.0f, 100.0f), 3.0f));
         Assert.IsTrue(animator.Update(0.016));
 
         // The image is still shorter than the window, but it already moves toward where it ends up,

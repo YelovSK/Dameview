@@ -53,6 +53,7 @@ internal sealed class SettingsPanel : ModalContent
     private readonly SegmentedControl<GalleryThumbnailSize> _galleryThumbnailSize;
     private readonly Toggle _animationsToggle;
     private readonly Toggle _sharpPixelsToggle;
+    private readonly Toggle _wheelNavigatesToggle;
     private readonly Slider _wheelZoomSlider;
     private readonly SettingsRow _wheelZoomRow;
     private readonly Slider _preloadAheadSlider;
@@ -152,6 +153,13 @@ internal sealed class SettingsPanel : ModalContent
         {
             ToolTip = new("Show individual pixels instead of smoothing them when zoomed past 100%"),
         };
+        _wheelNavigatesToggle = new Toggle(
+            "Mouse wheel switches images",
+            value: false,
+            enabled => Update(settings => settings with { WheelNavigates = enabled }))
+        {
+            ToolTip = new("Hold Ctrl to zoom"),
+        };
         _wheelZoomSlider = new Slider(
             AppSettings.MinimumWheelZoomPercent,
             AppSettings.MaximumWheelZoomPercent,
@@ -241,6 +249,7 @@ internal sealed class SettingsPanel : ModalContent
                 new SettingsGroup("Panes", _autoBalancePanesToggle)),
             Page(
                 _sharpPixelsToggle,
+                _wheelNavigatesToggle,
                 _wheelZoomRow,
                 new SettingsGroup(
                     "Loading",
@@ -300,6 +309,7 @@ internal sealed class SettingsPanel : ModalContent
         _galleryThumbnailSize.SelectedValue = settings.GalleryThumbnailSize;
         _animationsToggle.Value = settings.AnimationsEnabled;
         _sharpPixelsToggle.Value = settings.SharpPixelsWhenZoomed;
+        _wheelNavigatesToggle.Value = settings.WheelNavigates;
         _wheelZoomSlider.Value = settings.WheelZoomPercent;
         _preloadAheadSlider.Value = settings.PreloadAhead;
         _imageCacheSlider.Value = settings.ImageCacheMegabytes;

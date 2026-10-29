@@ -131,7 +131,7 @@ internal sealed class Slider : InteractiveControl
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
             case WindowPointerEventKind.Wheel:
-                _wheelNotches += input.WheelDelta / 120.0;
+                _wheelNotches += input.WheelNotches;
                 double steps = Math.Truncate(_wheelNotches);
                 _wheelNotches -= steps;
                 if (steps != 0.0)

@@ -103,7 +103,7 @@ public sealed class ContextMenuTests
         Settle(root);
 
         root.HandlePointer(new WindowPointerEvent(
-            WindowPointerEventKind.Wheel, new PointF(290.0f, 190.0f), WheelDelta: -120));
+            WindowPointerEventKind.Wheel, new PointF(290.0f, 190.0f), WheelNotches: -1.0f));
 
         Assert.IsFalse(scene.Host.IsOpen);
         Assert.AreEqual(0, scene.Anchor.Events);

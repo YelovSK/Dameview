@@ -21,6 +21,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
     private ID2D1DeviceContext _scaleContext;
     private readonly ImagePresentationCache _presentationCache;
     private readonly Action<PointF> _contextMenuRequested;
+    private readonly Action<int> _navigate;
     private ImageViewport _viewport;
     private ViewportAnimator _animator;
     private const float PanStartThresholdDips = 4.0f;
@@ -40,6 +41,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
     private bool _awaitsSettle;
     private bool _pointerPressed;
     private PointF _panFrom;
+    private double _wheelNotches;
     private bool _isPreview;
     private readonly AnimatedFloat _previewFade = new(0.0f, 20.0);
     private const float PreviewBlurStandardDeviation = 0.75f;
@@ -49,9 +51,11 @@ internal sealed class ImagePanel : UiElement, IDisposable
         ID2D1DeviceContext deviceContext,
         ImageViewport viewport,
         ViewportAnimator animator,
-        Action<PointF> contextMenuRequested)
+        Action<PointF> contextMenuRequested,
+        Action<int> navigate)
     {
         _contextMenuRequested = contextMenuRequested;
+        _navigate = navigate;
         _deviceContext = deviceContext;
         _scaleContext = D2DBitmapFactory.CreateOffscreenContext(deviceContext);
         _presentationCache = new ImagePresentationCache(deviceContext);
@@ -75,6 +79,9 @@ internal sealed class ImagePanel : UiElement, IDisposable
             InvalidateVisual();
         }
     }
+
+    /// <summary>Whether the wheel switches images instead of zooming. Ctrl+wheel zooms either way.</summary>
+    internal bool WheelNavigates { get; set; }
 
     internal float ZoomPercentage => _viewport.Scale * 100.0f;
     internal SizeF ImageSize => _viewport.ImageSize;
@@ -439,8 +446,22 @@ internal sealed class ImagePanel : UiElement, IDisposable
                 _contextMenuRequested(input.Position);
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
+            // Ctrl+wheel always zooms, since touchpads send a pinch as Ctrl+wheel.
+            case WindowPointerEventKind.Wheel when WheelNavigates && !input.Control:
+                // Touchpads send fractions of a notch, which would otherwise each switch an image.
+                _wheelNotches += input.WheelNotches;
+                int steps = (int)Math.Truncate(_wheelNotches);
+                _wheelNotches -= steps;
+
+                if (steps != 0)
+                {
+                    _navigate(-Math.Sign(steps));
+                }
+
+                return new UiPointerResult(Consumed: true, NeedsRepaint: steps != 0);
+
             case WindowPointerEventKind.Wheel:
-                _animator.ZoomAt(ToPixels(input.Position), input.WheelDelta);
+                _animator.ZoomAt(ToPixels(input.Position), input.WheelNotches);
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
             default:

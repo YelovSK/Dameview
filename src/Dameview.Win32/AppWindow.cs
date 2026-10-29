@@ -773,8 +773,18 @@ internal sealed unsafe class AppWindow : IDisposable
                 PointerInput?.Invoke(new WindowPointerEvent(
                     WindowPointerEventKind.Wheel,
                     new PointF(wheelPoint.X, wheelPoint.Y),
-                    WheelDelta: GetHighWord((nint)(nuint)wParam)));
+                    WheelNotches: GetHighWord((nint)(nuint)wParam) / (float)WHEEL_DELTA,
+                    Control: GetKeyState((int)VIRTUAL_KEY.VK_CONTROL) < 0));
                 return default;
+
+            case WM_XBUTTONDOWN:
+            case WM_XBUTTONDBLCLK:
+                // Windows gives these buttons virtual-key codes, so they bind like keys.
+                KeyPressed?.Invoke(new WindowKeyEvent(
+                    GetHighWord((nint)(nuint)wParam) == XBUTTON1 ? WindowKey.MouseBack : WindowKey.MouseForward,
+                    GetKeyState((int)VIRTUAL_KEY.VK_SHIFT) < 0,
+                    GetKeyState((int)VIRTUAL_KEY.VK_CONTROL) < 0));
+                return (LRESULT)1;
 
             case WM_SIZE:
                 ClientWidth = unchecked((ushort)(long)lParam);

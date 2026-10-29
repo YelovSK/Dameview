@@ -57,7 +57,8 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             deviceContext,
             session.Viewport,
             session.Animator,
-            point => contextMenus.ShowForImage(Pane.ActiveTab, _imagePanel!, point));
+            point => contextMenus.ShowForImage(Pane.ActiveTab, _imagePanel!, point),
+            direction => Run(direction > 0 ? AppCommands.NextImage : AppCommands.PreviousImage, Pane.ActiveTab));
         _viewerTabs = new ViewerTabStrip(
             GetTabs(),
             pane.ActiveIndex,
@@ -140,6 +141,12 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
     {
         get => _imagePanel.SharpPixels;
         set => _imagePanel.SharpPixels = value;
+    }
+
+    internal bool WheelNavigates
+    {
+        get => _imagePanel.WheelNavigates;
+        set => _imagePanel.WheelNavigates = value;
     }
 
     /// <summary>Puts the tab row in the window's title bar, keeping clear of the window buttons at its end.</summary>

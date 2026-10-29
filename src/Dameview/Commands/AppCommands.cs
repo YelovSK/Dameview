@@ -57,7 +57,7 @@ internal static class AppCommands
             host.Ui.CenterGallerySelection();
         },
         HasOtherImages,
-        [new(WindowKey.Left)]);
+        [new(WindowKey.Left), new(WindowKey.MouseBack)]);
 
     internal static readonly Command NextImage = Command.ForTab(
         "nextImage", "Next image", CommandScope.Viewer,
@@ -67,7 +67,7 @@ internal static class AppCommands
             host.Ui.CenterGallerySelection();
         },
         HasOtherImages,
-        [new(WindowKey.Right)]);
+        [new(WindowKey.Right), new(WindowKey.MouseForward)]);
 
     internal static readonly Command FitImage = Command.ForTab(
         "fitImage", "Fit image", CommandScope.Viewer,

@@ -6,7 +6,8 @@ internal readonly record struct WindowPointerEvent(
     WindowPointerEventKind Kind,
     PointF Position,
     PointerButton Button = PointerButton.None,
-    int WheelDelta = 0);
+    float WheelNotches = 0.0f,
+    bool Control = false);
 
 internal enum WindowPointerEventKind
 {

@@ -99,14 +99,14 @@ internal sealed class ImageViewport
         _center = ImageCenter;
     }
 
-    internal float GetZoomScale(float scale, int wheelDelta)
+    internal float GetZoomScale(float scale, float wheelNotches)
     {
-        if (!HasImage || wheelDelta == 0)
+        if (!HasImage || wheelNotches == 0.0f)
         {
             return scale;
         }
 
-        float zoomFactor = (float)Math.Pow(ZoomStep, wheelDelta / 120.0);
+        float zoomFactor = (float)Math.Pow(ZoomStep, wheelNotches);
         return Math.Clamp(scale * zoomFactor, GetMinimumScale(), MaximumScale);
     }
 

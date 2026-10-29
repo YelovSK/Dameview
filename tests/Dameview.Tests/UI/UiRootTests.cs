@@ -166,7 +166,7 @@ public sealed class UiRootTests
         bool consumed = root.HandlePointer(new WindowPointerEvent(
             WindowPointerEventKind.Wheel,
             new PointF(110, 210),
-            WheelDelta: 120));
+            WheelNotches: 1.0f));
 
         Assert.IsTrue(consumed);
         Assert.HasCount(1, child.Events);
