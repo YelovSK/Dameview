@@ -319,7 +319,7 @@ internal sealed class SettingsPanel : ModalContent
         _updateStatus.Tone = state.Status == UpdateStatus.Failed
             ? UiTextTone.Error
             : UiTextTone.Secondary;
-        _updateButton.IsVisible = state.Status != UpdateStatus.Unavailable;
+        _updateButton.IsVisible = state.Status is not (UpdateStatus.Unavailable or UpdateStatus.ManagedByPackage);
         _autoUpdateCheckToggle.IsVisible = _updateButton.IsVisible;
         _updateButton.IsEnabled = state.Status is UpdateStatus.Idle
             or UpdateStatus.Current
@@ -330,6 +330,9 @@ internal sealed class SettingsPanel : ModalContent
         {
             UpdateStatus.Unavailable => (
                 "Updates are only available when running the installed copy of Dameview.",
+                "Check for updates"),
+            UpdateStatus.ManagedByPackage => (
+                "Dameview is updated by the Microsoft Store.",
                 "Check for updates"),
             UpdateStatus.Idle => ("Check whether a newer Dameview release is available.", "Check for updates"),
             UpdateStatus.Checking => ("Checking for updates…", "Checking…"),

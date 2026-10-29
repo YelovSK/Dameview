@@ -3,6 +3,7 @@ namespace Dameview.Updates;
 internal enum UpdateStatus
 {
     Unavailable,
+    ManagedByPackage,
     Idle,
     Checking,
     Current,

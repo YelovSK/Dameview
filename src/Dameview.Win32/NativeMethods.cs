@@ -38,6 +38,12 @@ internal static unsafe partial class NativeMethods
         CoUninitialize();
     }
 
+    internal static bool HasPackageIdentity()
+    {
+        uint length = 0;
+        return GetCurrentPackageFullName(&length, default) != WIN32_ERROR.APPMODEL_ERROR_NO_PACKAGE;
+    }
+
     internal static DateTime GetProcessCreationTimeUtc()
     {
         System.Runtime.InteropServices.ComTypes.FILETIME creation, exit, kernel, user;

@@ -102,6 +102,7 @@ DwmSetWindowAttribute
 GetModuleHandle
 GetCurrentProcess
 GetProcessTimes
+GetCurrentPackageFullName
 GlobalAlloc
 GlobalLock
 GlobalUnlock

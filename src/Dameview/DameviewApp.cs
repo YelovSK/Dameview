@@ -122,7 +122,8 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         _updates = new UpdateService(
             new GitHubUpdateClient(),
             _uiContext,
-            AppInstallation.GetInstalledRunningVersion());
+            AppInstallation.CurrentKind,
+            AppInstallation.ReadVersion(Environment.ProcessPath));
         StartupTrace.Mark("services");
         var windowButtons = new WindowButtons(
             _window.Minimize,

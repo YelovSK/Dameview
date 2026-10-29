@@ -1,4 +1,5 @@
 using Dameview.Diagnostics;
+using Dameview.Installation;
 
 namespace Dameview.Updates;
 
@@ -11,12 +12,21 @@ internal sealed class UpdateService
     private readonly SynchronizationContext _uiContext;
     private readonly Version? _currentVersion;
 
-    internal UpdateService(IUpdateClient client, SynchronizationContext uiContext, Version? currentVersion)
+    internal UpdateService(
+        IUpdateClient client,
+        SynchronizationContext uiContext,
+        AppInstallKind installKind,
+        Version? currentVersion)
     {
         _client = client;
         _uiContext = uiContext;
         _currentVersion = currentVersion;
-        State = new UpdateState(currentVersion is null ? UpdateStatus.Unavailable : UpdateStatus.Idle);
+        State = new UpdateState(installKind switch
+        {
+            AppInstallKind.Installed when currentVersion is not null => UpdateStatus.Idle,
+            AppInstallKind.Package => UpdateStatus.ManagedByPackage,
+            _ => UpdateStatus.Unavailable,
+        });
     }
 
     internal event Action<UpdateState>? Changed;

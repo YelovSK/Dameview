@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Dameview.Installation;
 using Dameview.Updates;
 using Dameview.Win32;
 
@@ -11,11 +12,28 @@ public sealed class UpdateServiceTests
     public void PortableCopyDoesNotCheckForUpdates()
     {
         var client = new FakeUpdateClient(new AppRelease("v2.0.0", new Version(2, 0, 0, 0)));
-        var service = new UpdateService(client, new WindowSynchronizationContext(_ => { }), currentVersion: null);
+        var service = new UpdateService(client, new WindowSynchronizationContext(_ => { }), AppInstallKind.Portable, currentVersion: null);
 
         service.Activate();
 
         Assert.AreEqual(UpdateStatus.Unavailable, service.State.Status);
+        Assert.AreEqual(0, client.CheckCount);
+    }
+
+    [TestMethod]
+    public void PackagedCopyLeavesUpdatesToItsPackage()
+    {
+        var client = new FakeUpdateClient(new AppRelease("v2.0.0", new Version(2, 0, 0, 0)));
+        var service = new UpdateService(
+            client,
+            new WindowSynchronizationContext(_ => { }),
+            AppInstallKind.Package,
+            new Version(1, 0, 0, 0));
+
+        service.Activate();
+        service.CheckInBackgroundIfDue(DateTimeOffset.MinValue, DateTimeOffset.UtcNow);
+
+        Assert.AreEqual(UpdateStatus.ManagedByPackage, service.State.Status);
         Assert.AreEqual(0, client.CheckCount);
     }
 
@@ -25,7 +43,7 @@ public sealed class UpdateServiceTests
         var release = new AppRelease("v2.0.0", new Version(2, 0, 0, 0));
         var client = new FakeUpdateClient(release);
         var queue = new ConcurrentQueue<Action>();
-        var service = new UpdateService(client, new WindowSynchronizationContext(queue.Enqueue), new Version(1, 0, 0, 0));
+        var service = new UpdateService(client, new WindowSynchronizationContext(queue.Enqueue), AppInstallKind.Installed, new Version(1, 0, 0, 0));
         string? downloadedPath = null;
         service.UpdateDownloaded += path => downloadedPath = path;
 
@@ -48,7 +66,7 @@ public sealed class UpdateServiceTests
         var release = new AppRelease("v1.0.0", new Version(1, 0, 0, 0));
         var client = new FakeUpdateClient(release);
         var queue = new ConcurrentQueue<Action>();
-        var service = new UpdateService(client, new WindowSynchronizationContext(queue.Enqueue), new Version(1, 0, 0, 0));
+        var service = new UpdateService(client, new WindowSynchronizationContext(queue.Enqueue), AppInstallKind.Installed, new Version(1, 0, 0, 0));
 
         service.Activate();
         DispatchNext(queue);
@@ -63,7 +81,7 @@ public sealed class UpdateServiceTests
         var release = new AppRelease("v2.0.0", new Version(2, 0, 0, 0));
         var client = new FakeUpdateClient(release);
         var queue = new ConcurrentQueue<Action>();
-        var service = new UpdateService(client, new WindowSynchronizationContext(queue.Enqueue), new Version(1, 0, 0, 0));
+        var service = new UpdateService(client, new WindowSynchronizationContext(queue.Enqueue), AppInstallKind.Installed, new Version(1, 0, 0, 0));
         AppRelease? found = null;
         service.FoundInBackground += newer => found = newer;
         var now = new DateTimeOffset(2026, 10, 4, 12, 0, 0, TimeSpan.Zero);
@@ -85,6 +103,7 @@ public sealed class UpdateServiceTests
         var service = new UpdateService(
             new FailingUpdateClient(),
             new WindowSynchronizationContext(queue.Enqueue),
+            AppInstallKind.Installed,
             new Version(1, 0, 0, 0));
 
         service.CheckInBackgroundIfDue(DateTimeOffset.MinValue, DateTimeOffset.UtcNow);

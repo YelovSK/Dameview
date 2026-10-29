@@ -14,6 +14,15 @@ internal enum AppInstallationAction
     Uninstall,
 }
 
+internal enum AppInstallKind
+{
+    Portable,
+    Installed,
+
+    /// <summary>Installed from an MSIX package, which Windows installs, updates, and removes.</summary>
+    Package,
+}
+
 internal readonly record struct AppInstallationRequest(
     AppInstallationAction Action,
     string CurrentVersion,
@@ -46,12 +55,9 @@ internal static class AppInstallation
     /// <summary>The running executable's version, read once.</summary>
     internal static string CurrentDisplayVersion { get; } = GetDisplayVersion(Environment.ProcessPath);
 
-    private static string StagedExecutablePath => Path.Combine(InstallDirectory, "Dameview.new.exe");
+    internal static AppInstallKind CurrentKind { get; } = GetCurrentKind();
 
-    internal static Version? GetInstalledRunningVersion()
-    {
-        return IsInstalledExecutable() ? ReadVersion(Environment.ProcessPath) : null;
-    }
+    private static string StagedExecutablePath => Path.Combine(InstallDirectory, "Dameview.new.exe");
 
     internal static AppInstallationAction? GetSilentAction(string[] args)
     {
@@ -111,7 +117,7 @@ internal static class AppInstallation
 
         bool explicitlyRequested = args.Length == 1
             && args[0].Equals(InstallArgument, StringComparison.OrdinalIgnoreCase);
-        if (!explicitlyRequested && (IsInstalledExecutable() || args.Length != 0))
+        if (!explicitlyRequested && (CurrentKind != AppInstallKind.Portable || args.Length != 0))
         {
             return null;
         }
@@ -331,12 +337,19 @@ internal static class AppInstallation
         return false;
     }
 
-    private static bool IsInstalledExecutable()
+    private static AppInstallKind GetCurrentKind()
     {
+        if (NativeMethods.HasPackageIdentity())
+        {
+            return AppInstallKind.Package;
+        }
+
         return string.Equals(
             Path.GetFullPath(Environment.ProcessPath ?? string.Empty),
             Path.GetFullPath(InstalledExecutablePath),
-            StringComparison.OrdinalIgnoreCase);
+            StringComparison.OrdinalIgnoreCase)
+            ? AppInstallKind.Installed
+            : AppInstallKind.Portable;
     }
 
     private static string GetStartMenuShortcutPath()

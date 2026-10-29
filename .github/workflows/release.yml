@@ -50,6 +50,35 @@ jobs:
             --output publish `
             -p:Version=$version
 
+      - name: Package MSIX
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          $layout = 'msix-layout'
+          Copy-Item packaging/msix $layout -Recurse
+          Copy-Item publish/Dameview.exe $layout
+          $manifest = "$layout/AppxManifest.xml"
+          # The Store requires the last version part to be 0.
+          (Get-Content $manifest -Raw) -replace 'Version="0\.0\.0\.0"', "Version=`"$version.0`"" |
+            Set-Content $manifest -NoNewline
+          $sdkBin = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\makeappx.exe" |
+            Sort-Object FullName |
+            Select-Object -Last 1 |
+            Split-Path
+          # Without the resource index, Windows ignores the unplated icon variants.
+          & "$sdkBin\makepri.exe" createconfig /cf priconfig.xml /dq en-US /o
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "$sdkBin\makepri.exe" new /pr $layout /cf priconfig.xml /mn $manifest /of "$layout/resources.pri" /o
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "$sdkBin\makeappx.exe" pack /d $layout /p "Dameview-$version.msix" /o
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload MSIX
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dameview-msix
+          path: Dameview-*.msix
+
       - name: Create GitHub release
         shell: pwsh
         env:
