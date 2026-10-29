@@ -220,8 +220,9 @@ internal sealed class FolderNavigator
 
     private static int Compare(NavigationEntry left, NavigationEntry right, FolderSort sort)
     {
-        if (sort is not FolderSort.NameAscending and not FolderSort.NameDescending
-            && (left.Metadata is null || right.Metadata is null))
+        bool needsMetadata = sort is not (FolderSort.NameAscending or FolderSort.NameDescending
+            or FolderSort.TypeAscending or FolderSort.TypeDescending);
+        if (needsMetadata && (left.Metadata is null || right.Metadata is null))
         {
             return left.Metadata is null
                 ? right.Metadata is null ? NaturalOrder.Compare(left.Path, right.Path) : 1
@@ -238,6 +239,8 @@ internal sealed class FolderNavigator
             FolderSort.DateCreatedOldest => left.Metadata!.CreationTimeUtc.CompareTo(right.Metadata!.CreationTimeUtc),
             FolderSort.SizeLargest => right.Metadata!.Length.CompareTo(left.Metadata!.Length),
             FolderSort.SizeSmallest => left.Metadata!.Length.CompareTo(right.Metadata!.Length),
+            FolderSort.TypeAscending => CompareExtensions(left.Name, right.Name),
+            FolderSort.TypeDescending => CompareExtensions(right.Name, left.Name),
             _ => throw new ArgumentOutOfRangeException(nameof(sort), sort, null),
         };
 
@@ -245,6 +248,9 @@ internal sealed class FolderNavigator
             ? result
             : NaturalOrder.Compare(left.Path, right.Path);
     }
+
+    private static int CompareExtensions(string left, string right) =>
+        Path.GetExtension(left.AsSpan()).CompareTo(Path.GetExtension(right.AsSpan()), StringComparison.OrdinalIgnoreCase);
 
     private readonly record struct NavigationEntry(string Path, FolderEntry? Metadata)
     {

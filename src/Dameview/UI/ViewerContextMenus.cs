@@ -122,6 +122,8 @@ internal sealed class ViewerContextMenus
         FolderSort.DateCreatedOldest => "Created, oldest",
         FolderSort.SizeLargest => "Size, largest",
         FolderSort.SizeSmallest => "Size, smallest",
+        FolderSort.TypeAscending => "Type, A–Z",
+        FolderSort.TypeDescending => "Type, Z–A",
         _ => throw new ArgumentOutOfRangeException(nameof(sort), sort, null),
     };
 

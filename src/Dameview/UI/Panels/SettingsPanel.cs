@@ -28,6 +28,7 @@ internal sealed class SettingsPanel : ModalContent
         DateModified,
         DateCreated,
         Size,
+        Type,
     }
 
     private enum SortDirection
@@ -42,6 +43,7 @@ internal sealed class SettingsPanel : ModalContent
         new(SortField.DateModified, FolderSort.DateModifiedNewest, FolderSort.DateModifiedOldest, "Newest", "Oldest"),
         new(SortField.DateCreated, FolderSort.DateCreatedNewest, FolderSort.DateCreatedOldest, "Newest", "Oldest"),
         new(SortField.Size, FolderSort.SizeLargest, FolderSort.SizeSmallest, "Largest", "Smallest"),
+        new(SortField.Type, FolderSort.TypeAscending, FolderSort.TypeDescending, "A–Z", "Z–A"),
     ];
 
     private readonly Button _closeButton;
@@ -201,6 +203,7 @@ internal sealed class SettingsPanel : ModalContent
                 new("Modified date", SortField.DateModified),
                 new("Created date", SortField.DateCreated),
                 new("Size", SortField.Size),
+                new("Type", SortField.Type),
             ],
             SortField.Name,
             SetSortField);

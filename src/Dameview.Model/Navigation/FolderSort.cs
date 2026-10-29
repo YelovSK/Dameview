@@ -10,4 +10,6 @@ internal enum FolderSort
     DateCreatedOldest,
     SizeLargest,
     SizeSmallest,
+    TypeAscending,
+    TypeDescending,
 }
