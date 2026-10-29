@@ -65,8 +65,8 @@ public sealed class ViewerSessionTests
         using ViewerSession second = CreateSession(new ManualImageLoader(), folderSorts);
         first.OpenImage(files.First);
         second.OpenImage(files.First);
-        // Both scans are posted to the same queue, so one delivery covers both tabs.
         DeliverFolder(first);
+        DeliverFolder(second);
 
         first.SetFolderSort(FolderSort.NameDescending);
 
@@ -316,11 +316,17 @@ public sealed class ViewerSessionTests
 
     private void DeliverFolder(ViewerSession session)
     {
-        Assert.IsTrue(SpinWait.SpinUntil(() => !_posts.IsEmpty, TimeSpan.FromSeconds(5)));
-        while (_posts.TryDequeue(out Action? action))
-        {
-            action();
-        }
+        SpinWait.SpinUntil(
+            () =>
+            {
+                while (_posts.TryDequeue(out Action? action))
+                {
+                    action();
+                }
+
+                return session.State.FolderEntries.Length > 0;
+            },
+            TimeSpan.FromSeconds(5));
 
         Assert.HasCount(3, session.State.FolderEntries);
     }
