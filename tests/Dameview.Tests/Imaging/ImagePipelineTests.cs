@@ -234,7 +234,7 @@ public sealed class ImagePipelineTests
                 path =>
                 {
                     decoded.Enqueue(path);
-                    return FakeImageDecoder.CreateImage();
+                    return path == "small" ? FakeImageDecoder.CreateImage() : FakeImageDecoder.CreateImage(10, 10);
                 },
                 path => path == "small" ? new ImageInfo(1, 1, 1) : new ImageInfo(10, 10, 1))),
             PipelineHarness.TestPolicy);
