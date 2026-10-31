@@ -355,8 +355,7 @@ internal sealed class CommandPalettePanel : ModalContent
                 UiDesign.ControlCornerRadius);
             if (IsSelected)
             {
-                context.FillRoundedRectangle(background, context.Palette.Accent, 0.18f);
-                context.DrawRoundedRectangle(background, context.Palette.Accent);
+                context.FillRoundedRectangle(background, context.Palette.Accent, 0.22f);
             }
             else if (HoverAmount > 0.0f)
             {

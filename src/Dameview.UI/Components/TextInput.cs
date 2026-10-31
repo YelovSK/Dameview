@@ -187,9 +187,7 @@ internal sealed class TextInput : UiElement
             UiDesign.ControlCornerRadius);
         bool focused = HasVisualState(UiVisualState.Focused);
         context.FillRoundedRectangle(background, context.Palette.ControlSurface);
-        context.DrawRoundedRectangle(
-            background,
-            focused ? context.Palette.Accent : context.Palette.SurfaceBorder);
+        context.DrawRoundedRectangle(background, context.Palette.SurfaceBorder);
 
         float contentWidth = ContentWidth;
         float caretPosition = _caretHead.Current;
