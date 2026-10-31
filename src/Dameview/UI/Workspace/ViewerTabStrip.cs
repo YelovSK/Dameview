@@ -24,7 +24,6 @@ internal sealed class ViewerTabStrip : UiElement
     private const float CloseWidthDips = 32.0f;
     private const float AddButtonWidthDips = 36.0f;
     private const float LabelPaddingDips = 12.0f;
-    private const float WheelStepDips = 120.0f;
     private static readonly UiFont LabelFont = new(UiDesign.BodyFontSize, FontWeight.SemiBold, Ellipsis: true);
     private static readonly UiFont CloseFont = new(16.0f, Alignment: TextAlignment.Center);
 
@@ -225,7 +224,7 @@ internal sealed class ViewerTabStrip : UiElement
                 SetHoveredTab(-1);
                 _hoveringClose = false;
                 bool scrollChanged = _scrollOffset.ScrollBy(
-                    -input.WheelNotches * WheelStepDips);
+                    -input.WheelNotches * UiDesign.WheelScrollStep);
                 return new UiPointerResult(Consumed: true, NeedsRepaint: scrollChanged);
 
             default:

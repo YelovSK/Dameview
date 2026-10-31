@@ -13,4 +13,5 @@ internal static class UiDesign
     internal const float BodyFontSize = 14.0f;
     internal const float HeadingFontSize = 22.0f;
     internal const float TitleFontSize = 30.0f;
+    internal const float WheelScrollStep = 120.0f;
 }

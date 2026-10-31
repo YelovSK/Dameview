@@ -66,7 +66,7 @@ internal sealed class ScrollView : UiElement
             return default;
         }
 
-        bool changed = _scrollOffset.ScrollBy(-input.WheelNotches * 48.0f);
+        bool changed = _scrollOffset.ScrollBy(-input.WheelNotches * UiDesign.WheelScrollStep);
         return new UiPointerResult(Consumed: true, NeedsRepaint: changed);
     }
 
