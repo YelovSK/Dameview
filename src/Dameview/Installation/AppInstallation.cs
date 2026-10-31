@@ -117,6 +117,12 @@ internal static class AppInstallation
 
         bool explicitlyRequested = args.Length == 1
             && args[0].Equals(InstallArgument, StringComparison.OrdinalIgnoreCase);
+#if DEBUG
+        if (!explicitlyRequested)
+        {
+            return null;
+        }
+#endif
         if (!explicitlyRequested && (CurrentKind != AppInstallKind.Portable || args.Length != 0))
         {
             return null;
