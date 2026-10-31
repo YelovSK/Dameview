@@ -15,6 +15,11 @@
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/YelovSK/Dameview"></a>
 </p>
 
+## Install
+
+- [GitHub releases](https://github.com/YelovSK/Dameview/releases/latest): run `Dameview.exe` to install it with the built-in updater, or use it as a portable app
+- [Microsoft Store](https://apps.microsoft.com/detail/9NK0CD6F9MH6)
+
 ## Features
 
 - Tabs
@@ -36,6 +41,8 @@
 - Custom-drawn UI
 
 More in [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## Preview
 
 https://github.com/user-attachments/assets/677feaf6-f3dd-442b-a480-fc2a9d779cc4
 
