@@ -84,3 +84,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create $env:GITHUB_REF_NAME .\publish\Dameview.exe --verify-tag --generate-notes
+
+      - name: Set up Microsoft Store CLI
+        uses: microsoft/setup-msstore-cli@v1
+
+      - name: Submit to Microsoft Store
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          msstore reconfigure `
+            --tenantId ${{ secrets.PARTNER_CENTER_TENANT_ID }} `
+            --sellerId ${{ secrets.PARTNER_CENTER_SELLER_ID }} `
+            --clientId ${{ secrets.PARTNER_CENTER_CLIENT_ID }} `
+            --clientSecret ${{ secrets.PARTNER_CENTER_CLIENT_SECRET }}
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          msstore publish "Dameview-$version.msix" -id 9NK0CD6F9MH6
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
