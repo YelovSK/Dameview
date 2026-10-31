@@ -13,7 +13,7 @@ public sealed class UiTransitionTests
     [TestMethod]
     public void ALeavingElementStopsTakingInputButStaysVisibleUntilItsExitHasFinished()
     {
-        var element = new Box { Transition = new UiTransition(Fade: true) };
+        var element = new Box { Transition = new UiTransition(Motion.Snappy, Fade: true) };
         var root = new UiRoot(
             new StackPanel(UiOrientation.Vertical, element),
             UiDpi.Default,
@@ -35,7 +35,7 @@ public sealed class UiTransitionTests
     [TestMethod]
     public void AnElementThatIsNotOnScreenChangesPresenceAtOnce()
     {
-        var element = new Box { Transition = new UiTransition(Fade: true) };
+        var element = new Box { Transition = new UiTransition(Motion.Snappy, Fade: true) };
 
         element.IsPresent = false;
 
@@ -47,7 +47,7 @@ public sealed class UiTransitionTests
     public void ACollapsingChildGivesUpItsSlotAndGapInAStack()
     {
         var first = new Box();
-        var collapsing = new Box { Transition = new UiTransition(Collapse: true) };
+        var collapsing = new Box { Transition = new UiTransition(Motion.Snappy, Collapse: true) };
         var last = new Box();
         var root = new UiRoot(
             new StackPanel(UiOrientation.Vertical, first, collapsing, last) { Spacing = 10.0f },
@@ -74,7 +74,7 @@ public sealed class UiTransitionTests
     public void AStackEndsExactlyAtItsLastChildWhileThatChildCollapses()
     {
         var first = new Box();
-        var collapsing = new Box { Transition = new UiTransition(Collapse: true) };
+        var collapsing = new Box { Transition = new UiTransition(Motion.Snappy, Collapse: true) };
         var stack = new StackPanel(UiOrientation.Vertical, first, collapsing) { Spacing = 10.0f };
         var root = new UiRoot(stack, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(WindowSize);

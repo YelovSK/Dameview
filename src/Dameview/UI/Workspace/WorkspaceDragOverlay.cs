@@ -18,14 +18,13 @@ internal sealed class WorkspaceDragOverlay : UiElement, IDisposable
     private const float GhostOpacity = 0.92f;
     private const float PreviewInset = 6.0f;
     private const float PreviewFillOpacity = 0.18f;
-    private const double PreviewResponse = 28.0;
     private static readonly UiFont LabelFont = new(12.0f, FontWeight.SemiBold, TextAlignment.Center, Ellipsis: true);
 
     private readonly IImagePipeline _images;
     // Where the dragged item would land. It glides between landing spots and fades
     // in and out as the pointer enters or leaves one.
-    private readonly AnimatedRectangle _preview = new(PreviewResponse);
-    private readonly AnimatedFloat _previewOpacity = new(0.0f, PreviewResponse);
+    private readonly AnimatedRectangle _preview = new(Motion.Snappy);
+    private readonly AnimatedFloat _previewOpacity = new(0.0f, Motion.Snappy);
     private bool _previewPlaced;
     private string _label = string.Empty;
     private bool _hasThumbnail;

@@ -18,14 +18,13 @@ internal sealed class TextInput : UiElement
     private const float CaretWidth = 1.5f;
     private const float CaretHeight = 20.0f;
     private const float SelectionOpacity = 0.35f;
-    private const double CaretHeadResponse = 80.0;
-    private const double CaretTailResponse = 25.0;
+    private static readonly Motion CaretHeadMotion = new(0.06, 1.0);
     private static readonly UiFont TextFont = new(UiDesign.BodyFontSize);
 
     // Both edges of the drawn caret glide toward the layout position of CaretIndex. The tail
     // lags behind, so the caret stretches while it moves fast and shrinks back as it settles.
-    private readonly AnimatedFloat _caretHead = new(0.0f, CaretHeadResponse, completionDistance: 0.05f);
-    private readonly AnimatedFloat _caretTail = new(0.0f, CaretTailResponse, completionDistance: 0.05f);
+    private readonly AnimatedFloat _caretHead = new(0.0f, CaretHeadMotion, completionDistance: 0.05f);
+    private readonly AnimatedFloat _caretTail = new(0.0f, Motion.Snappy, completionDistance: 0.05f);
     // Only a caret that stayed on screen glides; one that just appeared jumps into place.
     private bool _caretGlides;
     private string _text = string.Empty;

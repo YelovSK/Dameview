@@ -173,7 +173,7 @@ internal sealed class TabPreview : UiElement, IDisposable
         internal PreviewPanel(TabPreview owner)
         {
             _owner = owner;
-            Transition = new UiTransition(Fade: true, HiddenScale: 0.9f, Response: 24.0);
+            Transition = new UiTransition(Motion.Snappy, Fade: true, HiddenScale: 0.9f);
             IsPresent = false;
         }
 

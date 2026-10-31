@@ -25,7 +25,6 @@ internal sealed class ViewerTabStrip : UiElement
     private const float AddButtonWidthDips = 36.0f;
     private const float LabelPaddingDips = 12.0f;
     private const float WheelStepDips = 120.0f;
-    private const double LayoutResponse = 20.0;
     private static readonly UiFont LabelFont = new(UiDesign.BodyFontSize, FontWeight.SemiBold, Ellipsis: true);
     private static readonly UiFont CloseFont = new(16.0f, Alignment: TextAlignment.Center);
 
@@ -74,9 +73,9 @@ internal sealed class ViewerTabStrip : UiElement
             ToolTip = new("New tab"),
         };
         AddChild(_addButton);
-        _drawnTabWidth = Animate(MaximumTabWidthDips, LayoutResponse);
-        _drawnSelection = Animate(selectedIndex, LayoutResponse);
-        _activeAmount = Animate(1.0f, UiDesign.HoverResponse);
+        _drawnTabWidth = Animate(MaximumTabWidthDips, Motion.Snappy);
+        _drawnSelection = Animate(selectedIndex, Motion.Springy);
+        _activeAmount = Animate(1.0f, Motion.Snappy);
         SetTabs(tabs, selectedIndex);
     }
 
@@ -138,7 +137,7 @@ internal sealed class ViewerTabStrip : UiElement
         {
             SetHoveredTab(-1);
             _hoveringClose = false;
-            _hoverAmounts = [.. _tabs.Select(_ => new AnimatedFloat(0.0f, UiDesign.HoverResponse))];
+            _hoverAmounts = [.. _tabs.Select(_ => new AnimatedFloat(0.0f, Motion.Snappy))];
         }
 
         _drawnTabWidth.SetTarget(TabWidth);
@@ -263,14 +262,18 @@ internal sealed class ViewerTabStrip : UiElement
         context.PushClip(new RectangleF(0.0f, 0.0f, TabViewportWidth, Bounds.Height));
         float x = -_scrollOffset.Offset;
         float width = _drawnTabWidth.Current;
+        float pitch = width + UiDesign.SmallSpacing;
+        float shownSelection = Math.Clamp(_drawnSelection.Current, 0.0f, MathF.Max(0.0f, _tabs.Length - 1));
+        // A bounce past either end squashes the highlight against that end instead of leaving the strip.
+        float squash = (_drawnSelection.Current - shownSelection) * pitch;
         try
         {
             context.FillRoundedRectangle(
                 new RoundedRectangle(
                     new RectangleF(
-                        x + (_drawnSelection.Current * (width + UiDesign.SmallSpacing)),
+                        x + (shownSelection * pitch) + MathF.Max(0.0f, squash),
                         0.0f,
-                        width,
+                        width - MathF.Abs(squash),
                         Bounds.Height),
                     UiDesign.ControlCornerRadius,
                     UiDesign.ControlCornerRadius),

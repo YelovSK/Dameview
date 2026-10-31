@@ -21,12 +21,10 @@ internal sealed class Slider : InteractiveControl
     private const float HandleGrabbedWidth = 12.0f;
     // How far a grabbed handle sticks out above and below the bar, as if lifted off it.
     private const float HandleGrabbedOverhang = 3.0f;
-    private const double GrabResponse = 24.0;
     // Clear space between the handle and the bar on each side, so the handle reads as its own piece.
     private const float HandleGap = 3.0f;
     private const float ValueWidth = 56.0f;
     private const float ValueGap = 8.0f;
-    private const double GlideResponse = 20.0;
     private static readonly UiFont ValueFont = new(UiDesign.BodyFontSize, Alignment: TextAlignment.Trailing);
 
     private readonly Action<double> _changed;
@@ -55,8 +53,8 @@ internal sealed class Slider : InteractiveControl
         Step = step;
         _changed = changed;
         _formatValue = formatValue;
-        _shownFraction = Animate(GetFraction(Snap(value)), GlideResponse);
-        _grabAmount = Animate(0.0f, GrabResponse);
+        _shownFraction = Animate(GetFraction(Snap(value)), Motion.Bouncy);
+        _grabAmount = Animate(0.0f, Motion.Bouncy);
         Value = value;
     }
 
@@ -122,11 +120,14 @@ internal sealed class Slider : InteractiveControl
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true, CapturePointer: true);
 
             case WindowPointerEventKind.Moved when _dragging:
+                // Bouncing while dragged would make the handle wobble behind the pointer.
+                _shownFraction.Motion = Motion.Snappy;
                 ChangeAt(input.Position.X);
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
             case WindowPointerEventKind.Released or WindowPointerEventKind.Cancelled when _dragging:
                 _dragging = false;
+                _shownFraction.Motion = Motion.Bouncy;
                 _grabAmount.SetTarget(0.0f);
                 return new UiPointerResult(Consumed: true, NeedsRepaint: true);
 
@@ -157,7 +158,8 @@ internal sealed class Slider : InteractiveControl
         (float trackLeft, float trackWidth) = GetTrack();
         float barRight = trackLeft + trackWidth + (HandleGrabbedWidth / 2.0f);
         float barTop = (Bounds.Height - BarHeight) / 2.0f;
-        float handleX = trackLeft + (trackWidth * _shownFraction.Current);
+        // An overshoot past either end stops at the end instead of leaving the bar.
+        float handleX = trackLeft + (trackWidth * Math.Clamp(_shownFraction.Current, 0.0f, 1.0f));
         float opacity = IsEnabled ? 1.0f : 0.55f;
 
         // Widens a little under the pointer, and more once grabbed. A drag that leaves the control

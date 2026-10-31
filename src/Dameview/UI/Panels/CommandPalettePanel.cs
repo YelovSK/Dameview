@@ -283,7 +283,7 @@ internal sealed class CommandPalettePanel : ModalContent
             };
             AddChild(_row);
             // Items that stop matching the filter fade and collapse out of the list.
-            Transition = new UiTransition(Fade: true, Collapse: true, Response: 25.0);
+            Transition = new UiTransition(Motion.Snappy, Fade: true, Collapse: true);
         }
 
         internal Command Command { get; }

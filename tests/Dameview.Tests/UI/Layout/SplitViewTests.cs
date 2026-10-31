@@ -217,6 +217,11 @@ public sealed class SplitViewTests
         root.Arrange(new SizeF(1000.0f, 800.0f));
 
         Assert.IsTrue(splitView.SecondPaneBounds.X is > 804.0f and < 1000.0f);
+
+        root.Update(new UiUpdateContext(0.05));
+        root.Arrange(new SizeF(1000.0f, 800.0f));
+
+        Assert.IsTrue(splitView.SecondPaneBounds.X is > 804.0f and < 1000.0f);
         Assert.IsLessThan(midway, splitView.SecondPaneBounds.X);
 
         root.Update(new UiUpdateContext(0.0, AnimationsEnabled: false));

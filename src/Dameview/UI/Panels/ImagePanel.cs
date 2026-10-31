@@ -43,7 +43,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
     private PointF _panFrom;
     private double _wheelNotches;
     private bool _isPreview;
-    private readonly AnimatedFloat _previewFade = new(0.0f, 20.0);
+    private readonly AnimatedFloat _previewFade = new(0.0f, Motion.Snappy);
     private const float PreviewBlurStandardDeviation = 0.75f;
     private System.Drawing.Size _viewportPixelSize;
 

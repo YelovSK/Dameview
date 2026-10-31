@@ -10,7 +10,6 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
 {
     internal const float MinimumPaneSizeDips = 120.0f;
     internal const float SplitterSizeDips = 8.0f;
-    private const double TransitionResponse = 20.0;
 
     private readonly UiOrientation _orientation;
     private readonly Action<float>? _ratioChanged;
@@ -35,11 +34,11 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
         }
 
         _orientation = orientation;
-        _ratio = new AnimatedFloat(ratio, TransitionResponse);
+        _ratio = new AnimatedFloat(ratio, Motion.Snappy);
         _ratioChanged = ratioChanged;
         _transition = new AnimatedFloat(
             animateOpening ? 0.0f : 1.0f,
-            TransitionResponse,
+            Motion.Snappy,
             completionDistance: 0.002f);
         _transition.SetTarget(1.0f);
         _resizer = new SplitResizer(this);

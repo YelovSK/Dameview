@@ -61,7 +61,7 @@ internal sealed class ToolbarPanel : UiElement
         });
         MaxWidth = WidthDips;
         MaxHeight = HeightDips;
-        Transition = new UiTransition(Fade: true, HiddenOffset: new PointF(0.0f, -HeightDips), Response: 14.0);
+        Transition = new UiTransition(Motion.Smooth, Fade: true, HiddenOffset: new PointF(0.0f, -HeightDips));
         IsPresent = false;
     }
 

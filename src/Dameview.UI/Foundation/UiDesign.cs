@@ -13,6 +13,4 @@ internal static class UiDesign
     internal const float BodyFontSize = 14.0f;
     internal const float HeadingFontSize = 22.0f;
     internal const float TitleFontSize = 30.0f;
-    internal const double HoverResponse = 24.0;
-    internal const double PressedResponse = 32.0;
 }

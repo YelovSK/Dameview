@@ -71,7 +71,7 @@ internal sealed class SettingsPanel : ModalContent
     private readonly TabStrip<SettingsTab> _tabs;
     // Pages sit side by side like one long strip, this far apart, and the pages area cuts them off.
     private const float PageGapDips = 24.0f;
-    private static readonly UiTransition PageTransition = new(Response: 22.0);
+    private static readonly UiTransition PageTransition = new(Motion.Snappy);
 
     // In the order of SettingsTab, so a tab indexes its own page.
     private readonly ScrollView[] _tabPages;

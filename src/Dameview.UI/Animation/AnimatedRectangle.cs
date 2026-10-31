@@ -10,12 +10,12 @@ internal sealed class AnimatedRectangle
     private readonly AnimatedFloat _width;
     private readonly AnimatedFloat _height;
 
-    internal AnimatedRectangle(double response, float completionDistance = 0.05f)
+    internal AnimatedRectangle(Motion motion, float completionDistance = 0.05f)
     {
-        _x = new AnimatedFloat(0.0f, response, completionDistance);
-        _y = new AnimatedFloat(0.0f, response, completionDistance);
-        _width = new AnimatedFloat(0.0f, response, completionDistance);
-        _height = new AnimatedFloat(0.0f, response, completionDistance);
+        _x = new AnimatedFloat(0.0f, motion, completionDistance);
+        _y = new AnimatedFloat(0.0f, motion, completionDistance);
+        _width = new AnimatedFloat(0.0f, motion, completionDistance);
+        _height = new AnimatedFloat(0.0f, motion, completionDistance);
     }
 
     internal RectangleF Current => new(_x.Current, _y.Current, _width.Current, _height.Current);

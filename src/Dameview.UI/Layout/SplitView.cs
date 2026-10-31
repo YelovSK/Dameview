@@ -36,7 +36,7 @@ internal sealed class SplitView : UiElement, ISplitResizerTarget
         _resizer = new SplitResizer(this);
         _resizer.ResizeCompleted += () => ResizeCompleted?.Invoke();
         // Collapsing slides the pane in from its edge while the first pane gives way.
-        _secondPane.Transition = new UiTransition(Collapse: true);
+        _secondPane.Transition = new UiTransition(Motion.Snappy, Collapse: true);
         _secondPane.IsPresent = false;
         AddChild(firstPane);
         AddChild(secondPane);

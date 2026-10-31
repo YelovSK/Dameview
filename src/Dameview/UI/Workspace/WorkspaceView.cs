@@ -9,7 +9,6 @@ namespace Dameview.UI.Workspace;
 // Mirrors the workspace model while retaining views for panes and splits that survive a layout change.
 internal sealed class WorkspaceView : UiElement, IDisposable
 {
-    private const double MaximizeResponse = 20.0;
 
     private readonly Func<ViewerPane, ViewerPaneView> _createPaneView;
     private readonly Func<UiElement, UiSnapshot?> _createSnapshot;
@@ -20,7 +19,7 @@ internal sealed class WorkspaceView : UiElement, IDisposable
     // A maximized pane leaves its split for a layer above the layout and grows from the slot it left.
     private readonly MaximizedLayer _maximizedLayer = new() { IsVisible = false };
     private readonly EmptySlot _maximizedSlot = new();
-    private readonly AnimatedFloat _maximizeProgress = new(0.0f, MaximizeResponse, completionDistance: 0.002f);
+    private readonly AnimatedFloat _maximizeProgress = new(0.0f, Motion.Snappy, completionDistance: 0.002f);
     private WorkspaceNode _root;
     private UiElement? _content;
     private TitleBarInsets? _titleBarInsets;

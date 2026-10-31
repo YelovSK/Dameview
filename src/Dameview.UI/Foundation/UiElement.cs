@@ -88,12 +88,12 @@ internal abstract class UiElement
             bool keepsMotion = _presence is not null
                 && field is { } current
                 && value is { } next
-                && current.Response == next.Response;
+                && current.Motion == next.Motion;
             field = value;
             if (!keepsMotion)
             {
                 _presence = value is { } transition
-                    ? new AnimatedFloat(IsPresent ? 1.0f : 0.0f, transition.Response)
+                    ? new AnimatedFloat(IsPresent ? 1.0f : 0.0f, transition.Motion)
                     : null;
             }
         }
@@ -134,16 +134,27 @@ internal abstract class UiElement
                 IsVisible = true;
             }
 
+            // Bouncing on the way out could swing a leaving element back into view.
+            if (Transition is { } transition)
+            {
+                _presence.Motion = value
+                    ? transition.Motion
+                    : transition.ExitMotion ?? transition.Motion.WithoutOvershoot;
+            }
+
             _presence.SetTarget(target);
             InvalidateVisual();
         }
     } = true;
 
-    /// <summary>How far the element has entered, from 0 when absent to 1 when fully present.</summary>
+    /// <summary>
+    /// How far the element has entered, from 0 when absent to 1 when fully present. A bouncy
+    /// transition passes briefly beyond either end.
+    /// </summary>
     internal float Presence => _presence?.Current ?? 1.0f;
 
     /// <summary>The share of its space a container should give this element.</summary>
-    internal float LayoutPresence => Transition is { Collapse: true } ? Presence : 1.0f;
+    internal float LayoutPresence => Transition is { Collapse: true } ? Math.Clamp(Presence, 0.0f, 1.0f) : 1.0f;
 
     /// <summary>Whether this element can receive keyboard focus.</summary>
     internal virtual bool IsFocusable => false;
@@ -156,7 +167,7 @@ internal abstract class UiElement
     /// <summary>The pointer cursor shown while hovering or capturing this element.</summary>
     internal virtual WindowCursor Cursor => WindowCursor.Default;
     /// <summary>The opacity applied to this element and its drawn content.</summary>
-    internal virtual float Opacity => Transition is { Fade: true } ? Presence : 1.0f;
+    internal virtual float Opacity => Transition is { Fade: true } ? Math.Clamp(Presence, 0.0f, 1.0f) : 1.0f;
     /// <summary>An animated translation applied for drawing and hit testing.</summary>
     internal virtual PointF VisualOffset => Transition is { } transition
         ? new PointF(
@@ -546,9 +557,9 @@ internal abstract class UiElement
             "Text is measured only once the element is attached to a root.");
 
     /// <summary>Creates a value that this element advances on every update, before <see cref="UpdateCore"/>.</summary>
-    protected AnimatedFloat Animate(float initialValue, double response, float completionDistance = 0.001f)
+    protected AnimatedFloat Animate(float initialValue, Motion motion, float completionDistance = 0.001f)
     {
-        var animation = new AnimatedFloat(initialValue, response, completionDistance);
+        var animation = new AnimatedFloat(initialValue, motion, completionDistance);
         _animations.Add(animation);
         return animation;
     }

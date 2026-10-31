@@ -17,7 +17,6 @@ internal sealed class ToastView : UiElement
 
     private const float HorizontalPadding = 14.0f;
     private const float DismissWidth = 32.0f;
-    private const double Response = 20.0;
     private const float EntryOffset = 24.0f;
     // The layout is measured in a tall box, so the text has to start at its top.
     private static readonly UiFont MessageFont = new(
@@ -30,10 +29,10 @@ internal sealed class ToastView : UiElement
     internal ToastView(Toast toast, Action dismissed)
     {
         Toast = toast;
-        _shift = Animate(0.0f, Response, completionDistance: 0.25f);
+        _shift = Animate(0.0f, Motion.Snappy, completionDistance: 0.25f);
         _dismiss = new DismissButton(dismissed);
         AddChild(_dismiss);
-        Transition = new UiTransition(Fade: true, HiddenOffset: new PointF(EntryOffset, 0.0f), Response: Response);
+        Transition = new UiTransition(Motion.Snappy, Fade: true, HiddenOffset: new PointF(EntryOffset, 0.0f));
         // Absent until the host adds it, so that it enters rather than starting in place.
         IsPresent = false;
     }

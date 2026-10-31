@@ -118,7 +118,7 @@ internal sealed class ToolTipHost : UiElement
     {
         internal Bubble()
         {
-            Transition = new UiTransition(Fade: true, Response: 24.0);
+            Transition = new UiTransition(Motion.Snappy, Fade: true);
             IsPresent = false;
         }
 

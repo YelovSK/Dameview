@@ -19,6 +19,8 @@ internal abstract class ModalContent : UiElement
 internal sealed class ModalHost : UiElement
 {
     private const float BackdropAlpha = 0.45f;
+    // Bounces less than Motion.Bouncy, since the panel rises from the bottom of the window.
+    private static readonly Motion OpenMotion = new(0.27, 0.8);
 
     private readonly ModalSurface _surface;
     private Action? _dismiss;
@@ -28,7 +30,7 @@ internal sealed class ModalHost : UiElement
     {
         _surface = new ModalSurface(this);
         AddChild(_surface);
-        Transition = new UiTransition(Fade: true);
+        Transition = new UiTransition(OpenMotion, Fade: true, ExitMotion: Motion.Snappy);
         IsPresent = false;
     }
 

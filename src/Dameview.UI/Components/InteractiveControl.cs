@@ -12,8 +12,8 @@ internal abstract class InteractiveControl : UiElement
 
     protected InteractiveControl()
     {
-        _hoverAmount = Animate(0.0f, UiDesign.HoverResponse);
-        _pressedAmount = Animate(0.0f, UiDesign.PressedResponse);
+        _hoverAmount = Animate(0.0f, Motion.Snappy);
+        _pressedAmount = Animate(0.0f, Motion.Snappy);
     }
 
     internal bool IsEnabled

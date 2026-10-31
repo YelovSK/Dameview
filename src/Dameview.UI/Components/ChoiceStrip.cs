@@ -18,7 +18,6 @@ namespace Dameview.UI.Components;
 internal abstract class ChoiceStrip<T> : UiElement
 {
     private const float SegmentWidth = 96.0f;
-    private const double SelectionResponse = 40.0;
     private static readonly UiFont LabelFont = new(UiDesign.BodyFontSize, FontWeight.SemiBold, TextAlignment.Center);
 
     private readonly Choice<T>[] _choices;
@@ -46,7 +45,7 @@ internal abstract class ChoiceStrip<T> : UiElement
         _changed = changed;
         _segmentHeight = segmentHeight;
         _selectedIndex = FindIndex(selectedValue);
-        _shownSelection = Animate(_selectedIndex, SelectionResponse);
+        _shownSelection = Animate(_selectedIndex, Motion.Springy);
         _segments = new Segment[_choices.Length];
         for (int index = 0; index < _segments.Length; index++)
         {
@@ -147,17 +146,24 @@ internal abstract class ChoiceStrip<T> : UiElement
 
     private RectangleF GetShownSelection()
     {
-        float shown = _shownSelection.Current;
-        int from = Math.Clamp((int)MathF.Floor(shown), 0, _segments.Length - 1);
-        int to = Math.Min(from + 1, _segments.Length - 1);
+        int last = _segments.Length - 1;
+        float shown = Math.Clamp(_shownSelection.Current, 0.0f, last);
+        int from = (int)MathF.Floor(shown);
+        int to = Math.Min(from + 1, last);
         float progress = shown - from;
         RectangleF start = _segments[from].GetBoundsRelativeTo(this);
         RectangleF end = _segments[to].GetBoundsRelativeTo(this);
-        return new RectangleF(
+        var selection = new RectangleF(
             start.X + ((end.X - start.X) * progress),
             start.Y,
             start.Width + ((end.Width - start.Width) * progress),
             start.Height);
+
+        // A bounce past either end squashes the pill against that end instead of leaving the strip.
+        float squash = (_shownSelection.Current - shown) * selection.Width;
+        return squash < 0.0f
+            ? selection with { Width = selection.Width + squash }
+            : selection with { X = selection.X + squash, Width = selection.Width - squash };
     }
 
     private sealed class Segment(ChoiceStrip<T> owner, int index) : InteractiveControl

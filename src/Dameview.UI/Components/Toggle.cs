@@ -8,7 +8,8 @@ namespace Dameview.UI.Components;
 
 internal sealed class Toggle : InteractiveControl
 {
-    private const double SwitchResponse = 24.0;
+    // Overshoots about 16%, which the thumb's inset just fits. Any bouncier and it pokes out of the track.
+    private static readonly Motion SwitchMotion = new(0.32, 0.5);
     private static readonly UiFont LabelFont = new(UiDesign.BodyFontSize);
 
     private readonly Action<bool> _changed;
@@ -23,7 +24,7 @@ internal sealed class Toggle : InteractiveControl
     {
         Label = label;
         _value = value;
-        _onAmount = Animate(value ? 1.0f : 0.0f, SwitchResponse);
+        _onAmount = Animate(value ? 1.0f : 0.0f, SwitchMotion);
         _changed = changed;
         SetVisualState(UiVisualState.Selected, value);
     }

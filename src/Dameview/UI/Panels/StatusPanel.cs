@@ -21,7 +21,6 @@ internal sealed class StatusPanel : UiElement
     private const float ExpandedTopPadding = 10.0f;
     private const float ExpandedBottomGap = 6.0f;
     private const float CornerRadius = 10.0f;
-    private const double ExpandResponse = 18.0;
     private const float ButtonSize = 24.0f;
     // Centers the button vertically in the summary line, and keeps the same gap to the right edge.
     private const float ButtonInset = (HeightDips - ButtonSize) / 2.0f;
@@ -44,9 +43,9 @@ internal sealed class StatusPanel : UiElement
 
     internal StatusPanel(Action toggleExpanded, string toggleLabel)
     {
-        Transition = new UiTransition(Fade: true, HiddenOffset: new PointF(0.0f, 8.0f), Response: 14.0);
+        Transition = new UiTransition(Motion.Smooth, Fade: true, HiddenOffset: new PointF(0.0f, 8.0f));
         IsPresent = false;
-        _expansion = Animate(0.0f, ExpandResponse);
+        _expansion = Animate(0.0f, Motion.Snappy);
         _expandButton = new Button(
             UiTypography.ChevronUpIcon,
             toggleExpanded,

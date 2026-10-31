@@ -216,7 +216,7 @@ internal sealed class PopupHost : UiElement
         {
             _owner = owner;
             // The host sizes the presenter by its presence rather than fading it.
-            Transition = new UiTransition(Collapse: true, Response: 24.0);
+            Transition = new UiTransition(Motion.Snappy, Collapse: true);
             IsPresent = false;
         }
 
