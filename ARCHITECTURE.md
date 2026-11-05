@@ -99,7 +99,7 @@ All images, full or thumbnail, come from `ImagePipeline`. A consumer requests an
 
 ## Graphics devices
 
-Loading the display driver dominates startup, so the window first renders on WARP, Direct3D's software rasterizer, while the hardware device is created in the background. Once it is ready, `D2DRenderer` switches to it and device-bound resources are recreated on the new device. Logical state lives outside `Rendering` and `UI`, so only GPU resources are affected, but anything holding a device-bound value, such as the device context, must pick up the new one.
+Loading the display driver dominates startup, so the window first renders on WARP, Direct3D's software rasterizer, while the hardware device is created in the background. Once it is ready, `D2DRenderer` switches to it and device-bound resources are recreated on the new device. Logical state lives outside `Rendering` and `UI`, so only GPU resources are affected, but anything holding a device-bound value, such as the device context, must pick up the new one. Cached bitmaps are copied across on the window thread during the switch, so preloads wait until it is done.
 
 ## Installation and updates
 

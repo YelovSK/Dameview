@@ -32,6 +32,23 @@ internal sealed class ImagePipeline : IImagePipeline, IDisposable
     /// <summary>For moving the cached bitmaps to a new device.</summary>
     internal IEnumerable<RenderBitmapCache> Caches => _stores.Select(store => store.Cache);
 
+    /// <summary>Keeps preloads from starting until <see cref="ReleasePreloads"/>.</summary>
+    internal void HoldPreloads()
+    {
+        foreach (Store store in _stores)
+        {
+            store.HoldPreloads();
+        }
+    }
+
+    internal void ReleasePreloads()
+    {
+        foreach (Store store in _stores)
+        {
+            store.ReleasePreloads();
+        }
+    }
+
     public IDisposable Request(ImageKey key, ImagePriority priority, Action<ImageLoadResult> completed)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -62,8 +79,9 @@ internal sealed class ImagePipeline : IImagePipeline, IDisposable
         else if (job.Priority > job.Attempt.QueuedPriority && job.Attempt.TryWithdraw())
         {
             // Still queued, so it can be queued again further ahead.
+            ImageRepresentation? loaded = job.Attempt.TakeLoaded();
             job.Attempt.Dispose();
-            Start(job);
+            Start(job, loaded);
         }
 
         return subscription;
@@ -79,7 +97,7 @@ internal sealed class ImagePipeline : IImagePipeline, IDisposable
         _disposed = true;
         foreach (Job job in _jobs.Values)
         {
-            job.Attempt?.Cancel();
+            job.Attempt?.Abandon();
         }
 
         _jobs.Clear();
@@ -89,9 +107,10 @@ internal sealed class ImagePipeline : IImagePipeline, IDisposable
         }
     }
 
-    private void Start(Job job)
+    /// <param name="loaded">An image that only still needs uploading, which saves loading it again.</param>
+    private void Start(Job job, ImageRepresentation? loaded = null)
     {
-        var attempt = new Attempt(job);
+        var attempt = new Attempt(job, loaded);
         job.Attempt = attempt;
         // The work posts its own result. Only a queue that failed to start never runs it.
         job.Store.QueueFor(attempt.QueuedPriority)
@@ -114,7 +133,7 @@ internal sealed class ImagePipeline : IImagePipeline, IDisposable
         ImageRepresentation? image = null;
         try
         {
-            image = job.Store.Source.Load(workerState, job.Key.Path, attempt);
+            image = attempt.TakeLoaded() ?? job.Store.Source.Load(workerState, job.Key.Path, attempt);
             if (image is { IsStatic: true } && attempt.ShouldUpload(image))
             {
                 attempt.Uploaded = _uploader.Upload(image);
@@ -170,18 +189,18 @@ internal sealed class ImagePipeline : IImagePipeline, IDisposable
         }
     }
 
-    // The pixels are on the GPU by now, so the image only tells the size.
     private void Cache(Job job, Attempt attempt, ImageRepresentation image)
     {
-        image.Dispose();
         if (!attempt.Uploaded!.TryCreateBitmap(out ID2D1Bitmap1? bitmap))
         {
-            // The device was switched right after the upload, so it starts over on the new one.
+            // The device was switched right after the upload, so only the upload is done again.
             attempt.Dispose();
-            Start(job);
+            Start(job, image);
             return;
         }
 
+        // The pixels are on the GPU by now, so the image only tells the size.
+        image.Dispose();
         Remove(job);
         // A delivery can dispose other subscriptions, which takes them out of the job.
         Subscription[] subscriptions = [.. job.Subscriptions];
@@ -275,15 +294,10 @@ internal sealed class ImagePipeline : IImagePipeline, IDisposable
             return;
         }
 
-        // Nobody wants it anymore. A queued load is dropped, and a running one is asked to stop.
-        if (attempt.TryWithdraw())
+        // Nobody wants it anymore.
+        if (attempt.Abandon())
         {
             Remove(job);
-            attempt.Dispose();
-        }
-        else
-        {
-            attempt.Cancel();
         }
     }
 
@@ -308,14 +322,41 @@ internal sealed class ImagePipeline : IImagePipeline, IDisposable
         // Workers of their own, so preloads never hold up an image on display. Started on the
         // first preload, which some sources never get.
         private ComWorkerQueue<object?>? _preloadQueue;
+        private bool _preloadsHeld;
 
         internal IImageSource Source { get; } = source;
         internal RenderBitmapCache Cache { get; } = cache;
 
-        internal ComWorkerQueue<object?> QueueFor(ImagePriority priority) =>
-            priority == ImagePriority.Preload
-                ? _preloadQueue ??= new($"{Source.WorkerName} preloads", 2, Source.CreateWorkerState)
-                : _queue;
+        internal ComWorkerQueue<object?> QueueFor(ImagePriority priority)
+        {
+            if (priority != ImagePriority.Preload)
+            {
+                return _queue;
+            }
+
+            if (_preloadQueue is null)
+            {
+                _preloadQueue = new($"{Source.WorkerName} preloads", 2, Source.CreateWorkerState);
+                if (_preloadsHeld)
+                {
+                    _preloadQueue.Pause();
+                }
+            }
+
+            return _preloadQueue;
+        }
+
+        internal void HoldPreloads()
+        {
+            _preloadsHeld = true;
+            _preloadQueue?.Pause();
+        }
+
+        internal void ReleasePreloads()
+        {
+            _preloadsHeld = false;
+            _preloadQueue?.Resume();
+        }
 
         public void Dispose()
         {
@@ -337,7 +378,7 @@ internal sealed class ImagePipeline : IImagePipeline, IDisposable
     }
 
     // One go at loading a job. It is replaced when the job is queued again at a higher priority.
-    private sealed class Attempt(Job job) : ImageLoadContext, IDisposable
+    private sealed class Attempt(Job job, ImageRepresentation? loaded) : ImageLoadContext, IDisposable
     {
         private const int Queued = 0;
         private const int Running = 1;
@@ -346,6 +387,7 @@ internal sealed class ImagePipeline : IImagePipeline, IDisposable
         private readonly CancellationTokenSource _cancellation = new();
         private int _state;
         private long _reservedBytes;
+        private ImageRepresentation? _loaded = loaded;
 
         internal ImagePriority QueuedPriority { get; } = job.Priority;
         internal override CancellationToken CancellationToken => _cancellation.Token;
@@ -371,6 +413,21 @@ internal sealed class ImagePipeline : IImagePipeline, IDisposable
         }
 
         internal void Cancel() => _cancellation.Cancel();
+
+        /// <summary>Window thread. Drops a queued attempt and returns true, or asks a running one to stop.</summary>
+        internal bool Abandon()
+        {
+            if (TryWithdraw())
+            {
+                Dispose();
+                return true;
+            }
+
+            Cancel();
+            return false;
+        }
+
+        internal ImageRepresentation? TakeLoaded() => Interlocked.Exchange(ref _loaded, null);
 
         internal override bool ShouldLoad(long? cachedBytes) =>
             job.Priority > ImagePriority.Preload || (cachedBytes is { } bytes && TryReserve(bytes));
@@ -403,6 +460,7 @@ internal sealed class ImagePipeline : IImagePipeline, IDisposable
         {
             job.Store.Cache.Unreserve(_reservedBytes);
             _reservedBytes = 0;
+            _loaded?.Dispose();
             Uploaded?.Dispose();
             _cancellation.Dispose();
         }

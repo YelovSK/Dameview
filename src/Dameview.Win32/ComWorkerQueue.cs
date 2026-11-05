@@ -13,6 +13,7 @@ internal sealed class ComWorkerQueue<TContext> : IDisposable
     private readonly Func<TContext> _createContext;
     private readonly Thread[] _workers;
     private long _sequence;
+    private bool _paused;
     private bool _stopping;
     private Exception? _failure;
 
@@ -57,6 +58,24 @@ internal sealed class ComWorkerQueue<TContext> : IDisposable
         var item = new ActionWorkItem(work, cancellationToken);
         Schedule(item, priority);
         return item.Task;
+    }
+
+    /// <summary>Lets running work finish, but starts nothing else until <see cref="Resume"/>.</summary>
+    internal void Pause()
+    {
+        lock (_sync)
+        {
+            _paused = true;
+        }
+    }
+
+    internal void Resume()
+    {
+        lock (_sync)
+        {
+            _paused = false;
+            Monitor.PulseAll(_sync);
+        }
     }
 
     public void Dispose()
@@ -151,7 +170,7 @@ internal sealed class ComWorkerQueue<TContext> : IDisposable
             {
                 while (!_stopping)
                 {
-                    if (_pending.TryDequeue(out candidate, out _))
+                    if (!_paused && _pending.TryDequeue(out candidate, out _))
                     {
                         break;
                     }

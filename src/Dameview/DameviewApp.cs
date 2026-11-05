@@ -98,6 +98,9 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
                     new ImageRepresentationPolicy(D2DBitmapFactory.MaximumTextureDimension)),
                 _imageCache),
             (new ShellThumbnailSource(imageBackend), new RenderBitmapCache(ThumbnailBitmapCacheCapacityBytes)));
+        // What is cached when the hardware device arrives gets copied across on the window thread,
+        // and nobody is looking at a preload yet.
+        _images.HoldPreloads();
         using var imageDecoder = new ImageDecoder();
         HashSet<string> decodableExtensions = imageDecoder.GetProbablySupportedExtensions();
         StartupTrace.Mark("wic");
@@ -496,6 +499,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
             Log.Warning(
                 "Native",
                 $"Keeping the software rasterizer: {completed.Exception?.GetBaseException().Message}");
+            _images.ReleasePreloads();
             return;
         }
 
@@ -518,6 +522,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         }
 
         _ui.RecreateDeviceResources(deviceContext);
+        _images.ReleasePreloads();
         _window.RequestRepaint();
         if (adopted)
         {

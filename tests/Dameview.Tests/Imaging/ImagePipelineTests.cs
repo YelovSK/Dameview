@@ -288,7 +288,7 @@ public sealed class ImagePipelineTests
     }
 
     [TestMethod]
-    public void ImageIsLoadedAgainWhenTheDeviceChangesRightAfterItsUpload()
+    public void ImageIsOnlyUploadedAgainWhenTheDeviceChangesRightAfterItsUpload()
     {
         var uploader = new FakeUploader();
         uploader.SwitchDeviceAfterNextUploads(1);
@@ -303,8 +303,72 @@ public sealed class ImagePipelineTests
         harness.PumpUntil(() => loaded is not null);
 
         Assert.AreEqual(2, uploader.Uploads);
-        Assert.HasCount(2, source.Loaded);
+        Assert.HasCount(1, source.Loaded);
         loaded!.Dispose();
+    }
+
+    [TestMethod]
+    public void HeldPreloadStartsOnceReleased()
+    {
+        var source = new FakeSource(_ => PipelineHarness.CreateImage());
+        using var harness = new PipelineHarness(source);
+        harness.Pipeline.HoldPreloads();
+        ImageLoaded? loaded = null;
+
+        using IDisposable request = harness.Pipeline.Request(
+            Full("image"),
+            ImagePriority.Preload,
+            result => loaded = (ImageLoaded)result);
+        harness.PumpPending();
+        Assert.IsEmpty(source.Loaded);
+
+        harness.Pipeline.ReleasePreloads();
+        harness.PumpUntil(() => loaded is not null);
+
+        Assert.HasCount(1, source.Loaded);
+        loaded!.Dispose();
+    }
+
+    [TestMethod]
+    public void HeldPreloadStartsWhenAMoreUrgentRequestWantsIt()
+    {
+        var source = new FakeSource(_ => PipelineHarness.CreateImage());
+        using var harness = new PipelineHarness(source);
+        harness.Pipeline.HoldPreloads();
+        var delivered = new List<ImageLoaded>();
+
+        using IDisposable preload = harness.Pipeline.Request(
+            Full("image"),
+            ImagePriority.Preload,
+            result => delivered.Add((ImageLoaded)result));
+        using IDisposable display = harness.Pipeline.Request(
+            Full("image"),
+            ImagePriority.Display,
+            result => delivered.Add((ImageLoaded)result));
+        harness.PumpUntil(() => delivered.Count == 2);
+
+        harness.Pipeline.ReleasePreloads();
+        harness.PumpPending();
+
+        Assert.HasCount(1, source.Loaded);
+        delivered.ForEach(image => image.Dispose());
+    }
+
+    [TestMethod]
+    public void HeldPreloadThatIsNoLongerWantedNeverLoads()
+    {
+        var source = new FakeSource(_ => PipelineHarness.CreateImage());
+        using var harness = new PipelineHarness(source);
+        harness.Pipeline.HoldPreloads();
+
+        harness.Pipeline.Request(
+            Full("image"),
+            ImagePriority.Preload,
+            result => ((ImageLoaded)result).Dispose()).Dispose();
+        harness.Pipeline.ReleasePreloads();
+        harness.PumpPending();
+
+        Assert.IsEmpty(source.Loaded);
     }
 
     [TestMethod]
