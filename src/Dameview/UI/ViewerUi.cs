@@ -53,7 +53,6 @@ internal sealed class ViewerUi : UiElement, IFrameContent, IDisposable
     private ViewerKeyBindings _keyBindings = ViewerKeyBindings.Defaults;
     private bool _sharpPixels;
     private bool _wheelNavigates;
-    private bool _infoExpanded;
     // In DIPs; the window center stands in until the pointer first moves.
     private PointF? _pointer;
 
@@ -93,7 +92,6 @@ internal sealed class ViewerUi : UiElement, IFrameContent, IDisposable
                 SharpPixels = _sharpPixels,
                 WheelNavigates = _wheelNavigates,
                 ChromeVisible = _chromeVisible,
-                InfoExpanded = _infoExpanded,
             },
             _host.CreateSnapshot);
         _workspaceView.SetActivePane(workspace.ActivePane);
@@ -340,14 +338,7 @@ internal sealed class ViewerUi : UiElement, IFrameContent, IDisposable
 
     internal void CenterGallerySelection() => _galleryPanel.CenterSelection();
 
-    internal void ToggleImageInfo()
-    {
-        _infoExpanded = !_infoExpanded;
-        foreach (ViewerPaneView paneView in _workspaceView.PaneViews)
-        {
-            paneView.InfoExpanded = _infoExpanded;
-        }
-    }
+    internal void ToggleImageInfo(ViewerPane pane) => _workspaceView.FindPaneView(pane)?.ToggleInfo();
 
     internal void TogglePerformanceOverlay()
     {

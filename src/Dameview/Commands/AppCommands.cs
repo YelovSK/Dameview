@@ -150,9 +150,9 @@ internal static class AppCommands
         host => host.UpdateSettings(settings => settings with { GalleryEnabled = !settings.GalleryEnabled }),
         shortcuts: [new(WindowKey.G, Control: true)]);
 
-    internal static readonly Command ToggleImageInfo = Command.Global(
+    internal static readonly Command ToggleImageInfo = Command.ForTab(
         "toggleImageInfo", "Toggle image info", CommandScope.Viewer,
-        host => host.Ui.ToggleImageInfo(),
+        (host, tab) => host.Ui.ToggleImageInfo(host.Workspace.PaneOf(tab)),
         shortcuts: [new(WindowKey.I)]);
 
     internal static readonly Command ToggleFlattenFolder = Command.ForTab(

@@ -126,15 +126,11 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         }
     } = true;
 
-    internal bool InfoExpanded
+    internal void ToggleInfo()
     {
-        get => _statusPanel.IsExpanded;
-        set
-        {
-            _statusPanel.IsExpanded = value;
-            UpdateChromeVisibility();
-            RefreshInfo();
-        }
+        _statusPanel.IsExpanded = !_statusPanel.IsExpanded;
+        UpdateChromeVisibility();
+        RefreshInfo();
     }
 
     internal bool SharpPixels
