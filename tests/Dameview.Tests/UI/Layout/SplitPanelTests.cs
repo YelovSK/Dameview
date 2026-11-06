@@ -23,6 +23,19 @@ public sealed class SplitPanelTests
     }
 
     [TestMethod]
+    public void PanesAreMeasuredWithTheSpaceTheyWillGet()
+    {
+        var first = new FixedContent();
+        var second = new FixedContent();
+        var panel = new SplitPanel(first, second, UiOrientation.Horizontal, 0.6f);
+
+        panel.Measure(new SizeF(1008.0f, 600.0f));
+
+        Assert.AreEqual(new SizeF(600.0f, 600.0f), first.DesiredSize);
+        Assert.AreEqual(new SizeF(400.0f, 600.0f), second.DesiredSize);
+    }
+
+    [TestMethod]
     public void VerticalLayoutRespectsTheMinimumPaneSize()
     {
         var first = new FixedContent();

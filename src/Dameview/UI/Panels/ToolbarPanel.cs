@@ -10,7 +10,9 @@ namespace Dameview.UI.Panels;
 
 internal sealed class ToolbarPanel : UiElement
 {
-    internal const float HeightDips = 46.0f;
+    private const float RowPaddingDips = 6.0f;
+    private const float RowHeightDips = 34.0f;
+    private const float MinButtonWidthDips = 32.0f;
     private const float WidthDips = 342.0f;
     private const float PaneButtonWidthDips = 68.0f;
 
@@ -49,21 +51,25 @@ internal sealed class ToolbarPanel : UiElement
                 ToolTip = new("Settings"),
             },
         ];
-        var buttonRow = new StackPanel(UiOrientation.Horizontal, buttons)
+        var buttonGrid = new WrapGrid(MinButtonWidthDips, RowHeightDips, buttons)
         {
             Spacing = UiDesign.SmallSpacing,
-            Distribution = StackPanelDistribution.Equal,
-            Margin = new UiThickness(6.0f),
+            Margin = new UiThickness(RowPaddingDips),
         };
-        AddChild(new Surface(buttonRow)
+        AddChild(new Surface(buttonGrid)
         {
             Fill = UiSurfaceFill.Overlay,
         });
         MaxWidth = WidthDips;
-        MaxHeight = HeightDips;
-        Transition = new UiTransition(Motion.Smooth, Fade: true, HiddenOffset: new PointF(0.0f, -HeightDips));
+        Transition = new UiTransition(
+            Motion.Smooth,
+            Fade: true,
+            HiddenOffset: new PointF(0.0f, -(RowHeightDips + (2.0f * RowPaddingDips))));
         IsPresent = false;
     }
+
+    /// <summary>How far below the top of the pane's content the pointer calls for the toolbar.</summary>
+    internal float PointerReachDips => DesiredSize.Height - Margin.Bottom + 28.0f;
 
     /// <summary>Shows the buttons that only mean something with other panes around.</summary>
     internal void SetPaneButtons(bool split, bool synced, bool maximized)

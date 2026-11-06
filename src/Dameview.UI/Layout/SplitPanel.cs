@@ -134,16 +134,25 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
 
     protected override SizeF MeasureCore(SizeF availableSize)
     {
-        FirstPane.Measure(availableSize);
-        SecondPane.Measure(availableSize);
+        CalculatePaneBounds(availableSize);
+        FirstPane.Measure(FirstPaneBounds.Size);
+        SecondPane.Measure(SecondPaneBounds.Size);
         return availableSize;
     }
 
     protected override void ArrangeCore(SizeF finalSize)
     {
+        (float firstLength, float splitterSize) = CalculatePaneBounds(finalSize);
+        FirstPane.Arrange(FirstPaneBounds);
+        SecondPane.Arrange(SecondPaneBounds);
+        _resizer.Arrange(GetResizerBounds(firstLength, splitterSize, finalSize));
+    }
+
+    private (float FirstLength, float SplitterSize) CalculatePaneBounds(SizeF size)
+    {
         float mainLength = _orientation == UiOrientation.Horizontal
-            ? finalSize.Width
-            : finalSize.Height;
+            ? size.Width
+            : size.Height;
         float finalSplitterSize = MathF.Min(SplitterSizeDips, MathF.Max(0.0f, mainLength));
         float usableLength = MathF.Max(0.0f, mainLength - finalSplitterSize);
         float finalFirstLength = CalculateFirstLength(usableLength);
@@ -164,26 +173,24 @@ internal sealed class SplitPanel : UiElement, ISplitResizerTarget
 
         if (_orientation == UiOrientation.Horizontal)
         {
-            FirstPaneBounds = new RectangleF(0.0f, 0.0f, firstLength, finalSize.Height);
+            FirstPaneBounds = new RectangleF(0.0f, 0.0f, firstLength, size.Height);
             SecondPaneBounds = new RectangleF(
                 firstLength + splitterSize,
                 0.0f,
                 secondLength,
-                finalSize.Height);
+                size.Height);
         }
         else
         {
-            FirstPaneBounds = new RectangleF(0.0f, 0.0f, finalSize.Width, firstLength);
+            FirstPaneBounds = new RectangleF(0.0f, 0.0f, size.Width, firstLength);
             SecondPaneBounds = new RectangleF(
                 0.0f,
                 firstLength + splitterSize,
-                finalSize.Width,
+                size.Width,
                 secondLength);
         }
 
-        FirstPane.Arrange(FirstPaneBounds);
-        SecondPane.Arrange(SecondPaneBounds);
-        _resizer.Arrange(GetResizerBounds(firstLength, splitterSize, finalSize));
+        return (firstLength, splitterSize);
     }
 
     protected override bool HitTestCore(PointF position) => false;

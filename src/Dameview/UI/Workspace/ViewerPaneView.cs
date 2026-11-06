@@ -313,6 +313,13 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
             animationError is not null || _state.IsError || _state.FolderError is not null));
     }
 
+    protected override SizeF MeasureCore(SizeF availableSize)
+    {
+        // Hidden elements aren't measured, but how close the pointer must come to show the toolbar depends on its height.
+        _toolbarPanel.Measure(availableSize);
+        return base.MeasureCore(availableSize);
+    }
+
     protected override bool HitTestCore(PointF position) => false;
 
     protected override void ObservePointerMove(in WindowPointerEvent input)
@@ -324,10 +331,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         _pointerNearStatus = insidePane && input.Position.Y >= Bounds.Height - StatusPanel.HeightDips - 24.0f;
         _pointerNearToolbar = insidePane
             && input.Position.Y >= ContentBounds.Y
-            && input.Position.Y <= ContentBounds.Y
-                + UiDesign.WindowMargin
-                + ToolbarPanel.HeightDips
-                + 28.0f;
+            && input.Position.Y <= ContentBounds.Y + _toolbarPanel.PointerReachDips;
         UpdateChromeVisibility();
     }
 
