@@ -267,7 +267,7 @@ internal sealed class D2DRenderer : IDisposable
         BitmapProperties1 properties = new(
             new PixelFormat(
                 Format.B8G8R8A8_UNorm,
-                Vortice.DCommon.AlphaMode.Premultiplied),
+                Vortice.DCommon.AlphaMode.Ignore),
             _dpi,
             _dpi,
             BitmapOptions.Target | BitmapOptions.CannotDraw);
@@ -311,6 +311,9 @@ internal sealed class D2DRenderer : IDisposable
                 D2DDevice = d2dFactory.CreateDevice(DxgiDevice);
                 DeviceContext = D2DDevice.CreateDeviceContext();
                 DeviceContext.SetDpi(dpi, dpi);
+                // ClearType needs an opaque background, which snapshots drawn onto transparent
+                // bitmaps lack, so their text would not match the live text they replace.
+                DeviceContext.TextAntialiasMode = Vortice.Direct2D1.TextAntialiasMode.Grayscale;
                 StartupTrace.Mark("d2d");
 
                 SwapChainDescription1 description = new(
