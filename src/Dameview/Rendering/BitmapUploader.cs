@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Dameview.Imaging;
 using Dameview.Imaging.Loading;
 using Vortice.Direct2D1;
 using Vortice.Direct3D11;
@@ -9,6 +10,9 @@ internal interface IBitmapUploader
 {
     /// <summary>Any thread. Copies a static image's pixels to the GPU.</summary>
     public IUploadedBitmap Upload(ImageRepresentation image);
+
+    /// <summary>Any thread.</summary>
+    public IUploadedBitmap Upload(DecodedImageUpload image);
 }
 
 internal interface IUploadedBitmap : IDisposable
@@ -25,18 +29,22 @@ internal interface IUploadedBitmap : IDisposable
 // and the window thread only wraps it as a bitmap, which is cheap.
 internal sealed class BitmapUploader(D2DRenderer renderer) : IBitmapUploader
 {
-    public IUploadedBitmap Upload(ImageRepresentation image)
+    public IUploadedBitmap Upload(ImageRepresentation image) => image switch
+    {
+        UploadImageRepresentation upload => Upload(upload.Upload),
+        DecodedImageRepresentation decoded => Upload(device => D2DBitmapFactory.CreateTexture(device, decoded.Image)),
+        _ => throw new ArgumentException("Only static images can be uploaded.", nameof(image)),
+    };
+
+    public IUploadedBitmap Upload(DecodedImageUpload image) =>
+        Upload(device => D2DBitmapFactory.CreateTexture(device, image));
+
+    private UploadedBitmap Upload(Func<ID3D11Device, ID3D11Texture2D> createTexture)
     {
         ID3D11Device device = renderer.AcquireD3DDevice();
         try
         {
-            ID3D11Texture2D texture = image switch
-            {
-                UploadImageRepresentation upload => D2DBitmapFactory.CreateTexture(device, upload.Upload),
-                DecodedImageRepresentation decoded => D2DBitmapFactory.CreateTexture(device, decoded.Image),
-                _ => throw new ArgumentException("Only static images can be uploaded.", nameof(image)),
-            };
-            return new UploadedBitmap(renderer, device, texture);
+            return new UploadedBitmap(renderer, device, createTexture(device));
         }
         catch
         {

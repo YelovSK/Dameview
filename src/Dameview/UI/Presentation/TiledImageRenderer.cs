@@ -16,7 +16,6 @@ internal sealed class TiledImageRenderer : IDisposable
 {
     private const long MaximumTileBytes = 128L * 1024L * 1024L;
 
-    private readonly ID2D1DeviceContext _deviceContext;
     private readonly IImageTileSource _source;
     private readonly ImageViewport _viewport;
     private readonly Action _invalidate;
@@ -36,10 +35,10 @@ internal sealed class TiledImageRenderer : IDisposable
     internal TiledImageRenderer(
         ID2D1DeviceContext deviceContext,
         IImageTileSource source,
+        IBitmapUploader uploader,
         ImageViewport viewport,
         Action invalidate)
     {
-        _deviceContext = deviceContext;
         _source = source;
         _viewport = viewport;
         _invalidate = invalidate;
@@ -49,7 +48,7 @@ internal sealed class TiledImageRenderer : IDisposable
         }
 
         _overview = D2DBitmapFactory.Create(deviceContext, source.Overview);
-        _scheduler = new TileDecodeScheduler(source, CompleteTile);
+        _scheduler = new TileDecodeScheduler(source, uploader, CompleteTile);
     }
 
     internal void Draw(
@@ -244,25 +243,14 @@ internal sealed class TiledImageRenderer : IDisposable
 
     // A decode that is no longer wanted is kept anyway: eviction drops unwanted tiles first,
     // and panning back would otherwise pay for the same decode again.
-    private void CompleteTile(ImageTile tile, DecodedImageUpload? image)
+    private void CompleteTile(ImageTile tile, IUploadedBitmap? uploaded)
     {
         if (_disposed)
         {
             return;
         }
 
-        if (image is null)
-        {
-            FailTile(tile);
-            return;
-        }
-
-        ID2D1Bitmap1 bitmap;
-        try
-        {
-            bitmap = D2DBitmapFactory.Create(_deviceContext, image);
-        }
-        catch
+        if (uploaded is null || !uploaded.TryCreateBitmap(out ID2D1Bitmap1? bitmap))
         {
             FailTile(tile);
             return;

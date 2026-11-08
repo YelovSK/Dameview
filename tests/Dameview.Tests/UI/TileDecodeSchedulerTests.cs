@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Dameview.Imaging;
 using Dameview.Imaging.Loading;
+using Dameview.Tests.Imaging;
 using Dameview.UI.Presentation;
 using Dameview.Win32;
 
@@ -43,6 +44,7 @@ public sealed class TileDecodeSchedulerTests
         var completed = new List<ImageTile>();
         using var scheduler = new TileDecodeScheduler(
             source,
+            new FakeUploader(),
             (tile, image) =>
             {
                 Assert.IsNotNull(image);
@@ -95,6 +97,7 @@ public sealed class TileDecodeSchedulerTests
         var failed = new List<ImageTile>();
         using var scheduler = new TileDecodeScheduler(
             source,
+            new FakeUploader(),
             (tile, image) =>
             {
                 (image is null ? failed : completed).Add(tile);
@@ -132,6 +135,7 @@ public sealed class TileDecodeSchedulerTests
         });
         var scheduler = new TileDecodeScheduler(
             source,
+            new FakeUploader(),
             (_, _) => { },
             maximumWorkers: 1,
             uiContext: new WindowSynchronizationContext(_ => { }));
@@ -157,13 +161,14 @@ public sealed class TileDecodeSchedulerTests
         var posted = new BlockingCollection<Action>();
         using var scheduler = new TileDecodeScheduler(
             source,
+            new FakeUploader(),
             (_, _) => { },
             maximumWorkers: 1,
             new WindowSynchronizationContext(posted.Add));
 
         scheduler.ReplaceRequests(CreateTiles(0, 5));
 
-        // Decoded buffers must not pile up behind a busy UI thread, so the worker holds
+        // Finished tiles must not pile up behind a busy UI thread, so the worker holds
         // still until the tile it published has actually been taken.
         Assert.IsTrue(decodeStarted.Wait(TimeSpan.FromSeconds(5)));
         Assert.IsFalse(

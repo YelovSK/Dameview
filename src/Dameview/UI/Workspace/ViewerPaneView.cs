@@ -2,6 +2,7 @@ using System.Drawing;
 using Dameview.Commands;
 using Dameview.Imaging;
 using Dameview.Imaging.Loading;
+using Dameview.Rendering;
 using Dameview.UI.Foundation;
 using Dameview.UI.Layout;
 using Dameview.UI.Panels;
@@ -37,6 +38,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
 
     internal ViewerPaneView(
         ID2D1DeviceContext deviceContext,
+        IBitmapUploader uploader,
         ViewerPane pane,
         ICommandRunner commands,
         ViewerContextMenus contextMenus,
@@ -55,6 +57,7 @@ internal sealed class ViewerPaneView : UiElement, IDisposable
         _fileName = Path.GetFileName(_state.RequestedPath) ?? string.Empty;
         _imagePanel = new ImagePanel(
             deviceContext,
+            uploader,
             session.Viewport,
             session.Animator,
             point => contextMenus.ShowForImage(Pane.ActiveTab, _imagePanel!, point),

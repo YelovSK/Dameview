@@ -19,6 +19,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
 {
     private ID2D1DeviceContext _deviceContext;
     private ID2D1DeviceContext _scaleContext;
+    private readonly IBitmapUploader _uploader;
     private readonly ImagePresentationCache _presentationCache;
     private readonly Action<PointF> _contextMenuRequested;
     private readonly Action<int> _navigate;
@@ -49,6 +50,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
 
     internal ImagePanel(
         ID2D1DeviceContext deviceContext,
+        IBitmapUploader uploader,
         ImageViewport viewport,
         ViewportAnimator animator,
         Action<PointF> contextMenuRequested,
@@ -57,6 +59,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
         _contextMenuRequested = contextMenuRequested;
         _navigate = navigate;
         _deviceContext = deviceContext;
+        _uploader = uploader;
         _scaleContext = D2DBitmapFactory.CreateOffscreenContext(deviceContext);
         _presentationCache = new ImagePresentationCache(deviceContext);
         _viewport = viewport;
@@ -174,7 +177,7 @@ internal sealed class ImagePanel : UiElement, IDisposable
                 break;
 
             case TiledImageRepresentation tiled:
-                _tiledImage = new TiledImageRenderer(_deviceContext, tiled.Source, _viewport, InvalidateVisual);
+                _tiledImage = new TiledImageRenderer(_deviceContext, tiled.Source, _uploader, _viewport, InvalidateVisual);
                 break;
 
             case AnimatedImageRepresentation animated:

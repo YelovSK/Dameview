@@ -90,9 +90,10 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         _performanceMonitor = new PerformanceMonitor();
         var imageBackend = new WindowsImageLoadingBackend();
         _imageCache = new RenderBitmapCache(ToBytes(startupSettings.ImageCacheMegabytes));
+        var uploader = new BitmapUploader(_renderer);
         _images = new ImagePipeline(
             _uiContext,
-            new BitmapUploader(_renderer),
+            uploader,
             (new FileImageSource(
                     imageBackend,
                     new ImageRepresentationPolicy(D2DBitmapFactory.MaximumTextureDimension)),
@@ -138,6 +139,7 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
         _ui = new ViewerUi(
             _renderer.DeviceContext,
             _renderer.DirectWriteFactory,
+            uploader,
             _workspace,
             _window.Dpi,
             Themes.Dark.Palette,

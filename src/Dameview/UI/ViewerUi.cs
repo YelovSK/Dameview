@@ -59,6 +59,7 @@ internal sealed class ViewerUi : UiElement, IFrameContent, IDisposable
     internal ViewerUi(
         ID2D1DeviceContext deviceContext,
         IDWriteFactory directWriteFactory,
+        IBitmapUploader uploader,
         ViewerWorkspace workspace,
         float dpi,
         UiTheme theme,
@@ -81,6 +82,7 @@ internal sealed class ViewerUi : UiElement, IFrameContent, IDisposable
             // Reads the host, so panes opened after a device switch use the live context.
             pane => new ViewerPaneView(
                 _host.DeviceContext,
+                uploader,
                 pane,
                 app,
                 _contextMenus,

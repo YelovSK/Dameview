@@ -1,5 +1,6 @@
 using Dameview.Imaging;
 using Dameview.Imaging.Loading;
+using Dameview.Rendering;
 
 namespace Dameview.UI.Presentation;
 
@@ -12,8 +13,9 @@ internal sealed class TileDecodeScheduler : IDisposable
         8);
 
     private readonly IImageTileSource _source;
+    private readonly IBitmapUploader _uploader;
     private readonly SynchronizationContext _uiContext;
-    private readonly Action<ImageTile, DecodedImageUpload?> _completed;
+    private readonly Action<ImageTile, IUploadedBitmap?> _completed;
     private readonly int _maximumWorkers;
     private readonly Lock _gate = new();
     private readonly List<ImageTile> _pending = [];
@@ -24,11 +26,13 @@ internal sealed class TileDecodeScheduler : IDisposable
 
     internal TileDecodeScheduler(
         IImageTileSource source,
-        Action<ImageTile, DecodedImageUpload?> completed,
+        IBitmapUploader uploader,
+        Action<ImageTile, IUploadedBitmap?> completed,
         int? maximumWorkers = null,
         SynchronizationContext? uiContext = null)
     {
         _source = source;
+        _uploader = uploader;
         _completed = completed;
         _maximumWorkers = maximumWorkers ?? DefaultMaximumWorkers;
         _uiContext = uiContext
@@ -83,8 +87,13 @@ internal sealed class TileDecodeScheduler : IDisposable
             {
                 try
                 {
-                    DecodedImageUpload image = decoder.DecodeTile(tile, token);
-                    Publish(tile, image, token);
+                    IUploadedBitmap uploaded;
+                    using (DecodedImageUpload image = decoder.DecodeTile(tile, token))
+                    {
+                        uploaded = _uploader.Upload(image);
+                    }
+
+                    Publish(tile, uploaded, token);
                 }
                 catch (OperationCanceledException) when (token.IsCancellationRequested)
                 {
@@ -165,7 +174,7 @@ internal sealed class TileDecodeScheduler : IDisposable
 
     private void Publish(
         ImageTile tile,
-        DecodedImageUpload? image,
+        IUploadedBitmap? uploaded,
         CancellationToken token)
     {
         var published = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -175,11 +184,11 @@ internal sealed class TileDecodeScheduler : IDisposable
             {
                 try
                 {
-                    _completed(tile, image);
+                    _completed(tile, uploaded);
                 }
                 finally
                 {
-                    image?.Dispose();
+                    uploaded?.Dispose();
                     lock (_gate)
                     {
                         _scheduled.Remove(tile);
@@ -188,7 +197,7 @@ internal sealed class TileDecodeScheduler : IDisposable
                     published.TrySetResult();
                 }
             }, null);
-            // Do not let decoded CPU buffers accumulate behind the UI thread.
+            // Do not let finished tiles pile up in memory behind the UI thread.
             published.Task.Wait(token);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -197,7 +206,7 @@ internal sealed class TileDecodeScheduler : IDisposable
         catch
         {
             // Only posting can fail here, so the callback never got the image.
-            image?.Dispose();
+            uploaded?.Dispose();
             lock (_gate)
             {
                 _scheduled.Remove(tile);

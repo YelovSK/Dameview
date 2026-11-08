@@ -100,7 +100,11 @@ internal sealed class FakeUploader : IBitmapUploader
     /// <summary>Makes the next uploads come back as if the device had changed right after.</summary>
     internal void SwitchDeviceAfterNextUploads(int count) => _staleUploads = count;
 
-    public IUploadedBitmap Upload(ImageRepresentation image)
+    public IUploadedBitmap Upload(ImageRepresentation image) => Upload();
+
+    public IUploadedBitmap Upload(DecodedImageUpload image) => Upload();
+
+    private UploadedBitmap Upload()
     {
         Interlocked.Increment(ref _uploads);
         return new UploadedBitmap(Interlocked.Decrement(ref _staleUploads) >= 0);
