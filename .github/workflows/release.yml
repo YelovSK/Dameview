@@ -85,6 +85,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh release create $env:GITHUB_REF_NAME .\publish\Dameview.exe --verify-tag --generate-notes
 
+      - name: Submit to winget
+        uses: vedantmgoyal9/winget-releaser@v2
+        with:
+          identifier: YelovSK.Dameview
+          release-tag: ${{ github.ref_name }}
+          installers-regex: '\.exe$'
+          token: ${{ secrets.WINGET_TOKEN }}
+
       - name: Set up Microsoft Store CLI
         uses: microsoft/setup-msstore-cli@v1
 

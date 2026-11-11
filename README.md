@@ -18,6 +18,7 @@
 ## Install
 
 - [GitHub releases](https://github.com/YelovSK/Dameview/releases/latest): run `Dameview.exe` to install it with the built-in updater, or use it as a portable app
+- winget: run `winget install YelovSK.Dameview`
 - [Microsoft Store](https://apps.microsoft.com/detail/9NK0CD6F9MH6)
 
 ## Features
