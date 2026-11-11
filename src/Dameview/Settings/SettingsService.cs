@@ -1,5 +1,4 @@
 using Dameview.Diagnostics;
-using Dameview.Serialization;
 
 namespace Dameview.Settings;
 
@@ -75,7 +74,6 @@ internal sealed class SettingsService : IDisposable
 
             // Nothing is listening this early, so a fallback here is only worth logging.
             (AppSettings settings, _) = SettingsIniSerializer.Read(File.ReadAllText(DefaultPath));
-            settings.Validate();
             return settings;
         }
         catch (Exception exception) when (IsSettingsError(exception))
@@ -176,7 +174,6 @@ internal sealed class SettingsService : IDisposable
         {
             (AppSettings settings, IReadOnlyList<string> ignored) =
                 SettingsIniSerializer.Read(File.ReadAllText(_path));
-            settings.Validate();
             _readAttempts = 0;
 
             // A delayed notification for our last save must not roll back a
@@ -268,6 +265,6 @@ internal sealed class SettingsService : IDisposable
 
     private static bool IsSettingsError(Exception exception)
     {
-        return exception is IOException or UnauthorizedAccessException or IniFormatException;
+        return exception is IOException or UnauthorizedAccessException;
     }
 }

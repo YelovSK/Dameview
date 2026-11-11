@@ -84,7 +84,7 @@ internal static class SettingsIniSerializer
     internal static (AppSettings Settings, IReadOnlyList<string> Ignored) Read(string text)
     {
         var document = IniDocument.Parse(text);
-        List<string> ignored = [];
+        List<string> ignored = [.. document.MalformedLines.Select(line => $"line '{line}'")];
         AppSettings settings = new();
         foreach (Binding binding in Bindings)
         {

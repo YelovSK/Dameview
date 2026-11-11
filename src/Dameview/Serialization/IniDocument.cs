@@ -3,7 +3,7 @@ using System.Text;
 namespace Dameview.Serialization;
 
 // Small, deliberately limited INI document whose values are opaque strings.
-// Comments and keys this version doesn't know survive a Parse and Write,
+// Comments, malformed lines, and keys this version doesn't know survive a Parse and Write,
 // while entries and headers are written back in a normalized form.
 internal sealed class IniDocument
 {
@@ -33,7 +33,8 @@ internal sealed class IniDocument
             int separator = line.IndexOf('=');
             if (separator <= 0)
             {
-                throw new IniFormatException("Expected a key=value line.");
+                section.Lines.Add(new Malformed(line));
+                continue;
             }
 
             section.Lines.Add(new Entry(line[..separator].Trim(), line[(separator + 1)..].Trim()));
@@ -50,6 +51,9 @@ internal sealed class IniDocument
 
         return document;
     }
+
+    internal IEnumerable<string> MalformedLines =>
+        _sections.SelectMany(section => section.Lines).OfType<Malformed>().Select(line => line.Text);
 
     internal string? Get(string section, string key)
     {
@@ -137,6 +141,12 @@ internal sealed class IniDocument
         internal override string Text { get; } = text;
     }
 
+    // Not a key=value line, kept as written so that a save doesn't lose it.
+    private sealed class Malformed(string text) : Line
+    {
+        internal override string Text { get; } = text;
+    }
+
     private sealed class Entry(string key, string value) : Line
     {
         internal string Key { get; } = key;
@@ -144,5 +154,3 @@ internal sealed class IniDocument
         internal override string Text => $"{Key}={Value}";
     }
 }
-
-internal sealed class IniFormatException(string message) : Exception(message);

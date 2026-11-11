@@ -116,7 +116,7 @@ internal sealed class ImagePipeline : IImagePipeline, IDisposable
         job.Store.QueueFor(attempt.QueuedPriority)
             .Enqueue((state, _) => Run(job, attempt, state), (int)attempt.QueuedPriority, attempt.CancellationToken)
             .ContinueWith(
-                task => Post(job, attempt, null, task.Exception!.GetBaseException()),
+                task => Post(job, attempt, task.Exception!.GetBaseException()),
                 CancellationToken.None,
                 TaskContinuationOptions.OnlyOnFaulted,
                 TaskScheduler.Default);
@@ -142,50 +142,68 @@ internal sealed class ImagePipeline : IImagePipeline, IDisposable
         catch (Exception exception)
         {
             image?.Dispose();
-            Post(job, attempt, null, exception);
+            Post(job, attempt, exception);
             return;
         }
 
-        Post(job, attempt, image, null);
+        Post(job, attempt, image is null ? default(LoadOutcome?) : image);
     }
 
-    private void Post(Job job, Attempt attempt, ImageRepresentation? image, Exception? failure) =>
-        _uiContext.Post(_ => Finish(job, attempt, image, failure), null);
+    // A null outcome means the source stopped without loading anything.
+    private void Post(Job job, Attempt attempt, LoadOutcome? outcome) =>
+        _uiContext.Post(_ => Finish(job, attempt, outcome), null);
 
-    private void Finish(Job job, Attempt attempt, ImageRepresentation? image, Exception? failure)
+    private void Finish(Job job, Attempt attempt, LoadOutcome? outcome)
     {
         if (_disposed)
         {
-            image?.Dispose();
-            attempt.Dispose();
-        }
-        else if (failure is not null && !attempt.IsCancelled)
-        {
-            Fail(job, attempt, failure);
-        }
-        else if (image is null || (image.IsStatic && attempt.Uploaded is null))
-        {
-            // Stopped because nobody wanted it anymore, or skipped as a preload that would not
-            // be kept. Whoever asked for it since then still gets it.
-            image?.Dispose();
-            attempt.Dispose();
-            if (job.Subscriptions.Count > 0 && (attempt.IsCancelled || job.Priority > ImagePriority.Preload))
+            if (outcome is ImageRepresentation image)
             {
-                Start(job);
+                image.Dispose();
             }
-            else
-            {
-                Remove(job);
-            }
-        }
-        else if (!image.IsStatic)
-        {
+
             attempt.Dispose();
-            Hand(job, image);
+            return;
+        }
+
+        switch (outcome)
+        {
+            case Exception failure when !attempt.IsCancelled:
+                Fail(job, attempt, failure);
+                break;
+
+            case ImageRepresentation { IsStatic: false } animated:
+                attempt.Dispose();
+                Hand(job, animated);
+                break;
+
+            case ImageRepresentation image when attempt.Uploaded is not null:
+                Cache(job, attempt, image);
+                break;
+
+            case ImageRepresentation skipped:
+                skipped.Dispose();
+                Stop(job, attempt);
+                break;
+
+            default:
+                Stop(job, attempt);
+                break;
+        }
+    }
+
+    // Stopped because nobody wanted it anymore, or skipped as a preload that would not be kept.
+    // Whoever asked for it since then still gets it.
+    private void Stop(Job job, Attempt attempt)
+    {
+        attempt.Dispose();
+        if (job.Subscriptions.Count > 0 && (attempt.IsCancelled || job.Priority > ImagePriority.Preload))
+        {
+            Start(job);
         }
         else
         {
-            Cache(job, attempt, image);
+            Remove(job);
         }
     }
 
@@ -314,6 +332,8 @@ internal sealed class ImagePipeline : IImagePipeline, IDisposable
 
         return highest;
     }
+
+    private union LoadOutcome(ImageRepresentation, Exception);
 
     private sealed class Store(IImageSource source, RenderBitmapCache cache) : IDisposable
     {

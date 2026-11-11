@@ -1,7 +1,6 @@
 using Dameview.Commands;
 using Dameview.Navigation;
 using Dameview.Diagnostics;
-using Dameview.Serialization;
 using Dameview.Win32;
 
 namespace Dameview.Settings;
@@ -79,39 +78,39 @@ internal sealed record AppSettings
             || !Enum.IsDefined(GalleryPlacement)
             || !Enum.IsDefined(GalleryThumbnailSize))
         {
-            throw new IniFormatException("Unknown settings value.");
+            throw new ArgumentException("Unknown settings value.");
         }
 
         if (!Enum.IsDefined(Logging.Level))
         {
-            throw new IniFormatException("Unknown log level.");
+            throw new ArgumentException("Unknown log level.");
         }
 
         if (!float.IsFinite(GallerySizeDips) || GallerySizeDips < MinimumGallerySizeDips)
         {
-            throw new IniFormatException("Gallery size is invalid.");
+            throw new ArgumentException("Gallery size is invalid.");
         }
 
         if (!float.IsFinite(WheelZoomPercent)
             || WheelZoomPercent < MinimumWheelZoomPercent
             || WheelZoomPercent > MaximumWheelZoomPercent)
         {
-            throw new IniFormatException("Wheel zoom is invalid.");
+            throw new ArgumentException("Wheel zoom is invalid.");
         }
 
         if (PreloadAhead is < MinimumPreloadAhead or > MaximumPreloadAhead)
         {
-            throw new IniFormatException("Preload count is invalid.");
+            throw new ArgumentException("Preload count is invalid.");
         }
 
         if (ImageCacheMegabytes is < MinimumImageCacheMegabytes or > MaximumImageCacheMegabytes)
         {
-            throw new IniFormatException("Image cache size is invalid.");
+            throw new ArgumentException("Image cache size is invalid.");
         }
 
         if (Window is { } window && (window.Width < MinimumWindowWidth || window.Height < MinimumWindowHeight))
         {
-            throw new IniFormatException("Window dimensions are too small.");
+            throw new ArgumentException("Window dimensions are too small.");
         }
     }
 }

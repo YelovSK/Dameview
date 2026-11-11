@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using Dameview.Commands;
 using Dameview.Navigation;
-using Dameview.Serialization;
 using Dameview.Settings;
 using Dameview.Win32;
 
@@ -50,7 +49,7 @@ public sealed class SettingsServiceTests
         AppSettings previous = settings.Current;
         string saved = File.ReadAllText(files.Path);
 
-        Assert.ThrowsExactly<IniFormatException>(() => settings.Update(previous with
+        Assert.ThrowsExactly<ArgumentException>(() => settings.Update(previous with
         {
             Window = new WindowPlacementState { Width = width, Height = height },
         }));
@@ -126,6 +125,8 @@ public sealed class SettingsServiceTests
         using SettingsService settings = files.CreateService();
         settings.Start();
         int changes = 0;
+        bool ignoredReported = false;
+        settings.ValuesIgnored += _ => ignoredReported = true;
         int ownerThread = Environment.CurrentManagedThreadId;
         settings.Changed += (previous, current) =>
         {
@@ -140,9 +141,9 @@ public sealed class SettingsServiceTests
         files.PumpUntil(() => changes == 1);
         settings.Update(settings.Current);
         settings.Flush();
-        // Force a later, distinct reload through a malformed file.
-        File.WriteAllText(files.Path, "theme");
-        files.PumpUntil(() => settings.Error is not null);
+        // Force a later, distinct reload that changes no value.
+        File.WriteAllText(files.Path, "theme=light\noops");
+        files.PumpUntil(() => ignoredReported);
         Assert.AreEqual(1, changes);
         Assert.AreEqual(ThemeId.Light, settings.Current.Theme);
     }
@@ -182,21 +183,24 @@ public sealed class SettingsServiceTests
     }
 
     [TestMethod]
-    public void AFileThatCannotBeParsedIsNotOverwritten()
+    public void MalformedLineIsReportedAndKeptBySaves()
     {
         using var files = new SettingsFiles();
-        const string malformed = "theme=light\nnot a setting\n";
-        File.WriteAllText(files.Path, malformed);
+        File.WriteAllText(files.Path, "theme=light\nnot a setting\n");
         using SettingsService settings = files.CreateService();
+        IReadOnlyList<string>? ignored = null;
+        settings.ValuesIgnored += values => ignored = values;
         settings.Start();
-        files.PumpUntil(() => settings.Error is not null);
 
         settings.Update(settings.Current with { Sort = FolderSort.SizeLargest });
         settings.Flush();
 
-        Assert.AreEqual(FolderSort.SizeLargest, settings.Current.Sort);
-        StringAssert.Contains(settings.Error, "Could not save");
-        Assert.AreEqual(malformed, File.ReadAllText(files.Path));
+        Assert.AreEqual(ThemeId.Light, settings.Current.Theme);
+        CollectionAssert.AreEqual(new[] { "line 'not a setting'" }, ignored?.ToArray());
+        Assert.IsNull(settings.Error);
+        string saved = File.ReadAllText(files.Path).ReplaceLineEndings("\n");
+        Assert.Contains("not a setting\n", saved);
+        Assert.Contains("sort=sizeLargest", saved);
     }
 
     [TestMethod]

@@ -103,6 +103,19 @@ public sealed class SettingsIniSerializerTests
     }
 
     [TestMethod]
+    public void MalformedLineCostsOnlyThatLineAndSurvivesASave()
+    {
+        const string existing = "theme=light\noops\n";
+
+        (AppSettings read, IReadOnlyList<string> ignored) = SettingsIniSerializer.Read(existing);
+        string written = SettingsIniSerializer.Write(read with { AnimationsEnabled = false }, existing);
+
+        Assert.AreEqual(ThemeId.Light, read.Theme);
+        CollectionAssert.AreEqual(new[] { "line 'oops'" }, ignored.ToArray());
+        Assert.Contains("\noops\n", written.ReplaceLineEndings("\n"));
+    }
+
+    [TestMethod]
     public void MissingTopLevelKeysAreAddedAboveTheFirstSection()
     {
         const string existing = "[logging]\nlevel=warning\n";
