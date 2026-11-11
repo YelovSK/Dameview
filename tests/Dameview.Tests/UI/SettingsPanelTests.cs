@@ -150,9 +150,7 @@ public sealed class SettingsPanelTests
         var root = new UiRoot(scene, UiDpi.Default, TestTextLayouts.Shared);
         root.Arrange(new SizeF(440.0f, 460.0f));
         root.SetFocus(settings.InitialFocus);
-        settings.ApplyUpdateState(new UpdateState(
-            UpdateStatus.Available,
-            new AppRelease("v2.0.0", new Version(2, 0, 0, 0))));
+        settings.ApplyUpdateState(new UpdateState.Available(new AppRelease("v2.0.0", new Version(2, 0, 0, 0))));
 
         root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);
         root.HandleKey(new WindowKeyEvent(WindowKey.Right), settings, wrapFocus: true, directionalNavigation: true);

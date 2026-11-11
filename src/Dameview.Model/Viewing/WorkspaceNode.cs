@@ -1,6 +1,6 @@
 namespace Dameview.Viewing;
 
-internal abstract class WorkspaceNode
+internal closed class WorkspaceNode
 {
     /// <summary>Every pane under this node, first to last.</summary>
     internal abstract IEnumerable<ViewerPane> Panes { get; }

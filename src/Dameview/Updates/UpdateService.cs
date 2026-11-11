@@ -21,12 +21,12 @@ internal sealed class UpdateService
         _client = client;
         _uiContext = uiContext;
         _currentVersion = currentVersion;
-        State = new UpdateState(installKind switch
+        State = installKind switch
         {
-            AppInstallKind.Installed when currentVersion is not null => UpdateStatus.Idle,
-            AppInstallKind.Package => UpdateStatus.ManagedByPackage,
-            _ => UpdateStatus.Unavailable,
-        });
+            AppInstallKind.Installed when currentVersion is not null => new UpdateState.Idle(),
+            AppInstallKind.Package => new UpdateState.ManagedByPackage(),
+            _ => new UpdateState.Unavailable(),
+        };
     }
 
     internal event Action<UpdateState>? Changed;
@@ -42,7 +42,7 @@ internal sealed class UpdateService
     /// </summary>
     internal void CheckInBackgroundIfDue(DateTimeOffset lastCheck, DateTimeOffset now)
     {
-        if (State.Status is UpdateStatus.Idle or UpdateStatus.Current
+        if (State is UpdateState.Idle or UpdateState.Current
             && now - lastCheck >= BackgroundCheckInterval)
         {
             Check(inBackground: true);
@@ -51,11 +51,17 @@ internal sealed class UpdateService
 
     internal void Activate()
     {
-        if (State is { Status: UpdateStatus.Available or UpdateStatus.Failed, Release: { } release })
+        AppRelease? release = State switch
+        {
+            UpdateState.Available available => available.Release,
+            UpdateState.Failed failed => failed.Release,
+            _ => null,
+        };
+        if (release is not null)
         {
             Download(release);
         }
-        else if (State.Status is UpdateStatus.Idle or UpdateStatus.Current or UpdateStatus.Failed)
+        else if (State is UpdateState.Idle or UpdateState.Current or UpdateState.Failed)
         {
             Check(inBackground: false);
         }
@@ -68,17 +74,17 @@ internal sealed class UpdateService
             return;
         }
 
-        SetState(new UpdateState(UpdateStatus.Checking));
+        SetState(new UpdateState.Checking());
         Log.Debug("Updates", "Checking for updates.");
         _ = Task.Run(() =>
         {
             try
             {
                 AppRelease release = _client.GetLatestRelease();
-                UpdateStatus status = release.Version > _currentVersion
-                    ? UpdateStatus.Available
-                    : UpdateStatus.Current;
-                if (status == UpdateStatus.Available)
+                UpdateState state = release.Version > _currentVersion
+                    ? new UpdateState.Available(release)
+                    : new UpdateState.Current(release);
+                if (state is UpdateState.Available)
                 {
                     Log.Info("Updates", $"Update available: {release.Version}.");
                 }
@@ -88,8 +94,8 @@ internal sealed class UpdateService
                 }
                 PostToUi(() =>
                 {
-                    SetState(new UpdateState(status, release));
-                    if (inBackground && status == UpdateStatus.Available)
+                    SetState(state);
+                    if (inBackground && state is UpdateState.Available)
                     {
                         FoundInBackground?.Invoke(release);
                     }
@@ -98,7 +104,7 @@ internal sealed class UpdateService
             catch (Exception exception) when (inBackground)
             {
                 Log.Warning("Updates", $"Could not check for updates in the background: {exception.Message}");
-                PostToUi(() => SetState(new UpdateState(UpdateStatus.Idle)));
+                PostToUi(() => SetState(new UpdateState.Idle()));
             }
             catch (Exception exception)
             {
@@ -109,7 +115,7 @@ internal sealed class UpdateService
 
     private void Download(AppRelease release)
     {
-        SetState(new UpdateState(UpdateStatus.Downloading, release));
+        SetState(new UpdateState.Downloading(release));
         Log.Info("Updates", $"Downloading update {release.Version}.");
         _ = Task.Run(() =>
         {
@@ -131,25 +137,19 @@ internal sealed class UpdateService
         try
         {
             UpdateDownloaded?.Invoke(path);
-            SetState(new UpdateState(UpdateStatus.Applying, release));
+            SetState(new UpdateState.Applying(release));
         }
         catch (Exception exception)
         {
             Log.Error("Updates", "Could not start the update.", exception);
-            SetState(new UpdateState(
-                UpdateStatus.Failed,
-                release,
-                Error: $"Could not start the update: {exception.Message}"));
+            SetState(new UpdateState.Failed($"Could not start the update: {exception.Message}", release));
         }
     }
 
     private void PostFailure(string operation, Exception exception, AppRelease? release = null)
     {
         Log.Error("Updates", operation + ".", exception);
-        PostToUi(() => SetState(new UpdateState(
-            UpdateStatus.Failed,
-            release,
-            Error: $"{operation}: {exception.Message}")));
+        PostToUi(() => SetState(new UpdateState.Failed($"{operation}: {exception.Message}", release)));
     }
 
     private void SetState(UpdateState state)

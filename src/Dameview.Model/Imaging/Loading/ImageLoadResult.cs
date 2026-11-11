@@ -1,6 +1,6 @@
 namespace Dameview.Imaging.Loading;
 
-internal abstract record ImageLoadResult(string Path);
+internal closed record ImageLoadResult(string Path);
 
 // Ownership transfers to the receiver when this result is delivered.
 internal sealed record ImageLoaded(

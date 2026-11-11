@@ -391,13 +391,13 @@ internal sealed class DameviewApp : IAppActions, ICommandHost, IDisposable
     {
         // The settings panel shows the whole story, but a failure has to reach someone
         // who asked for an update and then closed it.
-        if (state.Status == UpdateStatus.Failed)
+        if (state is UpdateState.Failed failed)
         {
-            _toasts.Notify(state.Error ?? "The update failed.", ToastSeverity.Error);
+            _toasts.Notify(failed.Error, ToastSeverity.Error);
         }
 
         // Only a check that got an answer counts, so a failed one is retried at the next chance.
-        if (state.Status is UpdateStatus.Current or UpdateStatus.Available)
+        if (state is UpdateState.Current or UpdateState.Available)
         {
             UpdateSettings(settings => settings with { LastUpdateCheck = DateTimeOffset.UtcNow });
         }

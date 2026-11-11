@@ -429,24 +429,17 @@ internal sealed unsafe class AppWindow : IDisposable
         // Registering initializes OLE, which the first frame shouldn't wait for.
         RegisterFileDropTarget();
 
-        bool quit = false;
-        while (!quit)
+        pump: while (true)
         {
             while (PeekMessage(out MSG message, default, 0, 0, PEEK_MESSAGE_REMOVE_TYPE.PM_REMOVE))
             {
                 if (message.message == WM_QUIT)
                 {
-                    quit = true;
-                    break;
+                    break pump;
                 }
 
                 TranslateMessage(in message);
                 DispatchMessage(in message);
-            }
-
-            if (quit)
-            {
-                break;
             }
 
             WAIT_EVENT waitResult = NativeMethods.WaitForMessageOrHandle(

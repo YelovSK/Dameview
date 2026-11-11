@@ -267,7 +267,7 @@ internal sealed class WorkspaceDragController
     }
 
     // The image path is what the drag shows a thumbnail of.
-    private abstract record WorkspaceDragPayload(string Label, string? ImagePath);
+    private closed record WorkspaceDragPayload(string Label, string? ImagePath);
 
     private sealed record TabDragPayload(ViewerPane SourcePane, ViewerTab Tab, string TabLabel, string? TabPath)
         : WorkspaceDragPayload(TabLabel, TabPath);

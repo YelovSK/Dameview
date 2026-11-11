@@ -16,7 +16,7 @@ public sealed class UpdateServiceTests
 
         service.Activate();
 
-        Assert.AreEqual(UpdateStatus.Unavailable, service.State.Status);
+        Assert.IsInstanceOfType<UpdateState.Unavailable>(service.State);
         Assert.AreEqual(0, client.CheckCount);
     }
 
@@ -33,7 +33,7 @@ public sealed class UpdateServiceTests
         service.Activate();
         service.CheckInBackgroundIfDue(DateTimeOffset.MinValue, DateTimeOffset.UtcNow);
 
-        Assert.AreEqual(UpdateStatus.ManagedByPackage, service.State.Status);
+        Assert.IsInstanceOfType<UpdateState.ManagedByPackage>(service.State);
         Assert.AreEqual(0, client.CheckCount);
     }
 
@@ -50,11 +50,11 @@ public sealed class UpdateServiceTests
         service.Activate();
         DispatchNext(queue);
 
-        Assert.AreEqual(UpdateStatus.Available, service.State.Status);
+        Assert.IsInstanceOfType<UpdateState.Available>(service.State);
         service.Activate();
         DispatchNext(queue);
 
-        Assert.AreEqual(UpdateStatus.Applying, service.State.Status);
+        Assert.IsInstanceOfType<UpdateState.Applying>(service.State);
         Assert.AreEqual(client.DownloadPath, downloadedPath);
         Assert.AreEqual(1, client.CheckCount);
         Assert.AreEqual(1, client.DownloadCount);
@@ -71,7 +71,7 @@ public sealed class UpdateServiceTests
         service.Activate();
         DispatchNext(queue);
 
-        Assert.AreEqual(UpdateStatus.Current, service.State.Status);
+        Assert.IsInstanceOfType<UpdateState.Current>(service.State);
         Assert.AreEqual(0, client.DownloadCount);
     }
 
@@ -92,7 +92,7 @@ public sealed class UpdateServiceTests
         service.CheckInBackgroundIfDue(now - UpdateService.BackgroundCheckInterval, now);
         DispatchNext(queue);
 
-        Assert.AreEqual(UpdateStatus.Available, service.State.Status);
+        Assert.IsInstanceOfType<UpdateState.Available>(service.State);
         Assert.AreSame(release, found);
     }
 
@@ -109,8 +109,7 @@ public sealed class UpdateServiceTests
         service.CheckInBackgroundIfDue(DateTimeOffset.MinValue, DateTimeOffset.UtcNow);
         DispatchNext(queue);
 
-        Assert.AreEqual(UpdateStatus.Idle, service.State.Status);
-        Assert.IsNull(service.State.Error);
+        Assert.IsInstanceOfType<UpdateState.Idle>(service.State);
     }
 
     private static void DispatchNext(ConcurrentQueue<Action> queue)

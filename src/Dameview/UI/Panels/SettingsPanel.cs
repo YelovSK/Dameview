@@ -295,7 +295,7 @@ internal sealed class SettingsPanel : ModalContent
 
         SelectTab(SettingsTab.Appearance);
         ApplySettings(new AppSettings());
-        ApplyUpdateState(new UpdateState(UpdateStatus.Unavailable));
+        ApplyUpdateState(new UpdateState.Unavailable());
     }
 
     internal override SizeF PreferredSize => new(600.0f, 500.0f);
@@ -329,32 +329,31 @@ internal sealed class SettingsPanel : ModalContent
 
     internal void ApplyUpdateState(UpdateState state)
     {
-        _updateStatus.Tone = state.Status == UpdateStatus.Failed
+        _updateStatus.Tone = state is UpdateState.Failed
             ? UiTextTone.Error
             : UiTextTone.Secondary;
-        _updateButton.IsVisible = state.Status is not (UpdateStatus.Unavailable or UpdateStatus.ManagedByPackage);
+        _updateButton.IsVisible = state is not (UpdateState.Unavailable or UpdateState.ManagedByPackage);
         _autoUpdateCheckToggle.IsVisible = _updateButton.IsVisible;
-        _updateButton.IsEnabled = state.Status is UpdateStatus.Idle
-            or UpdateStatus.Current
-            or UpdateStatus.Available
-            or UpdateStatus.Failed;
+        _updateButton.IsEnabled = state is UpdateState.Idle
+            or UpdateState.Current
+            or UpdateState.Available
+            or UpdateState.Failed;
 
-        (_updateStatus.Text, _updateButton.Label) = state.Status switch
+        (_updateStatus.Text, _updateButton.Label) = state switch
         {
-            UpdateStatus.Unavailable => (
+            UpdateState.Unavailable => (
                 "Updates are only available when running the installed copy of Dameview.",
                 "Check for updates"),
-            UpdateStatus.ManagedByPackage => (
+            UpdateState.ManagedByPackage => (
                 "Dameview is updated by the Microsoft Store.",
                 "Check for updates"),
-            UpdateStatus.Idle => ("Check whether a newer Dameview release is available.", "Check for updates"),
-            UpdateStatus.Checking => ("Checking for updates…", "Checking…"),
-            UpdateStatus.Current => ($"Dameview {state.Release?.Tag} is up to date.", "Check again"),
-            UpdateStatus.Available => ($"Dameview {state.Release?.Tag} is available.", $"Update to {state.Release?.Tag}"),
-            UpdateStatus.Downloading => ($"Downloading Dameview {state.Release?.Tag}…", "Downloading…"),
-            UpdateStatus.Applying => ("Restarting Dameview to apply the update…", "Restarting…"),
-            UpdateStatus.Failed => (state.Error ?? "The update failed.", "Try again"),
-            _ => throw new InvalidOperationException("Unknown update status."),
+            UpdateState.Idle => ("Check whether a newer Dameview release is available.", "Check for updates"),
+            UpdateState.Checking => ("Checking for updates…", "Checking…"),
+            UpdateState.Current(var release) => ($"Dameview {release.Tag} is up to date.", "Check again"),
+            UpdateState.Available(var release) => ($"Dameview {release.Tag} is available.", $"Update to {release.Tag}"),
+            UpdateState.Downloading(var release) => ($"Downloading Dameview {release.Tag}…", "Downloading…"),
+            UpdateState.Applying => ("Restarting Dameview to apply the update…", "Restarting…"),
+            UpdateState.Failed(var error, _) => (error, "Try again"),
         };
         InvalidateLayout();
     }

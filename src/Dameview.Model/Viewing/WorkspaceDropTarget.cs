@@ -1,6 +1,6 @@
 namespace Dameview.Viewing;
 
-internal abstract record WorkspaceDropTarget(ViewerPane Pane);
+internal closed record WorkspaceDropTarget(ViewerPane Pane);
 
 internal sealed record WorkspaceTabDropTarget(ViewerPane Pane, int InsertionIndex)
     : WorkspaceDropTarget(Pane);

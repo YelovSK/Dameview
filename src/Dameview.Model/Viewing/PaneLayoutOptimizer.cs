@@ -130,7 +130,6 @@ internal static class PaneLayoutOptimizer
                 OptimizeExisting(split.First, imageSizes),
                 OptimizeExisting(split.Second, imageSizes),
                 split.Orientation),
-            _ => throw new InvalidOperationException($"Unsupported workspace node: {node.GetType().Name}."),
         };
     }
 
@@ -349,7 +348,6 @@ internal static class PaneLayoutOptimizer
             CloneLayout(split.First),
             CloneLayout(split.Second),
             split.Ratio),
-        _ => throw new InvalidOperationException($"Unsupported workspace node: {node.GetType().Name}."),
     };
 
     private static IEnumerable<WorkspaceSplit> EnumerateSplits(WorkspaceNode node)
