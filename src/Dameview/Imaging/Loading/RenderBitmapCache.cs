@@ -10,7 +10,7 @@ namespace Dameview.Imaging.Loading;
 internal sealed class RenderBitmapCache : IDisposable
 {
     private readonly Dictionary<string, LinkedListNode<CachedBitmap>> _entries =
-        new(StringComparer.OrdinalIgnoreCase);
+        [with(StringComparer.OrdinalIgnoreCase)];
     private readonly LinkedList<CachedBitmap> _recentlyUsed = new();
     private readonly Action<ID2D1Bitmap1> _disposeBitmap;
     private long _capacityBytes;

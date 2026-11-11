@@ -40,10 +40,10 @@ internal sealed class GalleryPanel : UiElement, IDisposable
     private readonly Button _recenterButton;
     private readonly TextInput _searchInput;
     private readonly Dictionary<string, GalleryItemSlot> _slots =
-        new(StringComparer.OrdinalIgnoreCase);
+        [with(StringComparer.OrdinalIgnoreCase)];
     // A scratch buffer, empty between calls. It is a field only so that refreshing on every
     // scrolled frame reuses its capacity instead of allocating a set per frame.
-    private readonly HashSet<string> _visiblePaths = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _visiblePaths = [with(StringComparer.OrdinalIgnoreCase)];
     // A ConditionalWeakTable could tie these states to tab reachability, but explicit
     // disposal keeps this ownership visible and deterministic.
     private readonly Dictionary<ViewerTab, GalleryPanelState> _tabStates = [];

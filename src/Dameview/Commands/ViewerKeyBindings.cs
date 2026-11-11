@@ -42,7 +42,7 @@ internal sealed class ViewerKeyBindings : IEquatable<ViewerKeyBindings>
     internal ViewerKeyBindings WithShortcut(Command command, ViewerCommandShortcut shortcut)
     {
         CommandScope scope = command.Scope;
-        Dictionary<Command, ViewerCommandShortcut[]> shortcuts = new(_shortcuts);
+        Dictionary<Command, ViewerCommandShortcut[]> shortcuts = [with(_shortcuts)];
         foreach (Command holder in _shortcuts.Keys)
         {
             if (holder.Scope == scope)
@@ -64,7 +64,7 @@ internal sealed class ViewerKeyBindings : IEquatable<ViewerKeyBindings>
         Command command,
         IEnumerable<ViewerCommandShortcut> shortcuts)
     {
-        Dictionary<Command, ViewerCommandShortcut[]> updated = new(_shortcuts);
+        Dictionary<Command, ViewerCommandShortcut[]> updated = [with(_shortcuts)];
         ViewerCommandShortcut[] assigned = [.. shortcuts];
 
         // An unbound command holds no entry, so that it compares equal to one that was

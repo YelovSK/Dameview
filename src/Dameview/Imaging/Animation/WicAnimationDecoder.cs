@@ -36,7 +36,7 @@ internal abstract class WicAnimationDecoder : IAnimatedImageDecoder
     {
         private const int QueueCapacity = 2;
         private readonly Lock _stateLock = new();
-        private readonly BlockingCollection<AnimationFrame> _frames = new(QueueCapacity);
+        private readonly BlockingCollection<AnimationFrame> _frames = [with(QueueCapacity)];
         private readonly CancellationTokenSource _cancellation = new();
         private readonly int _frameCount;
         private readonly int _loopCount;

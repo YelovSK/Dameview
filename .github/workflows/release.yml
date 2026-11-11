@@ -21,6 +21,11 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
 
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
       - name: Show .NET SDK
         run: dotnet --version
 

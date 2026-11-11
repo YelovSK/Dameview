@@ -13,7 +13,7 @@ internal sealed class FolderSortMemory
     private const string FolderOnly = "folder";
     private const string WithSubfolders = "subfolders";
 
-    private readonly Dictionary<string, Entry> _entries = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Entry> _entries = [with(StringComparer.OrdinalIgnoreCase)];
     private readonly Dictionary<string, Entry>.AlternateLookup<ReadOnlySpan<char>> _lookup;
     private long _lastUse;
 
