@@ -333,7 +333,7 @@ internal sealed class ImagePipeline : IImagePipeline, IDisposable
         return highest;
     }
 
-    private union LoadOutcome(ImageRepresentation, Exception);
+    private readonly union LoadOutcome(ImageRepresentation, Exception);
 
     private sealed class Store(IImageSource source, RenderBitmapCache cache) : IDisposable
     {

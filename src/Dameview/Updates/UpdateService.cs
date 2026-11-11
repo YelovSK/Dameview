@@ -78,39 +78,49 @@ internal sealed class UpdateService
         Log.Debug("Updates", "Checking for updates.");
         _ = Task.Run(() =>
         {
+            ReleaseResult result;
             try
             {
-                AppRelease release = _client.GetLatestRelease();
-                UpdateState state = release.Version > _currentVersion
-                    ? new UpdateState.Available(release)
-                    : new UpdateState.Current(release);
-                if (state is UpdateState.Available)
-                {
-                    Log.Info("Updates", $"Update available: {release.Version}.");
-                }
-                else
-                {
-                    Log.Debug("Updates", "No update available.");
-                }
-                PostToUi(() =>
-                {
-                    SetState(state);
-                    if (inBackground && state is UpdateState.Available)
-                    {
-                        FoundInBackground?.Invoke(release);
-                    }
-                });
-            }
-            catch (Exception exception) when (inBackground)
-            {
-                Log.Warning("Updates", $"Could not check for updates in the background: {exception.Message}");
-                PostToUi(() => SetState(new UpdateState.Idle()));
+                result = _client.GetLatestRelease();
             }
             catch (Exception exception)
             {
-                PostFailure("Could not check for updates", exception);
+                Log.Error("Updates", "Checking for updates threw.", exception);
+                result = new UpdateFailure(exception.Message);
             }
+
+            PostToUi(() => FinishCheck(result, inBackground));
         });
+    }
+
+    private void FinishCheck(ReleaseResult result, bool inBackground)
+    {
+        switch (result)
+        {
+            case AppRelease release when release.Version > _currentVersion:
+                Log.Info("Updates", $"Update available: {release.Version}.");
+                SetState(new UpdateState.Available(release));
+                if (inBackground)
+                {
+                    FoundInBackground?.Invoke(release);
+                }
+
+                break;
+
+            case AppRelease release:
+                Log.Debug("Updates", "No update available.");
+                SetState(new UpdateState.Current(release));
+                break;
+
+            case UpdateFailure failure when inBackground:
+                Log.Warning("Updates", $"Could not check for updates in the background: {failure.Message}");
+                SetState(new UpdateState.Idle());
+                break;
+
+            case UpdateFailure failure:
+                Fail("Could not check for updates", failure);
+                break;
+        }
     }
 
     private void Download(AppRelease release)
@@ -119,17 +129,34 @@ internal sealed class UpdateService
         Log.Info("Updates", $"Downloading update {release.Version}.");
         _ = Task.Run(() =>
         {
+            DownloadResult result;
             try
             {
-                string path = _client.Download(release);
-                Log.Info("Updates", $"Update {release.Version} downloaded.");
-                PostToUi(() => Apply(path, release));
+                result = _client.Download(release);
             }
             catch (Exception exception)
             {
-                PostFailure("Could not download the update", exception, release);
+                Log.Error("Updates", "Downloading the update threw.", exception);
+                result = new UpdateFailure(exception.Message);
             }
+
+            PostToUi(() => FinishDownload(result, release));
         });
+    }
+
+    private void FinishDownload(DownloadResult result, AppRelease release)
+    {
+        switch (result)
+        {
+            case string path:
+                Log.Info("Updates", $"Update {release.Version} downloaded.");
+                Apply(path, release);
+                break;
+
+            case UpdateFailure failure:
+                Fail("Could not download the update", failure, release);
+                break;
+        }
     }
 
     private void Apply(string path, AppRelease release)
@@ -146,10 +173,11 @@ internal sealed class UpdateService
         }
     }
 
-    private void PostFailure(string operation, Exception exception, AppRelease? release = null)
+    private void Fail(string operation, UpdateFailure failure, AppRelease? release = null)
     {
-        Log.Error("Updates", operation + ".", exception);
-        PostToUi(() => SetState(new UpdateState.Failed($"{operation}: {exception.Message}", release)));
+        string message = $"{operation}: {failure.Message}";
+        Log.Error("Updates", message);
+        SetState(new UpdateState.Failed(message, release));
     }
 
     private void SetState(UpdateState state)

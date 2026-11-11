@@ -122,9 +122,9 @@ public sealed class UpdateServiceTests
 
     private sealed class FailingUpdateClient : IUpdateClient
     {
-        public AppRelease GetLatestRelease() => throw new HttpRequestException("Offline.");
+        public ReleaseResult GetLatestRelease() => new UpdateFailure("Offline.");
 
-        public string Download(AppRelease release) => throw new NotSupportedException();
+        public DownloadResult Download(AppRelease release) => throw new NotSupportedException();
     }
 
     private sealed class FakeUpdateClient(AppRelease release) : IUpdateClient
@@ -133,13 +133,13 @@ public sealed class UpdateServiceTests
         internal int CheckCount { get; private set; }
         internal int DownloadCount { get; private set; }
 
-        public AppRelease GetLatestRelease()
+        public ReleaseResult GetLatestRelease()
         {
             CheckCount++;
             return release;
         }
 
-        public string Download(AppRelease requestedRelease)
+        public DownloadResult Download(AppRelease requestedRelease)
         {
             Assert.AreSame(release, requestedRelease);
             DownloadCount++;
