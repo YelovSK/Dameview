@@ -88,7 +88,12 @@ internal sealed class InstallerApp : IDisposable
         {
             if (_request.Action == AppInstallationAction.Uninstall || _confirmingUninstall)
             {
-                AppInstallation.Uninstall();
+                if (AppInstallation.Uninstall() == UninstallResult.InUse)
+                {
+                    _ui.ShowError(AppInstallation.InUseMessage);
+                    return;
+                }
+
                 _uninstallComplete = true;
                 _ui.ShowUninstallComplete();
                 return;

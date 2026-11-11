@@ -28,7 +28,13 @@ internal readonly record struct AppInstallationRequest(
     string CurrentVersion,
     string? InstalledVersion);
 
-internal sealed class AppInUseException() : InvalidOperationException("Close Dameview before uninstalling.");
+internal enum UninstallResult
+{
+    Uninstalled,
+
+    /// <summary>The installed copy is running, so nothing was removed.</summary>
+    InUse,
+}
 
 internal static class AppInstallation
 {
@@ -39,6 +45,8 @@ internal static class AppInstallation
 
     // Lets a script tell "close Dameview first" apart from other failures.
     private const int AppInUseExitCode = 2;
+
+    internal const string InUseMessage = "Close Dameview before uninstalling.";
 
     private static readonly InstalledProgramRegistration InstalledProgram = new("Dameview");
     private static readonly FileAssociationRegistration FileAssociations = new("Dameview", "Dameview.Image");
@@ -82,7 +90,12 @@ internal static class AppInstallation
         {
             if (action == AppInstallationAction.Uninstall)
             {
-                Uninstall();
+                if (Uninstall() == UninstallResult.InUse)
+                {
+                    Log.Warning("Installation", InUseMessage);
+                    return AppInUseExitCode;
+                }
+
                 DeleteInstalledFilesAfterExit();
             }
             else
@@ -92,11 +105,6 @@ internal static class AppInstallation
 
             Log.Info("Installation", $"Silent {action} completed.");
             return 0;
-        }
-        catch (AppInUseException exception)
-        {
-            Log.Warning("Installation", exception.Message);
-            return AppInUseExitCode;
         }
         catch (Exception exception)
         {
@@ -251,11 +259,11 @@ internal static class AppInstallation
         });
     }
 
-    internal static void Uninstall()
+    internal static UninstallResult Uninstall()
     {
         if (IsInstalledCopyRunning())
         {
-            throw new AppInUseException();
+            return UninstallResult.InUse;
         }
 
         string shortcutPath = GetStartMenuShortcutPath();
@@ -266,6 +274,7 @@ internal static class AppInstallation
 
         FileAssociations.Unregister();
         InstalledProgram.Unregister();
+        return UninstallResult.Uninstalled;
     }
 
     internal static void DeleteInstalledFilesAfterExit()

@@ -8,6 +8,13 @@ internal enum SingleInstanceCommand : ulong
     Open = 2,
 }
 
+internal sealed record ForwardedToRunningCopy;
+
+// Another copy holds the instance, but its window never answered.
+internal sealed record RunningCopyUnreachable;
+
+internal readonly union SingleInstanceResult(SingleInstanceHost, ForwardedToRunningCopy, RunningCopyUnreachable);
+
 internal sealed class SingleInstanceHost : IDisposable
 {
     private const string MutexName = @"Local\Dameview.Instance";
@@ -18,7 +25,7 @@ internal sealed class SingleInstanceHost : IDisposable
 
     private SingleInstanceHost(Mutex mutex) => _mutex = mutex;
 
-    internal static SingleInstanceHost? AcquireOrForward(IReadOnlyList<string> paths)
+    internal static SingleInstanceResult AcquireOrForward(IReadOnlyList<string> paths)
     {
         var mutex = new Mutex(initiallyOwned: true, MutexName, out bool createdNew);
         if (createdNew)
@@ -27,13 +34,12 @@ internal sealed class SingleInstanceHost : IDisposable
         }
 
         mutex.Dispose();
-        Forward(paths);
-        return null;
+        return TryForward(paths) ? new ForwardedToRunningCopy() : new RunningCopyUnreachable();
     }
 
     public void Dispose() => _mutex.Dispose();
 
-    private static void Forward(IReadOnlyList<string> paths)
+    private static bool TryForward(IReadOnlyList<string> paths)
     {
         nuint command = paths.Count == 0
             ? (nuint)SingleInstanceCommand.Activate
@@ -44,12 +50,12 @@ internal sealed class SingleInstanceHost : IDisposable
         {
             if (WindowCopyData.TrySend(AppWindow.WindowClassName, command, payload))
             {
-                return;
+                return true;
             }
 
             Thread.Sleep(ForwardRetryDelayMilliseconds);
         }
 
-        throw new IOException("Could not find the running Dameview window.");
+        return false;
     }
 }

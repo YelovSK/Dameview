@@ -52,17 +52,31 @@ internal static class Program
             StartupTrace.Mark("mode");
             AppSettings startupSettings = SettingsService.LoadForStartup();
             StartupTrace.Mark("settings");
-            using SingleInstanceHost? instance = startupSettings.SingleInstance
-                ? SingleInstanceHost.AcquireOrForward(args)
-                : null;
-            if (instance is null && startupSettings.SingleInstance)
+            SingleInstanceHost? instance = null;
+            if (startupSettings.SingleInstance)
             {
-                return 0;
+                switch (SingleInstanceHost.AcquireOrForward(args))
+                {
+                    case SingleInstanceHost acquired:
+                        instance = acquired;
+                        break;
+
+                    case ForwardedToRunningCopy:
+                        return 0;
+
+                    case RunningCopyUnreachable:
+                        Log.Warning("App", "The running copy did not answer, so this one opens its own window.");
+                        break;
+                }
             }
 
-            StartupTrace.Mark("instance");
-            using var app = new DameviewApp(startupSettings);
-            app.Run(args);
+            using (instance)
+            {
+                StartupTrace.Mark("instance");
+                using var app = new DameviewApp(startupSettings);
+                app.Run(args);
+            }
+
             return 0;
         }
         catch (Exception exception)
